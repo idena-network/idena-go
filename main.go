@@ -2,15 +2,29 @@ package main
 
 import (
 	"fmt"
-	"github.com/google/keytransparency/core/crypto/vrf/p256"
-	"idena-go/p2p"
+	"idena-go/crypto/vrf/p256"
 )
 
 
 func main() {
-	var p p2p.Server
-	p256.GenerateKey()
-	go p.Start()
-	fmt.Scanln()
-	fmt.Println(p)
+	//var p p2p.Server
+
+	sk, pk := p256.GenerateKey()
+
+	data := []byte{0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2}
+
+	k, _ := p256.NewVRFSigner(sk.(*p256.PrivateKey).PrivateKey)
+
+	fmt.Println(k);
+
+	h1, proof := sk.Evaluate(data)
+
+	h2, _ :=pk.ProofToHash(data, proof)
+
+	fmt.Println(h1);
+	fmt.Println(h2);
+
+	//go p.Start()
+	//fmt.Scanln()
+	//fmt.Println(p)
 }
