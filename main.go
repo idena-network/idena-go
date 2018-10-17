@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"fmt"
+	"idena-go/crypto"
 	"idena-go/crypto/vrf/p256"
 )
 
@@ -9,20 +11,22 @@ import (
 func main() {
 	//var p p2p.Server
 
-	sk, pk := p256.GenerateKey()
+
+	sk, _ := crypto.GenerateKey()
 
 	data := []byte{0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2}
 
-	k, _ := p256.NewVRFSigner(sk.(*p256.PrivateKey).PrivateKey)
+	k, _ := p256.NewVRFSigner(sk)
 
-	fmt.Println(k);
+	pk, _ := p256.NewVRFVerifier(sk.Public().(*ecdsa.PublicKey))
 
-	h1, proof := sk.Evaluate(data)
+	h1, proof := k.Evaluate(data)
 
 	h2, _ :=pk.ProofToHash(data, proof)
 
 	fmt.Println(h1);
 	fmt.Println(h2);
+
 
 	//go p.Start()
 	//fmt.Scanln()

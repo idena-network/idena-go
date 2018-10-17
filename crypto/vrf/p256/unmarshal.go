@@ -60,15 +60,23 @@ func Unmarshal(curve elliptic.Curve, data []byte) (x, y *big.Int) {
 func y2(curve *elliptic.CurveParams, x *big.Int) *big.Int {
 
 	// y² = x³ - 3x + b
+	// x3 := new(big.Int).Mul(x, x)
+	// x3.Mul(x3, x)
+
+	// threeX := new(big.Int).Lsh(x, 1)
+	// threeX.Add(threeX, x)
+
+	// x3.Sub(x3, threeX)
+	// x3.Add(x3, curve.B)
+	// x3.Mod(x3, curve.P)
+
+	// change to bitelliptic : y² = x³ + b
 	x3 := new(big.Int).Mul(x, x)
 	x3.Mul(x3, x)
 
-	threeX := new(big.Int).Lsh(x, 1)
-	threeX.Add(threeX, x)
-
-	x3.Sub(x3, threeX)
 	x3.Add(x3, curve.B)
 	x3.Mod(x3, curve.P)
+
 	return x3
 }
 
