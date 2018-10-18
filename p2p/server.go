@@ -890,7 +890,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *enode.Node) 
 	return err
 }
 
-func (srv *Server) setupConn(c *conn, flags connFlag, dialDest *enode.Node) error {
+func (srv *Server) setupConn(connection *conn, flags connFlag, dialDest *enode.Node) error {
 	// Prevent leftover pending conns from entering the handshake.
 	srv.lock.Lock()
 	running := srv.running
@@ -907,9 +907,9 @@ func (srv *Server) setupConn(c *conn, flags connFlag, dialDest *enode.Node) erro
 		}
 	}
 	// Run the encryption handshake.
-	remotePubkey, err := c.doEncHandshake(srv.PrivateKey, dialPubkey)
+	remotePubkey, err := connection.doEncHandshake(srv.PrivateKey, dialPubkey)
 	if err != nil {
-		srv.log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
+		srv.log.Trace("Failed RLPx handshake", "addr", connection.fd.RemoteAddr(), "conn", connection.flags, "err", err)
 		return err
 	}
 	if dialDest != nil {
@@ -917,31 +917,31 @@ func (srv *Server) setupConn(c *conn, flags connFlag, dialDest *enode.Node) erro
 		if dialPubkey.X.Cmp(remotePubkey.X) != 0 || dialPubkey.Y.Cmp(remotePubkey.Y) != 0 {
 			return DiscUnexpectedIdentity
 		}
-		c.node = dialDest
+		connection.node = dialDest
 	} else {
-		c.node = nodeFromConn(remotePubkey, c.fd)
+		connection.node = nodeFromConn(remotePubkey, connection.fd)
 	}
-	if conn, ok := c.fd.(*meteredConn); ok {
-		conn.handshakeDone(c.node.ID())
+	if conn, ok := connection.fd.(*meteredConn); ok {
+		conn.handshakeDone(connection.node.ID())
 	}
-	clog := srv.log.New("id", c.node.ID(), "addr", c.fd.RemoteAddr(), "conn", c.flags)
-	err = srv.checkpoint(c, srv.posthandshake)
+	clog := srv.log.New("id", connection.node.ID(), "addr", connection.fd.RemoteAddr(), "conn", connection.flags)
+	err = srv.checkpoint(connection, srv.posthandshake)
 	if err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
 		return err
 	}
 	// Run the protocol handshake
-	phs, err := c.doProtoHandshake(srv.ourHandshake)
+	phs, err := connection.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		return err
 	}
-	if id := c.node.ID(); !bytes.Equal(crypto.Keccak256(phs.ID), id[:]) {
+	if id := connection.node.ID(); !bytes.Equal(crypto.Keccak256(phs.ID), id[:]) {
 		clog.Trace("Wrong devp2p handshake identity", "phsid", fmt.Sprintf("%x", phs.ID))
 		return DiscUnexpectedIdentity
 	}
-	c.caps, c.name = phs.Caps, phs.Name
-	err = srv.checkpoint(c, srv.addpeer)
+	connection.caps, connection.name = phs.Caps, phs.Name
+	err = srv.checkpoint(connection, srv.addpeer)
 	if err != nil {
 		clog.Trace("Rejected peer", "err", err)
 		return err
