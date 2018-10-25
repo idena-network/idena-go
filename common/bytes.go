@@ -17,7 +17,12 @@
 // Package common contains various helper functions.
 package common
 
-import "encoding/hex"
+import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+)
 
 // ToHex returns the hex representation of b, prefixed with '0x'.
 // For empty slices, the return value is "0x0".
@@ -126,4 +131,13 @@ func LeftPadBytes(slice []byte, l int) []byte {
 	copy(padded[l-len(slice):], slice)
 
 	return padded
+}
+
+func ToBytes(value interface{}) []byte{
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, value)
+	if err != nil {
+		fmt.Println("binary.Write failed:", err)
+	}
+	return buf.Bytes()
 }
