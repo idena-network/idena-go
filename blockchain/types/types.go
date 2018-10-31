@@ -2,6 +2,7 @@ package types
 
 import (
 	"idena-go/common"
+	"idena-go/crypto"
 	"idena-go/crypto/sha3"
 	"idena-go/rlp"
 	"math/big"
@@ -71,11 +72,14 @@ type Transaction struct {
 type Transactions []*Transaction
 
 type Vote struct {
-	Header          *VoteHeader
-	Signature       []byte
+	Header    *VoteHeader
+	Signature []byte
 
 	// caches
 	hash atomic.Value
+
+	// caches
+	addr atomic.Value
 }
 
 func rlpHash(x interface{}) (h common.Hash) {
@@ -148,6 +152,21 @@ func (v *Vote) Hash() common.Hash {
 	h := v.Header.Hash()
 	v.hash.Store(h)
 	return h
+}
+func (v *Vote) VoterAddr() common.Address {
+	if addr := v.addr.Load(); addr != nil {
+		return addr.(common.Address)
+	}
+
+	hash := v.Hash()
+
+	addr := common.Address{}
+	pubKey, err := crypto.Ecrecover(hash[:], v.Signature)
+	if err == nil {
+		addr, _ = crypto.PubKeyBytesToAddress(pubKey)
+	}
+	v.addr.Store(addr)
+	return addr
 }
 
 func (tx *Transaction) Hash() common.Hash {

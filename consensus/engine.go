@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/deckarep/golang-set"
+	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -181,7 +182,27 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 
 	engine.vote(round, ReductionOne, block.Hash())
 
-	return common.Hash{}
+	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
+	hash, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(), engine.config.WaitForStepDelay)
+	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
+
+	emptyBlock := engine.chain.GenerateEmptyBlock()
+
+	if err != nil {
+		hash := emptyBlock.Hash()
+		fmt.Println(hash.Hex())
+	}
+	engine.vote(round, ReductionTwo, hash)
+
+	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
+	hash, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(), engine.config.WaitForStepDelay)
+	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
+
+	if err != nil {
+		hash = emptyBlock.Hash()
+	}
+	engine.log.Info("Reduction completed", "block", hash.Hex(), "isEmpty", hash == emptyBlock.Hash())
+	return hash
 }
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
@@ -209,32 +230,52 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	}
 }
 
-func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) {
+func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, error) {
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	//validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize())
+	validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize())
+
 	for start := time.Now(); time.Since(start) < timeout; {
 		m := engine.votes.GetVotesOfRound(round)
-		if (m != nil) {
+		if m != nil {
+
+			found := false
+			var bestHash common.Hash
+
 			m.Range(func(key, value interface{}) bool {
 				vote := value.(*types.Vote)
 
-				set, ok := byBlock[vote.Header.VotedHash]
+				roundVotes, ok := byBlock[vote.Header.VotedHash]
 				if !ok {
-					set = mapset.NewSet()
-					byBlock[vote.Header.VotedHash] = set
+					roundVotes = mapset.NewSet()
+					byBlock[vote.Header.VotedHash] = roundVotes
 				}
 
-				if !set.Contains(vote.Hash()) {
+				if !roundVotes.Contains(vote.Hash()) {
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
+					if !validators.Contains(vote.VoterAddr()) && validators.Cardinality() > 0 {
+						return true
+					}
+					roundVotes.Add(vote.Hash())
 
+					if roundVotes.Cardinality() >= necessaryVotesCount {
+						found = true
+						engine.log.Info(fmt.Sprintf("Has %v/%v votes", roundVotes.Cardinality(), necessaryVotesCount))
+						bestHash = vote.Header.VotedHash
+						return false
+					}
 				}
 				return true
 			})
+
+			if found {
+				return bestHash, nil
+			}
 		}
 	}
+	return common.Hash{}, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
 }
 
 func (engine *Engine) GetCommitteSize() int {

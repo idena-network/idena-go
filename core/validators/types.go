@@ -1,7 +1,6 @@
 package validators
 
+import "idena-go/common"
 
-type PubKey []byte
 
-
-type ValidNodes = []PubKey
+type ValidNodes = []common.Address

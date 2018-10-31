@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/crypto"
 	"idena-go/crypto/sha3"
 	"idena-go/idenadb"
 	"idena-go/rlp"
@@ -25,18 +26,23 @@ func NewValidatorsSet(db idenadb.Database) *ValidatorsSet {
 	}
 }
 
-func (v *ValidatorsSet) AddValidPubKey(pubKey PubKey) {
-	v.validNodes = sortValidNodes(append(v.validNodes, pubKey))
+func (v *ValidatorsSet) AddValidPubKey(pubKey []byte) error {
+	addr, err := crypto.PubKeyBytesToAddress(pubKey)
+	if err != nil {
+		return err
+	}
+
+	v.validNodes = sortValidNodes(append(v.validNodes, addr))
 	v.db.WriteValidNodes(v.validNodes)
+	return nil
 }
 
 func sortValidNodes(nodes ValidNodes) ValidNodes {
 	sort.SliceStable(nodes, func(i, j int) bool {
-		return bytes.Compare(nodes[i], nodes[j]) > 0
+		return bytes.Compare(nodes[i][:], nodes[j][:]) > 0
 	})
 	return nodes
 }
-
 
 func (v *ValidatorsSet) GetActualValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
 	//TODO: we should use hashable type as key instead of slice
@@ -55,8 +61,13 @@ func (v *ValidatorsSet) GetCountOfValidNodes() int {
 	return len(v.validNodes)
 }
 func (v *ValidatorsSet) Contains(pubKey []byte) bool {
+
+	addr, err := crypto.PubKeyBytesToAddress(pubKey)
+	if err != nil {
+		return false
+	}
 	for _, p := range v.validNodes {
-		if bytes.Compare(p, pubKey) == 0 {
+		if p == addr {
 			return true
 		}
 	}

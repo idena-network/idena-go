@@ -139,6 +139,14 @@ func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
 	return &ecdsa.PublicKey{Curve: S256(), X: x, Y: y}, nil
 }
 
+func PubKeyBytesToAddress(b []byte) (common.Address, error) {
+	p, err := UnmarshalPubkey(b)
+	if err == nil {
+		return PubkeyToAddress(*p), nil
+	}
+	return common.Address{}, nil
+}
+
 func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
