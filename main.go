@@ -51,19 +51,16 @@ func main() {
 	app.Run(os.Args)
 }
 
-
-func getDefaultConsensusConfig() *config.ConsensusConf{
+func getDefaultConsensusConfig() *config.ConsensusConf {
 	return &config.ConsensusConf{
-		MaxSteps:150,
-		FinalCommitteeConsensusTreshold: 0.7,
-		ThesholdBa:0.65,
-		ProposerTheshold:0.95,
-		WaitBlockDelay: time.Minute,
-		WaitSortitionProofDelay: time.Second*5,
-		EstimatedBaVariance: time.Second * 5,
-		WaitForStepDelay: time.Second * 20,
+		MaxSteps:                       150,
+		CommitteePercent:               0.3,  // 30% of valid nodes will be committee members
+		FinalCommitteeConsensusPercent: 0.7,  // 70% of valid nodes will be committee members
+		ThesholdBa:                     0.65, // 65% of committee members should vote for block
+		ProposerTheshold:               0.95,
+		WaitBlockDelay:                 time.Minute,
+		WaitSortitionProofDelay:        time.Second * 5,
+		EstimatedBaVariance:            time.Second * 5,
+		WaitForStepDelay:               time.Second * 20,
 	}
 }
-
-
-

@@ -29,7 +29,6 @@ devp2p subprotocols by abstracting away code standardly shared by protocols.
 package protocols
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -42,9 +41,6 @@ import (
 	"idena-go/metrics"
 	"idena-go/p2p"
 	"idena-go/rlp"
-	"idena-go/swarm/spancontext"
-	"idena-go/swarm/tracing"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // error codes used by this  protocol scheme
@@ -192,9 +188,9 @@ func (s *Spec) NewMsg(code uint64) (interface{}, bool) {
 // Peer represents a remote peer or protocol instance that is running on a peer connection with
 // a remote peer
 type Peer struct {
-	*p2p.Peer                   // the p2p.Peer object representing the remote
-	rw        p2p.MsgReadWriter // p2p.MsgReadWriter to send messages to and read messages from
-	spec      *Spec
+	*p2p.Peer              // the p2p.Peer object representing the remote
+	rw   p2p.MsgReadWriter // p2p.MsgReadWriter to send messages to and read messages from
+	spec *Spec
 }
 
 // NewPeer constructs a new peer
@@ -243,25 +239,25 @@ func (p *Peer) Send(ctx context.Context, msg interface{}) error {
 	metrics.GetOrRegisterCounter("peer.send", nil).Inc(1)
 
 	var b bytes.Buffer
-	if tracing.Enabled {
-		writer := bufio.NewWriter(&b)
-
-		tracer := opentracing.GlobalTracer()
-
-		sctx := spancontext.FromContext(ctx)
-
-		if sctx != nil {
-			err := tracer.Inject(
-				sctx,
-				opentracing.Binary,
-				writer)
-			if err != nil {
-				return err
-			}
-		}
-
-		writer.Flush()
-	}
+	//if tracing.Enabled {
+	//	writer := bufio.NewWriter(&b)
+	//
+	//	tracer := opentracing.GlobalTracer()
+	//
+	//	sctx := spancontext.FromContext(ctx)
+	//
+	//	if sctx != nil {
+	//		err := tracer.Inject(
+	//			sctx,
+	//			opentracing.Binary,
+	//			writer)
+	//		if err != nil {
+	//			return err
+	//		}
+	//	}
+	//
+	//	writer.Flush()
+	//}
 
 	r, err := rlp.EncodeToBytes(msg)
 	if err != nil {
@@ -313,20 +309,20 @@ func (p *Peer) handleIncoming(handle func(ctx context.Context, msg interface{}) 
 
 	// if tracing is enabled and the context coming within the request is
 	// not empty, try to unmarshal it
-	if tracing.Enabled && len(wmsg.Context) > 0 {
-		var sctx opentracing.SpanContext
-
-		tracer := opentracing.GlobalTracer()
-		sctx, err = tracer.Extract(
-			opentracing.Binary,
-			bytes.NewReader(wmsg.Context))
-		if err != nil {
-			log.Error(err.Error())
-			return err
-		}
-
-		ctx = spancontext.WithContext(ctx, sctx)
-	}
+	//if tracing.Enabled && len(wmsg.Context) > 0 {
+	//	var sctx opentracing.SpanContext
+	//
+	//	tracer := opentracing.GlobalTracer()
+	//	sctx, err = tracer.Extract(
+	//		opentracing.Binary,
+	//		bytes.NewReader(wmsg.Context))
+	//	if err != nil {
+	//		log.Error(err.Error())
+	//		return err
+	//	}
+	//
+	//	ctx = spancontext.WithContext(ctx, sctx)
+	//}
 
 	val, ok := p.spec.NewMsg(msg.Code)
 	if !ok {

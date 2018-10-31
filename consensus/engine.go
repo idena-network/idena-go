@@ -7,6 +7,8 @@ import (
 	"idena-go/common"
 	"idena-go/common/hexutil"
 	"idena-go/config"
+	"idena-go/core/state"
+	"idena-go/core/validators"
 	"idena-go/crypto"
 	"idena-go/log"
 	"idena-go/pengings"
@@ -15,24 +17,33 @@ import (
 )
 
 type Engine struct {
-	chain     *blockchain.Blockchain
-	pm        *protocol.ProtocolManager
-	log       log.Logger
-	state     string
-	pubKey    []byte
-	config    *config.ConsensusConf
-	proposals *pengings.Proposals
+	chain      *blockchain.Blockchain
+	pm         *protocol.ProtocolManager
+	log        log.Logger
+	state      string
+	pubKey     []byte
+	config     *config.ConsensusConf
+	proposals  *pengings.Proposals
+	stateDb    state.Database
+	validators *validators.ValidatorsSet
 }
 
-func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf, secretKey *ecdsa.PrivateKey) *Engine {
+func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
+	stateDb state.Database,
+	validators *validators.ValidatorsSet) *Engine {
 	return &Engine{
-		chain:     chain,
-		pm:        pm,
-		log:       log.New(),
-		pubKey:    crypto.FromECDSAPub(secretKey.Public().(*ecdsa.PublicKey)),
-		config:    config,
-		proposals: proposals,
+		chain:      chain,
+		pm:         pm,
+		log:        log.New(),
+		config:     config,
+		proposals:  proposals,
+		stateDb:    stateDb,
+		validators: validators,
 	}
+}
+
+func (engine *Engine) SetPubKey(pubKey *ecdsa.PublicKey) {
+	engine.pubKey = crypto.FromECDSAPub(pubKey)
 }
 
 func (engine *Engine) Start() {
@@ -150,4 +161,26 @@ func (engine *Engine) loadFromPeer(peerId string, height uint64) {
 func (engine *Engine) reduction(block *blockchain.Block) common.Hash {
 	engine.state = "Reduction started"
 	engine.log.Info("Reduction started", block, block.Hash().Hex())
+	return common.Hash{}
+}
+func (engine *Engine) GetCommitteeVotesTreshold() int {
+
+	var cnt = engine.validators.GetCountOfValidNodes()
+
+	switch cnt {
+	case 1:
+		return 1
+	case 2:
+	case 3:
+		return 2
+	case 4:
+	case 5:
+		return 3
+	case 6:
+		return 4
+	case 7:
+	case 8:
+		return 5
+	}
+	return int(float64(cnt) * engine.config.CommitteePercent * engine.config.ThesholdBa)
 }

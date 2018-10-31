@@ -105,7 +105,6 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 	return list
 }
 
-
 // PeersWithoutProof retrieves a list of peers that do not have a given proof hash
 // in their set of known hashes.
 func (ps *peerSet) PeersWithoutProof(hash common.Hash) []*peer {
@@ -120,7 +119,6 @@ func (ps *peerSet) PeersWithoutProof(hash common.Hash) []*peer {
 	}
 	return list
 }
-
 
 func (ps *peerSet) Peers() []*peer {
 	ps.lock.RLock()
@@ -142,4 +140,16 @@ func (ps *peerSet) Close() {
 		p.Disconnect(p2p.DiscQuitting)
 	}
 	ps.closed = true
+}
+func (ps *peerSet) PeersWithoutVote(hash common.Hash) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.knownVotes.Contains(hash) {
+			list = append(list, p)
+		}
+	}
+	return list
 }

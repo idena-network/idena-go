@@ -5,6 +5,7 @@ import (
 	"errors"
 	"idena-go/common"
 	"idena-go/config"
+	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
@@ -87,6 +88,10 @@ func (chain *Blockchain) SetCurrentHead(block *Block) {
 }
 
 func (chain *Blockchain) GenerateGenesis(network Network) *Block {
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(chain.db))
+	root := statedb.IntermediateRoot(false)
+
 	var emptyHash [32]byte
 	seed := Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 	block := Block{Header: &Header{
@@ -95,8 +100,13 @@ func (chain *Blockchain) GenerateGenesis(network Network) *Block {
 
 			Time:   big.NewInt(0),
 			Height: 1,
+			Root:   root,
 		},
 	}, BlockSeed: seed,}
+
+	statedb.Commit(true)
+	statedb.Database().TrieDB().Commit(root, true)
+
 	chain.insertBlock(&block)
 	return &block
 }
@@ -187,7 +197,7 @@ func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 
 	i := new(big.Int).SetBytes(hash[:])
 
-	if f, _ := new(big.Float).Quo(new(big.Float).SetInt(i), MaxHash).Float32(); f >= chain.config.Consensus.ProposerTheshold {
+	if f, _ := new(big.Float).Quo(new(big.Float).SetInt(i), MaxHash).Float64(); f >= chain.config.Consensus.ProposerTheshold {
 		return true, hash, proof
 	}
 	return false, common.Hash{}, nil

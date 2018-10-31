@@ -17,6 +17,7 @@ func (h Seed) Bytes() []byte { return h[:] }
 type EmptyBlockHeader struct {
 	ParentHash common.Hash
 	Height     uint64
+	RootHash   common.Hash
 }
 
 type ProposedHeader struct {
@@ -25,11 +26,19 @@ type ProposedHeader struct {
 	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
+	Root           common.Hash
 }
 
 type Header struct {
 	EmptyBlockHeader *EmptyBlockHeader `rlp:"nil"`
 	ProposedHeader   *ProposedHeader   `rlp:"nil"`
+}
+
+type VoteHeader struct {
+	Round      uint64
+	Step       uint16
+	ParentHash common.Hash
+	VotedHash  common.Hash
 }
 
 type Block struct {
@@ -38,6 +47,15 @@ type Block struct {
 	BlockSeed Seed
 
 	SeedProof []byte
+
+	// caches
+	hash atomic.Value
+}
+
+type Vote struct {
+	Header          VoteHeader
+	CommitteePubKey []byte
+	Signature       []byte
 
 	// caches
 	hash atomic.Value
@@ -99,4 +117,18 @@ func (h *ProposedHeader) Hash() common.Hash {
 }
 func (h *EmptyBlockHeader) Hash() common.Hash {
 	return rlpHash(h)
+}
+
+func (h *VoteHeader) Hash() common.Hash {
+	return rlpHash(h)
+}
+
+func (v *Vote) Hash() common.Hash {
+
+	if hash := v.hash.Load(); hash != nil {
+		return hash.(common.Hash)
+	}
+	h := v.Header.Hash()
+	v.hash.Store(h)
+	return h
 }

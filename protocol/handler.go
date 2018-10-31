@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/common"
@@ -33,6 +32,7 @@ type ProtocolManager struct {
 
 	incomeBlocks chan *blockchain.Block
 	proposals    *pengings.Proposals
+	votes        *pengings.Votes
 }
 
 type getBlockBodyRequest struct {
@@ -55,13 +55,14 @@ type peerHead struct {
 	peer   *peer
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes) *ProtocolManager {
 	return &ProtocolManager{
 		blockchain:   chain,
 		peers:        newPeerSet(),
 		heads:        make(chan *peerHead),
 		incomeBlocks: make(chan *blockchain.Block),
 		proposals:    proposals,
+		votes:        votes,
 	}
 }
 
@@ -115,22 +116,17 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if pm.proposals.AddProposedBlock(&block) {
 			pm.ProposeBlock(&block)
 		}
+	case Vote:
+		var vote blockchain.Vote
+		if err := msg.Decode(&vote); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.markVote(&vote)
+		if pm.votes.AddVote(&vote) {
+			pm.SendVote(&vote)
+		}
 	}
 	return nil
-}
-func (pm *ProtocolManager) makePeer(p *p2p.Peer) *peer {
-	return &peer{
-		Peer:         p,
-		id:           fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownBlocks:  mapset.NewSet(),
-		knownTxs:     mapset.NewSet(),
-		knownVotes:   mapset.NewSet(),
-		queuedTxs:    make(chan struct{}),
-		queuedBlocks: make(chan *blockchain.Block),
-		knownProofs:  mapset.NewSet(),
-		queuedProofs: make(chan *proposeProof),
-		term:         make(chan struct{}),
-	}
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
@@ -214,6 +210,11 @@ func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []
 func (pm *ProtocolManager) ProposeBlock(block *blockchain.Block) {
 	for _, peer := range pm.peers.PeersWithoutBlock(block.Hash()) {
 		peer.ProposeBlockAsync(block)
+	}
+}
+func (pm *ProtocolManager) SendVote(vote *blockchain.Vote) {
+	for _, peer := range pm.peers.PeersWithoutVote(vote.Hash()) {
+		peer.SendVoteAsync(vote)
 	}
 }
 
