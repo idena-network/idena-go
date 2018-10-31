@@ -6,6 +6,7 @@ import (
 	"idena-go/blockchain"
 	"idena-go/common"
 	"idena-go/log"
+	"idena-go/blockchain/types"
 	"sort"
 	"sync"
 	"time"
@@ -32,7 +33,7 @@ type Proposals struct {
 	blocksByRound *sync.Map
 
 	// blocks for future rounds
-	pendingBlocks []*blockchain.Block
+	pendingBlocks []*types.Block
 
 	// lock for pendingProofs
 	pMutex *sync.Mutex
@@ -111,7 +112,7 @@ func (proposals *Proposals) ProcessPengings() []*Proof {
 	return nil
 }
 
-func (proposals *Proposals) AddProposedBlock(block *blockchain.Block) bool {
+func (proposals *Proposals) AddProposedBlock(block *types.Block) bool {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
 		if err := proposals.chain.ValidateProposedBlock(block); err != nil {
@@ -135,14 +136,14 @@ func (proposals *Proposals) AddProposedBlock(block *blockchain.Block) bool {
 	return false
 }
 
-func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte, timeout time.Duration) (*blockchain.Block, error) {
+func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte, timeout time.Duration) (*types.Block, error) {
 	for start := time.Now(); time.Since(start) < timeout; {
 		m, ok := proposals.blocksByRound.Load(round)
 		if ok {
 			round := m.(*sync.Map)
-			var result *blockchain.Block
+			var result *types.Block
 			round.Range(func(key, value interface{}) bool {
-				block := value.(*blockchain.Block)
+				block := value.(*types.Block)
 				if bytes.Compare(block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
 					result = block
 					return false

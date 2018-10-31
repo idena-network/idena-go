@@ -3,7 +3,7 @@ package validators
 import (
 	"bytes"
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/crypto/sha3"
 	"idena-go/idenadb"
@@ -15,13 +15,6 @@ import (
 type ValidatorsSet struct {
 	db         *Validatorsdb
 	validNodes ValidNodes
-}
-
-type iterationData struct {
-	Seed      blockchain.Seed
-	Round     uint64
-	Step      uint16
-	Iteration uint32
 }
 
 func NewValidatorsSet(db idenadb.Database) *ValidatorsSet {
@@ -44,7 +37,9 @@ func sortValidNodes(nodes ValidNodes) ValidNodes {
 	return nodes
 }
 
-func (v *ValidatorsSet) GetActualValidators(seed blockchain.Seed, round uint64, step uint16, limit int) mapset.Set {
+
+func (v *ValidatorsSet) GetActualValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
+	//TODO: we should use hashable type as key instead of slice
 	set := mapset.NewSet()
 	cnt := new(big.Int).SetInt64(int64(len(v.validNodes)))
 	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {
@@ -59,9 +54,17 @@ func (v *ValidatorsSet) GetActualValidators(seed blockchain.Seed, round uint64, 
 func (v *ValidatorsSet) GetCountOfValidNodes() int {
 	return len(v.validNodes)
 }
+func (v *ValidatorsSet) Contains(pubKey []byte) bool {
+	for _, p := range v.validNodes {
+		if bytes.Compare(p, pubKey) == 0 {
+			return true
+		}
+	}
+	return false
+}
 
-func indexGenerator(seed blockchain.Seed, round uint64, step uint16, iteration uint32, maxValue *big.Int) int64 {
-	data := rlpHash(&iterationData{
+func indexGenerator(seed types.Seed, round uint64, step uint16, iteration uint32, maxValue *big.Int) int64 {
+	data := rlpHash([]interface{}{
 		seed, round, step, iteration,
 	})
 	var hash = new(big.Int).SetBytes(data[:])

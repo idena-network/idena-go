@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bytes"
 	"encoding/binary"
+	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/idenadb"
 	"idena-go/log"
@@ -31,12 +32,12 @@ func blockBodyKey(hash common.Hash) []byte {
 	return append(headerPrefix, hash.Bytes()...)
 }
 
-func ReadBlockHeader(db idenadb.Database, hash common.Hash ) *Header{
+func ReadBlockHeader(db idenadb.Database, hash common.Hash ) *types.Header{
 	data, _ :=db.Get(headerKey(hash))
 	if data == nil {
 		return nil
 	}
-	header := new(Header)
+	header := new(types.Header)
 	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
 		log.Error("Invalid block header RLP", "hash", hash, "err", err)
 		return nil
@@ -44,22 +45,22 @@ func ReadBlockHeader(db idenadb.Database, hash common.Hash ) *Header{
 	return header
 }
 
-func ReadBlock (db idenadb.Database, hash common.Hash) *Block{
+func ReadBlock (db idenadb.Database, hash common.Hash) *types.Block{
 	header := ReadBlockHeader(db, hash)
 	if header == nil {
 		return nil
 	}
-	return &Block{
+	return &types.Block{
 		Header : header,
 	}
 }
 
-func ReadHead(db idenadb.Database) *Header{
+func ReadHead(db idenadb.Database) *types.Header{
 	data, _ :=db.Get(headBlockKey)
 	if data == nil {
 		return nil
 	}
-	header := new(Header)
+	header := new(types.Header)
 	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
 		log.Error("Invalid block header RLP",  "err", err)
 		return nil
@@ -68,7 +69,7 @@ func ReadHead(db idenadb.Database) *Header{
 }
 
 
-func WriteHead(db idenadb.Database, header *Header){
+func WriteHead(db idenadb.Database, header *types.Header){
 	// Write the encoded header
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
@@ -80,7 +81,7 @@ func WriteHead(db idenadb.Database, header *Header){
 	}
 }
 
-func WriteBlock(db idenadb.Database, block *Block){
+func WriteBlock(db idenadb.Database, block *types.Block){
 	data, err := rlp.EncodeToBytes(block.Header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)

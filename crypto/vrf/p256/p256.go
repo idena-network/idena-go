@@ -32,7 +32,6 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"idena-go/crypto/secp256k1"
 	"idena-go/crypto/vrf"
 	"io"
@@ -238,10 +237,6 @@ func (pk *PublicKey) ProofToHash(m, proof []byte) (index [32]byte, err error) {
 
 // NewVRFSigner creates a signer object from a private key.
 func NewVRFSigner(key *ecdsa.PrivateKey) (vrf.PrivateKey, error) {
-	kp := *(key.Params());
-	cp := *curve.Params();
-	fmt.Println(kp)
-	fmt.Println(cp)
 	//TODO: for some reason, params are equals, but structs don't
 	//if *(key.Params()) != *curve.Params() {
 	//	return nil, ErrPointNotOnCurve

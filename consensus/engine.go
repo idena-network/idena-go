@@ -3,7 +3,9 @@ package consensus
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/deckarep/golang-set"
 	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
 	"idena-go/config"
@@ -16,6 +18,12 @@ import (
 	"time"
 )
 
+const (
+	ReductionOne = 998
+	ReductionTwo = 999
+	Final        = 1000
+)
+
 type Engine struct {
 	chain      *blockchain.Blockchain
 	pm         *protocol.ProtocolManager
@@ -26,11 +34,14 @@ type Engine struct {
 	proposals  *pengings.Proposals
 	stateDb    state.Database
 	validators *validators.ValidatorsSet
+	secretKey  *ecdsa.PrivateKey
+	votes      *pengings.Votes
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	stateDb state.Database,
-	validators *validators.ValidatorsSet) *Engine {
+	validators *validators.ValidatorsSet,
+	votes *pengings.Votes) *Engine {
 	return &Engine{
 		chain:      chain,
 		pm:         pm,
@@ -39,14 +50,17 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		proposals:  proposals,
 		stateDb:    stateDb,
 		validators: validators,
+		votes:      votes,
 	}
 }
 
-func (engine *Engine) SetPubKey(pubKey *ecdsa.PublicKey) {
-	engine.pubKey = crypto.FromECDSAPub(pubKey)
+func (engine *Engine) SetKey(key *ecdsa.PrivateKey) {
+	engine.secretKey = key
+	engine.pubKey = crypto.FromECDSAPub(key.Public().(*ecdsa.PublicKey))
 }
 
 func (engine *Engine) Start() {
+	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
 	go engine.cycle()
 }
 
@@ -62,7 +76,7 @@ func (engine *Engine) cycle() {
 
 		isProposer, proposerHash, proposerProof := engine.chain.GetProposerSortition()
 
-		var block *blockchain.Block
+		var block *types.Block
 		if isProposer {
 			engine.state = "Propose block"
 			block = engine.proposeBlock(proposerHash, proposerProof)
@@ -92,10 +106,12 @@ func (engine *Engine) cycle() {
 			}
 		}
 
+		engine.reduction(round, block)
+
 	}
 }
 
-func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *blockchain.Block {
+func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
 
 	block := engine.chain.ProposeBlock(hash, proof)
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
@@ -112,7 +128,7 @@ func (engine *Engine) getHighestProposerPubKey(round uint64) []byte {
 	return engine.proposals.GetProposerPubKey(round)
 }
 
-func (engine *Engine) waitForBlock(proposerPubKey []byte) *blockchain.Block {
+func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
 	engine.log.Info("Wait for block proposal")
 	block, err := engine.proposals.GetProposedBlock(engine.chain.Round(), proposerPubKey, engine.config.WaitBlockDelay)
 	if err != nil {
@@ -123,6 +139,7 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) *blockchain.Block {
 }
 
 func (engine *Engine) syncBlockchain() {
+
 	for {
 		bestHeight, peerId, err := engine.pm.GetBestHeight()
 
@@ -158,12 +175,90 @@ func (engine *Engine) loadFromPeer(peerId string, height uint64) {
 	}
 }
 
-func (engine *Engine) reduction(block *blockchain.Block) common.Hash {
+func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.state = "Reduction started"
-	engine.log.Info("Reduction started", block, block.Hash().Hex())
+	engine.log.Info("Reduction started", "block", block.Hash().Hex())
+
+	engine.vote(round, ReductionOne, block.Hash())
+
 	return common.Hash{}
 }
-func (engine *Engine) GetCommitteeVotesTreshold() int {
+
+func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
+
+	committeeSize := engine.GetCommitteSize()
+	if engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize).Contains(engine.pubKey) ||
+		committeeSize == 0 {
+		vote := types.Vote{
+			Header: &types.VoteHeader{
+				Round:      round,
+				Step:       step,
+				ParentHash: engine.chain.Head.Hash(),
+				VotedHash:  block,
+			},
+		}
+		h := vote.Hash()
+		vote.Signature, _ = crypto.Sign(h[:], engine.secretKey)
+		engine.pm.SendVote(&vote)
+
+		engine.log.Info("Voted for", "block", block.Hex())
+
+		if !engine.votes.AddVote(&vote) {
+			engine.log.Info("Invalid vote", "vote", vote.Hash().Hex())
+		}
+	}
+}
+
+func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) {
+
+	byBlock := make(map[common.Hash]mapset.Set)
+	//validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize())
+	for start := time.Now(); time.Since(start) < timeout; {
+		m := engine.votes.GetVotesOfRound(round)
+		if (m != nil) {
+			m.Range(func(key, value interface{}) bool {
+				vote := value.(*types.Vote)
+
+				set, ok := byBlock[vote.Header.VotedHash]
+				if !ok {
+					set = mapset.NewSet()
+					byBlock[vote.Header.VotedHash] = set
+				}
+
+				if !set.Contains(vote.Hash()) {
+					if vote.Header.ParentHash != parentHash {
+						return true
+					}
+
+				}
+				return true
+			})
+		}
+	}
+}
+
+func (engine *Engine) GetCommitteSize() int {
+	var cnt = engine.validators.GetCountOfValidNodes()
+
+	switch cnt {
+	case 1:
+		return 1
+	case 2:
+	case 3:
+		return 2
+	case 4:
+	case 5:
+		return 3
+	case 6:
+		return 4
+	case 7:
+	case 8:
+		return 5
+	}
+	return int(float64(cnt) * engine.config.CommitteePercent)
+}
+
+func (engine *Engine) getCommitteeVotesTreshold() int {
 
 	var cnt = engine.validators.GetCountOfValidNodes()
 

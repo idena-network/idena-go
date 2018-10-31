@@ -6,6 +6,7 @@ import (
 	"idena-go/config"
 	"idena-go/consensus"
 	"idena-go/core/state"
+	"idena-go/core/mempool"
 	"idena-go/core/validators"
 	"idena-go/idenadb"
 	"idena-go/p2p"
@@ -23,6 +24,7 @@ type Node struct {
 	state           state.Database
 	votes           *pengings.Votes
 	consensusEngine *consensus.Engine
+	txpool          *mempool.TxPool
 }
 
 func NewNode(config *config.Config) (*Node, error) {
@@ -35,11 +37,12 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	validators := validators.NewValidatorsSet(db)
 	votes := pengings.NewVotes()
+	mempool := mempool.NewTxPool(validators)
 	state := state.NewDatabase(db)
-	chain := blockchain.NewBlockchain(config, db)
+	chain := blockchain.NewBlockchain(config, db, mempool, validators)
 	proposals := pengings.NewProposals(chain)
-	pm := protocol.NetProtocolManager(chain, proposals, votes)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, state, validators)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, mempool)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, state, validators, votes)
 
 	return &Node{
 		config:          config,
@@ -48,6 +51,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		proposals:       proposals,
 		state:           state,
 		consensusEngine: consensusEngine,
+		txpool:          mempool,
 	}, nil
 }
 
@@ -67,9 +71,10 @@ func (node *Node) Start() {
 		Config: *config,
 	}
 	node.blockchain.InitializeChain(node.key)
-	node.consensusEngine.SetPubKey(node.key.Public().(*ecdsa.PublicKey))
+	node.consensusEngine.SetKey(node.key)
 	node.consensusEngine.Start()
 	srv.Start()
+	node.pm.Start()
 }
 
 func (node *Node) Wait() {

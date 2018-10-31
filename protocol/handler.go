@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/core/mempool"
 	"idena-go/p2p"
 	"idena-go/pengings"
 	"time"
@@ -18,6 +20,7 @@ const (
 	ProposeBlock     = 25
 	ProposeProof     = 26
 	Vote             = 27
+	NewTx            = 28
 )
 const (
 	DecodeErr = 1
@@ -30,9 +33,11 @@ type ProtocolManager struct {
 
 	heads chan *peerHead
 
-	incomeBlocks chan *blockchain.Block
+	incomeBlocks chan *types.Block
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
+	txpool       *mempool.TxPool
+	txChan       chan *types.Transaction
 }
 
 type getBlockBodyRequest struct {
@@ -55,15 +60,24 @@ type peerHead struct {
 	peer   *peer
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool) *ProtocolManager {
+
+	txChan := make(chan *types.Transaction)
+	txpool.Subscribe(txChan)
 	return &ProtocolManager{
 		blockchain:   chain,
 		peers:        newPeerSet(),
 		heads:        make(chan *peerHead),
-		incomeBlocks: make(chan *blockchain.Block),
+		incomeBlocks: make(chan *types.Block),
 		proposals:    proposals,
 		votes:        votes,
+		txpool:       txpool,
+		txChan:       txChan,
 	}
+}
+
+func (pm *ProtocolManager) Start() {
+	go pm.broadcastLoop()
 }
 
 func (pm *ProtocolManager) handle(p *peer) error {
@@ -77,7 +91,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		header := pm.blockchain.GetHead()
 		p.SendHeader(header.Header, Head)
 	case Head:
-		var response blockchain.Header
+		var response types.Header
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
@@ -93,7 +107,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		block := pm.blockchain.GetBlockByHeight(query.height)
 		p.SendBlockAsync(block)
 	case BlockBody:
-		var response blockchain.Block
+		var response types.Block
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
@@ -108,7 +122,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			pm.ProposeProof(query.round, query.hash, query.proof, query.pubKey)
 		}
 	case ProposeBlock:
-		var block blockchain.Block
+		var block types.Block
 		if err := msg.Decode(&block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
@@ -117,7 +131,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			pm.ProposeBlock(&block)
 		}
 	case Vote:
-		var vote blockchain.Vote
+		var vote types.Vote
 		if err := msg.Decode(&vote); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
@@ -125,6 +139,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if pm.votes.AddVote(&vote) {
 			pm.SendVote(&vote)
 		}
+	case NewTx:
+		var tx types.Transaction
+		if err := msg.Decode(&tx); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.markTx(&tx)
+		pm.txpool.Add(&tx)
 	}
 	return nil
 }
@@ -179,7 +200,7 @@ waiting:
 	}
 	return best.height, best.peer.id, nil
 }
-func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *blockchain.Block {
+func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types.Block {
 	peer := pm.peers.Peer(peerId)
 	if peer == nil {
 		return nil
@@ -207,12 +228,12 @@ func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []
 		peer.SendProofAsync(msg)
 	}
 }
-func (pm *ProtocolManager) ProposeBlock(block *blockchain.Block) {
+func (pm *ProtocolManager) ProposeBlock(block *types.Block) {
 	for _, peer := range pm.peers.PeersWithoutBlock(block.Hash()) {
 		peer.ProposeBlockAsync(block)
 	}
 }
-func (pm *ProtocolManager) SendVote(vote *blockchain.Vote) {
+func (pm *ProtocolManager) SendVote(vote *types.Vote) {
 	for _, peer := range pm.peers.PeersWithoutVote(vote.Hash()) {
 		peer.SendVoteAsync(vote)
 	}
@@ -220,4 +241,18 @@ func (pm *ProtocolManager) SendVote(vote *blockchain.Vote) {
 
 func errResp(code int, format string, v ...interface{}) error {
 	return fmt.Errorf("%v - %v", code, fmt.Sprintf(format, v...))
+}
+
+func (pm *ProtocolManager) broadcastLoop() {
+	for {
+		select {
+		case tx := <-pm.txChan:
+			pm.BroadcastTx(tx)
+		}
+	}
+}
+func (pm *ProtocolManager) BroadcastTx(transaction *types.Transaction) {
+	for _, peer := range pm.peers.PeersWithoutTx(transaction.Hash()) {
+		peer.SendTxAsync(transaction)
+	}
 }

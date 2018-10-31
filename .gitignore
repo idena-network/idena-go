@@ -47,3 +47,4 @@ profile.cov
 **/yarn-error.log
 /*.exe
  datadir
+/datadir/*

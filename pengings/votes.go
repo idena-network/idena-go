@@ -2,7 +2,7 @@ package pengings
 
 import (
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/crypto"
 	"sync"
 )
@@ -23,7 +23,7 @@ func NewVotes() *Votes {
 	}
 }
 
-func (votes *Votes) AddVote(vote *blockchain.Vote) bool {
+func (votes *Votes) AddVote(vote *types.Vote) bool {
 
 	if votes.knownVotes.Contains(vote.Hash()) {
 		return false
@@ -39,11 +39,19 @@ func (votes *Votes) AddVote(vote *blockchain.Vote) bool {
 	if votes.knownVotes.Cardinality() > MaxKnownVotes {
 		votes.knownVotes.Pop()
 	}
-	votes.knownVotes.Add(vote)
+	votes.knownVotes.Add(vote.Hash())
 	return true
 }
 
-func validateVote(vote *blockchain.Vote) bool {
+func (votes *Votes) GetVotesOfRound(round uint64) *sync.Map {
+	if m, ok := votes.votesByRound.Load(round); ok {
+		return m.(*sync.Map)
+	}
+	return nil
+}
+
+func validateVote(vote *types.Vote) bool {
 	hash := vote.Hash()
-	return crypto.VerifySignature(vote.CommitteePubKey, hash[:], vote.Signature)
+	_, err := crypto.Ecrecover(hash[:], vote.Signature)
+	return err == nil
 }
