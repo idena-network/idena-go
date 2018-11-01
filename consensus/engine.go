@@ -337,7 +337,7 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 				VotedHash:  block,
 			},
 		}
-		vote.Signature, _ = crypto.Sign(vote.Hash().Bytes(), engine.secretKey)
+		vote.Signature, _ = crypto.Sign(vote.Header.SignatureHash().Bytes(), engine.secretKey)
 		engine.pm.SendVote(&vote)
 
 		engine.log.Info("Voted for", "step", step, "block", block.Hex())

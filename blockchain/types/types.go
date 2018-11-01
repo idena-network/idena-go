@@ -52,7 +52,6 @@ type Block struct {
 }
 
 type Body struct {
-
 	BlockSeed Seed
 
 	SeedProof []byte
@@ -141,7 +140,7 @@ func (h *EmptyBlockHeader) Hash() common.Hash {
 	return rlpHash(h)
 }
 
-func (h *VoteHeader) Hash() common.Hash {
+func (h *VoteHeader) SignatureHash() common.Hash {
 	return rlpHash(h)
 }
 
@@ -150,7 +149,9 @@ func (v *Vote) Hash() common.Hash {
 	if hash := v.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := v.Header.Hash()
+	h := rlpHash([]interface{}{v.Header.SignatureHash(),
+		v.VoterAddr(),
+	})
 	v.hash.Store(h)
 	return h
 }

@@ -32,7 +32,7 @@ func main() {
 		cli.StringFlag{
 			Name:  "bootnode",
 			Usage: "Bootstrap node url",
-			Value: "enode://3a4dff1bde403b198fd3c8f3390be98ad4f0119b2b56d5bfe960cdb4337e2c1c49722cca4f8c9180da40f983e951258b00f4d3c20f91389b746aab729b9f9d6d@127.0.0.1:40405",
+			Value: "enode://86270bc08b3e4580668aa0649fff9ed1e36f8eb5cdcde5df494a2bc07a952458e96859d8a65d4e3f4a7061370d2037b5e78b6b0916c2e9bec1fba120437fab24@127.0.0.1:40405",
 		},
 		cli.BoolFlag{
 			Name:  "automine",
