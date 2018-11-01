@@ -65,6 +65,7 @@ func (node *Node) Start() {
 			Name:    "AppName",
 			Version: 1,
 			Run:     node.pm.HandleNewPeer,
+			Length:  35,
 		},
 	}
 	srv := &p2p.Server{

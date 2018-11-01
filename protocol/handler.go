@@ -21,6 +21,7 @@ const (
 	ProposeProof     = 26
 	Vote             = 27
 	NewTx            = 28
+	GetBlockByHash   = 29
 )
 const (
 	DecodeErr = 1
@@ -41,18 +42,18 @@ type ProtocolManager struct {
 }
 
 type getBlockBodyRequest struct {
-	hash common.Hash
+	Hash common.Hash
 }
 
 type getBlockByHeightRequest struct {
-	height uint64
+	Height uint64
 }
 
 type proposeProof struct {
-	hash   common.Hash
-	proof  [] byte
-	pubKey [] byte
-	round  uint64
+	Hash   common.Hash
+	Proof  [] byte
+	PubKey [] byte
+	Round  uint64
 }
 
 type peerHead struct {
@@ -104,8 +105,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		block := pm.blockchain.GetBlockByHeight(query.height)
-		p.SendBlockAsync(block)
+		block := pm.blockchain.GetBlockByHeight(query.Height)
+		if block != nil {
+			p.SendBlockAsync(block)
+		}
 	case BlockBody:
 		var response types.Block
 		if err := msg.Decode(&response); err != nil {
@@ -118,8 +121,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.markProof(&query)
-		if pm.proposals.AddProposeProof(query.proof, query.hash, query.pubKey, query.round) {
-			pm.ProposeProof(query.round, query.hash, query.proof, query.pubKey)
+		if pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round) {
+			pm.ProposeProof(query.Round, query.Hash, query.Proof, query.PubKey)
 		}
 	case ProposeBlock:
 		var block types.Block
@@ -146,6 +149,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		p.markTx(&tx)
 		pm.txpool.Add(&tx)
+	case GetBlockByHash:
+		var query getBlockBodyRequest
+		if err := msg.Decode(&query); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		block := pm.blockchain.GetBlock(query.Hash)
+		if block != nil {
+			p.ProposeBlockAsync(block)
+		}
 	}
 	return nil
 }
@@ -220,9 +232,9 @@ func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types
 }
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
 	msg := &proposeProof{
-		hash:   hash,
-		pubKey: pubKey,
-		proof:  proof,
+		Hash:   hash,
+		PubKey: pubKey,
+		Proof:  proof,
 	}
 	for _, peer := range pm.peers.PeersWithoutProof(hash) {
 		peer.SendProofAsync(msg)
@@ -255,4 +267,13 @@ func (pm *ProtocolManager) BroadcastTx(transaction *types.Transaction) {
 	for _, peer := range pm.peers.PeersWithoutTx(transaction.Hash()) {
 		peer.SendTxAsync(transaction)
 	}
+}
+func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
+	for _, peer := range pm.peers.Peers() {
+		peer.RequestBlockByHash(hash)
+	}
+}
+
+func (pm *ProtocolManager) HasPeers() bool {
+	return len(pm.peers.peers) > 0
 }

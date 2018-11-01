@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
+	"idena-go/common"
 	"idena-go/p2p"
 )
 
@@ -45,9 +46,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer) *peer {
 }
 
 func (p *peer) SendBlockAsync(block *types.Block) {
-
 	p.queuedBlocks <- block
-
 }
 
 func (p *peer) SendHeader(header *types.Header, code uint64) {
@@ -59,7 +58,13 @@ func (p *peer) RequestLastBlock() {
 }
 func (p *peer) RequestBlock(height uint64) {
 	p2p.Send(p.Connection(), GetBlockByHeight, &getBlockByHeightRequest{
-		height: height,
+		Height: height,
+	})
+}
+
+func (p *peer) RequestBlockByHash(hash common.Hash) {
+	p2p.Send(p.Connection(), GetBlockByHash, &getBlockBodyRequest{
+		Hash: hash,
 	})
 }
 
@@ -136,3 +141,4 @@ func (p *peer) markTx(tx *types.Transaction) {
 	}
 	p.knownTxs.Add(tx)
 }
+

@@ -74,6 +74,10 @@ func (engine *Engine) Start() {
 func (engine *Engine) loop() {
 	for {
 		engine.syncBlockchain()
+		if ! engine.config.Automine && !engine.pm.HasPeers() {
+			time.Sleep(time.Second * 5)
+			continue
+		}
 		engine.requestApprove()
 		head := engine.chain.Head
 		round := head.Height() + 1
@@ -140,12 +144,23 @@ func (engine *Engine) loop() {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}
 		}
+
+		for _, proof := range engine.proposals.ProcessPendingsProofs() {
+			engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
+		}
+
+		for _, block := range engine.proposals.ProcessPendingsBlocks() {
+			engine.pm.ProposeBlock(block)
+		}
 	}
 }
 
 func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
 
 	block := engine.chain.ProposeBlock(hash, proof)
+
+	engine.log.Info("Proposed block", "block", block.Hash().Hex(), "txs", len(block.Body.Transactions))
+
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
 	engine.pm.ProposeBlock(block)
 
@@ -212,8 +227,8 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
 
 	engine.vote(round, ReductionOne, block.Hash())
-
 	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
+
 	hash, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
@@ -332,6 +347,9 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 
 func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, error) {
 
+	engine.log.Info("Start count votes", "step", step)
+	defer engine.log.Info("Finish count votes", "step", step)
+
 	byBlock := make(map[common.Hash]mapset.Set)
 	validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize())
 
@@ -430,9 +448,25 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	if err == nil {
 		return block, nil
 	}
+	engine.pm.RequestBlockByHash(hash)
+
+	for start := time.Now(); time.Since(start) < engine.config.WaitBlockDelay; {
+		block, err := engine.proposals.GetBlockByHash(round, hash)
+		if err == nil {
+			return block, nil
+		} else {
+			time.Sleep(200)
+		}
+	}
+
 	return nil, errors.New("Block is not found")
 }
 func (engine *Engine) requestApprove() {
+
+	if engine.validators.Contains(engine.pubKey) {
+		return
+	}
+
 	tx := &types.Transaction{
 		PubKey: engine.pubKey,
 	}

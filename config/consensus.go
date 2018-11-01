@@ -12,4 +12,5 @@ type ConsensusConf struct {
 	WaitSortitionProofDelay        time.Duration
 	EstimatedBaVariance            time.Duration
 	WaitForStepDelay               time.Duration
+	Automine                       bool
 }

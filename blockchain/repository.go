@@ -110,7 +110,10 @@ func WriteBlock(db idenadb.Database, block *types.Block) {
 	if err := db.Put(headerKey(block.Hash()), data); err != nil {
 		log.Crit("Failed to store header", "err", err)
 	}
-
+	// body doesn't exist for empty block
+	if block.Body == nil {
+		return
+	}
 	data, err = rlp.EncodeToBytes(block.Body)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)

@@ -110,7 +110,9 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 			Height: 1,
 			Root:   root,
 		},
-	}, BlockSeed: seed,}
+	}, Body: &types.Body{
+		BlockSeed: seed,
+	},}
 
 	statedb.Commit(true)
 	statedb.Database().TrieDB().Commit(root, true)
@@ -121,7 +123,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 
 func (chain *Blockchain) GetBlockByHeight(height uint64) *types.Block {
 	hash := ReadCanonicalHash(chain.db, height)
-	if len(hash) == 0 {
+	if hash == (common.Hash{}) {
 		return nil
 	}
 	return ReadBlock(chain.db, hash)
@@ -129,14 +131,19 @@ func (chain *Blockchain) GetBlockByHeight(height uint64) *types.Block {
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	head := chain.Head
-	return &types.Block{
+	block := &types.Block{
 		Header: &types.Header{
 			EmptyBlockHeader: &types.EmptyBlockHeader{
 				ParentHash: head.Hash(),
 				Height:     head.Height() + 1,
 			},
 		},
+		Body: &types.Body{
+			Transactions: []*types.Transaction{},
+		},
 	}
+	block.Body.BlockSeed = types.Seed(crypto.Keccak256Hash(chain.GetSeedData(block)))
+	return block
 }
 
 func (chain *Blockchain) AddBlock(block *types.Block) error {
@@ -151,20 +158,26 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 			return err
 		}
 
-		for i := 0; i < len(block.Body.Transactions); i++ {
-			chain.validators.AddValidPubKey(block.Body.Transactions[i].PubKey)
-		}
+		chain.processTxs(block)
 
 		chain.insertBlock(block)
 	}
 	return nil
 }
 
-func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
+func (chain *Blockchain) processTxs(block *types.Block) {
+	for i := 0; i < len(block.Body.Transactions); i++ {
+		tx := block.Body.Transactions[i]
+		chain.validators.AddValidPubKey(tx.PubKey)
+		chain.txpool.Remove(tx)
+	}
+}
+
+func (chain *Blockchain) GetSeedData(block *types.Block) []byte {
 	head := chain.Head
 	result := head.Seed().Bytes()
-	result = append(result, common.ToBytes(proposalBlock.Height())...)
-	result = append(result, proposalBlock.Hash().Bytes()...)
+	result = append(result, common.ToBytes(block.Height())...)
+	result = append(result, block.Hash().Bytes()...)
 	return result
 }
 
@@ -193,7 +206,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) *types.Blo
 			Transactions: txs,
 		},
 	}
-	block.BlockSeed, block.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
+	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
 	return block
 }
 
@@ -219,9 +232,7 @@ func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
 
-	f, acc := q.Float64()
-	fmt.Printf("v=%v max=%v q=%v f=%v acc=%v", v, MaxHash, q, f, acc)
-
+	f, _ := q.Float64()
 	if f >= chain.config.Consensus.ProposerTheshold {
 		return true, hash, proof
 	}
@@ -243,7 +254,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return err
 	}
 
-	hash, err := verifier.ProofToHash(seedData, block.SeedProof)
+	hash, err := verifier.ProofToHash(seedData, block.Body.SeedProof)
 	if err != nil {
 		return err
 	}
@@ -306,4 +317,7 @@ func (chain *Blockchain) Round() uint64 {
 }
 func (chain *Blockchain) WriteFinalConsensus(hash common.Hash) {
 	WriteFinalConsensus(chain.db, hash)
+}
+func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
+	return ReadBlock(chain.db, hash)
 }

@@ -45,10 +45,6 @@ type VoteHeader struct {
 type Block struct {
 	Header *Header
 
-	BlockSeed Seed
-
-	SeedProof []byte
-
 	Body *Body
 
 	// caches
@@ -56,6 +52,11 @@ type Block struct {
 }
 
 type Body struct {
+
+	BlockSeed Seed
+
+	SeedProof []byte
+
 	Transactions []*Transaction
 }
 
@@ -103,7 +104,7 @@ func (b *Block) IsEmpty() bool {
 }
 
 func (b *Block) Seed() Seed {
-	return b.BlockSeed
+	return b.Body.BlockSeed
 }
 func (b *Block) Height() uint64 {
 	if b.IsEmpty() {
