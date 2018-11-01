@@ -232,6 +232,7 @@ func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types
 }
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
 	msg := &proposeProof{
+		Round:  round,
 		Hash:   hash,
 		PubKey: pubKey,
 		Proof:  proof,
