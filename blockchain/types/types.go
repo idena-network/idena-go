@@ -160,7 +160,7 @@ func (v *Vote) VoterAddr() common.Address {
 		return addr.(common.Address)
 	}
 
-	hash := v.Hash()
+	hash := v.Header.SignatureHash()
 
 	addr := common.Address{}
 	pubKey, err := crypto.Ecrecover(hash[:], v.Signature)

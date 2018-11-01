@@ -90,6 +90,6 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		WaitSortitionProofDelay:        time.Second * 5,
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
-		Automine:                       automine,
+		Automine:                       true,
 	}
 }
