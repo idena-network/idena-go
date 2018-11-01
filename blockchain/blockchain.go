@@ -173,11 +173,11 @@ func (chain *Blockchain) processTxs(block *types.Block) {
 	}
 }
 
-func (chain *Blockchain) GetSeedData(block *types.Block) []byte {
+func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
 	head := chain.Head
 	result := head.Seed().Bytes()
-	result = append(result, common.ToBytes(block.Height())...)
-	result = append(result, block.Hash().Bytes()...)
+	result = append(result, common.ToBytes(proposalBlock.Height())...)
+	result = append(result, proposalBlock.Hash().Bytes()...)
 	return result
 }
 

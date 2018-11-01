@@ -112,12 +112,13 @@ func (proposals *Proposals) GetProposerPubKey(round uint64) []byte {
 
 func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
 	proposals.pMutex.Lock()
-	defer proposals.pMutex.Unlock()
 
 	var result []*Proof
 
 	pendings := proposals.pendingProofs
 	proposals.pendingProofs = []*Proof{}
+
+	proposals.pMutex.Unlock()
 	for _, proof := range pendings {
 		if proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round) {
 			result = append(result, proof)
@@ -128,12 +129,11 @@ func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
 
 func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
 	proposals.bMutex.Lock()
-	defer proposals.bMutex.Unlock()
-
 	var result []*types.Block
-
 	pendings := proposals.pendingBlocks
 	proposals.pendingBlocks = []*types.Block{}
+
+	proposals.bMutex.Unlock()
 
 	for _, block := range pendings {
 		if proposals.AddProposedBlock(block) {

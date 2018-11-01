@@ -63,13 +63,13 @@ type peerHead struct {
 
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool) *ProtocolManager {
 
-	txChan := make(chan *types.Transaction)
+	txChan := make(chan *types.Transaction, 100)
 	txpool.Subscribe(txChan)
 	return &ProtocolManager{
 		blockchain:   chain,
 		peers:        newPeerSet(),
-		heads:        make(chan *peerHead),
-		incomeBlocks: make(chan *types.Block),
+		heads:        make(chan *peerHead, 10),
+		incomeBlocks: make(chan *types.Block, 100),
 		proposals:    proposals,
 		votes:        votes,
 		txpool:       txpool,

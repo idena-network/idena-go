@@ -32,16 +32,18 @@ type peer struct {
 
 func (pm *ProtocolManager) makePeer(p *p2p.Peer) *peer {
 	return &peer{
-		Peer:         p,
-		id:           fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownBlocks:  mapset.NewSet(),
-		knownTxs:     mapset.NewSet(),
-		knownVotes:   mapset.NewSet(),
-		queuedTxs:    make(chan *types.Transaction),
-		queuedBlocks: make(chan *types.Block),
-		knownProofs:  mapset.NewSet(),
-		queuedProofs: make(chan *proposeProof),
-		term:         make(chan struct{}),
+		Peer:            p,
+		id:              fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		knownBlocks:     mapset.NewSet(),
+		knownTxs:        mapset.NewSet(),
+		knownVotes:      mapset.NewSet(),
+		queuedTxs:       make(chan *types.Transaction, 100),
+		queuedBlocks:    make(chan *types.Block, 10),
+		queuedVotes:     make(chan *types.Vote, 100),
+		queuedProposals: make(chan *types.Block, 10),
+		knownProofs:     mapset.NewSet(),
+		queuedProofs:    make(chan *proposeProof, 10),
+		term:            make(chan struct{}),
 	}
 }
 
@@ -69,28 +71,34 @@ func (p *peer) RequestBlockByHash(hash common.Hash) {
 }
 
 func (p *peer) broadcast() {
+	defer p.Log().Info("Peer exited from broadcast loop")
 	for {
 		select {
 		case block := <-p.queuedBlocks:
 			if err := p2p.Send(p.Connection(), BlockBody, block); err != nil {
+				p.Log().Error(err.Error())
 				return
 			}
 
 		case proof := <-p.queuedProofs:
 			if err := p2p.Send(p.Connection(), ProposeProof, proof); err != nil {
+				p.Log().Error(err.Error())
 				return
 			}
 
 		case block := <-p.queuedProposals:
 			if err := p2p.Send(p.Connection(), ProposeBlock, block); err != nil {
+				p.Log().Error(err.Error())
 				return
 			}
 		case vote := <-p.queuedVotes:
 			if err := p2p.Send(p.Connection(), Vote, vote); err != nil {
+				p.Log().Error(err.Error())
 				return
 			}
 		case tx := <-p.queuedTxs:
 			if err := p2p.Send(p.Connection(), NewTx, tx); err != nil {
+				p.Log().Error(err.Error())
 				return
 			}
 		case <-p.term:
@@ -116,20 +124,20 @@ func (p *peer) markBlock(block *types.Block) {
 	if p.knownBlocks.Cardinality() > MaxKnownBlocks {
 		p.knownBlocks.Pop()
 	}
-	p.knownBlocks.Add(block)
+	p.knownBlocks.Add(block.Hash())
 }
 
 func (p *peer) markProof(proof *proposeProof) {
 	if p.knownProofs.Cardinality() > MaxKnownProofs {
 		p.knownProofs.Pop()
 	}
-	p.knownProofs.Add(proof)
+	p.knownProofs.Add(proof.Hash)
 }
 func (p *peer) markVote(vote *types.Vote) {
 	if p.knownVotes.Cardinality() > MaxKnownVotes {
 		p.knownVotes.Pop()
 	}
-	p.knownVotes.Add(vote)
+	p.knownVotes.Add(vote.Hash())
 }
 func (p *peer) SendVoteAsync(vote *types.Vote) {
 	p.queuedVotes <- vote
@@ -141,4 +149,3 @@ func (p *peer) markTx(tx *types.Transaction) {
 	}
 	p.knownTxs.Add(tx)
 }
-

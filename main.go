@@ -10,6 +10,7 @@ import (
 	"idena-go/p2p/enode"
 	"idena-go/p2p/nat"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -31,7 +32,7 @@ func main() {
 		cli.StringFlag{
 			Name:  "bootnode",
 			Usage: "Bootstrap node url",
-			Value: "enode://02f9f7c4d48fbaeb721d39129ac2480638ac8b633716a53f4cbc3cefe140bb41c34b599efa776e8baab7abed51aae0d8643eeac9ffc8c676194d3183169a3e0a@127.0.0.1:40405",
+			Value: "enode://3a4dff1bde403b198fd3c8f3390be98ad4f0119b2b56d5bfe960cdb4337e2c1c49722cca4f8c9180da40f983e951258b00f4d3c20f91389b746aab729b9f9d6d@127.0.0.1:40405",
 		},
 		cli.BoolFlag{
 			Name:  "automine",
@@ -40,9 +41,14 @@ func main() {
 	}
 
 	app.Action = func(context *cli.Context) error {
-		log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+
+		if runtime.GOOS == "windows" {
+			log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
+		} else {
+			log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+		}
 		log := log.New()
-		nodes := []*enode.Node{}
+		var nodes []*enode.Node
 		nodeParam := context.String("bootnode")
 		if nodeParam != "" {
 			p, err := enode.ParseV4(nodeParam)
@@ -84,6 +90,6 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		WaitSortitionProofDelay:        time.Second * 5,
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
-		Automine:                       false,
+		Automine:                       automine,
 	}
 }
