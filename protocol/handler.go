@@ -278,3 +278,6 @@ func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
 func (pm *ProtocolManager) HasPeers() bool {
 	return len(pm.peers.peers) > 0
 }
+func (pm *ProtocolManager) PeersCount() int {
+	return len(pm.peers.peers)
+}

@@ -79,9 +79,10 @@ func (engine *Engine) loop() {
 			continue
 		}
 		engine.requestApprove()
+
 		head := engine.chain.Head
 		round := head.Height() + 1
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex())
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.validators.GetCountOfValidNodes())
 
 		engine.state = "Check if I'm proposer"
 
@@ -308,6 +309,11 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 				hash = emptyBlockHash
 			}
 		}
+
+		maxStep := engine.maxVotedStep(round, step, emptyBlock.Header.ParentHash())
+		if maxStep-step > 5 {
+			step = maxStep - 5
+		}
 		step++
 	}
 	return common.Hash{}, errors.New("No consensus")
@@ -345,6 +351,35 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 			engine.log.Info("Invalid vote", "vote", vote.Hash().Hex())
 		}
 	}
+}
+
+func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash common.Hash, ) uint16 {
+
+	heighstStep := minStep
+	m := engine.votes.GetVotesOfRound(round)
+	if m != nil {
+		m.Range(func(key, value interface{}) bool {
+			vote := value.(*types.Vote)
+			if vote.Header.Step > heighstStep && vote.Header.Step < ReductionOne {
+
+				if vote.Header.ParentHash != parentHash {
+					return true
+				}
+
+				validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, vote.Header.Step, engine.GetCommitteSize(false))
+
+				if validators == nil {
+					return true
+				}
+				if !validators.Contains(vote.VoterAddr()) && validators.Cardinality() > 0 {
+					return true
+				}
+				heighstStep = vote.Header.Step
+			}
+			return true
+		})
+	}
+	return heighstStep
 }
 
 func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, error) {
@@ -400,6 +435,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 				return bestHash, nil
 			}
 		}
+		time.Sleep(200)
 	}
 	return common.Hash{}, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
 }
@@ -411,7 +447,7 @@ func (engine *Engine) GetCommitteSize(final bool) int {
 		percent = engine.config.FinalCommitteeConsensusPercent
 	}
 	switch cnt {
-	case 1, 2,3,4:
+	case 1, 2, 3, 4:
 		return 1
 		return 2
 	case 5, 6:
@@ -431,7 +467,7 @@ func (engine *Engine) getCommitteeVotesTreshold(final bool) int {
 	}
 
 	switch cnt {
-	case 1, 2,3,4:
+	case 1, 2, 3, 4:
 		return 1
 		return 2
 	case 5, 6:
