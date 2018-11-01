@@ -74,7 +74,7 @@ func (engine *Engine) Start() {
 func (engine *Engine) loop() {
 	for {
 		engine.syncBlockchain()
-		if ! engine.config.Automine && !engine.pm.HasPeers() {
+		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -304,8 +304,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 		if err != nil {
 			if engine.commonCoin(step) {
 				hash = blockHash
-			} else
-			{
+			} else {
 				hash = emptyBlockHash
 			}
 		}
@@ -355,6 +354,9 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 
 	byBlock := make(map[common.Hash]mapset.Set)
 	validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
+	if validators == nil {
+		return common.Hash{}, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
+	}
 
 	for start := time.Now(); time.Since(start) < timeout; {
 		m := engine.votes.GetVotesOfRound(round)
