@@ -7,8 +7,8 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/config"
-	"idena-go/core/state"
 	"idena-go/core/mempool"
+	"idena-go/core/state"
 	"idena-go/core/validators"
 	"idena-go/crypto"
 	"idena-go/crypto/vrf"
@@ -178,7 +178,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) *types.Blo
 	txs := chain.txpool.GetPendingTransaction()
 
 	header := &types.ProposedHeader{
-		Height:         head.Height(),
+		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
 		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
@@ -215,9 +215,14 @@ func (chain *Blockchain) getProposerData() []byte {
 func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 	hash, proof := chain.vrfSigner.Evaluate(data)
 
-	i := new(big.Int).SetBytes(hash[:])
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
-	if f, _ := new(big.Float).Quo(new(big.Float).SetInt(i), MaxHash).Float64(); f >= chain.config.Consensus.ProposerTheshold {
+	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
+
+	f, acc := q.Float64()
+	fmt.Printf("v=%v max=%v q=%v f=%v acc=%v", v, MaxHash, q, f, acc)
+
+	if f >= chain.config.Consensus.ProposerTheshold {
 		return true, hash, proof
 	}
 	return false, common.Hash{}, nil
@@ -259,7 +264,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		}
 
 		hash := tx.Hash()
-		if !crypto.VerifySignature(tx.PubKey, hash[:], tx.Signature) {
+		if !crypto.VerifySignature(tx.PubKey, hash[:], tx.Signature[:len(tx.Signature)-1]) {
 			return errors.New(fmt.Sprintf("Tx=[%v] has invalid signature", tx.Hash().Hex()))
 		}
 	}
@@ -298,4 +303,7 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 
 func (chain *Blockchain) Round() uint64 {
 	return chain.Head.Height() + 1
+}
+func (chain *Blockchain) WriteFinalConsensus(hash common.Hash) {
+	WriteFinalConsensus(chain.db, hash)
 }

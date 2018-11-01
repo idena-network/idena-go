@@ -3,7 +3,7 @@ package config
 import "time"
 
 type ConsensusConf struct {
-	MaxSteps                       int
+	MaxSteps                       uint16
 	ProposerTheshold               float64
 	ThesholdBa                     float64
 	CommitteePercent               float64

@@ -17,6 +17,7 @@ type TxPool struct {
 func NewTxPool(validators *validators.ValidatorsSet) *TxPool {
 	return &TxPool{
 		validators: validators,
+		penging:    make(map[common.Hash]*types.Transaction),
 	}
 }
 
@@ -29,7 +30,7 @@ func (txpool *TxPool) Add(transaction *types.Transaction) {
 	}
 
 	hash := transaction.Hash()
-	if !crypto.VerifySignature(transaction.PubKey, hash[:], transaction.Signature) {
+	if !crypto.VerifySignature(transaction.PubKey, hash[:], transaction.Signature[:len(transaction.Signature)-1]) {
 		return
 	}
 

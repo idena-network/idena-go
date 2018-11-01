@@ -45,7 +45,6 @@ func sortValidNodes(nodes ValidNodes) ValidNodes {
 }
 
 func (v *ValidatorsSet) GetActualValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
-	//TODO: we should use hashable type as key instead of slice
 	set := mapset.NewSet()
 	cnt := new(big.Int).SetInt64(int64(len(v.validNodes)))
 	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {

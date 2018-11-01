@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/log"
-	"idena-go/blockchain/types"
 	"sort"
 	"sync"
 	"time"
@@ -48,6 +48,7 @@ func NewProposals(chain *blockchain.Blockchain) *Proposals {
 		log:           log.New(),
 		proofsByRound: &sync.Map{},
 		blocksByRound: &sync.Map{},
+		bMutex:        &sync.Mutex{},
 	}
 }
 
@@ -158,4 +159,13 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 		time.Sleep(time.Millisecond * 100)
 	}
 	return nil, errors.New("Proposed block was not found")
+}
+func (proposals *Proposals) GetBlockByHash(round uint64, hash common.Hash) (*types.Block, error) {
+	if m, ok := proposals.blocksByRound.Load(round); ok {
+		roundMap := m.(*sync.Map)
+		if block, ok := roundMap.Load(hash); ok {
+			return block.(*types.Block), nil
+		}
+	}
+	return nil, errors.New("Block is not found in proposals")
 }

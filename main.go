@@ -57,7 +57,7 @@ func getDefaultConsensusConfig() *config.ConsensusConf {
 		CommitteePercent:               0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteeConsensusPercent: 0.7,  // 70% of valid nodes will be committee members
 		ThesholdBa:                     0.65, // 65% of committee members should vote for block
-		ProposerTheshold:               0.95,
+		ProposerTheshold:               0.5,
 		WaitBlockDelay:                 time.Minute,
 		WaitSortitionProofDelay:        time.Second * 5,
 		EstimatedBaVariance:            time.Second * 5,

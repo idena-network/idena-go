@@ -10,6 +10,7 @@ import (
 	"idena-go/common"
 	"idena-go/common/hexutil"
 	"idena-go/config"
+	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/core/validators"
 	"idena-go/crypto"
@@ -37,12 +38,15 @@ type Engine struct {
 	validators *validators.ValidatorsSet
 	secretKey  *ecdsa.PrivateKey
 	votes      *pengings.Votes
+	txpool     *mempool.TxPool
+	addr       common.Address
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	stateDb state.Database,
 	validators *validators.ValidatorsSet,
-	votes *pengings.Votes) *Engine {
+	votes *pengings.Votes,
+	txpool *mempool.TxPool) *Engine {
 	return &Engine{
 		chain:      chain,
 		pm:         pm,
@@ -52,23 +56,25 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		stateDb:    stateDb,
 		validators: validators,
 		votes:      votes,
+		txpool:     txpool,
 	}
 }
 
 func (engine *Engine) SetKey(key *ecdsa.PrivateKey) {
 	engine.secretKey = key
 	engine.pubKey = crypto.FromECDSAPub(key.Public().(*ecdsa.PublicKey))
+	engine.addr = crypto.PubkeyToAddress(*key.Public().(*ecdsa.PublicKey))
 }
 
 func (engine *Engine) Start() {
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
-	go engine.cycle()
+	go engine.loop()
 }
 
-func (engine *Engine) cycle() {
+func (engine *Engine) loop() {
 	for {
 		engine.syncBlockchain()
-
+		engine.requestApprove()
 		head := engine.chain.Head
 		round := head.Height() + 1
 		engine.log.Info(fmt.Sprintf("Start round %v", round))
@@ -94,21 +100,46 @@ func (engine *Engine) cycle() {
 		}
 
 		engine.log.Info("Selected proposer", "proposer", proposer)
-
+		emptyBlock := engine.chain.GenerateEmptyBlock()
 		if proposerPubKey == nil {
-			block = engine.chain.GenerateEmptyBlock()
+			block = emptyBlock
 		} else {
 
 			engine.state = "Waiting for block from proposer"
 			block = engine.waitForBlock(proposerPubKey)
 
 			if block == nil {
-				block = engine.chain.GenerateEmptyBlock()
+				block = emptyBlock
 			}
 		}
 
-		engine.reduction(round, block)
+		blockHash := engine.reduction(round, block)
+		var err error
+		blockHash, err = engine.binaryBa(blockHash)
+		if err != nil {
+			engine.log.Info("Binary Ba is failed", "err", err)
+		}
+		engine.state = "Count final votes"
 
+		hash, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
+
+		if hash == emptyBlock.Hash() {
+			engine.chain.AddBlock(emptyBlock)
+			engine.log.Info("Reached consensus on empty block")
+		} else {
+			block, err := engine.getBlockByHash(round, blockHash)
+			if err == nil {
+				engine.chain.AddBlock(block)
+				if hash == blockHash {
+					engine.log.Info("Reached FINAL", "block", blockHash.Hex())
+					engine.chain.WriteFinalConsensus(blockHash)
+				} else {
+					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex())
+				}
+			} else {
+				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
+			}
+		}
 	}
 }
 
@@ -183,7 +214,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionOne, block.Hash())
 
 	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
-	hash, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(), engine.config.WaitForStepDelay)
+	hash, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -195,7 +226,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionTwo, hash)
 
 	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
-	hash, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(), engine.config.WaitForStepDelay)
+	hash, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
 
 	if err != nil {
@@ -205,10 +236,80 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	return hash
 }
 
+func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
+	engine.log.Info("binaryBa started", "block", blockHash.Hex())
+	emptyBlock := engine.chain.GenerateEmptyBlock()
+
+	emptyBlockHash := emptyBlock.Hash()
+
+	round := emptyBlock.Height()
+	hash := blockHash
+
+	for step := uint16(0); step < engine.config.MaxSteps; {
+		engine.state = fmt.Sprintf("BA step %v", step)
+
+		engine.vote(round, step, hash)
+
+		hash, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		if err != nil {
+			hash = emptyBlockHash
+		} else if hash != emptyBlockHash {
+			for i := uint16(1); i <= 3; i++ {
+				engine.vote(round, step+i, hash)
+			}
+			if step == 1 {
+				engine.vote(round, Final, hash)
+			}
+			return hash, nil
+		}
+		step++
+
+		engine.state = fmt.Sprintf("BA step %v", step)
+
+		engine.vote(round, step, hash)
+
+		hash, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+
+		if err != nil {
+			hash = emptyBlockHash
+		} else if hash == emptyBlockHash {
+			for i := uint16(1); i <= 3; i++ {
+				engine.vote(round, step+i, hash)
+			}
+			return hash, nil
+		}
+
+		step++
+
+		engine.state = fmt.Sprintf("BA step %v", step)
+
+		engine.vote(round, step, hash)
+
+		hash, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		if err != nil {
+			if engine.commonCoin(step) {
+				hash = blockHash
+			} else
+			{
+				hash = emptyBlockHash
+			}
+		}
+		step++
+	}
+	return common.Hash{}, errors.New("No consensus")
+}
+
+func (engine *Engine) commonCoin(step uint16) bool {
+	data := append(engine.chain.Head.Seed().Bytes(), common.ToBytes(step)...)
+
+	h := crypto.Keccak256Hash(data)
+	return h[31]%2 == 0
+}
+
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 
 	committeeSize := engine.GetCommitteSize()
-	if engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize).Contains(engine.pubKey) ||
+	if engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize).Contains(engine.addr) ||
 		committeeSize == 0 {
 		vote := types.Vote{
 			Header: &types.VoteHeader{
@@ -218,8 +319,7 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 				VotedHash:  block,
 			},
 		}
-		h := vote.Hash()
-		vote.Signature, _ = crypto.Sign(h[:], engine.secretKey)
+		vote.Signature, _ = crypto.Sign(vote.Hash().Bytes(), engine.secretKey)
 		engine.pm.SendVote(&vote)
 
 		engine.log.Info("Voted for", "block", block.Hex())
@@ -299,9 +399,13 @@ func (engine *Engine) GetCommitteSize() int {
 	return int(float64(cnt) * engine.config.CommitteePercent)
 }
 
-func (engine *Engine) getCommitteeVotesTreshold() int {
+func (engine *Engine) getCommitteeVotesTreshold(final bool) int {
 
 	var cnt = engine.validators.GetCountOfValidNodes()
+	percent := engine.config.CommitteePercent
+	if final {
+		percent = engine.config.FinalCommitteeConsensusPercent
+	}
 
 	switch cnt {
 	case 1:
@@ -318,5 +422,21 @@ func (engine *Engine) getCommitteeVotesTreshold() int {
 	case 8:
 		return 5
 	}
-	return int(float64(cnt) * engine.config.CommitteePercent * engine.config.ThesholdBa)
+	return int(float64(cnt) * percent * engine.config.ThesholdBa)
+}
+
+func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Block, error) {
+	block, err := engine.proposals.GetBlockByHash(round, hash)
+	if err == nil {
+		return block, nil
+	}
+	return nil, errors.New("Block is not found")
+}
+func (engine *Engine) requestApprove() {
+	tx := &types.Transaction{
+		PubKey: engine.pubKey,
+	}
+	tx.Signature, _ = crypto.Sign(tx.Hash().Bytes(), engine.secretKey)
+
+	engine.txpool.Add(tx)
 }

@@ -5,8 +5,8 @@ import (
 	"idena-go/blockchain"
 	"idena-go/config"
 	"idena-go/consensus"
-	"idena-go/core/state"
 	"idena-go/core/mempool"
+	"idena-go/core/state"
 	"idena-go/core/validators"
 	"idena-go/idenadb"
 	"idena-go/p2p"
@@ -37,12 +37,12 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	validators := validators.NewValidatorsSet(db)
 	votes := pengings.NewVotes()
-	mempool := mempool.NewTxPool(validators)
+	txpool := mempool.NewTxPool(validators)
 	state := state.NewDatabase(db)
-	chain := blockchain.NewBlockchain(config, db, mempool, validators)
+	chain := blockchain.NewBlockchain(config, db, txpool, validators)
 	proposals := pengings.NewProposals(chain)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, mempool)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, state, validators, votes)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, state, validators, votes, txpool)
 
 	return &Node{
 		config:          config,
@@ -51,7 +51,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		proposals:       proposals,
 		state:           state,
 		consensusEngine: consensusEngine,
-		txpool:          mempool,
+		txpool:          txpool,
 	}, nil
 }
 
