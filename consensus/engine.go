@@ -411,16 +411,13 @@ func (engine *Engine) GetCommitteSize(final bool) int {
 		percent = engine.config.FinalCommitteeConsensusPercent
 	}
 	switch cnt {
-	case 1, 2:
+	case 1, 2,3,4:
 		return 1
-	case 3:
 		return 2
-	case 4, 5:
-		return 3
-	case 6:
-		return 4
+	case 5, 6:
+		return 2
 	case 7, 8:
-		return 5
+		return 3
 	}
 	return int(float64(cnt) * percent)
 }
@@ -434,16 +431,13 @@ func (engine *Engine) getCommitteeVotesTreshold(final bool) int {
 	}
 
 	switch cnt {
-	case 1, 2:
+	case 1, 2,3,4:
 		return 1
-	case 3:
 		return 2
-	case 4, 5:
-		return 3
-	case 6:
-		return 4
+	case 5, 6:
+		return 2
 	case 7, 8:
-		return 5
+		return 3
 	}
 	return int(float64(cnt) * percent * engine.config.ThesholdBa)
 }
