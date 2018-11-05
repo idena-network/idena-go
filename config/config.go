@@ -6,24 +6,22 @@ import (
 	"idena-go/crypto"
 	"idena-go/log"
 	"idena-go/p2p"
+	"idena-go/rpc"
 	"os"
 	"path/filepath"
 )
 
-
 const (
-	datadirPrivateKey      = "nodekey"            // Path within the datadir to the node's private key
+	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
 )
 
-type Config struct{
-	DataDir string
-	Network int32
+type Config struct {
+	DataDir   string
+	Network   int32
 	Consensus *ConsensusConf
-	P2P *p2p.Config
+	P2P       *p2p.Config
+	RPC       *rpc.Config
 }
-
-
-
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
 	// Use any specifically configured key.
@@ -61,7 +59,7 @@ func (c *Config) NodeKey() *ecdsa.PrivateKey {
 }
 
 // ResolvePath resolves path in the instance directory.
-func  (c *Config) ResolvePath(path string) string {
+func (c *Config) ResolvePath(path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}

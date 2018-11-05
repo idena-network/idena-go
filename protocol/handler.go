@@ -51,8 +51,8 @@ type getBlockByHeightRequest struct {
 
 type proposeProof struct {
 	Hash   common.Hash
-	Proof  [] byte
-	PubKey [] byte
+	Proof  []byte
+	PubKey []byte
 	Round  uint64
 }
 
@@ -280,4 +280,7 @@ func (pm *ProtocolManager) HasPeers() bool {
 }
 func (pm *ProtocolManager) PeersCount() int {
 	return len(pm.peers.peers)
+}
+func (pm *ProtocolManager) Peers() []*peer {
+	return pm.peers.Peers()
 }

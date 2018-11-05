@@ -9,6 +9,7 @@ import (
 	"idena-go/p2p"
 	"idena-go/p2p/enode"
 	"idena-go/p2p/nat"
+	"idena-go/rpc"
 	"os"
 	"runtime"
 	"time"
@@ -68,6 +69,7 @@ func main() {
 				BootstrapNodes: nodes,
 			},
 			Consensus: getDefaultConsensusConfig(context.Bool("automine")),
+			RPC:       getDefaultRPCConfig(),
 		}
 
 		n, _ := node.NewNode(&c)
@@ -91,5 +93,16 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
 		Automine:                       automine,
+	}
+}
+
+func getDefaultRPCConfig() *rpc.Config {
+	// DefaultConfig contains reasonable default settings.
+	return &rpc.Config{
+		HTTPHost:         "localhost",
+		HTTPPort:         9090,
+		HTTPModules:      []string{"net", "dna"},
+		HTTPVirtualHosts: []string{"localhost"},
+		HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
 	}
 }

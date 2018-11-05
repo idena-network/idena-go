@@ -71,6 +71,10 @@ func (engine *Engine) Start() {
 	go engine.loop()
 }
 
+func (engine *Engine) GetState() string {
+	return engine.state
+}
+
 func (engine *Engine) loop() {
 	for {
 		engine.syncBlockchain()
@@ -353,7 +357,7 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	}
 }
 
-func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash common.Hash, ) uint16 {
+func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash common.Hash) uint16 {
 
 	heighstStep := minStep
 	m := engine.votes.GetVotesOfRound(round)
