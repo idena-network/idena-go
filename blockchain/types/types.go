@@ -18,7 +18,7 @@ func (h Seed) Bytes() []byte { return h[:] }
 type EmptyBlockHeader struct {
 	ParentHash common.Hash
 	Height     uint64
-	RootHash   common.Hash
+	Root       common.Hash
 }
 
 type ProposedHeader struct {
@@ -28,6 +28,7 @@ type ProposedHeader struct {
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
+	Coinbase       common.Address // address of proposer
 }
 
 type Header struct {
@@ -60,13 +61,19 @@ type Body struct {
 }
 
 type Transaction struct {
-	// pubkey of node that requests approving
-	PubKey    []byte
+	AccountNonce uint64
+	To           *common.Address `rlp:"nil"` // nil means approving
+	Amount       *big.Int        `json:"value"    gencodec:"required"`
+	Payload      []byte          `json:"input"    gencodec:"required"`
+
 	Signature []byte
 
 	// caches
 	hash atomic.Value
+	addr atomic.Value
 }
+
+type BlockCert []*Vote
 
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction
@@ -77,8 +84,6 @@ type Vote struct {
 
 	// caches
 	hash atomic.Value
-
-	// caches
 	addr atomic.Value
 }
 
@@ -110,6 +115,12 @@ func (b *Block) Height() uint64 {
 		return b.Header.EmptyBlockHeader.Height
 	}
 	return b.Header.ProposedHeader.Height
+}
+func (b *Block) Root() common.Hash {
+	if b.IsEmpty() {
+		return b.Header.EmptyBlockHeader.Root
+	}
+	return b.Header.ProposedHeader.Root
 }
 
 func (h *Header) Hash() common.Hash {
@@ -176,7 +187,7 @@ func (tx *Transaction) Hash() common.Hash {
 	if hash := tx.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlpHash(tx.PubKey)
+	h := rlpHash(tx)
 	tx.hash.Store(h)
 	return h
 }
@@ -191,4 +202,17 @@ func (s Transactions) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s Transactions) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
+}
+
+func (tx Transaction) Sender() common.Address {
+	if addr := tx.addr.Load(); addr != nil {
+		return addr.(common.Address)
+	}
+	addr := common.Address{}
+	pubKey, err := crypto.Ecrecover(tx.Hash().Bytes(), tx.Signature)
+	if err == nil {
+		addr, _ = crypto.PubKeyBytesToAddress(pubKey)
+	}
+	tx.addr.Store(addr)
+	return addr
 }

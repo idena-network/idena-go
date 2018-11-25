@@ -2,48 +2,52 @@ package mempool
 
 import (
 	"idena-go/blockchain/types"
+	"idena-go/blockchain/validation"
 	"idena-go/common"
-	"idena-go/core/validators"
-	"idena-go/crypto"
+	cstate "idena-go/consensus/state"
+	"idena-go/core/state"
+	"idena-go/log"
 	"sync"
 )
 
 type TxPool struct {
-	penging    map[common.Hash]*types.Transaction
-	validators *validators.ValidatorsSet
-
+	penging        map[common.Hash]*types.Transaction
+	currentState   *state.StateDB
 	txSubscription chan *types.Transaction
 	mutex          *sync.Mutex
+	consensusState *cstate.ConsensusState
+	log            log.Logger
 }
 
-func NewTxPool(validators *validators.ValidatorsSet) *TxPool {
+func NewTxPool(consensusState *cstate.ConsensusState, state *state.StateDB) *TxPool {
 	return &TxPool{
-		validators: validators,
-		penging:    make(map[common.Hash]*types.Transaction),
-		mutex:      &sync.Mutex{},
+		penging:        make(map[common.Hash]*types.Transaction),
+		mutex:          &sync.Mutex{},
+		currentState:   state,
+		consensusState: consensusState,
+		log:            log.New(),
 	}
 }
 
-func (txpool *TxPool) Add(transaction *types.Transaction) {
+func (txpool *TxPool) Add(tx *types.Transaction) {
 
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
 
-	if txpool.validators.Contains(transaction.PubKey) {
-		return
-	}
-	if _, ok := txpool.penging[transaction.Hash()]; ok {
-		return
-	}
+	hash := tx.Hash()
 
-	hash := transaction.Hash()
-	if !crypto.VerifySignature(transaction.PubKey, hash[:], transaction.Signature[:len(transaction.Signature)-1]) {
+	if _, ok := txpool.penging[hash]; ok {
 		return
 	}
 
-	txpool.penging[hash] = transaction
+	if err := validation.ValidateTx(txpool.consensusState, txpool.currentState, tx); err != nil {
+		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
+		return
+	}
 
-	txpool.txSubscription <- transaction
+	txpool.penging[hash] = tx
+
+	txpool.txSubscription <- tx
 }
 
 func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {

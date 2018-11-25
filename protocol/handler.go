@@ -165,6 +165,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 	peer := pm.makePeer(p)
 
+	pm.syncTxPool(peer)
 	pm.registerPeer(peer)
 	defer pm.unregister(peer)
 	return pm.runListening(peer)
@@ -283,4 +284,11 @@ func (pm *ProtocolManager) PeersCount() int {
 }
 func (pm *ProtocolManager) Peers() []*peer {
 	return pm.peers.Peers()
+}
+
+func (pm *ProtocolManager) syncTxPool(p *peer) {
+	pending := pm.txpool.GetPendingTransaction()
+	for _, tx := range pending {
+		p.SendTxAsync(tx)
+	}
 }

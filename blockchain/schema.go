@@ -11,4 +11,6 @@ var (
 	headerHashSuffix = []byte("n") // headerPrefix + num (uint64 big endian) + headerHashSuffix -> hash
 
 	finalConsensusPrefix = []byte("f")
+
+	certPrefix = []byte("c")
 )

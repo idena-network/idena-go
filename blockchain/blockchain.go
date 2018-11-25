@@ -42,6 +42,7 @@ type Blockchain struct {
 	log        log.Logger
 	txpool     *mempool.TxPool
 	validators *validators.ValidatorsSet
+	stateDb    idenadb.Database
 }
 
 func init() {
@@ -54,13 +55,14 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db idenadb.Database, txpool *mempool.TxPool, validators *validators.ValidatorsSet) *Blockchain {
+func NewBlockchain(config *config.Config, db idenadb.Database, txpool *mempool.TxPool, validators *validators.ValidatorsSet, stateDb state.Database) *Blockchain {
 	return &Blockchain{
 		db:         db,
 		config:     config,
 		log:        log.New(),
 		txpool:     txpool,
 		validators: validators,
+		stateDb:    stateDb,
 	}
 }
 
@@ -168,7 +170,11 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 func (chain *Blockchain) processTxs(block *types.Block) {
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		chain.validators.AddValidPubKey(tx.PubKey)
+
+		if tx.To == nil {
+			chain.validators.AddValidator(tx.Sender())
+		}
+
 		chain.txpool.Remove(tx)
 	}
 }
@@ -315,8 +321,9 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 func (chain *Blockchain) Round() uint64 {
 	return chain.Head.Height() + 1
 }
-func (chain *Blockchain) WriteFinalConsensus(hash common.Hash) {
+func (chain *Blockchain) WriteFinalConsensus(hash common.Hash, cert *types.BlockCert) {
 	WriteFinalConsensus(chain.db, hash)
+	WriteCert(chain.db, hash, cert)
 }
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	return ReadBlock(chain.db, hash)

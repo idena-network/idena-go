@@ -34,12 +34,14 @@ type Engine struct {
 	pubKey     []byte
 	config     *config.ConsensusConf
 	proposals  *pengings.Proposals
-	stateDb    state.Database
 	validators *validators.ValidatorsSet
 	secretKey  *ecdsa.PrivateKey
 	votes      *pengings.Votes
 	txpool     *mempool.TxPool
 	addr       common.Address
+
+	stateDb    *state.StateDB
+	stateCache state.Database
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -53,7 +55,7 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		log:        log.New(),
 		config:     config,
 		proposals:  proposals,
-		stateDb:    stateDb,
+		stateCache: stateDb,
 		validators: validators,
 		votes:      votes,
 		txpool:     txpool,
@@ -82,9 +84,17 @@ func (engine *Engine) loop() {
 			time.Sleep(time.Second * 5)
 			continue
 		}
+		head := engine.chain.Head
+
+		stateDb, err := state.New(head.Root(), engine.stateCache)
+		if err != nil {
+			engine.log.Error("Failed to open stateDb", "err", err)
+			continue
+		}
+		engine.stateDb = stateDb
+
 		engine.requestApprove()
 
-		head := engine.chain.Head
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.validators.GetCountOfValidNodes())
 
@@ -123,14 +133,13 @@ func (engine *Engine) loop() {
 		}
 
 		blockHash := engine.reduction(round, block)
-		var err error
 		blockHash, err = engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
 		}
 		engine.state = "Count final votes"
 
-		hash, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
+		hash, cert, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
 
 		if blockHash == emptyBlock.Hash() {
 			engine.chain.AddBlock(emptyBlock)
@@ -141,7 +150,7 @@ func (engine *Engine) loop() {
 				engine.chain.AddBlock(block)
 				if hash == blockHash {
 					engine.log.Info("Reached FINAL", "block", blockHash.Hex())
-					engine.chain.WriteFinalConsensus(blockHash)
+					engine.chain.WriteFinalConsensus(blockHash, cert)
 				} else {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex())
 				}
@@ -235,7 +244,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionOne, block.Hash())
 	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
 
-	hash, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -246,7 +255,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionTwo, hash)
 
 	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
-	hash, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
 
 	if err != nil {
@@ -270,7 +279,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 		if err != nil {
 			hash = emptyBlockHash
 		} else if hash != emptyBlockHash {
@@ -288,7 +297,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 
 		if err != nil {
 			hash = emptyBlockHash
@@ -305,7 +314,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 		if err != nil {
 			if engine.commonCoin(step) {
 				hash = blockHash
@@ -386,7 +395,7 @@ func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash comm
 	return heighstStep
 }
 
-func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, error) {
+func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, *types.BlockCert, error) {
 
 	engine.log.Info("Start count votes", "step", step, "min-votes", necessaryVotesCount)
 	defer engine.log.Info("Finish count votes", "step", step)
@@ -394,7 +403,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	byBlock := make(map[common.Hash]mapset.Set)
 	validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
 	if validators == nil {
-		return common.Hash{}, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
+		return common.Hash{}, nil, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
 	}
 
 	for start := time.Now(); time.Since(start) < timeout; {
@@ -403,7 +412,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 
 			found := false
 			var bestHash common.Hash
-
+			var cert types.BlockCert
 			m.Range(func(key, value interface{}) bool {
 				vote := value.(*types.Vote)
 
@@ -429,6 +438,12 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 						found = true
 						engine.log.Info(fmt.Sprintf("Has %v/%v votes step=%v", roundVotes.Cardinality(), necessaryVotesCount, step))
 						bestHash = vote.Header.VotedHash
+						list := make([]*types.Vote, 0, necessaryVotesCount)
+						roundVotes.Each(func(value interface{}) bool {
+							list = append(list, value.(*types.Vote))
+							return len(list) < necessaryVotesCount
+						})
+						cert = types.BlockCert(list)
 						return false
 					}
 				}
@@ -436,12 +451,12 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 			})
 
 			if found {
-				return bestHash, nil
+				return bestHash, &cert, nil
 			}
 		}
 		time.Sleep(200)
 	}
-	return common.Hash{}, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
+	return common.Hash{}, nil, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
 }
 
 func (engine *Engine) GetCommitteSize(final bool) int {
@@ -502,12 +517,15 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 }
 func (engine *Engine) requestApprove() {
 
-	if engine.validators.Contains(engine.pubKey) {
+	if engine.stateDb == nil {
 		return
 	}
 
+	if engine.validators.Contains(engine.addr) {
+		return
+	}
 	tx := &types.Transaction{
-		PubKey: engine.pubKey,
+		AccountNonce: engine.stateDb.GetNonce(engine.addr) + 1,
 	}
 	tx.Signature, _ = crypto.Sign(tx.Hash().Bytes(), engine.secretKey)
 

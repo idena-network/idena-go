@@ -5,7 +5,6 @@ import (
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/crypto"
 	"idena-go/crypto/sha3"
 	"idena-go/idenadb"
 	"idena-go/rlp"
@@ -26,12 +25,7 @@ func NewValidatorsSet(db idenadb.Database) *ValidatorsSet {
 	}
 }
 
-func (v *ValidatorsSet) AddValidPubKey(pubKey []byte) error {
-	addr, err := crypto.PubKeyBytesToAddress(pubKey)
-	if err != nil {
-		return err
-	}
-
+func (v *ValidatorsSet) AddValidator(addr common.Address) error {
 	v.validNodes = sortValidNodes(append(v.validNodes, addr))
 	v.db.WriteValidNodes(v.validNodes)
 	return nil
@@ -59,12 +53,7 @@ func (v *ValidatorsSet) GetActualValidators(seed types.Seed, round uint64, step 
 func (v *ValidatorsSet) GetCountOfValidNodes() int {
 	return len(v.validNodes)
 }
-func (v *ValidatorsSet) Contains(pubKey []byte) bool {
-
-	addr, err := crypto.PubKeyBytesToAddress(pubKey)
-	if err != nil {
-		return false
-	}
+func (v *ValidatorsSet) Contains(addr common.Address) bool {
 	for _, p := range v.validNodes {
 		if p == addr {
 			return true

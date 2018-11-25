@@ -26,16 +26,15 @@ func bodyKey(hash common.Hash) []byte {
 	return append(bodyPrefix, hash.Bytes()...)
 }
 
+func certKey(hash common.Hash) [] byte {
+	return append(certPrefix, hash.Bytes()...)
+}
+
 func headerHashKey(number uint64) []byte {
 	return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
 }
 func finalConsensusKey(hash common.Hash) []byte {
 	return append(finalConsensusPrefix, hash.Bytes()...)
-}
-
-// headerKey = headerPrefix + hash
-func blockBodyKey(hash common.Hash) []byte {
-	return append(headerPrefix, hash.Bytes()...)
 }
 
 func ReadBlockHeader(db idenadb.Database, hash common.Hash) *types.Header {
@@ -121,6 +120,16 @@ func WriteBlock(db idenadb.Database, block *types.Block) {
 
 	if err := db.Put(bodyKey(block.Hash()), data); err != nil {
 		log.Crit("Failed to store header", "err", err)
+	}
+}
+
+func WriteCert(db idenadb.Database, hash common.Hash, cert *types.BlockCert) {
+	data, err := rlp.EncodeToBytes(cert)
+	if err != nil {
+		log.Crit("Failed to RLP encode block cert", "err", err)
+	}
+	if err := db.Put(certKey(hash), data); err != nil {
+		log.Crit("Failed to store block cert", "err", err)
 	}
 }
 
