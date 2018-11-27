@@ -37,6 +37,7 @@ type Node struct {
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
 	log             log.Logger
 	srv             *p2p.Server
+	iavl 			IavlTree
 }
 
 func NewNode(config *config.Config) (*Node, error) {

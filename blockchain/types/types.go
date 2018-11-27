@@ -36,6 +36,8 @@ type Header struct {
 	ProposedHeader   *ProposedHeader   `rlp:"nil"`
 }
 
+type TxType = uint16
+
 type VoteHeader struct {
 	Round      uint64
 	Step       uint16
@@ -63,8 +65,9 @@ type Body struct {
 type Transaction struct {
 	AccountNonce uint64
 	To           *common.Address `rlp:"nil"` // nil means approving
-	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	Payload      []byte          `json:"input"    gencodec:"required"`
+	Type         TxType
+	Amount       *big.Int `json:"value"    gencodec:"required"`
+	Payload      []byte   `json:"input"    gencodec:"required"`
 
 	Signature []byte
 

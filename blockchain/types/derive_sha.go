@@ -18,9 +18,10 @@ package types
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/trie"
+	"idena-go/core/state"
 
 	"idena-go/common"
-	"idena-go/core/trie"
 	"idena-go/rlp"
 )
 
@@ -31,11 +32,12 @@ type DerivableList interface {
 
 func DeriveSha(list DerivableList) common.Hash {
 	keybuf := new(bytes.Buffer)
-	trie := new(trie.Trie)
+	tree := new(state.MutableTree)
 	for i := 0; i < list.Len(); i++ {
 		keybuf.Reset()
 		rlp.Encode(keybuf, uint(i))
-		trie.Update(keybuf.Bytes(), list.GetRlp(i))
+		tree.Set(keybuf.Bytes(), list.GetRlp(i))
 	}
-	return trie.Hash()
+
+	return  tree.Hash()
 }
