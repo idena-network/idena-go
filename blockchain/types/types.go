@@ -30,7 +30,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
@@ -79,7 +79,7 @@ type Transaction struct {
 
 	// caches
 	hash atomic.Value
-	addr atomic.Value
+	from atomic.Value
 }
 
 type BlockCert []*Vote
@@ -211,17 +211,4 @@ func (s Transactions) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s Transactions) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
-}
-
-func (tx Transaction) Sender() common.Address {
-	if addr := tx.addr.Load(); addr != nil {
-		return addr.(common.Address)
-	}
-	addr := common.Address{}
-	pubKey, err := crypto.Ecrecover(tx.Hash().Bytes(), tx.Signature)
-	if err == nil {
-		addr, _ = crypto.PubKeyBytesToAddress(pubKey)
-	}
-	tx.addr.Store(addr)
-	return addr
 }

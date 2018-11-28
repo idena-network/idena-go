@@ -112,7 +112,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 		},
 	}, Body: &types.Body{
 		BlockSeed: seed,
-	},}
+	}}
 
 	chain.insertBlock(&block)
 	return &block
@@ -167,7 +167,9 @@ func (chain *Blockchain) processTxs(block *types.Block) {
 		tx := block.Body.Transactions[i]
 
 		if tx.To == nil {
-			chain.appState.ValidatorsState.AddValidator(tx.Sender())
+			sender, _ := types.Sender(tx)
+
+			chain.appState.ValidatorsState.AddValidator(sender)
 		}
 
 		chain.txpool.Remove(tx)

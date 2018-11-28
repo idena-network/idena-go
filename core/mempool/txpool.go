@@ -5,14 +5,12 @@ import (
 	"idena-go/blockchain/validation"
 	"idena-go/common"
 	"idena-go/core/appstate"
-	"idena-go/core/state"
 	"idena-go/log"
 	"sync"
 )
 
 type TxPool struct {
-	penging        map[common.Hash]*types.Transaction
-	currentState   *state.StateDB
+	pending        map[common.Hash]*types.Transaction
 	txSubscription chan *types.Transaction
 	mutex          *sync.Mutex
 	appState       *appstate.AppState
@@ -21,7 +19,7 @@ type TxPool struct {
 
 func NewTxPool(appState *appstate.AppState) *TxPool {
 	return &TxPool{
-		penging:  make(map[common.Hash]*types.Transaction),
+		pending:  make(map[common.Hash]*types.Transaction),
 		mutex:    &sync.Mutex{},
 		appState: appState,
 		log:      log.New(),
@@ -35,7 +33,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 
 	hash := tx.Hash()
 
-	if _, ok := txpool.penging[hash]; ok {
+	if _, ok := txpool.pending[hash]; ok {
 		return
 	}
 
@@ -44,7 +42,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 		return
 	}
 
-	txpool.penging[hash] = tx
+	txpool.pending[hash] = tx
 
 	txpool.txSubscription <- tx
 }
@@ -55,7 +53,7 @@ func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {
 func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 	var list []*types.Transaction
 
-	for _, tx := range txpool.penging {
+	for _, tx := range txpool.pending {
 		list = append(list, tx)
 	}
 	return list
@@ -63,5 +61,5 @@ func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 func (txpool *TxPool) Remove(transaction *types.Transaction) {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
-	delete(txpool.penging, transaction.Hash())
+	delete(txpool.pending, transaction.Hash())
 }

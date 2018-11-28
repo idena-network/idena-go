@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
-	"idena-go/log"
 	"github.com/rs/cors"
+	"idena-go/log"
 )
 
 const (
@@ -277,10 +277,11 @@ func newCorsHandler(srv *Server, allowedOrigins []string) http.Handler {
 		return srv
 	}
 	c := cors.New(cors.Options{
-		AllowedOrigins: allowedOrigins,
-		AllowedMethods: []string{http.MethodPost, http.MethodGet},
-		MaxAge:         600,
-		AllowedHeaders: []string{"*"},
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{http.MethodPost, http.MethodGet},
+		MaxAge:           600,
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
 	})
 	return c.Handler(srv)
 }

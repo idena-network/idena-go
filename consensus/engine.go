@@ -520,7 +520,12 @@ func (engine *Engine) requestApprove() {
 		AccountNonce: engine.appState.State.GetNonce(engine.addr) + 1,
 		Type:         types.ApprovingTx,
 	}
-	tx.Signature, _ = crypto.Sign(tx.Hash().Bytes(), engine.secretKey)
 
-	engine.txpool.Add(tx)
+	signedTx, err := types.SignTx(tx, engine.secretKey)
+
+	if err != nil {
+		return
+	}
+
+	engine.txpool.Add(signedTx)
 }

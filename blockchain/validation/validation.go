@@ -17,19 +17,23 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 	if tx.Type == types.ApprovingTx && !validateApprovingTx(appState, tx) {
 		return NodeApprovedAlready
 	}
-	
-	if tx.Sender() == (common.Address{}) {
+
+	sender, _ := types.Sender(tx)
+
+	if sender == (common.Address{}) {
 		return InvalidSignature
 	}
 
-	if appState.State.GetNonce(tx.Sender()) > tx.AccountNonce {
+	if appState.State.GetNonce(sender) > tx.AccountNonce {
 		return InvalidNonce
 	}
 	return nil
 }
 
 func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) bool {
-	if appState.ValidatorsState.Contains(tx.Sender()) {
+	sender, _ := types.Sender(tx)
+
+	if appState.ValidatorsState.Contains(sender) {
 		return false
 	}
 	return true
