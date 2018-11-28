@@ -2,17 +2,17 @@ package validators
 
 import (
 	"bytes"
-	"idena-go/idenadb"
+	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/log"
 	"idena-go/rlp"
 )
 
 type Validatorsdb struct {
-	db  idenadb.Database
+	db  dbm.DB
 	log log.Logger
 }
 
-func NewValidatorsDb(db idenadb.Database) *Validatorsdb {
+func NewValidatorsDb(db dbm.DB) *Validatorsdb {
 	return &Validatorsdb{
 		db,
 		log.New(),
@@ -20,7 +20,7 @@ func NewValidatorsDb(db idenadb.Database) *Validatorsdb {
 }
 
 func (v *Validatorsdb) LoadValidNodes() (ValidNodes) {
-	data, _ := v.db.Get(validPubKeysKey)
+	data := v.db.Get(validPubKeysKey)
 	if len(data) == 0 {
 		return ValidNodes{}
 	}
@@ -37,7 +37,5 @@ func (v *Validatorsdb) WriteValidNodes(nodes ValidNodes) {
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
-	if err := v.db.Put(validPubKeysKey, data); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	v.db.Set(validPubKeysKey, data)
 }

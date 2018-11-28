@@ -4,7 +4,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
-	cstate "idena-go/consensus/state"
+	"idena-go/core/appstate"
 	"idena-go/core/state"
 	"idena-go/log"
 	"sync"
@@ -15,17 +15,16 @@ type TxPool struct {
 	currentState   *state.StateDB
 	txSubscription chan *types.Transaction
 	mutex          *sync.Mutex
-	consensusState *cstate.ConsensusState
+	appState       *appstate.AppState
 	log            log.Logger
 }
 
-func NewTxPool(consensusState *cstate.ConsensusState, state *state.StateDB) *TxPool {
+func NewTxPool(appState *appstate.AppState) *TxPool {
 	return &TxPool{
-		penging:        make(map[common.Hash]*types.Transaction),
-		mutex:          &sync.Mutex{},
-		currentState:   state,
-		consensusState: consensusState,
-		log:            log.New(),
+		penging:  make(map[common.Hash]*types.Transaction),
+		mutex:    &sync.Mutex{},
+		appState: appState,
+		log:      log.New(),
 	}
 }
 
@@ -40,7 +39,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 		return
 	}
 
-	if err := validation.ValidateTx(txpool.consensusState, txpool.currentState, tx); err != nil {
+	if err := validation.ValidateTx(txpool.appState, tx); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		return
 	}

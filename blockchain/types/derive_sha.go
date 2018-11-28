@@ -18,9 +18,7 @@ package types
 
 import (
 	"bytes"
-	"github.com/ethereum/go-ethereum/trie"
 	"idena-go/core/state"
-
 	"idena-go/common"
 	"idena-go/rlp"
 )

@@ -10,9 +10,8 @@ import (
 	"idena-go/common"
 	"idena-go/common/hexutil"
 	"idena-go/config"
+	"idena-go/core/appstate"
 	"idena-go/core/mempool"
-	"idena-go/core/state"
-	"idena-go/core/validators"
 	"idena-go/crypto"
 	"idena-go/log"
 	"idena-go/pengings"
@@ -27,38 +26,33 @@ const (
 )
 
 type Engine struct {
-	chain      *blockchain.Blockchain
-	pm         *protocol.ProtocolManager
-	log        log.Logger
-	state      string
-	pubKey     []byte
-	config     *config.ConsensusConf
-	proposals  *pengings.Proposals
-	validators *validators.ValidatorsSet
-	secretKey  *ecdsa.PrivateKey
-	votes      *pengings.Votes
-	txpool     *mempool.TxPool
-	addr       common.Address
-
-	stateDb    *state.StateDB
-	stateCache state.Database
+	chain     *blockchain.Blockchain
+	pm        *protocol.ProtocolManager
+	log       log.Logger
+	state     string
+	pubKey    []byte
+	config    *config.ConsensusConf
+	proposals *pengings.Proposals
+	secretKey *ecdsa.PrivateKey
+	votes     *pengings.Votes
+	txpool    *mempool.TxPool
+	addr      common.Address
+	appState  *appstate.AppState
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
-	stateDb state.Database,
-	validators *validators.ValidatorsSet,
+	appState *appstate.AppState,
 	votes *pengings.Votes,
 	txpool *mempool.TxPool) *Engine {
 	return &Engine{
-		chain:      chain,
-		pm:         pm,
-		log:        log.New(),
-		config:     config,
-		proposals:  proposals,
-		stateCache: stateDb,
-		validators: validators,
-		votes:      votes,
-		txpool:     txpool,
+		chain:     chain,
+		pm:        pm,
+		log:       log.New(),
+		config:    config,
+		proposals: proposals,
+		appState:  appState,
+		votes:     votes,
+		txpool:    txpool,
 	}
 }
 
@@ -86,17 +80,15 @@ func (engine *Engine) loop() {
 		}
 		head := engine.chain.Head
 
-		stateDb, err := state.New(head.Root(), engine.stateCache)
-		if err != nil {
+		if err := engine.appState.State.Load(head.Height()); err != nil {
 			engine.log.Error("Failed to open stateDb", "err", err)
 			continue
 		}
-		engine.stateDb = stateDb
 
 		engine.requestApprove()
 
 		round := head.Height() + 1
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.validators.GetCountOfValidNodes())
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsState.GetCountOfValidNodes())
 
 		engine.state = "Check if I'm proposer"
 
@@ -133,7 +125,7 @@ func (engine *Engine) loop() {
 		}
 
 		blockHash := engine.reduction(round, block)
-		blockHash, err = engine.binaryBa(blockHash)
+		blockHash, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
 		}
@@ -341,7 +333,7 @@ func (engine *Engine) commonCoin(step uint16) bool {
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	committeeSize := engine.GetCommitteSize(step == Final)
-	stepValidators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize)
+	stepValidators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
 	}
@@ -379,7 +371,7 @@ func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash comm
 					return true
 				}
 
-				validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, vote.Header.Step, engine.GetCommitteSize(false))
+				validators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, vote.Header.Step, engine.GetCommitteSize(false))
 
 				if validators == nil {
 					return true
@@ -401,7 +393,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Info("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.validators.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
+	validators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
 	}
@@ -460,7 +452,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 }
 
 func (engine *Engine) GetCommitteSize(final bool) int {
-	var cnt = engine.validators.GetCountOfValidNodes()
+	var cnt = engine.appState.ValidatorsState.GetCountOfValidNodes()
 	percent := engine.config.CommitteePercent
 	if final {
 		percent = engine.config.FinalCommitteeConsensusPercent
@@ -479,7 +471,7 @@ func (engine *Engine) GetCommitteSize(final bool) int {
 
 func (engine *Engine) getCommitteeVotesTreshold(final bool) int {
 
-	var cnt = engine.validators.GetCountOfValidNodes()
+	var cnt = engine.appState.ValidatorsState.GetCountOfValidNodes()
 	percent := engine.config.CommitteePercent
 	if final {
 		percent = engine.config.FinalCommitteeConsensusPercent
@@ -517,15 +509,16 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 }
 func (engine *Engine) requestApprove() {
 
-	if engine.stateDb == nil {
+	if engine.appState.State.Version() == 0 {
 		return
 	}
 
-	if engine.validators.Contains(engine.addr) {
+	if engine.appState.ValidatorsState.Contains(engine.addr) {
 		return
 	}
 	tx := &types.Transaction{
-		AccountNonce: engine.stateDb.GetNonce(engine.addr) + 1,
+		AccountNonce: engine.appState.State.GetNonce(engine.addr) + 1,
+		Type:         types.ApprovingTx,
 	}
 	tx.Signature, _ = crypto.Sign(tx.Hash().Bytes(), engine.secretKey)
 

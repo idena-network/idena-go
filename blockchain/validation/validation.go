@@ -4,8 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	cstate "idena-go/consensus/state"
-	"idena-go/core/state"
+	"idena-go/core/appstate"
 )
 
 var (
@@ -14,25 +13,23 @@ var (
 	InvalidNonce        = errors.New("Invalid Nonce")
 )
 
-func ValidateTx(consensusState *cstate.ConsensusState, state *state.StateDB, tx *types.Transaction) error {
-	if !validateApprovingTx(consensusState, tx) {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
+	if tx.Type == types.ApprovingTx && !validateApprovingTx(appState, tx) {
 		return NodeApprovedAlready
 	}
-
-	hash := tx.Hash()
-
+	
 	if tx.Sender() == (common.Address{}) {
 		return InvalidSignature
 	}
 
-	if state.GetNonce(tx.Sender()) > tx.AccountNonce {
+	if appState.State.GetNonce(tx.Sender()) > tx.AccountNonce {
 		return InvalidNonce
 	}
 	return nil
 }
 
-func validateApprovingTx(consensusState *cstate.ConsensusState, tx *types.Transaction) bool {
-	if consensusState.Validators.Contains(tx.Sender()) {
+func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) bool {
+	if appState.ValidatorsState.Contains(tx.Sender()) {
 		return false
 	}
 	return true

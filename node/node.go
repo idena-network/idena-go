@@ -3,11 +3,14 @@ package node
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/api"
 	"idena-go/blockchain"
 	"idena-go/config"
 	"idena-go/consensus"
-	cstate "idena-go/consensus/state"
+	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/core/validators"
@@ -24,11 +27,11 @@ import (
 type Node struct {
 	config          *config.Config
 	blockchain      *blockchain.Blockchain
+	appState        *appstate.AppState
 	key             *ecdsa.PrivateKey
 	pm              *protocol.ProtocolManager
 	stop            chan struct{}
 	proposals       *pengings.Proposals
-	state           state.Database
 	votes           *pengings.Votes
 	consensusEngine *consensus.Engine
 	txpool          *mempool.TxPool
@@ -37,7 +40,6 @@ type Node struct {
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
 	log             log.Logger
 	srv             *p2p.Server
-	iavl 			IavlTree
 }
 
 func NewNode(config *config.Config) (*Node, error) {
@@ -50,21 +52,24 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	validators := validators.NewValidatorsSet(db)
 
-	consensusState := cstate.NewConsensusState(validators)
-	stateDb := state.NewDatabase(db)
+	stateDb, err := state.NewLazy(db)
+	if err != nil {
+		return nil, err
+	}
 	votes := pengings.NewVotes()
-	txpool := mempool.NewTxPool(consensusState, stateDb)
-	state.New()
-	chain := blockchain.NewBlockchain(config, db, txpool, validators, stateDb)
+	appState := appstate.NewAppState(validators, stateDb)
+
+	txpool := mempool.NewTxPool(appState)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState)
 	proposals := pengings.NewProposals(chain)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, stateDb, validators, votes, txpool)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool)
 	return &Node{
 		config:          config,
 		blockchain:      chain,
 		pm:              pm,
 		proposals:       proposals,
-		state:           stateDb,
+		appState:        appState,
 		consensusEngine: consensusEngine,
 		txpool:          txpool,
 		log:             log.New(),
@@ -150,12 +155,21 @@ func (node *Node) stopHTTP() {
 	}
 }
 
-func OpenDatabase(c *config.Config, name string, cache int, handles int) (idenadb.Database, error) {
+func OpenDatabaseOld(c *config.Config, name string, cache int, handles int) (idenadb.Database, error) {
 	db, err := idenadb.NewLDBDatabase(c.ResolvePath(name), cache, handles)
 	if err != nil {
 		return nil, err
 	}
 	return db, nil
+}
+
+func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB, error) {
+	return db.NewGoLevelDBWithOpts(c.DataDir, name, &opt.Options{
+		OpenFilesCacheCapacity: handles,
+		BlockCacheCapacity:     cache / 2 * opt.MiB,
+		WriteBuffer:            cache / 4 * opt.MiB,
+		Filter:                 filter.NewBloomFilter(10),
+	})
 }
 
 // apis returns the collection of RPC descriptors this node offers.

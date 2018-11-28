@@ -3,12 +3,22 @@ package blockchain
 import (
 	"bytes"
 	"encoding/binary"
+	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/idenadb"
 	"idena-go/log"
 	"idena-go/rlp"
 )
+
+type repo struct {
+	db dbm.DB
+}
+
+func NewRepo(db dbm.DB) *repo {
+	return &repo{
+		db: db,
+	}
+}
 
 // encodeBlockNumber encodes a block number as big endian uint64
 func encodeBlockNumber(number uint64) []byte {
@@ -37,8 +47,8 @@ func finalConsensusKey(hash common.Hash) []byte {
 	return append(finalConsensusPrefix, hash.Bytes()...)
 }
 
-func ReadBlockHeader(db idenadb.Database, hash common.Hash) *types.Header {
-	data, _ := db.Get(headerKey(hash))
+func (r *repo) ReadBlockHeader(hash common.Hash) *types.Header {
+	data := r.db.Get(headerKey(hash))
 	if data == nil {
 		return nil
 	}
@@ -50,8 +60,8 @@ func ReadBlockHeader(db idenadb.Database, hash common.Hash) *types.Header {
 	return header
 }
 
-func ReadBlockBody(db idenadb.Database, hash common.Hash) *types.Body {
-	data, _ := db.Get(bodyKey(hash))
+func (r *repo) ReadBlockBody(hash common.Hash) *types.Body {
+	data := r.db.Get(bodyKey(hash))
 	if data == nil {
 		return nil
 	}
@@ -63,20 +73,20 @@ func ReadBlockBody(db idenadb.Database, hash common.Hash) *types.Body {
 	return body
 }
 
-func ReadBlock(db idenadb.Database, hash common.Hash) *types.Block {
-	header := ReadBlockHeader(db, hash)
+func (r *repo) ReadBlock(hash common.Hash) *types.Block {
+	header := r.ReadBlockHeader(hash)
 	if header == nil {
 		return nil
 	}
 
 	return &types.Block{
 		Header: header,
-		Body:   ReadBlockBody(db, hash),
+		Body:   r.ReadBlockBody(hash),
 	}
 }
 
-func ReadHead(db idenadb.Database) *types.Header {
-	data, _ := db.Get(headBlockKey)
+func (r *repo) ReadHead() *types.Header {
+	data := r.db.Get(headBlockKey)
 	if data == nil {
 		return nil
 	}
@@ -88,27 +98,22 @@ func ReadHead(db idenadb.Database) *types.Header {
 	return header
 }
 
-func WriteHead(db idenadb.Database, header *types.Header) {
+func (r *repo) WriteHead(header *types.Header) {
 	// Write the encoded header
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
-
-	if err := db.Put(headBlockKey, data); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	r.db.Set(headBlockKey, data)
 }
 
-func WriteBlock(db idenadb.Database, block *types.Block) {
+func (r *repo) WriteBlock(block *types.Block) {
 	data, err := rlp.EncodeToBytes(block.Header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
 
-	if err := db.Put(headerKey(block.Hash()), data); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	r.db.Set(headerKey(block.Hash()), data)
 	// body doesn't exist for empty block
 	if block.Body == nil {
 		return
@@ -117,41 +122,32 @@ func WriteBlock(db idenadb.Database, block *types.Block) {
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
-
-	if err := db.Put(bodyKey(block.Hash()), data); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	r.db.Set(bodyKey(block.Hash()), data)
 }
 
-func WriteCert(db idenadb.Database, hash common.Hash, cert *types.BlockCert) {
+func (r *repo) WriteCert(hash common.Hash, cert *types.BlockCert) {
 	data, err := rlp.EncodeToBytes(cert)
 	if err != nil {
 		log.Crit("Failed to RLP encode block cert", "err", err)
 	}
-	if err := db.Put(certKey(hash), data); err != nil {
-		log.Crit("Failed to store block cert", "err", err)
-	}
+	r.db.Set(certKey(hash), data)
 }
 
-func WriteCanonicalHash(db idenadb.Database, height uint64, hash common.Hash) {
+func (r *repo) WriteCanonicalHash(height uint64, hash common.Hash) {
 	key := headerHashKey(height)
-	if err := db.Put(key, hash.Bytes()); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	r.db.Set(key, hash.Bytes())
 }
 
-func ReadCanonicalHash(db idenadb.Database, height uint64) common.Hash {
+func (r *repo) ReadCanonicalHash(height uint64) common.Hash {
 	key := headerHashKey(height)
-	data, _ := db.Get(key)
+	data := r.db.Get(key)
 	if len(data) == 0 {
 		return common.Hash{}
 	}
 	return common.BytesToHash(data)
 }
 
-func WriteFinalConsensus(db idenadb.Database, hash common.Hash) {
+func (r *repo) WriteFinalConsensus(hash common.Hash) {
 	key := finalConsensusKey(hash)
-	if err := db.Put(key, common.ToBytes(uint8(1))); err != nil {
-		log.Crit("Failed to store header", "err", err)
-	}
+	r.db.Set(key, common.ToBytes(uint8(1)))
 }

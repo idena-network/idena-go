@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	addressPrefix     = []byte("a")
+	addressPrefix = []byte("a")
 )
 
 type StateDB struct {
@@ -58,6 +58,19 @@ func NewForCheck(s *StateDB) *StateDB {
 		stateAccountsDirty: make(map[common.Address]struct{}),
 		log:                log.New(),
 	}
+
+}
+
+func NewLazy(db dbm.DB) (*StateDB, error) {
+	tree := NewMutableTree(db)
+
+	return &StateDB{
+		db:                 db,
+		tree:               tree,
+		stateAccounts:      make(map[common.Address]*stateAccount),
+		stateAccountsDirty: make(map[common.Address]struct{}),
+		log:                log.New(),
+	}, nil
 }
 
 func New(height int64, db dbm.DB) (*StateDB, error) {
@@ -78,10 +91,19 @@ func New(height int64, db dbm.DB) (*StateDB, error) {
 	}, nil
 }
 
+func (s *StateDB) Load(height uint64) error {
+	_, err := s.tree.LoadVersion(int64(height))
+	return err
+}
+
 func (s *StateDB) Clear() {
 	s.stateAccounts = make(map[common.Address]*stateAccount)
 	s.stateAccountsDirty = make(map[common.Address]struct{})
 	s.lock = sync.Mutex{}
+}
+
+func (s *StateDB) Version() int64 {
+	return s.tree.Version()
 }
 
 // Retrieve the balance from the given address or 0 if object not found
@@ -259,8 +281,10 @@ func getOrderedObjectsKeys(objects map[common.Address]struct{}) []common.Address
 	return keys
 }
 
-
-
 func (s *StateDB) AccountExists(address common.Address) bool {
 	return s.getStateAccount(address) != nil
+}
+
+func (s *StateDB) Root() common.Hash {
+	return s.tree.WorkingHash()
 }

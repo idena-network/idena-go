@@ -9,6 +9,12 @@ import (
 	"sync/atomic"
 )
 
+const (
+	ApprovingTx  uint16 = 0x1
+	SendTx       uint16 = 0x2
+	SendInviteTx uint16 = 0x3
+)
+
 type Network = int32
 
 type Seed [32]byte
@@ -64,10 +70,10 @@ type Body struct {
 
 type Transaction struct {
 	AccountNonce uint64
-	To           *common.Address `rlp:"nil"` // nil means approving
 	Type         TxType
-	Amount       *big.Int `json:"value"    gencodec:"required"`
-	Payload      []byte   `json:"input"    gencodec:"required"`
+	To           *common.Address `rlp:"nil"`
+	Amount       *big.Int        `json:"value"    gencodec:"required"`
+	Payload      []byte          `json:"input"    gencodec:"required"`
 
 	Signature []byte
 

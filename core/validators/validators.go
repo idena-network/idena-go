@@ -3,10 +3,10 @@ package validators
 import (
 	"bytes"
 	"github.com/deckarep/golang-set"
+	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/crypto/sha3"
-	"idena-go/idenadb"
 	"idena-go/rlp"
 	"math/big"
 	"sort"
@@ -17,7 +17,7 @@ type ValidatorsSet struct {
 	validNodes ValidNodes
 }
 
-func NewValidatorsSet(db idenadb.Database) *ValidatorsSet {
+func NewValidatorsSet(db db.DB) *ValidatorsSet {
 	validatorsDb := NewValidatorsDb(db)
 	return &ValidatorsSet{
 		db:         validatorsDb,
