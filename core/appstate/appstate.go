@@ -8,11 +8,13 @@ import (
 type AppState struct {
 	ValidatorsState *validators.ValidatorsSet
 	State           *state.StateDB
+	NonceCache      *state.NonceCache
 }
 
-func NewAppState(validatorsSet *validators.ValidatorsSet, state *state.StateDB) *AppState {
+func NewAppState(validatorsSet *validators.ValidatorsSet, s *state.StateDB) *AppState {
 	return &AppState{
 		ValidatorsState: validatorsSet,
-		State:           state,
+		State:           s,
+		NonceCache:      state.NewNonceCache(s),
 	}
 }

@@ -224,7 +224,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Block, error) {
 	head := chain.Head
 
-	txs := chain.txpool.GetPendingTransaction()
+	txs := chain.txpool.BuildBlockTransactions()
 
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,

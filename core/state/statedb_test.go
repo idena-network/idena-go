@@ -2,15 +2,15 @@ package state
 
 import (
 	"github.com/stretchr/testify/require"
-	db2 "github.com/tendermint/tendermint/libs/db"
+	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
 	"math/big"
 	"testing"
 )
 
 func TestStateDB_Version(t *testing.T) {
-	db := db2.NewMemDB()
-	stateDb, _ := NewLazy(db)
+	database := db.NewMemDB()
+	stateDb, _ := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	addr := common.Address{}

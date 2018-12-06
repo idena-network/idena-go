@@ -62,6 +62,18 @@ func NewForCheck(s *StateDB) *StateDB {
 	}
 }
 
+func NewMemoryState(s *StateDB) *StateDB {
+	tree := NewMutableTree(s.db)
+	tree.Load()
+	return &StateDB{
+		db:                 s.db,
+		tree:               tree.GetImmutable(),
+		stateAccounts:      make(map[common.Address]*stateAccount),
+		stateAccountsDirty: make(map[common.Address]struct{}),
+		log:                log.New(),
+	}
+}
+
 func NewLazy(db dbm.DB) (*StateDB, error) {
 	tree := NewMutableTree(db)
 
