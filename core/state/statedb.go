@@ -51,14 +51,15 @@ type StakeCache struct {
 }
 
 func NewForCheck(s *StateDB) *StateDB {
+	tree := NewMutableTree(s.db)
+	tree.Load()
 	return &StateDB{
 		db:                 s.db,
-		tree:               s.tree.GetImmutable(),
+		tree:               tree,
 		stateAccounts:      make(map[common.Address]*stateAccount),
 		stateAccountsDirty: make(map[common.Address]struct{}),
 		log:                log.New(),
 	}
-
 }
 
 func NewLazy(db dbm.DB) (*StateDB, error) {
@@ -266,6 +267,25 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, e
 	s.Clear()
 
 	return hash, version, err
+}
+
+func (s *StateDB) Precommit(deleteEmptyObjects bool) {
+	// Commit objects to the trie.
+	for _, addr := range getOrderedObjectsKeys(s.stateAccountsDirty) {
+		stateObject := s.stateAccounts[addr]
+		if deleteEmptyObjects && stateObject.empty() {
+			s.deleteStateObject(stateObject)
+		} else {
+			s.updateStateObject(stateObject)
+		}
+		delete(s.stateAccountsDirty, addr)
+	}
+}
+
+func (s *StateDB) Reset() {
+	s.Clear()
+	s.tree = NewMutableTree(s.db)
+	s.tree.Load()
 }
 
 func getOrderedObjectsKeys(objects map[common.Address]struct{}) []common.Address {

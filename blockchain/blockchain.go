@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
@@ -10,6 +11,7 @@ import (
 	"idena-go/config"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
+	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
@@ -28,19 +30,21 @@ const (
 )
 
 var (
-	MaxHash *big.Float
+	MaxHash     *big.Float
+	BlockReward *big.Int
 )
 
 type Blockchain struct {
 	repo *repo
 
-	Head      *types.Block
-	config    *config.Config
-	vrfSigner vrf.PrivateKey
-	pubKey    *ecdsa.PublicKey
-	log       log.Logger
-	txpool    *mempool.TxPool
-	appState  *appstate.AppState
+	Head            *types.Block
+	config          *config.Config
+	vrfSigner       vrf.PrivateKey
+	pubKey          *ecdsa.PublicKey
+	coinBaseAddress common.Address
+	log             log.Logger
+	txpool          *mempool.TxPool
+	appState        *appstate.AppState
 }
 
 func init() {
@@ -51,6 +55,8 @@ func init() {
 	i := new(big.Int)
 	i.SetBytes(max[:])
 	MaxHash = new(big.Float).SetInt(i)
+
+	BlockReward = new(big.Int).SetInt64(5)
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState) *Blockchain {
@@ -79,7 +85,7 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	chain.vrfSigner = signer
 
 	chain.pubKey = secretKey.Public().(*ecdsa.PublicKey)
-
+	chain.coinBaseAddress = crypto.PubkeyToAddress(*chain.pubKey)
 	head := chain.GetHead()
 	if head != nil {
 		chain.SetCurrentHead(head)
@@ -149,30 +155,57 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		return err
 	}
 	if block.IsEmpty() {
+		if err := chain.applyBlock(chain.appState.State, block, false); err != nil {
+			return err
+		}
 		chain.insertBlock(chain.GenerateEmptyBlock())
 	} else {
 		if err := chain.ValidateProposedBlock(block); err != nil {
 			return err
 		}
-
-		chain.processTxs(block)
-
+		if err := chain.applyBlock(chain.appState.State, block, false); err != nil {
+			return err
+		}
 		chain.insertBlock(block)
 	}
 	return nil
 }
 
-func (chain *Blockchain) processTxs(block *types.Block) {
+func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block, proposing bool) error {
+	if !block.IsEmpty() {
+
+		chain.processTxs(state, block, proposing)
+		state.SetBalance(block.Header.ProposedHeader.Coinbase, BlockReward)
+
+		state.Precommit(true)
+		actualRoot := state.Root()
+		if !proposing && actualRoot != block.Root() {
+			state.Reset()
+			return errors.New(fmt.Sprintf("Wrong state root, actual=%v, blockroot=%v", actualRoot.Hex(), block.Root().Hex()))
+		}
+	}
+	if !proposing {
+		hash, version, _ := state.Commit(true)
+		chain.log.Info("Applied block", "root", hash, "version", version, "blockroot", block.Root())
+		chain.txpool.ResetTo(block)
+	}
+	return nil
+}
+
+func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, proposing bool) {
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 
-		if tx.To == nil {
-			sender, _ := types.Sender(tx)
-
-			chain.appState.ValidatorsState.AddValidator(sender)
+		switch tx.Type {
+		case types.ApprovingTx:
+			//TODO: validators state should be implemented over StateDb
+			if !proposing {
+				sender, _ := types.Sender(tx)
+				chain.appState.ValidatorsState.AddValidator(sender)
+			}
+		case types.SendTx:
+		case types.SendInviteTx:
 		}
-
-		chain.txpool.Remove(tx)
 	}
 }
 
@@ -188,7 +221,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 	return chain.getSortition(chain.getProposerData())
 }
 
-func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) *types.Block {
+func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Block, error) {
 	head := chain.Head
 
 	txs := chain.txpool.GetPendingTransaction()
@@ -199,6 +232,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) *types.Blo
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
 		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
 		TxHash:         types.DeriveSha(types.Transactions(txs)),
+		Coinbase:       chain.coinBaseAddress,
 	}
 
 	block := &types.Block{
@@ -209,8 +243,15 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) *types.Blo
 			Transactions: txs,
 		},
 	}
+	checkState := state.NewForCheck(chain.appState.State)
+	if err := chain.applyBlock(checkState, block, true); err != nil {
+		return nil, err
+	}
+
+	block.Header.ProposedHeader.Root = checkState.Root()
+
 	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
-	return block
+	return block, nil
 }
 
 func (chain *Blockchain) insertBlock(block *types.Block) {

@@ -58,8 +58,15 @@ func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 	}
 	return list
 }
+
 func (txpool *TxPool) Remove(transaction *types.Transaction) {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
 	delete(txpool.pending, transaction.Hash())
+}
+
+func (txpool *TxPool) ResetTo(block *types.Block) {
+	for _, tx := range block.Body.Transactions {
+		txpool.Remove(tx)
+	}
 }

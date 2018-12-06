@@ -82,6 +82,7 @@ func (engine *Engine) loop() {
 
 		if err := engine.appState.State.Load(head.Height()); err != nil {
 			engine.log.Error("Failed to open stateDb", "err", err)
+			time.Sleep(time.Second)
 			continue
 		}
 
@@ -98,7 +99,9 @@ func (engine *Engine) loop() {
 		if isProposer {
 			engine.state = "Propose block"
 			block = engine.proposeBlock(proposerHash, proposerProof)
-			engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round)
+			if block != nil {
+				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round)
+			}
 		}
 
 		engine.state = "Calculating highest-priority pubkey"
@@ -134,12 +137,18 @@ func (engine *Engine) loop() {
 		hash, cert, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
 
 		if blockHash == emptyBlock.Hash() {
-			engine.chain.AddBlock(emptyBlock)
+			if err := engine.chain.AddBlock(emptyBlock); err != nil {
+				engine.log.Error("Add empty block", "err", err)
+				continue
+			}
 			engine.log.Info("Reached consensus on empty block")
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
 			if err == nil {
-				engine.chain.AddBlock(block)
+				if err := engine.chain.AddBlock(block); err != nil {
+					engine.log.Error("Add block", "err", err)
+					continue
+				}
 				if hash == blockHash {
 					engine.log.Info("Reached FINAL", "block", blockHash.Hex())
 					engine.chain.WriteFinalConsensus(blockHash, cert)
@@ -164,8 +173,11 @@ func (engine *Engine) loop() {
 
 func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
 
-	block := engine.chain.ProposeBlock(hash, proof)
-
+	block, err := engine.chain.ProposeBlock(hash, proof)
+	if err != nil {
+		engine.log.Error("ProposeBlock", "err", err)
+		return nil
+	}
 	engine.log.Info("Proposed block", "block", block.Hash().Hex(), "txs", len(block.Body.Transactions))
 
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
@@ -427,16 +439,19 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 					roundVotes.Add(vote.Hash())
 
 					if roundVotes.Cardinality() >= necessaryVotesCount {
-						found = true
-						engine.log.Info(fmt.Sprintf("Has %v/%v votes step=%v", roundVotes.Cardinality(), necessaryVotesCount, step))
-						bestHash = vote.Header.VotedHash
 						list := make([]*types.Vote, 0, necessaryVotesCount)
 						roundVotes.Each(func(value interface{}) bool {
-							list = append(list, value.(*types.Vote))
+							v := engine.votes.GetVoteByHash(value.(common.Hash))
+							if v != nil {
+								list = append(list, v)
+							}
 							return len(list) < necessaryVotesCount
 						})
 						cert = types.BlockCert(list)
-						return false
+						bestHash = vote.Header.VotedHash
+						found = cert.Len() >= necessaryVotesCount
+						engine.log.Info(fmt.Sprintf("Has %v/%v votes step=%v", roundVotes.Cardinality(), necessaryVotesCount, step))
+						return !found
 					}
 				}
 				return true

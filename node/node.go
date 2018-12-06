@@ -164,7 +164,7 @@ func OpenDatabaseOld(c *config.Config, name string, cache int, handles int) (ide
 }
 
 func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB, error) {
-	return db.NewGoLevelDBWithOpts(c.DataDir, name, &opt.Options{
+	return db.NewGoLevelDBWithOpts(name, c.DataDir, &opt.Options{
 		OpenFilesCacheCapacity: handles,
 		BlockCacheCapacity:     cache / 2 * opt.MiB,
 		WriteBuffer:            cache / 4 * opt.MiB,

@@ -3,6 +3,7 @@ package pengings
 import (
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
+	"idena-go/common"
 	"idena-go/crypto"
 	"sync"
 )
@@ -13,12 +14,14 @@ const (
 
 type Votes struct {
 	votesByRound *sync.Map
+	votesByHash  *sync.Map
 	knownVotes   mapset.Set
 }
 
 func NewVotes() *Votes {
 	return &Votes{
 		votesByRound: &sync.Map{},
+		votesByHash:  &sync.Map{},
 		knownVotes:   mapset.NewSet(),
 	}
 }
@@ -40,7 +43,15 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 		votes.knownVotes.Pop()
 	}
 	votes.knownVotes.Add(vote.Hash())
+	votes.votesByHash.Store(vote.Hash(), vote)
 	return true
+}
+
+func (votes *Votes) GetVoteByHash(hash common.Hash) *types.Vote {
+	if value, ok := votes.votesByHash.Load(hash); ok {
+		return value.(*types.Vote)
+	}
+	return nil
 }
 
 func (votes *Votes) GetVotesOfRound(round uint64) *sync.Map {
