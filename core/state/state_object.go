@@ -7,6 +7,15 @@ import (
 	"math/big"
 )
 
+type IdentityState uint8
+
+const (
+	Candidate IdentityState = 0
+	Verified  IdentityState = 1
+	Suspended IdentityState = 2
+	Killed    IdentityState = 3
+)
+
 // stateAccount represents an Idena account which is being modified.
 //
 // The usage pattern is as follows:
@@ -21,10 +30,12 @@ type stateAccount struct {
 	onDirty func(addr common.Address) // Callback method to mark a state object newly dirty
 }
 
-// empty returns whether the account is considered empty.
-func (s *stateAccount) empty() bool {
-	return false
-	//return s.data.Nonce == 0 && s.data.Balance.Sign() == 0
+type stateIdentity struct {
+	address common.Address
+	data    Identity
+
+	deleted bool
+	onDirty func(addr common.Address) // Callback method to mark a state object newly dirty
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -32,16 +43,33 @@ func (s *stateAccount) empty() bool {
 type Account struct {
 	Nonce   uint64
 	Balance *big.Int
-	Invites uint16
 }
 
-// newObject creates a state object.
-func newObject(db *StateDB, address common.Address, data Account, onDirty func(addr common.Address)) *stateAccount {
+type Identity struct {
+	Nickname [64]byte
+	Stake    uint64
+	Invites  uint8
+	Age      uint16
+	State    IdentityState
+}
+
+// newAccountObject creates a state object.
+func newAccountObject(db *StateDB, address common.Address, data Account, onDirty func(addr common.Address)) *stateAccount {
 	if data.Balance == nil {
 		data.Balance = new(big.Int)
 	}
 
 	return &stateAccount{
+		address: address,
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
+// newAccountObject creates a state object.
+func newIdentityObject(db *StateDB, address common.Address, data Identity, onDirty func(addr common.Address)) *stateIdentity {
+
+	return &stateIdentity{
 		address: address,
 		data:    data,
 		onDirty: onDirty,
@@ -100,14 +128,15 @@ func (s *stateAccount) setBalance(amount *big.Int) {
 }
 
 func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) *stateAccount {
-	stateObject := newObject(db, s.address, s.data, onDirty)
+	stateObject := newAccountObject(db, s.address, s.data, onDirty)
 	stateObject.deleted = s.deleted
 	return stateObject
 }
 
-//
-// Attribute accessors
-//
+// empty returns whether the account is considered empty.
+func (s *stateAccount) empty() bool {
+	return s.data.Balance.Sign() == 0
+}
 
 // Returns the address of the contract/account
 func (s *stateAccount) Address() common.Address {
@@ -138,11 +167,20 @@ func (s *stateAccount) Nonce() uint64 {
 	return s.data.Nonce
 }
 
-func (s *stateAccount) Invites() uint16 {
+// Returns the address of the contract/account
+func (s *stateIdentity) Address() common.Address {
+	return s.address
+}
+
+func (s *stateIdentity) Invites() uint8 {
 	return s.data.Invites
 }
 
-func (s *stateAccount) setInvites(invites uint16) {
+func (s *stateIdentity) SetInvites(invites uint8) {
+	s.setInvites(invites)
+}
+
+func (s *stateIdentity) setInvites(invites uint8) {
 	s.data.Invites = invites
 	if s.onDirty != nil {
 		s.onDirty(s.Address())
@@ -150,6 +188,14 @@ func (s *stateAccount) setInvites(invites uint16) {
 	}
 }
 
-func (s *stateAccount) SetInvites(invites uint16) {
-	s.setInvites(invites)
+// empty returns whether the account is considered empty.
+func (s *stateIdentity) empty() bool {
+	return s.data.State == Killed
+}
+
+func (s *stateIdentity) touch() {
+	if s.onDirty != nil {
+		s.onDirty(s.Address())
+		s.onDirty = nil
+	}
 }

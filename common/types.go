@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
 	"math/big"
 	"math/rand"
 	"reflect"
@@ -42,7 +41,17 @@ const (
 var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})
+	MinAddr  = Address{}.Bytes()
+	MaxAddr  []byte
 )
+
+func init() {
+	var max [AddressLength]byte
+	for i := range max {
+		max[i] = 0xFF
+	}
+	MaxAddr = max[:]
+}
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
 type Hash [HashLength]byte
@@ -167,7 +176,6 @@ func BytesToAddress(b []byte) Address {
 	a.SetBytes(b)
 	return a
 }
-
 
 // BigToAddress returns Address with byte values of b.
 // If b is larger than len(h), b will be cropped from the left.

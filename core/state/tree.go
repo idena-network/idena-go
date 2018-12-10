@@ -134,6 +134,23 @@ func (t *ImmutableTree) WorkingHash() common.Hash {
 	return result
 }
 
+// Iterate iterates over all keys of the tree, in order.
+func (t *ImmutableTree) Iterate(fn func(key []byte, value []byte) bool) (stopped bool) {
+	return t.tree.Iterate(fn)
+}
+
+// IterateRange makes a callback for all nodes with key between start and end non-inclusive.
+// If either are nil, then it is open on that side (nil, nil is the same as Iterate)
+func (t *ImmutableTree) IterateRange(start, end []byte, ascending bool, fn func(key []byte, value []byte) bool) (stopped bool) {
+	return t.tree.IterateRange(start, end, ascending, fn)
+}
+
+// IterateRangeInclusive makes a callback for all nodes with key between start and end inclusive.
+// If either are nil, then it is open on that side (nil, nil is the same as Iterate)
+func (t *ImmutableTree) IterateRangeInclusive(start, end []byte, ascending bool, fn func(key, value []byte, version int64) bool) (stopped bool) {
+	return t.tree.IterateRangeInclusive(start, end, ascending, fn)
+}
+
 func (t *ImmutableTree) Version() int64 {
 	return t.tree.Version()
 }

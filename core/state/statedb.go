@@ -31,7 +31,8 @@ import (
 )
 
 var (
-	addressPrefix = []byte("a")
+	addressPrefix  = []byte("a")
+	identityPrefix = []byte("i")
 )
 
 type StateDB struct {
@@ -39,10 +40,13 @@ type StateDB struct {
 	tree Tree
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
-	stateAccounts      map[common.Address]*stateAccount
-	stateAccountsDirty map[common.Address]struct{}
-	log                log.Logger
-	lock               sync.Mutex
+	stateAccounts        map[common.Address]*stateAccount
+	stateAccountsDirty   map[common.Address]struct{}
+	stateIdentities      map[common.Address]*stateIdentity
+	stateIdentitiesDirty map[common.Address]struct{}
+
+	log  log.Logger
+	lock sync.Mutex
 }
 
 type StakeCache struct {
@@ -54,11 +58,13 @@ func NewForCheck(s *StateDB) *StateDB {
 	tree := NewMutableTree(s.db)
 	tree.Load()
 	return &StateDB{
-		db:                 s.db,
-		tree:               tree,
-		stateAccounts:      make(map[common.Address]*stateAccount),
-		stateAccountsDirty: make(map[common.Address]struct{}),
-		log:                log.New(),
+		db:                   s.db,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
 	}
 }
 
@@ -66,11 +72,13 @@ func NewMemoryState(s *StateDB) *StateDB {
 	tree := NewMutableTree(s.db)
 	tree.Load()
 	return &StateDB{
-		db:                 s.db,
-		tree:               tree.GetImmutable(),
-		stateAccounts:      make(map[common.Address]*stateAccount),
-		stateAccountsDirty: make(map[common.Address]struct{}),
-		log:                log.New(),
+		db:                   s.db,
+		tree:                 tree.GetImmutable(),
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
 	}
 }
 
@@ -78,11 +86,13 @@ func NewLazy(db dbm.DB) (*StateDB, error) {
 	tree := NewMutableTree(db)
 
 	return &StateDB{
-		db:                 db,
-		tree:               tree,
-		stateAccounts:      make(map[common.Address]*stateAccount),
-		stateAccountsDirty: make(map[common.Address]struct{}),
-		log:                log.New(),
+		db:                   db,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
 	}, nil
 }
 
@@ -96,11 +106,13 @@ func New(height int64, db dbm.DB) (*StateDB, error) {
 	}
 
 	return &StateDB{
-		db:                 db,
-		tree:               tree,
-		stateAccounts:      make(map[common.Address]*stateAccount),
-		stateAccountsDirty: make(map[common.Address]struct{}),
-		log:                log.New(),
+		db:                   db,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
 	}, nil
 }
 
@@ -112,6 +124,8 @@ func (s *StateDB) Load(height uint64) error {
 func (s *StateDB) Clear() {
 	s.stateAccounts = make(map[common.Address]*stateAccount)
 	s.stateAccountsDirty = make(map[common.Address]struct{})
+	s.stateIdentities = make(map[common.Address]*stateIdentity)
+	s.stateIdentitiesDirty = make(map[common.Address]struct{})
 	s.lock = sync.Mutex{}
 }
 
@@ -175,8 +189,8 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 // Setting, updating & deleting state object methods
 //
 
-// updateStateObject writes the given object to the trie.
-func (s *StateDB) updateStateObject(stateObject *stateAccount) {
+// updateStateAccountObject writes the given object to the trie.
+func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 	addr := stateObject.Address()
 	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
@@ -186,12 +200,31 @@ func (s *StateDB) updateStateObject(stateObject *stateAccount) {
 	s.tree.Set(append(addressPrefix, addr[:]...), data)
 }
 
-// deleteStateObject removes the given object from the state trie.
-func (s *StateDB) deleteStateObject(stateObject *stateAccount) {
+// updateStateAccountObject writes the given object to the trie.
+func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
+	addr := stateObject.Address()
+	data, err := rlp.EncodeToBytes(stateObject)
+	if err != nil {
+		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+	}
+
+	s.tree.Set(append(identityPrefix, addr[:]...), data)
+}
+
+// deleteStateAccountObject removes the given object from the state trie.
+func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) {
 	stateObject.deleted = true
 	addr := stateObject.Address()
 
 	s.tree.Remove(append(addressPrefix, addr[:]...))
+}
+
+// deleteStateAccountObject removes the given object from the state trie.
+func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
+	stateObject.deleted = true
+	addr := stateObject.Address()
+
+	s.tree.Remove(append(identityPrefix, addr[:]...))
 }
 
 // Retrieve a state account given my the address. Returns nil if not found.
@@ -215,16 +248,49 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 		return nil
 	}
 	// Insert into the live set.
-	obj := newObject(s, addr, data, s.MarkStateObjectDirty)
-	s.setStateObject(obj)
+	obj := newAccountObject(s, addr, data, s.MarkStateAccountObjectDirty)
+	s.setStateAccountObject(obj)
 	return obj
 }
 
-func (s *StateDB) setStateObject(object *stateAccount) {
+// Retrieve a state account given my the address. Returns nil if not found.
+func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdentity) {
+	// Prefer 'live' objects.
+	if obj := s.stateIdentities[addr]; obj != nil {
+		if obj.deleted {
+			return nil
+		}
+		return obj
+	}
+
+	// Load the object from the database.
+	_, enc := s.tree.Get(append(identityPrefix, addr[:]...))
+	if len(enc) == 0 {
+		return nil
+	}
+	var data Identity
+	if err := rlp.DecodeBytes(enc, &data); err != nil {
+		s.log.Error("Failed to decode state object", "addr", addr, "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newIdentityObject(s, addr, data, s.MarkStateIdentityObjectDirty)
+	s.setStateIdentityObject(obj)
+	return obj
+}
+
+func (s *StateDB) setStateAccountObject(object *stateAccount) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.stateAccounts[object.Address()] = object
+}
+
+func (s *StateDB) setStateIdentityObject(object *stateIdentity) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateIdentities[object.Address()] = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -236,35 +302,53 @@ func (s *StateDB) GetOrNewStateObject(addr common.Address) *stateAccount {
 	return stateObject
 }
 
-// MarkStateObjectDirty adds the specified object to the dirty map to avoid costly
+// Retrieve a state object or create a new state object if nil
+func (s *StateDB) GetOrNewIdentityObject(addr common.Address) *stateIdentity {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject == nil || stateObject.deleted {
+		stateObject, _ = s.createIdentity(addr)
+	}
+	return stateObject
+}
+
+// MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
-func (s *StateDB) MarkStateObjectDirty(addr common.Address) {
+func (s *StateDB) MarkStateAccountObjectDirty(addr common.Address) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.stateAccountsDirty[addr] = struct{}{}
 }
 
+// MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
+// state object cache iteration to find a handful of modified ones.
+func (s *StateDB) MarkStateIdentityObjectDirty(addr common.Address) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateIdentitiesDirty[addr] = struct{}{}
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
-	newobj = newObject(s, addr, Account{}, s.MarkStateObjectDirty)
+	newobj = newAccountObject(s, addr, Account{}, s.MarkStateAccountObjectDirty)
 	newobj.setNonce(0) // sets the object to dirty
-	s.setStateObject(newobj)
+	s.setStateAccountObject(newobj)
+	return newobj, prev
+}
+
+func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdentity) {
+	prev = s.getStateIdentity(addr)
+	newobj = newIdentityObject(s, addr, Identity{}, s.MarkStateIdentityObjectDirty)
+	newobj.touch()
+	s.setStateIdentityObject(newobj)
 	return newobj, prev
 }
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-	// Commit objects to the trie.
-	for _, addr := range getOrderedObjectsKeys(s.stateAccountsDirty) {
-		stateObject := s.stateAccounts[addr]
-		if deleteEmptyObjects && stateObject.empty() {
-			s.deleteStateObject(stateObject)
-		} else {
-			s.updateStateObject(stateObject)
-		}
-		delete(s.stateAccountsDirty, addr)
-	}
+
+	s.Precommit(deleteEmptyObjects)
 
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
@@ -282,15 +366,26 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, e
 }
 
 func (s *StateDB) Precommit(deleteEmptyObjects bool) {
-	// Commit objects to the trie.
+	// Commit account objects to the trie.
 	for _, addr := range getOrderedObjectsKeys(s.stateAccountsDirty) {
 		stateObject := s.stateAccounts[addr]
 		if deleteEmptyObjects && stateObject.empty() {
-			s.deleteStateObject(stateObject)
+			s.deleteStateAccountObject(stateObject)
 		} else {
-			s.updateStateObject(stateObject)
+			s.updateStateAccountObject(stateObject)
 		}
 		delete(s.stateAccountsDirty, addr)
+	}
+
+	// Commit identity objects to the trie.
+	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
+		stateObject := s.stateIdentities[addr]
+		if deleteEmptyObjects && stateObject.empty() {
+			s.deleteStateIdentityObject(stateObject)
+		} else {
+			s.updateStateIdentityObject(stateObject)
+		}
+		delete(s.stateIdentitiesDirty, addr)
 	}
 }
 
@@ -319,4 +414,10 @@ func (s *StateDB) AccountExists(address common.Address) bool {
 
 func (s *StateDB) Root() common.Hash {
 	return s.tree.WorkingHash()
+}
+
+func (s *StateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
+	start := append(identityPrefix, common.MinAddr...)
+	end := append(identityPrefix, common.MaxAddr...)
+	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
 }
