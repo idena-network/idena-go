@@ -173,15 +173,9 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 
 func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block, proposing bool) error {
 	if !block.IsEmpty() {
-
-		chain.processTxs(state, block, proposing)
-		state.SetBalance(block.Header.ProposedHeader.Coinbase, BlockReward)
-
-		state.Precommit(true)
-		actualRoot := state.Root()
-		if !proposing && actualRoot != block.Root() {
+		if err := chain.applyAndValidateBlockState(state, block, proposing); err != nil {
 			state.Reset()
-			return errors.New(fmt.Sprintf("Wrong state root, actual=%v, blockroot=%v", actualRoot.Hex(), block.Root().Hex()))
+			return err
 		}
 	}
 	if !proposing {
@@ -192,21 +186,66 @@ func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block, pr
 	return nil
 }
 
-func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, proposing bool) {
+func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block *types.Block, proposing bool) error {
+	var totalFee *big.Int
+	var err error
+	if totalFee, err = chain.processTxs(state, block, proposing); err != nil {
+		return err
+	}
+
+	feeReward := new(big.Int).Div(totalFee, new(big.Int).SetInt64(2))
+
+	state.SetBalance(block.Header.ProposedHeader.Coinbase, BlockReward)
+	state.SetBalance(block.Header.ProposedHeader.Coinbase, feeReward)
+
+	state.Precommit(true)
+	actualRoot := state.Root()
+	if !proposing && actualRoot != block.Root() {
+		return errors.New(fmt.Sprintf("Wrong state root, actual=%v, blockroot=%v", actualRoot.Hex(), block.Root().Hex()))
+	}
+	return nil
+}
+
+func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, proposing bool) (*big.Int, error) {
+	totalFee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
+		sender, _ := types.Sender(tx)
+		if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
+			return nil, errors.New(fmt.Sprintf("Invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+				expected, tx.AccountNonce))
+		}
 
 		switch tx.Type {
 		case types.ApprovingTx:
-			//TODO: validators state should be implemented over StateDb
-			if !proposing {
-				sender, _ := types.Sender(tx)
-				chain.appState.ValidatorsState.AddValidator(sender)
-			}
+			state.GetOrNewIdentityObject(sender).Approve()
+			break
 		case types.SendTx:
+			fee := chain.getTxFee(tx)
+			balance := state.GetBalance(sender)
+			amount := tx.Amount
+			change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
+			if change.Sign() < 0 {
+				return nil, errors.New("Not enough funds")
+			}
+			state.SubBalance(sender, amount)
+			state.SubBalance(sender, fee)
+
+			state.AddBalance(*tx.To, amount)
+
+			totalFee = new(big.Int).Add(totalFee, fee)
+
 		case types.SendInviteTx:
 		}
+
+		state.SetNonce(sender, tx.AccountNonce+1)
 	}
+
+	return totalFee, nil
+}
+
+func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
+	return new(big.Int).SetInt64(0)
 }
 
 func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {

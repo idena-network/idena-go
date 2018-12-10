@@ -149,10 +149,7 @@ func (s *stateAccount) SetNonce(nonce uint64) {
 
 func (s *stateAccount) setNonce(nonce uint64) {
 	s.data.Nonce = nonce
-	if s.onDirty != nil {
-		s.onDirty(s.Address())
-		s.onDirty = nil
-	}
+	s.touch()
 }
 
 func (s *stateAccount) Balance() *big.Int {
@@ -182,10 +179,7 @@ func (s *stateIdentity) SetInvites(invites uint8) {
 
 func (s *stateIdentity) setInvites(invites uint8) {
 	s.data.Invites = invites
-	if s.onDirty != nil {
-		s.onDirty(s.Address())
-		s.onDirty = nil
-	}
+	s.touch()
 }
 
 // empty returns whether the account is considered empty.
@@ -198,4 +192,8 @@ func (s *stateIdentity) touch() {
 		s.onDirty(s.Address())
 		s.onDirty = nil
 	}
+}
+func (s *stateIdentity) Approve() {
+	s.data.State = Verified
+	s.touch()
 }

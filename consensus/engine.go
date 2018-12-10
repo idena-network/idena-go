@@ -326,11 +326,6 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 				hash = emptyBlockHash
 			}
 		}
-
-		maxStep := engine.maxVotedStep(round, step, emptyBlock.Header.ParentHash())
-		if maxStep-step > 5 {
-			step = maxStep - 5
-		}
 		step++
 	}
 	return common.Hash{}, errors.New("No consensus")
@@ -368,35 +363,6 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 			engine.log.Info("Invalid vote", "vote", vote.Hash().Hex())
 		}
 	}
-}
-
-func (engine *Engine) maxVotedStep(round uint64, minStep uint16, parentHash common.Hash) uint16 {
-
-	heighstStep := minStep
-	m := engine.votes.GetVotesOfRound(round)
-	if m != nil {
-		m.Range(func(key, value interface{}) bool {
-			vote := value.(*types.Vote)
-			if vote.Header.Step > heighstStep && vote.Header.Step < ReductionOne {
-
-				if vote.Header.ParentHash != parentHash {
-					return true
-				}
-
-				validators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, vote.Header.Step, engine.GetCommitteSize(false))
-
-				if validators == nil {
-					return true
-				}
-				if !validators.Contains(vote.VoterAddr()) && validators.Cardinality() > 0 {
-					return true
-				}
-				heighstStep = vote.Header.Step
-			}
-			return true
-		})
-	}
-	return heighstStep
 }
 
 func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, *types.BlockCert, error) {
