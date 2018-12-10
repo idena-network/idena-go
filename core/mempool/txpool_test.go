@@ -7,7 +7,6 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/core/appstate"
 	"idena-go/core/state"
-	"idena-go/core/validators"
 	"idena-go/crypto"
 	"math/big"
 	"testing"
@@ -20,8 +19,8 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
 
-	app.State.SetNonce(crypto.PubkeyToAddress(key1.PublicKey), 1)
-	app.State.SetNonce(crypto.PubkeyToAddress(key2.PublicKey), 1)
+	app.State.SetNonce(crypto.PubkeyToAddress(key1.PublicKey), 0)
+	app.State.SetNonce(crypto.PubkeyToAddress(key2.PublicKey), 0)
 
 	pool.Add(getTx(3, key1))
 	pool.Add(getTx(1, key1))
@@ -41,9 +40,8 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 func getAppState() *appstate.AppState {
 	database := db.NewMemDB()
 	stateDb, _ := state.NewLazy(database)
-	validators := validators.NewValidatorsSet(database)
 
-	return appstate.NewAppState(validators, stateDb)
+	return appstate.NewAppState(stateDb)
 }
 
 func getTx(nonce uint64, key *ecdsa.PrivateKey) *types.Transaction {

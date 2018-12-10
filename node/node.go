@@ -13,7 +13,6 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
-	"idena-go/core/validators"
 	"idena-go/idenadb"
 	"idena-go/log"
 	"idena-go/p2p"
@@ -50,14 +49,12 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	validators := validators.NewValidatorsSet(db)
-
 	stateDb, err := state.NewLazy(db)
 	if err != nil {
 		return nil, err
 	}
 	votes := pengings.NewVotes()
-	appState := appstate.NewAppState(validators, stateDb)
+	appState := appstate.NewAppState(stateDb)
 
 	txpool := mempool.NewTxPool(appState)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState)

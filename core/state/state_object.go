@@ -46,7 +46,7 @@ type Account struct {
 }
 
 type Identity struct {
-	Nickname [64]byte
+	Nickname [64]byte `rlp:"nil"`
 	Stake    uint64
 	Invites  uint8
 	Age      uint16
@@ -193,6 +193,11 @@ func (s *stateIdentity) touch() {
 		s.onDirty = nil
 	}
 }
+
+func (s *stateIdentity) State() IdentityState {
+	return s.data.State
+}
+
 func (s *stateIdentity) Approve() {
 	s.data.State = Verified
 	s.touch()

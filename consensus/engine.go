@@ -72,6 +72,8 @@ func (engine *Engine) GetState() string {
 }
 
 func (engine *Engine) loop() {
+	engine.appState.ValidatorsCache.Load()
+
 	for {
 		engine.syncBlockchain()
 		if !engine.config.Automine && !engine.pm.HasPeers() {
@@ -89,7 +91,7 @@ func (engine *Engine) loop() {
 		engine.requestApprove()
 
 		round := head.Height() + 1
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsState.GetCountOfValidNodes())
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsCache.GetCountOfValidNodes())
 
 		engine.state = "Check if I'm proposer"
 
@@ -340,7 +342,7 @@ func (engine *Engine) commonCoin(step uint16) bool {
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	committeeSize := engine.GetCommitteSize(step == Final)
-	stepValidators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize)
+	stepValidators := engine.appState.ValidatorsCache.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
 	}
@@ -371,7 +373,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Info("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.appState.ValidatorsState.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
+	validators := engine.appState.ValidatorsCache.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.GetCommitteSize(step == Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
 	}
@@ -433,7 +435,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 }
 
 func (engine *Engine) GetCommitteSize(final bool) int {
-	var cnt = engine.appState.ValidatorsState.GetCountOfValidNodes()
+	var cnt = engine.appState.ValidatorsCache.GetCountOfValidNodes()
 	percent := engine.config.CommitteePercent
 	if final {
 		percent = engine.config.FinalCommitteeConsensusPercent
@@ -452,7 +454,7 @@ func (engine *Engine) GetCommitteSize(final bool) int {
 
 func (engine *Engine) getCommitteeVotesTreshold(final bool) int {
 
-	var cnt = engine.appState.ValidatorsState.GetCountOfValidNodes()
+	var cnt = engine.appState.ValidatorsCache.GetCountOfValidNodes()
 	percent := engine.config.CommitteePercent
 	if final {
 		percent = engine.config.FinalCommitteeConsensusPercent
@@ -494,7 +496,7 @@ func (engine *Engine) requestApprove() {
 		return
 	}
 
-	if engine.appState.ValidatorsState.Contains(engine.addr) {
+	if engine.appState.ValidatorsCache.Contains(engine.addr) {
 		return
 	}
 	tx := &types.Transaction{

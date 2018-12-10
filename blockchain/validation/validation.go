@@ -33,7 +33,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) bool {
 	sender, _ := types.Sender(tx)
 
-	if appState.ValidatorsState.Contains(sender) {
+	if appState.ValidatorsCache.Contains(sender) {
 		return false
 	}
 	return true

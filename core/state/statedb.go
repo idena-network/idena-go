@@ -157,7 +157,7 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 
 // AddBalance adds amount to the account associated with addr
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.GetOrNewAccountObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
 	}
@@ -165,21 +165,21 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 
 // SubBalance subtracts amount from the account associated with addr
 func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.GetOrNewAccountObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalance(amount)
 	}
 }
 
 func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.GetOrNewAccountObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalance(amount)
 	}
 }
 
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.GetOrNewAccountObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
 	}
@@ -192,7 +192,7 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := rlp.EncodeToBytes(stateObject) //TODO WTF?! work with .data and without .data
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
@@ -203,7 +203,7 @@ func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := rlp.EncodeToBytes(stateObject.data) //TODO WTF?! do not work without .data
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
@@ -244,7 +244,7 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 	}
 	var data Account
 	if err := rlp.DecodeBytes(enc, &data); err != nil {
-		s.log.Error("Failed to decode state object", "addr", addr, "err", err)
+		s.log.Error("Failed to decode state account object", "addr", addr, "err", err)
 		return nil
 	}
 	// Insert into the live set.
@@ -270,7 +270,7 @@ func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdent
 	}
 	var data Identity
 	if err := rlp.DecodeBytes(enc, &data); err != nil {
-		s.log.Error("Failed to decode state object", "addr", addr, "err", err)
+		s.log.Error("Failed to decode state identity object", "addr", addr, "err", err)
 		return nil
 	}
 	// Insert into the live set.
@@ -294,7 +294,7 @@ func (s *StateDB) setStateIdentityObject(object *stateIdentity) {
 }
 
 // Retrieve a state object or create a new state object if nil
-func (s *StateDB) GetOrNewStateObject(addr common.Address) *stateAccount {
+func (s *StateDB) GetOrNewAccountObject(addr common.Address) *stateAccount {
 	stateObject := s.getStateAccount(addr)
 	if stateObject == nil || stateObject.deleted {
 		stateObject, _ = s.createAccount(addr)

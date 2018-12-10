@@ -111,10 +111,9 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 	block := types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash: emptyHash,
-
-			Time:   big.NewInt(0),
-			Height: 1,
-			Root:   root,
+			Time:       big.NewInt(0),
+			Height:     1,
+			Root:       root,
 		},
 	}, Body: &types.Body{
 		BlockSeed: seed,
@@ -139,6 +138,7 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 			EmptyBlockHeader: &types.EmptyBlockHeader{
 				ParentHash: head.Hash(),
 				Height:     head.Height() + 1,
+				Root:       chain.appState.State.Root(),
 			},
 		},
 		Body: &types.Body{
@@ -176,12 +176,14 @@ func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block, pr
 		if err := chain.applyAndValidateBlockState(state, block, proposing); err != nil {
 			state.Reset()
 			return err
+
 		}
 	}
 	if !proposing {
 		hash, version, _ := state.Commit(true)
-		chain.log.Info("Applied block", "root", hash, "version", version, "blockroot", block.Root())
+		chain.log.Info("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
 		chain.txpool.ResetTo(block)
+		chain.appState.ValidatorsCache.RefreshIfUpdated(block.Body.Transactions)
 	}
 	return nil
 }

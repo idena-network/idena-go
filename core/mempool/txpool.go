@@ -48,8 +48,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 	txpool.pending[hash] = tx
 
 	txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce+1)
-	select
-	{
+	select {
 	case txpool.txSubscription <- tx:
 	default:
 	}
@@ -87,9 +86,9 @@ func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
 		if _, ok := currentNonces[sender]; !ok {
 			currentNonces[sender] = txpool.appState.State.GetNonce(sender)
 		}
-		if currentNonces[sender] == tx.AccountNonce {
+		if currentNonces[sender]+1 == tx.AccountNonce {
 			result = append(result, tx)
-			currentNonces[sender] = tx.AccountNonce + 1
+			currentNonces[sender] = tx.AccountNonce
 		}
 	}
 

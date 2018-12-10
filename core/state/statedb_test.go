@@ -36,7 +36,7 @@ func TestStateDB_IterateIdentities(t *testing.T) {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 
-		stateDb.GetOrNewStateObject(addr)
+		stateDb.GetOrNewAccountObject(addr)
 	}
 
 	for j := 0; j < identitiesCount; j++ {
@@ -64,4 +64,42 @@ func TestStateDB_IterateIdentities(t *testing.T) {
 	t.Log(time.Since(s))
 
 	require.Equal(t, identitiesCount, counter)
+}
+
+func TestStateDB_AddBalance(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb, _ := NewLazy(database)
+	require.Equal(t, int64(0), stateDb.Version())
+
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	balance := new(big.Int).SetInt64(int64(100))
+	account := stateDb.GetOrNewAccountObject(addr)
+	account.SetBalance(balance)
+
+	stateDb.Commit(false)
+	stateDb.Clear()
+
+	fromDb := stateDb.GetOrNewAccountObject(addr)
+
+	require.Equal(t, balance, fromDb.Balance())
+}
+
+func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb, _ := NewLazy(database)
+
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	identity := stateDb.GetOrNewIdentityObject(addr)
+	identity.Approve()
+
+	stateDb.Commit(false)
+	stateDb.Clear()
+
+	fromDb := stateDb.GetOrNewIdentityObject(addr)
+
+	require.Equal(t, Verified, fromDb.State())
 }

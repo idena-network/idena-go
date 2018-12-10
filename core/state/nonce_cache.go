@@ -44,7 +44,7 @@ func (ns *NonceCache) SetNonce(addr common.Address, nonce uint64) {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 
-	so := ns.GetOrNewStateObject(addr)
+	so := ns.GetOrNewAccountObject(addr)
 	so.SetNonce(nonce)
 
 	ns.accounts[addr] = newAccount(so)
@@ -58,7 +58,7 @@ func (ns *NonceCache) hasAccount(addr common.Address) bool {
 // populate the managed state
 func (ns *NonceCache) getAccount(addr common.Address) *account {
 	if account, ok := ns.accounts[addr]; !ok {
-		so := ns.GetOrNewStateObject(addr)
+		so := ns.GetOrNewAccountObject(addr)
 		ns.accounts[addr] = newAccount(so)
 	} else {
 		// Always make sure the state account nonce isn't actually higher
