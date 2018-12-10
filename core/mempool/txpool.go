@@ -48,8 +48,12 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 	txpool.pending[hash] = tx
 
 	txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce+1)
+	select
+	{
+	case txpool.txSubscription <- tx:
+	default:
+	}
 
-	txpool.txSubscription <- tx
 }
 
 func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {

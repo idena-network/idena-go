@@ -15,10 +15,7 @@ import (
 
 func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	app := getAppState()
-
 	pool := NewTxPool(app)
-	txChan := make(chan *types.Transaction, 100)
-	pool.Subscribe(txChan)
 
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
