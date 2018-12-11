@@ -56,7 +56,7 @@ func init() {
 	i.SetBytes(max[:])
 	MaxHash = new(big.Float).SetInt(i)
 
-	BlockReward = new(big.Int).SetInt64(5)
+	BlockReward = big.NewInt(5e+18)
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState) *Blockchain {
@@ -213,17 +213,19 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, pr
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 		sender, _ := types.Sender(tx)
+
 		if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
 			return nil, errors.New(fmt.Sprintf("Invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
 				expected, tx.AccountNonce))
 		}
+		fee := chain.getTxFee(tx)
 
 		switch tx.Type {
 		case types.ApprovingTx:
 			state.GetOrNewIdentityObject(sender).Approve()
 			break
 		case types.SendTx:
-			fee := chain.getTxFee(tx)
+
 			balance := state.GetBalance(sender)
 			amount := tx.Amount
 			change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
@@ -247,7 +249,7 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, pr
 }
 
 func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
-	return new(big.Int).SetInt64(0)
+	return types.CalculateFee(chain.appState.ValidatorsCache.GetCountOfValidNodes(), tx)
 }
 
 func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {

@@ -192,7 +192,7 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject) //TODO WTF?! work with .data and without .data
+	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
@@ -203,7 +203,7 @@ func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject) //TODO WTF?! do not work without .data
+	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
