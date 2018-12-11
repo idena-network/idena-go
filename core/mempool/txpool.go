@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"errors"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
@@ -28,7 +29,7 @@ func NewTxPool(appState *appstate.AppState) *TxPool {
 	}
 }
 
-func (txpool *TxPool) Add(tx *types.Transaction) {
+func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
@@ -37,12 +38,12 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 	sender, _ := types.Sender(tx)
 
 	if _, ok := txpool.pending[hash]; ok {
-		return
+		return errors.New("tx with same hash already exists")
 	}
 
 	if err := validation.ValidateTx(txpool.appState, tx); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
-		return
+		return err
 	}
 
 	txpool.pending[hash] = tx
@@ -52,7 +53,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) {
 	case txpool.txSubscription <- tx:
 	default:
 	}
-
+	return nil
 }
 
 func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {

@@ -62,6 +62,10 @@ func (engine *Engine) SetKey(key *ecdsa.PrivateKey) {
 	engine.addr = crypto.PubkeyToAddress(*key.Public().(*ecdsa.PublicKey))
 }
 
+func (engine *Engine) GetKey() *ecdsa.PrivateKey {
+	return engine.secretKey
+}
+
 func (engine *Engine) Start() {
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
 	go engine.loop()
