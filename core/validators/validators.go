@@ -31,7 +31,7 @@ func (v *ValidatorsCache) GetActualValidators(seed types.Seed, round uint64, ste
 	set := mapset.NewSet()
 	cnt := new(big.Int).SetInt64(int64(len(v.validNodes)))
 	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {
-		set.Add(v.validNodes[indexGenerator(seed, round, step, i, cnt)])
+		set.Add(*v.validNodes[indexGenerator(seed, round, step, i, cnt)])
 	}
 	if set.Cardinality() < limit {
 		return nil

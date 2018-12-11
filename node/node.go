@@ -49,7 +49,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	stateDb, err := state.NewLazy(db)
+	stateDb, err := state.NewLatest(db)
 	if err != nil {
 		return nil, err
 	}

@@ -39,7 +39,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 
 func getAppState() *appstate.AppState {
 	database := db.NewMemDB()
-	stateDb, _ := state.NewLazy(database)
+	stateDb, _ := state.NewLatest(database)
 
 	return appstate.NewAppState(stateDb)
 }

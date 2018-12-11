@@ -46,7 +46,7 @@ type Account struct {
 }
 
 type Identity struct {
-	Nickname [64]byte `rlp:"nil"`
+	Nickname *[64]byte `rlp:"nil"`
 	Stake    uint64
 	Invites  uint8
 	Age      uint16
@@ -201,4 +201,9 @@ func (s *stateIdentity) State() IdentityState {
 func (s *stateIdentity) Approve() {
 	s.data.State = Verified
 	s.touch()
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (s *stateIdentity) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
 }

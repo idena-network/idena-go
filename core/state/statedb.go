@@ -82,9 +82,9 @@ func NewMemoryState(s *StateDB) *StateDB {
 	}
 }
 
-func NewLazy(db dbm.DB) (*StateDB, error) {
+func NewLatest(db dbm.DB) (*StateDB, error) {
 	tree := NewMutableTree(db)
-
+	tree.Load()
 	return &StateDB{
 		db:                   db,
 		tree:                 tree,
@@ -203,7 +203,7 @@ func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject.data) //TODO WTF?! do not work without .data
+	data, err := rlp.EncodeToBytes(stateObject) //TODO WTF?! do not work without .data
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
