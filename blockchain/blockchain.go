@@ -196,9 +196,9 @@ func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block 
 	}
 
 	feeReward := new(big.Int).Div(totalFee, new(big.Int).SetInt64(2))
+	totalReward := big.NewInt(0).Add(BlockReward, feeReward)
 
-	state.SetBalance(block.Header.ProposedHeader.Coinbase, BlockReward)
-	state.SetBalance(block.Header.ProposedHeader.Coinbase, feeReward)
+	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 
 	state.Precommit(true)
 	actualRoot := state.Root()

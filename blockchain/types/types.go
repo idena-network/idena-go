@@ -10,9 +10,9 @@ import (
 )
 
 const (
+	SendTx       uint16 = 0x0
 	ApprovingTx  uint16 = 0x1
-	SendTx       uint16 = 0x2
-	SendInviteTx uint16 = 0x3
+	SendInviteTx uint16 = 0x2
 )
 
 type Network = int32
@@ -30,7 +30,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
@@ -73,7 +73,7 @@ type Transaction struct {
 	Type         TxType
 	To           *common.Address `rlp:"nil"`
 	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	Payload      []byte          `json:"input"    gencodec:"required"`
+	Payload      []byte          `rlp:"nil"	json:"input"    gencodec:"required"`
 
 	Signature []byte
 

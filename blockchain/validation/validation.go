@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	NodeApprovedAlready = errors.New("Node is in validator set")
+	NodeApprovedAlready = errors.New("Node is already in validator set")
 	InvalidSignature    = errors.New("Invalid signature")
 	InvalidNonce        = errors.New("Invalid Nonce")
 	InsufficientFunds   = errors.New("Insufficient funds")

@@ -29,7 +29,7 @@ type Engine struct {
 	chain     *blockchain.Blockchain
 	pm        *protocol.ProtocolManager
 	log       log.Logger
-	state     string
+	process   string
 	pubKey    []byte
 	config    *config.ConsensusConf
 	proposals *pengings.Proposals
@@ -71,8 +71,12 @@ func (engine *Engine) Start() {
 	go engine.loop()
 }
 
-func (engine *Engine) GetState() string {
-	return engine.state
+func (engine *Engine) GetProcess() string {
+	return engine.process
+}
+
+func (engine *Engine) GetAppState() *appstate.AppState {
+	return engine.appState
 }
 
 func (engine *Engine) loop() {
@@ -97,20 +101,20 @@ func (engine *Engine) loop() {
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsCache.GetCountOfValidNodes())
 
-		engine.state = "Check if I'm proposer"
+		engine.process = "Check if I'm proposer"
 
 		isProposer, proposerHash, proposerProof := engine.chain.GetProposerSortition()
 
 		var block *types.Block
 		if isProposer {
-			engine.state = "Propose block"
+			engine.process = "Propose block"
 			block = engine.proposeBlock(proposerHash, proposerProof)
 			if block != nil {
 				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round)
 			}
 		}
 
-		engine.state = "Calculating highest-priority pubkey"
+		engine.process = "Calculating highest-priority pubkey"
 
 		proposerPubKey := engine.getHighestProposerPubKey(round)
 
@@ -125,7 +129,7 @@ func (engine *Engine) loop() {
 			block = emptyBlock
 		} else {
 
-			engine.state = "Waiting for block from proposer"
+			engine.process = "Waiting for block from proposer"
 			block = engine.waitForBlock(proposerPubKey)
 
 			if block == nil {
@@ -138,7 +142,7 @@ func (engine *Engine) loop() {
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
 		}
-		engine.state = "Count final votes"
+		engine.process = "Count final votes"
 
 		hash, cert, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
 
@@ -248,14 +252,14 @@ func (engine *Engine) loadFromPeer(peerId string, height uint64) {
 }
 
 func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
-	engine.state = "Reduction started"
+	engine.process = "Reduction started"
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
 
 	engine.vote(round, ReductionOne, block.Hash())
-	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
+	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
 
 	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
-	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
+	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
 
@@ -264,9 +268,9 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	}
 	engine.vote(round, ReductionTwo, hash)
 
-	engine.state = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
+	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
 	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.getCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
-	engine.state = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
+	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
 
 	if err != nil {
 		hash = emptyBlock.Hash()
@@ -285,7 +289,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 	hash := blockHash
 
 	for step := uint16(1); step < engine.config.MaxSteps; {
-		engine.state = fmt.Sprintf("BA step %v", step)
+		engine.process = fmt.Sprintf("BA step %v", step)
 
 		engine.vote(round, step, hash)
 
@@ -303,7 +307,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 		}
 		step++
 
-		engine.state = fmt.Sprintf("BA step %v", step)
+		engine.process = fmt.Sprintf("BA step %v", step)
 
 		engine.vote(round, step, hash)
 
@@ -320,7 +324,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		step++
 
-		engine.state = fmt.Sprintf("BA step %v", step)
+		engine.process = fmt.Sprintf("BA step %v", step)
 
 		engine.vote(round, step, hash)
 

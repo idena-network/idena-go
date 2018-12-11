@@ -6,9 +6,8 @@ import (
 )
 
 func CalculateFee(networkSize int, tx *Transaction) *big.Int {
-	fee := new(big.Int)
 	if tx.Type == ApprovingTx {
-		return fee
+		return big.NewInt(0)
 	}
 	size := networkSize
 	if size <= 20 {
@@ -23,5 +22,9 @@ func CalculateFee(networkSize int, tx *Transaction) *big.Int {
 }
 
 func CalculateCost(networkSize int, tx *Transaction) *big.Int {
-	return new(big.Int).Add(tx.Amount, CalculateFee(networkSize, tx))
+	fee := CalculateFee(networkSize, tx)
+	if tx.Amount == nil {
+		return fee
+	}
+	return new(big.Int).Add(tx.Amount, fee)
 }
