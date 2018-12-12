@@ -4,7 +4,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/crypto"
+	"idena-go/core/appstate"
 	"sync"
 )
 
@@ -16,13 +16,15 @@ type Votes struct {
 	votesByRound *sync.Map
 	votesByHash  *sync.Map
 	knownVotes   mapset.Set
+	state        *appstate.AppState
 }
 
-func NewVotes() *Votes {
+func NewVotes(state *appstate.AppState) *Votes {
 	return &Votes{
 		votesByRound: &sync.Map{},
 		votesByHash:  &sync.Map{},
 		knownVotes:   mapset.NewSet(),
+		state:        state,
 	}
 }
 
@@ -32,9 +34,10 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 		return false
 	}
 
-	if !validateVote(vote) {
+	if votes.state.ValidatorsCache.GetCountOfValidNodes() > 0 && !votes.state.ValidatorsCache.Contains(vote.VoterAddr()) {
 		return false
 	}
+
 	m, _ := votes.votesByRound.LoadOrStore(vote.Header.Round, &sync.Map{})
 	byRound := m.(*sync.Map)
 
@@ -61,8 +64,19 @@ func (votes *Votes) GetVotesOfRound(round uint64) *sync.Map {
 	return nil
 }
 
-func validateVote(vote *types.Vote) bool {
-	hash := vote.Hash()
-	_, err := crypto.Ecrecover(hash[:], vote.Signature)
-	return err == nil
+func (votes *Votes) CompleteRound(round uint64) {
+	votes.votesByRound.Range(func(key, value interface{}) bool {
+		if key.(uint64) <= round {
+			votes.votesByRound.Delete(key)
+		}
+		return true
+	})
+
+	votes.votesByHash.Range(func(key, value interface{}) bool {
+		vote := value.(*types.Vote)
+		if vote.Header.Round <= round {
+			votes.votesByHash.Delete(key)
+		}
+		return true
+	})
 }

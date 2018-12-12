@@ -13,7 +13,6 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
-	"idena-go/idenadb"
 	"idena-go/log"
 	"idena-go/p2p"
 	"idena-go/pengings"
@@ -53,8 +52,9 @@ func NewNode(config *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	votes := pengings.NewVotes()
+
 	appState := appstate.NewAppState(stateDb)
+	votes := pengings.NewVotes(appState)
 
 	txpool := mempool.NewTxPool(appState)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState)
@@ -150,14 +150,6 @@ func (node *Node) stopHTTP() {
 		node.httpHandler.Stop()
 		node.httpHandler = nil
 	}
-}
-
-func OpenDatabaseOld(c *config.Config, name string, cache int, handles int) (idenadb.Database, error) {
-	db, err := idenadb.NewLDBDatabase(c.ResolvePath(name), cache, handles)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }
 
 func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB, error) {

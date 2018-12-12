@@ -110,6 +110,23 @@ func (proposals *Proposals) GetProposerPubKey(round uint64) []byte {
 	return nil
 }
 
+func (proposals *Proposals) CompleteRound(height uint64) {
+	proposals.proofsByRound.Range(func(key, value interface{}) bool {
+		if key.(uint64) <= height {
+			proposals.proofsByRound.Delete(key)
+		}
+		return true
+	})
+
+
+	proposals.blocksByRound.Range(func(key, value interface{}) bool {
+		if key.(uint64) <= height {
+			proposals.blocksByRound.Delete(key)
+		}
+		return true
+	})
+}
+
 func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
 	proposals.pMutex.Lock()
 

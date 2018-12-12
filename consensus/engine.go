@@ -141,11 +141,14 @@ func (engine *Engine) loop() {
 		blockHash, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
+			continue
 		}
 		engine.process = "Count final votes"
-
-		hash, cert, err := engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
-
+		var hash common.Hash
+		var cert *types.BlockCert
+		if blockHash != emptyBlock.Hash() {
+			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
+		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock); err != nil {
 				engine.log.Error("Add empty block", "err", err)
@@ -170,15 +173,24 @@ func (engine *Engine) loop() {
 			}
 		}
 
-		for _, proof := range engine.proposals.ProcessPendingsProofs() {
-			engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
-		}
-		engine.log.Info("Pending proposals processed")
-		for _, block := range engine.proposals.ProcessPendingsBlocks() {
-			engine.pm.ProposeBlock(block)
-		}
-		engine.log.Info("Pending blocks processed")
+		engine.completeRound(round)
 	}
+}
+
+func (engine *Engine) completeRound(round uint64) {
+
+	engine.proposals.CompleteRound(round)
+
+	for _, proof := range engine.proposals.ProcessPendingsProofs() {
+		engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
+	}
+	engine.log.Info("Pending proposals processed")
+	for _, block := range engine.proposals.ProcessPendingsBlocks() {
+		engine.pm.ProposeBlock(block)
+	}
+	engine.log.Info("Pending blocks processed")
+
+	engine.votes.CompleteRound(round)
 }
 
 func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
