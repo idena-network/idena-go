@@ -30,7 +30,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
@@ -199,6 +199,11 @@ func (tx *Transaction) Hash() common.Hash {
 	h := rlpHash(tx)
 	tx.hash.Store(h)
 	return h
+}
+
+func (tx *Transaction) Size() int {
+	b, _ := rlp.EncodeToBytes(tx)
+	return len(b)
 }
 
 // Len returns the length of s.

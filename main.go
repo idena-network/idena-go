@@ -10,6 +10,7 @@ import (
 	"idena-go/p2p/enode"
 	"idena-go/p2p/nat"
 	"idena-go/rpc"
+	"math/big"
 	"os"
 	"runtime"
 	"time"
@@ -93,6 +94,10 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
 		Automine:                       automine,
+		BlockReward:                    big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
+		StakeRewardRate:                0.2,
+		FeeBurnRate:                    0.9,
+		FinalCommitteeReward:           big.NewInt(6e+18),
 	}
 }
 

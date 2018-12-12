@@ -149,5 +149,5 @@ func (r *repo) ReadCanonicalHash(height uint64) common.Hash {
 
 func (r *repo) WriteFinalConsensus(hash common.Hash) {
 	key := finalConsensusKey(hash)
-	r.db.Set(key, common.ToBytes(uint8(1)))
+	r.db.Set(key, []byte{0x1})
 }

@@ -16,22 +16,11 @@ func TestCalculateFee(t *testing.T) {
 	tx = &Transaction{
 		Type: SendTx,
 	}
-
-	fee1 := big.NewInt(5e+18)
-	fee2 := big.NewInt(2e+18)
-	fee3 := big.NewInt(1e+18)
-	fee4 := big.NewInt(1e+17)
-	fee5 := big.NewInt(1e+16)
-
-	require.Equal(t, 0, fee1.Cmp(CalculateFee(19, tx)))
-	require.Equal(t, 0, fee2.Cmp(CalculateFee(50, tx)))
-	require.Equal(t, 0, fee3.Cmp(CalculateFee(100, tx)))
-
-	require.Equal(t, 0, fee4.Cmp(CalculateFee(101, tx)))
-	require.Equal(t, 0, fee4.Cmp(CalculateFee(999, tx)))
-	require.Equal(t, 0, fee4.Cmp(CalculateFee(1000, tx)))
-
-	require.Equal(t, 0, fee5.Cmp(CalculateFee(1001, tx)))
+	//tx size = 7
+	fee1 := big.NewInt(7e+18)
+	fee2 := big.NewInt(35e+17)
+	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, tx)))
+	require.Equal(t, 0, fee2.Cmp(CalculateFee(2, tx)))
 }
 
 func TestCalculateCost(t *testing.T) {
@@ -39,6 +28,7 @@ func TestCalculateCost(t *testing.T) {
 		Type:   SendTx,
 		Amount: big.NewInt(1e+18),
 	}
-	cost := big.NewInt(2e+18)
+	//tx size = 15
+	cost := new(big.Int).Add(big.NewInt(15e+16), tx.Amount)
 	require.Equal(t, 0, cost.Cmp(CalculateCost(100, tx)))
 }

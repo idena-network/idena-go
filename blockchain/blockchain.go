@@ -30,8 +30,7 @@ const (
 )
 
 var (
-	MaxHash     *big.Float
-	BlockReward *big.Int
+	MaxHash *big.Float
 )
 
 type Blockchain struct {
@@ -55,8 +54,6 @@ func init() {
 	i := new(big.Int)
 	i.SetBytes(max[:])
 	MaxHash = new(big.Float).SetInt(i)
-
-	BlockReward = big.NewInt(5e+18)
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState) *Blockchain {
@@ -92,7 +89,7 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	} else {
 		chain.GenerateGenesis(chain.config.Network)
 	}
-	log.Info("Chain initialized", "block", chain.Head.Hash().Hex())
+	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
 	return nil
 }
 
@@ -155,7 +152,7 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		return err
 	}
 	if block.IsEmpty() {
-		if err := chain.applyBlock(chain.appState.State, block, false); err != nil {
+		if err := chain.applyBlock(chain.appState.State, block); err != nil {
 			return err
 		}
 		chain.insertBlock(chain.GenerateEmptyBlock())
@@ -163,7 +160,7 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		if err := chain.ValidateProposedBlock(block); err != nil {
 			return err
 		}
-		if err := chain.applyBlock(chain.appState.State, block, false); err != nil {
+		if err := chain.applyBlock(chain.appState.State, block); err != nil {
 			return err
 		}
 		chain.insertBlock(block)
@@ -171,44 +168,79 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 	return nil
 }
 
-func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block, proposing bool) error {
+func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block) error {
 	if !block.IsEmpty() {
-		if err := chain.applyAndValidateBlockState(state, block, proposing); err != nil {
+		if root, err := chain.applyAndValidateBlockState(state, block); err != nil {
 			state.Reset()
 			return err
-
+		} else if root != block.Root() {
+			state.Reset()
+			return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
 		}
 	}
-	if !proposing {
-		hash, version, _ := state.Commit(true)
-		chain.log.Info("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
-		chain.txpool.ResetTo(block)
-		chain.appState.ValidatorsCache.RefreshIfUpdated(block.Body.Transactions)
-	}
+	hash, version, _ := state.Commit(true)
+	chain.log.Info("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
+	chain.txpool.ResetTo(block)
+	chain.appState.ValidatorsCache.RefreshIfUpdated(block.Body.Transactions)
 	return nil
 }
 
-func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block *types.Block, proposing bool) error {
+func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block *types.Block) (common.Hash, error) {
 	var totalFee *big.Int
 	var err error
-	if totalFee, err = chain.processTxs(state, block, proposing); err != nil {
-		return err
+	if totalFee, err = chain.processTxs(state, block); err != nil {
+		return common.Hash{}, err
 	}
 
-	feeReward := new(big.Int).Div(totalFee, new(big.Int).SetInt64(2))
-	totalReward := big.NewInt(0).Add(BlockReward, feeReward)
+	feeReward := new(big.Float).SetInt(totalFee)
+	feeReward = feeReward.Mul(feeReward, big.NewFloat(chain.config.Consensus.FeeBurnRate))
+	intFeeReward, _ := feeReward.Int(nil)
+
+	stake := big.NewFloat(0).SetInt(chain.config.Consensus.BlockReward)
+	stake = stake.Mul(stake, big.NewFloat(chain.config.Consensus.StakeRewardRate))
+	intStake, _ := stake.Int(nil)
+
+	blockReward := big.NewInt(0)
+	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
+
+	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
 
 	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 
+	state.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
+
+	chain.rewardFinalCommittee(state, block)
+
 	state.Precommit(true)
-	actualRoot := state.Root()
-	if !proposing && actualRoot != block.Root() {
-		return errors.New(fmt.Sprintf("Wrong state root, actual=%v, blockroot=%v", actualRoot.Hex(), block.Root().Hex()))
-	}
-	return nil
+	return state.Root(), nil
 }
 
-func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block, proposing bool) (*big.Int, error) {
+func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
+	if block.IsEmpty() {
+		return
+	}
+	identities := chain.appState.ValidatorsCache.GetActualValidators(chain.Head.Seed(), chain.Head.Height(), 1000, chain.GetCommitteSize(true))
+	if identities == nil || identities.Cardinality() == 0 {
+		return
+	}
+	totalReward := big.NewInt(0)
+	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
+
+	stake := big.NewFloat(0).SetInt(totalReward)
+	stake.Mul(stake, big.NewFloat(chain.config.Consensus.StakeRewardRate))
+
+	intStake, _ := stake.Int(nil)
+	reward := big.NewInt(0)
+	reward.Sub(totalReward, intStake)
+
+	for _, item := range identities.ToSlice() {
+		addr := item.(common.Address)
+		state.AddBalance(addr, reward)
+		state.AddStake(addr, intStake)
+	}
+}
+
+func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*big.Int, error) {
 	totalFee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
@@ -287,11 +319,11 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 		},
 	}
 	checkState := state.NewForCheck(chain.appState.State)
-	if err := chain.applyBlock(checkState, block, true); err != nil {
+	if root, err := chain.applyAndValidateBlockState(checkState, block); err != nil {
 		return nil, err
+	} else {
+		block.Header.ProposedHeader.Root = root
 	}
-
-	block.Header.ProposedHeader.Root = checkState.Root()
 
 	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
 	return block, nil
@@ -319,8 +351,7 @@ func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
 
-	f, _ := q.Float64()
-	if f >= chain.config.Consensus.ProposerTheshold {
+	if f, _ := q.Float64(); f >= chain.config.Consensus.ProposerTheshold {
 		return true, hash, proof
 	}
 	return false, common.Hash{}, nil
@@ -349,6 +380,12 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return errors.New("Seed is invalid")
 	}
 
+	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
+	if chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 &&
+		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
+		return errors.New("Proposer is not identity")
+	}
+
 	var txs = types.Transactions(block.Body.Transactions)
 
 	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
@@ -362,7 +399,12 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 			return err
 		}
 	}
-
+	checkState := state.NewForCheck(chain.appState.State)
+	if root, err := chain.applyAndValidateBlockState(checkState, block); err != nil {
+		return err
+	} else if root != block.Root() {
+		return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
+	}
 	return nil
 }
 
@@ -392,6 +434,21 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 	if h != hash {
 		return errors.New("Hashes are not equal")
 	}
+
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
+
+	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
+
+	if f, _ := q.Float64(); f < chain.config.Consensus.ProposerTheshold {
+		return errors.New("Proposer is invalid")
+	}
+
+	proposerAddr := crypto.PubkeyToAddress(*pubKey)
+	if chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 &&
+		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
+		return errors.New("Proposer is not identity")
+	}
+
 	return nil
 }
 
@@ -404,4 +461,42 @@ func (chain *Blockchain) WriteFinalConsensus(hash common.Hash, cert *types.Block
 }
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	return chain.repo.ReadBlock(hash)
+}
+
+func (chain *Blockchain) GetCommitteSize(final bool) int {
+	var cnt = chain.appState.ValidatorsCache.GetCountOfValidNodes()
+	percent := chain.config.Consensus.CommitteePercent
+	if final {
+		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
+	}
+	switch cnt {
+	case 1, 2, 3, 4:
+		return 1
+		return 2
+	case 5, 6:
+		return 2
+	case 7, 8:
+		return 3
+	}
+	return int(float64(cnt) * percent)
+}
+
+func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
+
+	var cnt = chain.appState.ValidatorsCache.GetCountOfValidNodes()
+	percent := chain.config.Consensus.CommitteePercent
+	if final {
+		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
+	}
+
+	switch cnt {
+	case 1, 2, 3, 4:
+		return 1
+		return 2
+	case 5, 6:
+		return 2
+	case 7, 8:
+		return 3
+	}
+	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
 }

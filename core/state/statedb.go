@@ -154,7 +154,7 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
-		return stateObject.Balance()
+		return stateObject.Stake()
 	}
 	return common.Big0
 }
@@ -191,6 +191,10 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
 	}
+}
+
+func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
+	s.getStateIdentity(address).AddStake(intStake)
 }
 
 //
@@ -429,3 +433,4 @@ func (s *StateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool
 	end := append(identityPrefix, common.MaxAddr...)
 	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
 }
+

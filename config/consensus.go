@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"math/big"
+	"time"
+)
 
 type ConsensusConf struct {
 	MaxSteps                       uint16
@@ -13,4 +16,8 @@ type ConsensusConf struct {
 	EstimatedBaVariance            time.Duration
 	WaitForStepDelay               time.Duration
 	Automine                       bool
+	BlockReward                    *big.Int
+	StakeRewardRate				   float64
+	FinalCommitteeReward		   *big.Int
+	FeeBurnRate					   float64
 }

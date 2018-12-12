@@ -47,7 +47,7 @@ type Account struct {
 
 type Identity struct {
 	Nickname *[64]byte `rlp:"nil"`
-	Stake    uint64
+	Stake    *big.Int
 	Invites  uint8
 	Age      uint16
 	State    IdentityState
@@ -203,11 +203,35 @@ func (s *stateIdentity) Approve() {
 	s.touch()
 }
 
-func (s *stateIdentity) Balance() *big.Int {
-	return big.NewInt(0)
+func (s *stateIdentity) Stake() *big.Int {
+	if s.data.Stake == nil {
+		return big.NewInt(0)
+	}
+	return s.data.Stake
 }
 
 // EncodeRLP implements rlp.Encoder.
 func (s *stateIdentity) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)
+}
+func (s *stateIdentity) AddStake(amount *big.Int) {
+	if amount.Sign() == 0 {
+		if s.empty() {
+			s.touch()
+		}
+		return
+	}
+	s.SetStake(new(big.Int).Add(s.Stake(), amount))
+}
+
+func (s *stateIdentity) SetStake(amount *big.Int) {
+	if s.data.Stake == nil {
+		s.data.Stake = new(big.Int)
+	}
+
+	s.data.Stake = amount
+	if s.onDirty != nil {
+		s.onDirty(s.Address())
+		s.onDirty = nil
+	}
 }
