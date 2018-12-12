@@ -469,14 +469,8 @@ func (chain *Blockchain) GetCommitteSize(final bool) int {
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
 	}
-	switch cnt {
-	case 1, 2, 3, 4:
-		return 1
-		return 2
-	case 5, 6:
-		return 2
-	case 7, 8:
-		return 3
+	if cnt <= 8 {
+		return cnt
 	}
 	return int(float64(cnt) * percent)
 }
@@ -490,13 +484,14 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 	}
 
 	switch cnt {
-	case 1, 2, 3, 4:
+	case 1, 2:
 		return 1
+	case 3, 4:
 		return 2
 	case 5, 6:
-		return 2
-	case 7, 8:
 		return 3
+	case 7, 8:
+		return 4
 	}
 	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
 }
