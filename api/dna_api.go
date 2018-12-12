@@ -67,6 +67,10 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		Amount:       convertToInt(args.Amount),
 	}
 
+	if tx.AccountNonce == 0 {
+		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(args.From) + 1
+	}
+
 	if args.Payload != nil {
 		tx.Payload = *args.Payload
 	}

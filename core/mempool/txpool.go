@@ -48,7 +48,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.pending[hash] = tx
 
-	txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce+1)
+	txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 	select {
 	case txpool.txSubscription <- tx:
 	default:
@@ -113,7 +113,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		sender, _ := types.Sender(tx)
 		currentCache := txpool.appState.NonceCache.GetNonce(sender)
 		if tx.AccountNonce >= currentCache {
-			txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce+1)
+			txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 		}
 	}
 }
