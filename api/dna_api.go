@@ -2,14 +2,12 @@ package api
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
 	"idena-go/consensus"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
-	"idena-go/rlp"
 	"math/big"
 )
 
@@ -36,9 +34,18 @@ func (api *DnaApi) GetAddr() common.Address {
 	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
 }
 
-func (api *DnaApi) GetBalance(address common.Address) *big.Float {
+type Balance struct {
+	Stake   *big.Float `json:"stake"`
+	Balance *big.Float `json:"balance"`
+}
+
+func (api *DnaApi) GetBalance(address common.Address) Balance {
 	state := api.engine.GetAppState()
-	return convertToFloat(state.State.GetBalance(address))
+
+	return Balance{
+		Stake:   convertToFloat(state.State.GetStakeBalance(address)),
+		Balance: convertToFloat(state.State.GetBalance(address)),
+	}
 }
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
@@ -65,10 +72,6 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	}
 
 	signedTx, err := types.SignTx(&tx, api.engine.GetKey())
-
-	b, _ := rlp.EncodeToBytes(signedTx)
-
-	fmt.Printf("%v", len(b))
 
 	if err != nil {
 		return common.Hash{}, err

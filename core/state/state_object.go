@@ -203,6 +203,10 @@ func (s *stateIdentity) Approve() {
 	s.touch()
 }
 
+func (s *stateIdentity) Balance() *big.Int {
+	return big.NewInt(0)
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateIdentity) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)

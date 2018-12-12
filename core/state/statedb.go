@@ -151,6 +151,14 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
+func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.Balance()
+	}
+	return common.Big0
+}
+
 /*
  * SETTERS
  */
