@@ -7,7 +7,9 @@ import (
 	"idena-go/common/hexutil"
 	"idena-go/consensus"
 	"idena-go/core/mempool"
+	"idena-go/core/state"
 	"idena-go/crypto"
+	"idena-go/rlp"
 	"math/big"
 )
 
@@ -86,6 +88,65 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	}
 
 	return signedTx.Hash(), nil
+}
+
+type Identity struct {
+	Address  common.Address `json:"address"`
+	Nickname string         `json:"nickname"`
+	Stake    *big.Float     `json:"stake"`
+	Invites  uint8          `json:"invites"`
+	Age      uint16         `json:"age"`
+	State    string         `json:"state"`
+}
+
+func (api *DnaApi) Identities() []Identity {
+	var identities []Identity
+	api.engine.GetAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+
+		var data state.Identity
+		if err := rlp.DecodeBytes(value, &data); err != nil {
+			return false
+		}
+
+		var s string
+		switch data.State {
+		case state.Candidate:
+			s = "Candidate"
+			break
+		case state.Verified:
+			s = "Verified"
+			break
+		case state.Suspended:
+			s = "Suspended"
+			break
+		default:
+			s = "Killed"
+			break
+		}
+
+		var nickname string
+		if data.Nickname != nil {
+			nickname = string(data.Nickname[:])
+		}
+
+		identities = append(identities, Identity{
+			Address:  addr,
+			State:    s,
+			Stake:    convertToFloat(data.Stake),
+			Age:      data.Age,
+			Invites:  data.Invites,
+			Nickname: nickname,
+		})
+
+		return false
+	})
+
+	return identities
 }
 
 func convertToInt(amount *big.Float) *big.Int {
