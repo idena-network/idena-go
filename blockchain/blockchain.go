@@ -336,6 +336,9 @@ func (chain *Blockchain) filterTxs(state *state.StateDB, txs []*types.Transactio
 
 	totalFee := new(big.Int)
 	for _, tx := range txs {
+		if err := validation.ValidateTx(chain.appState, tx); err != nil {
+			continue
+		}
 		if fee, err := chain.applyTxOnState(state, tx); err == nil {
 			totalFee.Add(totalFee, fee)
 			result = append(result, tx)

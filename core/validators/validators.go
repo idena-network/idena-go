@@ -44,6 +44,7 @@ func (v *ValidatorsCache) GetCountOfValidNodes() int {
 }
 
 func (v *ValidatorsCache) Contains(addr common.Address) bool {
+	// TODO: we should use O(1) structure
 	for _, p := range v.validNodes {
 		if bytes.Compare(p[:], addr[:]) == 0 {
 			return true
