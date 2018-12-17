@@ -104,7 +104,7 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 func getDefaultRPCConfig() *rpc.Config {
 	// DefaultConfig contains reasonable default settings.
 	return &rpc.Config{
-		HTTPCors:         []string{"http://localhost:5000"},
+		HTTPCors:         []string{"*"},
 		HTTPHost:         "localhost",
 		HTTPPort:         9090,
 		HTTPModules:      []string{"net", "dna"},

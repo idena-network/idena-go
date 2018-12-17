@@ -30,7 +30,7 @@ func (api *DnaApi) State() State {
 	}
 }
 
-func (api *DnaApi) GetAddr() common.Address {
+func (api *DnaApi) GetCoinbaseAddr() common.Address {
 	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
 }
 
