@@ -305,17 +305,17 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
+	checkState := state.NewForCheck(chain.appState.State)
+	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
 		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
-		TxHash:         types.DeriveSha(types.Transactions(txs)),
+		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
 	}
-	checkState := state.NewForCheck(chain.appState.State)
-	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
 	block := &types.Block{
 		Header: &types.Header{
