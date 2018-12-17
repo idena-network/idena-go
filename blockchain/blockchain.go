@@ -253,7 +253,7 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 	sender, _ := types.Sender(tx)
 
 	if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
-		return nil, errors.New(fmt.Sprintf("Invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
 			expected, tx.AccountNonce))
 	}
 	fee := chain.getTxFee(tx)
@@ -268,7 +268,7 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 		amount := tx.Amount
 		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
 		if change.Sign() < 0 {
-			return nil, errors.New("Not enough funds")
+			return nil, errors.New("not enough funds")
 		}
 		state.SubBalance(sender, amount)
 		state.SubBalance(sender, fee)
@@ -332,7 +332,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 }
 
 func (chain *Blockchain) filterTxs(state *state.StateDB, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {
-	result := make([]*types.Transaction, len(txs))
+	var result []*types.Transaction
 
 	totalFee := new(big.Int)
 	for _, tx := range txs {
