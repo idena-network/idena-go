@@ -235,3 +235,7 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 		s.onDirty = nil
 	}
 }
+func (s *stateIdentity) Revoke() {
+	s.data.State = Suspended
+	s.touch()
+}

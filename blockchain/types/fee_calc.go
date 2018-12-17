@@ -5,7 +5,7 @@ import (
 )
 
 func CalculateFee(networkSize int, tx *Transaction) *big.Int {
-	if tx.Type == ApprovingTx {
+	if tx.Type == ApprovingTx || tx.Type == RevokeTx {
 		return big.NewInt(0)
 	}
 	base := big.NewInt(1e+18)

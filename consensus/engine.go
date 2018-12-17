@@ -96,8 +96,6 @@ func (engine *Engine) loop() {
 			continue
 		}
 
-		engine.requestApprove()
-
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsCache.GetCountOfValidNodes())
 
@@ -471,26 +469,4 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	}
 
 	return nil, errors.New("Block is not found")
-}
-func (engine *Engine) requestApprove() {
-
-	if engine.appState.State.Version() == 0 {
-		return
-	}
-
-	if engine.appState.ValidatorsCache.Contains(engine.addr) {
-		return
-	}
-	tx := &types.Transaction{
-		AccountNonce: engine.appState.State.GetNonce(engine.addr) + 1,
-		Type:         types.ApprovingTx,
-	}
-
-	signedTx, err := types.SignTx(tx, engine.secretKey)
-
-	if err != nil {
-		return
-	}
-
-	engine.txpool.Add(signedTx)
 }

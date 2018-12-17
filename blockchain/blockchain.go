@@ -270,8 +270,11 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*
 			state.AddBalance(*tx.To, amount)
 
 			totalFee = new(big.Int).Add(totalFee, fee)
-
+			break
 		case types.SendInviteTx:
+			break
+		case types.RevokeTx:
+			state.GetOrNewIdentityObject(sender).Revoke()
 		}
 
 		state.SetNonce(sender, tx.AccountNonce+1)

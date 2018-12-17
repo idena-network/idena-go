@@ -13,6 +13,7 @@ const (
 	SendTx       uint16 = 0x0
 	ApprovingTx  uint16 = 0x1
 	SendInviteTx uint16 = 0x2
+	RevokeTx 	 uint16 = 0x3
 )
 
 type Network = int32
