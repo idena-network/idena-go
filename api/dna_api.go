@@ -89,7 +89,9 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 func convertToInt(amount *big.Float) *big.Int {
-
+	if amount == nil {
+		return nil
+	}
 	initial := new(big.Float).SetInt(common.DnaBase)
 	result, _ := new(big.Float).Mul(initial, amount).Int(nil)
 
@@ -97,7 +99,9 @@ func convertToInt(amount *big.Float) *big.Int {
 }
 
 func convertToFloat(amount *big.Int) *big.Float {
-
+	if amount == nil {
+		return nil
+	}
 	bigAmount := new(big.Float).SetInt(amount)
 	result := new(big.Float).Quo(bigAmount, new(big.Float).SetInt(common.DnaBase))
 
