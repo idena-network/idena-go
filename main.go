@@ -110,10 +110,10 @@ func getDefaultRPCConfig(rpcPort int) *rpc.Config {
 	// DefaultConfig contains reasonable default settings.
 	return &rpc.Config{
 		HTTPCors:         []string{"*"},
-		HTTPHost:         "localhost",
+		HTTPHost:         "127.0.0.1",
 		HTTPPort:         rpcPort,
 		HTTPModules:      []string{"net", "dna"},
-		HTTPVirtualHosts: []string{"localhost"},
+		HTTPVirtualHosts: []string{"127.0.0.1"},
 		HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
 	}
 }
