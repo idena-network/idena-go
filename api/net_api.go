@@ -51,3 +51,7 @@ func (api *NetApi) AddPeer(url string) error {
 		return nil
 	}
 }
+
+func (api *NetApi) Enode() string {
+	return api.srv.NodeInfo().Enode
+}
