@@ -277,7 +277,7 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*
 			state.GetOrNewIdentityObject(sender).Revoke()
 		}
 
-		state.SetNonce(sender, tx.AccountNonce+1)
+		state.SetNonce(sender, tx.AccountNonce)
 	}
 
 	return totalFee, nil
