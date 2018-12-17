@@ -194,7 +194,7 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 }
 
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
-	s.getStateIdentity(address).AddStake(intStake)
+	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
 
 //
