@@ -431,7 +431,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 							if v != nil {
 								list = append(list, v)
 							}
-							return len(list) < necessaryVotesCount
+							return len(list) >= necessaryVotesCount
 						})
 						cert = types.BlockCert(list)
 						bestHash = vote.Header.VotedHash
