@@ -31,6 +31,11 @@ func main() {
 			Usage: "Network listening port",
 			Value: 40404,
 		},
+		cli.IntFlag{
+			Name:  "rpcport",
+			Usage: "RPC listening port",
+			Value: 9009,
+		},
 		cli.StringFlag{
 			Name:  "bootnode",
 			Usage: "Bootstrap node url",
@@ -70,7 +75,7 @@ func main() {
 				BootstrapNodes: nodes,
 			},
 			Consensus: getDefaultConsensusConfig(context.Bool("automine")),
-			RPC:       getDefaultRPCConfig(),
+			RPC:       getDefaultRPCConfig(context.Int("rpcport")),
 		}
 
 		n, _ := node.NewNode(&c)
@@ -101,12 +106,12 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func getDefaultRPCConfig() *rpc.Config {
+func getDefaultRPCConfig(rpcPort int) *rpc.Config {
 	// DefaultConfig contains reasonable default settings.
 	return &rpc.Config{
 		HTTPCors:         []string{"*"},
 		HTTPHost:         "localhost",
-		HTTPPort:         9090,
+		HTTPPort:         rpcPort,
 		HTTPModules:      []string{"net", "dna"},
 		HTTPVirtualHosts: []string{"localhost"},
 		HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
