@@ -191,28 +191,24 @@ func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block 
 	if totalFee, err = chain.processTxs(state, block); err != nil {
 		return common.Hash{}, err
 	}
+	return chain.applyBlockRewards(totalFee, state, block), nil
+}
 
+func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.StateDB, block *types.Block) common.Hash {
 	feeReward := new(big.Float).SetInt(totalFee)
 	feeReward = feeReward.Mul(feeReward, big.NewFloat(chain.config.Consensus.FeeBurnRate))
 	intFeeReward, _ := feeReward.Int(nil)
-
 	stake := big.NewFloat(0).SetInt(chain.config.Consensus.BlockReward)
 	stake = stake.Mul(stake, big.NewFloat(chain.config.Consensus.StakeRewardRate))
 	intStake, _ := stake.Int(nil)
-
 	blockReward := big.NewInt(0)
 	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
-
 	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
-
 	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
-
 	state.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
-
 	chain.rewardFinalCommittee(state, block)
-
 	state.Precommit(true)
-	return state.Root(), nil
+	return state.Root()
 }
 
 func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
@@ -243,44 +239,50 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*big.Int, error) {
 	totalFee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
-		tx := block.Body.Transactions[i]
-		sender, _ := types.Sender(tx)
-
-		if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
-			return nil, errors.New(fmt.Sprintf("Invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
-				expected, tx.AccountNonce))
+		if fee, err := chain.applyTxOnState(state, block.Body.Transactions[i]); err != nil {
+			return nil, err
+		} else {
+			totalFee.Add(totalFee, fee)
 		}
-		fee := chain.getTxFee(tx)
-
-		switch tx.Type {
-		case types.ApprovingTx:
-			state.GetOrNewIdentityObject(sender).Approve()
-			break
-		case types.SendTx:
-
-			balance := state.GetBalance(sender)
-			amount := tx.Amount
-			change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
-			if change.Sign() < 0 {
-				return nil, errors.New("Not enough funds")
-			}
-			state.SubBalance(sender, amount)
-			state.SubBalance(sender, fee)
-
-			state.AddBalance(*tx.To, amount)
-
-			totalFee = new(big.Int).Add(totalFee, fee)
-			break
-		case types.SendInviteTx:
-			break
-		case types.RevokeTx:
-			state.GetOrNewIdentityObject(sender).Revoke()
-		}
-
-		state.SetNonce(sender, tx.AccountNonce)
 	}
 
 	return totalFee, nil
+}
+
+func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transaction) (*big.Int, error) {
+	sender, _ := types.Sender(tx)
+
+	if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
+		return nil, errors.New(fmt.Sprintf("Invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+			expected, tx.AccountNonce))
+	}
+	fee := chain.getTxFee(tx)
+
+	switch tx.Type {
+	case types.ApprovingTx:
+		state.GetOrNewIdentityObject(sender).Approve()
+		break
+	case types.SendTx:
+
+		balance := state.GetBalance(sender)
+		amount := tx.Amount
+		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
+		if change.Sign() < 0 {
+			return nil, errors.New("Not enough funds")
+		}
+		state.SubBalance(sender, amount)
+		state.SubBalance(sender, fee)
+		state.AddBalance(*tx.To, amount)
+		break
+	case types.SendInviteTx:
+		break
+	case types.RevokeTx:
+		state.GetOrNewIdentityObject(sender).Revoke()
+	}
+
+	state.SetNonce(sender, tx.AccountNonce)
+
+	return fee, nil
 }
 
 func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
@@ -312,24 +314,34 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 		TxHash:         types.DeriveSha(types.Transactions(txs)),
 		Coinbase:       chain.coinBaseAddress,
 	}
+	checkState := state.NewForCheck(chain.appState.State)
+	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
 	block := &types.Block{
 		Header: &types.Header{
 			ProposedHeader: header,
 		},
 		Body: &types.Body{
-			Transactions: txs,
+			Transactions: filteredTxs,
 		},
 	}
-	checkState := state.NewForCheck(chain.appState.State)
-	if root, err := chain.applyAndValidateBlockState(checkState, block); err != nil {
-		return nil, err
-	} else {
-		block.Header.ProposedHeader.Root = root
-	}
-
+	block.Header.ProposedHeader.Root = chain.applyBlockRewards(totalFee, checkState, block)
 	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
+
 	return block, nil
+}
+
+func (chain *Blockchain) filterTxs(state *state.StateDB, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {
+	result := make([]*types.Transaction, len(txs))
+
+	totalFee := new(big.Int)
+	for _, tx := range txs {
+		if fee, err := chain.applyTxOnState(state, tx); err == nil {
+			totalFee.Add(totalFee, fee)
+			result = append(result, tx)
+		}
+	}
+	return result, totalFee
 }
 
 func (chain *Blockchain) insertBlock(block *types.Block) {
