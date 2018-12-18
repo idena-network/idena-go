@@ -4,10 +4,12 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
+	"idena-go/common/math"
 	"idena-go/config"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
@@ -195,15 +197,27 @@ func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block 
 }
 
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.StateDB, block *types.Block) common.Hash {
-	feeReward := new(big.Float).SetInt(totalFee)
-	feeReward = feeReward.Mul(feeReward, big.NewFloat(chain.config.Consensus.FeeBurnRate))
-	intFeeReward, _ := feeReward.Int(nil)
-	stake := big.NewFloat(0).SetInt(chain.config.Consensus.BlockReward)
-	stake = stake.Mul(stake, big.NewFloat(chain.config.Consensus.StakeRewardRate))
-	intStake, _ := stake.Int(nil)
+
+	// calculate fee rewad
+	burnFee := decimal.NewFromBigInt(totalFee, 0)
+	burnFee = burnFee.Mul(decimal.NewFromFloat32(chain.config.Consensus.FeeBurnRate))
+	intBurn := math.ToInt(&burnFee)
+	intFeeReward := new(big.Int)
+	intFeeReward.Sub(totalFee, intBurn)
+
+	// calculate stake
+	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
+	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
+	intStake := math.ToInt(&stake)
+
+	// calculate block reward
 	blockReward := big.NewInt(0)
 	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
+
+	// calculate total reward
 	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
+
+	// update state
 	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 	state.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
 	chain.rewardFinalCommittee(state, block)
@@ -222,10 +236,10 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
 
-	stake := big.NewFloat(0).SetInt(totalReward)
-	stake.Mul(stake, big.NewFloat(chain.config.Consensus.StakeRewardRate))
+	stake := decimal.NewFromBigInt(totalReward, 0)
+	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
+	intStake := math.ToInt(&stake)
 
-	intStake, _ := stake.Int(nil)
 	reward := big.NewInt(0)
 	reward.Sub(totalReward, intStake)
 

@@ -17,7 +17,7 @@ type ConsensusConf struct {
 	WaitForStepDelay               time.Duration
 	Automine                       bool
 	BlockReward                    *big.Int
-	StakeRewardRate				   float64
-	FinalCommitteeReward		   *big.Int
-	FeeBurnRate					   float64
+	StakeRewardRate                float32
+	FinalCommitteeReward           *big.Int
+	FeeBurnRate                    float32
 }
