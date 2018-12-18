@@ -15,15 +15,18 @@ import (
 type ValidatorsCache struct {
 	s          *state.StateDB
 	validNodes []*common.Address
+	nodesSet   mapset.Set
 }
 
 func NewValidatorsCache(sdb *state.StateDB) *ValidatorsCache {
 	return &ValidatorsCache{
-		s: sdb,
+		s:        sdb,
+		nodesSet: mapset.NewSet(),
 	}
 }
 
 func (v *ValidatorsCache) Load() {
+	v.nodesSet.Clear()
 	v.loadValidNodes()
 }
 
@@ -44,14 +47,9 @@ func (v *ValidatorsCache) GetCountOfValidNodes() int {
 }
 
 func (v *ValidatorsCache) Contains(addr common.Address) bool {
-	// TODO: we should use O(1) structure
-	for _, p := range v.validNodes {
-		if bytes.Compare(p[:], addr[:]) == 0 {
-			return true
-		}
-	}
-	return false
+	return v.nodesSet.Contains(addr)
 }
+
 func (v *ValidatorsCache) RefreshIfUpdated(transactions []*types.Transaction) {
 	shouldRefresh := false
 	for _, tx := range transactions {
@@ -67,6 +65,8 @@ func (v *ValidatorsCache) RefreshIfUpdated(transactions []*types.Transaction) {
 
 func (v *ValidatorsCache) loadValidNodes() {
 	var nodes []*common.Address
+	v.nodesSet.Clear()
+
 	v.s.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
@@ -81,6 +81,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 
 		if data.State == state.Verified {
 			nodes = append(nodes, &addr)
+			v.nodesSet.Add(addr)
 		}
 
 		return false
