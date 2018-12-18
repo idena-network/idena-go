@@ -516,14 +516,16 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 	}
 
 	switch cnt {
-	case 1, 2:
+	case 1:
 		return 1
-	case 3, 4:
+	case 2, 3:
 		return 2
-	case 5, 6:
+	case 4, 5:
 		return 3
-	case 7, 8:
+	case 6, 7:
 		return 4
+	case 8:
+		return 5
 	}
 	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
 }
