@@ -16,9 +16,17 @@ import (
 	"time"
 )
 
+var (
+	gitCommit = ""
+)
+
 func main() {
 
 	app := cli.NewApp()
+	app.Version = "0.0.1"
+	if len(gitCommit) > 0 {
+		app.Version = app.Version + "-" + gitCommit
+	}
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
