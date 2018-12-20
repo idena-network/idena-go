@@ -81,6 +81,11 @@ func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) err
 	if appState.ValidatorsCache.Contains(sender) {
 		return NodeApprovedAlready
 	}
+
+	if appState.State.GetInvites(sender) == 0 {
+		return InsufficientInvites
+	}
+
 	return nil
 }
 

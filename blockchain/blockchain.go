@@ -276,7 +276,12 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 
 	switch tx.Type {
 	case types.ApprovingTx:
+		invites := state.GetInvites(sender)
+		if invites == 0 {
+			return nil, errors.New("not enough invites")
+		}
 		state.GetOrNewIdentityObject(sender).Approve()
+		state.SubInvite(sender, 1)
 		break
 	case types.SendTx:
 
