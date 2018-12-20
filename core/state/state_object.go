@@ -2,6 +2,7 @@ package state
 
 import (
 	"idena-go/common"
+	"idena-go/common/math"
 	"idena-go/rlp"
 	"io"
 	"math/big"
@@ -14,6 +15,8 @@ const (
 	Verified  IdentityState = 1
 	Suspended IdentityState = 2
 	Killed    IdentityState = 3
+
+	MaxInvitesAmount = math.MaxUint8
 )
 
 // stateAccount represents an Idena account which is being modified.
@@ -230,12 +233,18 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 	}
 
 	s.data.Stake = amount
-	if s.onDirty != nil {
-		s.onDirty(s.Address())
-		s.onDirty = nil
-	}
+	s.touch()
 }
 func (s *stateIdentity) Revoke() {
 	s.data.State = Suspended
 	s.touch()
+}
+func (s *stateIdentity) AddInvite(i uint8) {
+	if s.Invites() == MaxInvitesAmount {
+		return
+	}
+	s.SetInvites(s.Invites() + i)
+}
+func (s *stateIdentity) SubInvite(i uint8) {
+	s.SetInvites(s.Invites() - i)
 }

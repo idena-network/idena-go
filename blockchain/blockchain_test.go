@@ -101,4 +101,5 @@ func Test_ApplyBlockRewards(t *testing.T) {
 
 	require.Equal(t, 0, expectedBalance.Cmp(s.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, intStake.Cmp(s.GetStakeBalance(chain.coinBaseAddress)))
+	require.Equal(t, uint8(1), s.GetInvites(chain.coinBaseAddress))
 }

@@ -197,6 +197,14 @@ func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
 
+func (s *StateDB) AddInvite(address common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(address).AddInvite(amount)
+}
+
+func (s *StateDB) SubInvite(address common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(address).SubInvite(amount)
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -433,4 +441,12 @@ func (s *StateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool
 	end := append(identityPrefix, common.MaxAddr...)
 	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
 }
+func (s *StateDB) GetInvites(addr common.Address) uint8 {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.Invites()
+	}
+	return 0
+}
+
 

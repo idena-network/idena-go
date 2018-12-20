@@ -220,6 +220,8 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.State
 	// update state
 	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 	state.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
+	state.AddInvite(block.Header.ProposedHeader.Coinbase, 1)
+
 	chain.rewardFinalCommittee(state, block)
 	state.Precommit(true)
 	return state.Root()
@@ -289,6 +291,13 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 		state.AddBalance(*tx.To, amount)
 		break
 	case types.SendInviteTx:
+		invites := state.GetInvites(sender)
+		if invites == 0 {
+			return nil, errors.New("not enough invites")
+		}
+		state.SubInvite(sender, 1)
+		state.SubBalance(sender, fee)
+		state.AddInvite(*tx.To, 1)
 		break
 	case types.RevokeTx:
 		state.GetOrNewIdentityObject(sender).Revoke()

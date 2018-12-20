@@ -12,13 +12,32 @@ var (
 	InvalidSignature    = errors.New("Invalid signature")
 	InvalidNonce        = errors.New("Invalid Nonce")
 	InsufficientFunds   = errors.New("Insufficient funds")
+	InsufficientInvites = errors.New("Insufficient invites")
+	RecipientRequired   = errors.New("Recipient is required")
+
+	validators map[types.TxType]*validator
 )
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
-	if tx.Type == types.ApprovingTx && !validateApprovingTx(appState, tx) {
-		return NodeApprovedAlready
+type validator struct {
+	validate func(appState *appstate.AppState, tx *types.Transaction) error
+}
+
+func init() {
+	validators = make(map[types.TxType]*validator)
+	validators[types.SendTx] = &validator{
+		validate: validateSendTx,
 	}
 
+	validators[types.ApprovingTx] = &validator{
+		validate: validateApprovingTx,
+	}
+
+	validators[types.SendInviteTx] = &validator{
+		validate: validateSendInviteTx,
+	}
+}
+
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -29,19 +48,51 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 		return InvalidNonce
 	}
 
-	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
-	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
-		return InsufficientFunds
+	validator, ok := validators[tx.Type]
+	if !ok {
+		return nil
+	}
+	if err := validator.validate(appState, tx); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) bool {
+// specific validation for sendTx
+func validateSendTx(appState *appstate.AppState, tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil {
+		return RecipientRequired
+	}
+
+	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+		return InsufficientFunds
+	}
+	return nil
+}
+
+// specific validation for approving tx
+func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
 	if appState.ValidatorsCache.Contains(sender) {
-		return false
+		return NodeApprovedAlready
 	}
-	return true
+	return nil
+}
+
+func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil {
+		return RecipientRequired
+	}
+
+	if appState.State.GetInvites(sender) == 0 {
+		return InsufficientInvites
+	}
+	return nil
 }
