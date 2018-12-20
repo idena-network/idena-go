@@ -286,7 +286,7 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 	case types.SendTx:
 
 		balance := state.GetBalance(sender)
-		amount := tx.Amount
+		amount := tx.AmountOrZero()
 		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
 		if change.Sign() < 0 {
 			return nil, errors.New("not enough funds")
@@ -301,7 +301,7 @@ func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transact
 			return nil, errors.New("not enough invites")
 		}
 		balance := state.GetBalance(sender)
-		amount := tx.Amount
+		amount := tx.AmountOrZero()
 		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
 		if change.Sign() < 0 {
 			return nil, errors.New("not enough funds")

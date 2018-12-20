@@ -13,7 +13,7 @@ const (
 	SendTx       uint16 = 0x0
 	ApprovingTx  uint16 = 0x1
 	SendInviteTx uint16 = 0x2
-	RevokeTx 	 uint16 = 0x3
+	RevokeTx     uint16 = 0x3
 )
 
 type Network = int32
@@ -31,7 +31,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
@@ -190,6 +190,13 @@ func (v *Vote) VoterAddr() common.Address {
 	}
 	v.addr.Store(addr)
 	return addr
+}
+
+func (tx *Transaction) AmountOrZero() *big.Int {
+	if tx.Amount == nil {
+		return big.NewInt(0)
+	}
+	return tx.Amount
 }
 
 func (tx *Transaction) Hash() common.Hash {

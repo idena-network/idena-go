@@ -16,8 +16,5 @@ func CalculateFee(networkSize int, tx *Transaction) *big.Int {
 
 func CalculateCost(networkSize int, tx *Transaction) *big.Int {
 	fee := CalculateFee(networkSize, tx)
-	if tx.Amount == nil {
-		return fee
-	}
-	return new(big.Int).Add(tx.Amount, fee)
+	return new(big.Int).Add(tx.AmountOrZero(), fee)
 }

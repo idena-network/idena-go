@@ -29,6 +29,6 @@ func TestCalculateCost(t *testing.T) {
 		Amount: big.NewInt(1e+18),
 	}
 	//tx size = 15
-	cost := new(big.Int).Add(big.NewInt(15e+16), tx.Amount)
+	cost := new(big.Int).Add(big.NewInt(15e+16), tx.AmountOrZero())
 	require.Equal(t, 0, cost.Cmp(CalculateCost(100, tx)))
 }
