@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
+	"idena-go/common"
 	"idena-go/core/appstate"
 	"idena-go/core/state"
 	"idena-go/crypto"
@@ -19,8 +20,9 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
 
-	app.State.SetNonce(crypto.PubkeyToAddress(key1.PublicKey), 0)
-	app.State.SetNonce(crypto.PubkeyToAddress(key2.PublicKey), 0)
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+	app.State.AddBalance(crypto.PubkeyToAddress(key1.PublicKey), balance)
+	app.State.AddBalance(crypto.PubkeyToAddress(key2.PublicKey), balance)
 
 	pool.Add(getTx(3, key1))
 	pool.Add(getTx(1, key1))
@@ -41,7 +43,18 @@ func getAppState() *appstate.AppState {
 	database := db.NewMemDB()
 	stateDb, _ := state.NewLatest(database)
 
-	return appstate.NewAppState(stateDb)
+	key, _ := crypto.GenerateKey()
+
+	// need at least 1 network size
+	id := stateDb.GetOrNewIdentityObject(crypto.PubkeyToAddress(key.PublicKey))
+	id.Approve()
+
+	stateDb.Commit(false)
+
+	res := appstate.NewAppState(stateDb)
+	res.ValidatorsCache.Load()
+
+	return res
 }
 
 func getTx(nonce uint64, key *ecdsa.PrivateKey) *types.Transaction {
