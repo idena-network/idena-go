@@ -8,12 +8,12 @@ import (
 )
 
 var (
-	NodeApprovedAlready = errors.New("Node is already in validator set")
-	InvalidSignature    = errors.New("Invalid signature")
-	InvalidNonce        = errors.New("Invalid Nonce")
-	InsufficientFunds   = errors.New("Insufficient funds")
-	InsufficientInvites = errors.New("Insufficient invites")
-	RecipientRequired   = errors.New("Recipient is required")
+	NodeApprovedAlready = errors.New("node is already in validator set")
+	InvalidSignature    = errors.New("invalid signature")
+	InvalidNonce        = errors.New("invalid Nonce")
+	InsufficientFunds   = errors.New("insufficient funds")
+	InsufficientInvites = errors.New("insufficient invites")
+	RecipientRequired   = errors.New("recipient is required")
 
 	validators map[types.TxType]*validator
 )
@@ -92,8 +92,8 @@ func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) err
 func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
-	if tx.To == nil {
-		return RecipientRequired
+	if err := validateSendTx(appState, tx); err != nil {
+		return err
 	}
 
 	if appState.State.GetInvites(sender) == 0 {
