@@ -448,5 +448,12 @@ func (s *StateDB) GetInvites(addr common.Address) uint8 {
 	}
 	return 0
 }
+func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.State()
+	}
+	return Undefined
+}
 
 

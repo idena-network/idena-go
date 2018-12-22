@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
+	"idena-go/common"
 	"idena-go/common/math"
 	"idena-go/config"
 	"idena-go/core/appstate"
@@ -35,7 +36,7 @@ func getDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func newBlockchain() *Blockchain {
+func newBlockchain(withIdentity bool) *Blockchain {
 
 	cfg := &config.Config{
 		Network:   Testnet,
@@ -48,16 +49,26 @@ func newBlockchain() *Blockchain {
 
 	appState := appstate.NewAppState(stateDb)
 
+	key, _ := crypto.GenerateKey()
+
+	if withIdentity {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		identity := stateDb.GetOrNewIdentityObject(addr)
+		identity.SetState(state.Verified)
+
+		stateDb.Commit(false)
+		appState.ValidatorsCache.Load()
+	}
+
 	txPool := mempool.NewTxPool(appState)
 
 	chain := NewBlockchain(cfg, db, txPool, appState)
-	key, _ := crypto.GenerateKey()
 	chain.InitializeChain(key)
 	return chain
 }
 
 func Test_ApplyBlockRewards(t *testing.T) {
-	chain := newBlockchain()
+	chain := newBlockchain(false)
 
 	header := &types.ProposedHeader{
 		Height:         2,
@@ -102,4 +113,72 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	require.Equal(t, 0, expectedBalance.Cmp(s.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, intStake.Cmp(s.GetStakeBalance(chain.coinBaseAddress)))
 	require.Equal(t, uint8(1), s.GetInvites(chain.coinBaseAddress))
+}
+
+func Test_ApplyInviteTx(t *testing.T) {
+	chain := newBlockchain(true)
+	stateDb := chain.appState.State
+
+	key, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	receiver := crypto.PubkeyToAddress(key2.PublicKey)
+
+	const balance = 200000
+	b := new(big.Int).SetInt64(int64(balance))
+	account := stateDb.GetOrNewAccountObject(addr)
+	account.SetBalance(b.Mul(b, common.DnaBase))
+	id := stateDb.GetOrNewIdentityObject(addr)
+	id.AddInvite(1)
+
+	tx := &types.Transaction{
+		Type:         types.InviteTx,
+		Amount:       big.NewInt(1e+18),
+		AccountNonce: 1,
+		To:           &receiver,
+	}
+
+	signed, _ := types.SignTx(tx, key)
+
+	chain.applyTxOnState(stateDb, signed)
+
+	require.Equal(t, uint8(0), stateDb.GetInvites(addr))
+	require.Equal(t, state.Invite, stateDb.GetIdentityState(receiver))
+	require.Equal(t, -1, big.NewInt(0).Cmp(stateDb.GetBalance(receiver)))
+}
+
+func Test_ApplyActivateTx(t *testing.T) {
+	chain := newBlockchain(true)
+	stateDb := chain.appState.State
+
+	key, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(key.PublicKey)
+
+	receiver := crypto.PubkeyToAddress(key2.PublicKey)
+
+	const balance = 200000
+	b := new(big.Int).SetInt64(int64(balance))
+	account := stateDb.GetOrNewAccountObject(sender)
+	account.SetBalance(b.Mul(b, common.DnaBase))
+	id := stateDb.GetOrNewIdentityObject(sender)
+	id.SetState(state.Invite)
+
+	tx := &types.Transaction{
+		Type:         types.ActivationTx,
+		Amount:       big.NewInt(0),
+		AccountNonce: 1,
+		To:           &receiver,
+	}
+
+	signed, _ := types.SignTx(tx, key)
+
+	chain.applyTxOnState(stateDb, signed)
+
+	require.Equal(t, state.Killed, stateDb.GetIdentityState(sender))
+	require.Equal(t, 0, big.NewInt(0).Cmp(stateDb.GetBalance(sender)))
+
+	require.Equal(t, state.Verified, stateDb.GetIdentityState(receiver))
+	require.Equal(t, -1, big.NewInt(0).Cmp(stateDb.GetBalance(receiver)))
 }

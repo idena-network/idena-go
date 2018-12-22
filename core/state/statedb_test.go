@@ -94,7 +94,7 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
 	identity := stateDb.GetOrNewIdentityObject(addr)
-	identity.Approve()
+	identity.SetState(Verified)
 
 	stateDb.Commit(false)
 	stateDb.Clear()

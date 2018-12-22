@@ -5,15 +5,17 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/core/appstate"
+	"idena-go/core/state"
 )
 
 var (
-	NodeApprovedAlready = errors.New("node is already in validator set")
-	InvalidSignature    = errors.New("invalid signature")
-	InvalidNonce        = errors.New("invalid Nonce")
-	InsufficientFunds   = errors.New("insufficient funds")
-	InsufficientInvites = errors.New("insufficient invites")
-	RecipientRequired   = errors.New("recipient is required")
+	NodeAlreadyActivated = errors.New("node is already in validator set")
+	InvalidSignature     = errors.New("invalid signature")
+	InvalidNonce         = errors.New("invalid Nonce")
+	InsufficientFunds    = errors.New("insufficient funds")
+	InsufficientInvites  = errors.New("insufficient invites")
+	RecipientRequired    = errors.New("recipient is required")
+	InvitationIsMissing  = errors.New("invitation is missing")
 
 	validators map[types.TxType]*validator
 )
@@ -24,15 +26,15 @@ type validator struct {
 
 func init() {
 	validators = make(map[types.TxType]*validator)
-	validators[types.SendTx] = &validator{
+	validators[types.RegularTx] = &validator{
 		validate: validateSendTx,
 	}
 
-	validators[types.ApprovingTx] = &validator{
-		validate: validateApprovingTx,
+	validators[types.ActivationTx] = &validator{
+		validate: validateActivationTx,
 	}
 
-	validators[types.SendInviteTx] = &validator{
+	validators[types.InviteTx] = &validator{
 		validate: validateSendInviteTx,
 	}
 }
@@ -75,15 +77,23 @@ func validateSendTx(appState *appstate.AppState, tx *types.Transaction) error {
 }
 
 // specific validation for approving tx
-func validateApprovingTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
-	if appState.ValidatorsCache.Contains(sender) {
-		return NodeApprovedAlready
+	if tx.To == nil {
+		return RecipientRequired
 	}
 
-	if appState.State.GetInvites(sender) == 0 {
-		return InsufficientInvites
+	if appState.ValidatorsCache.Contains(sender) {
+		return NodeAlreadyActivated
+	}
+
+	if err := validateSendTx(appState, tx); err != nil {
+		return err
+	}
+
+	if appState.State.GetIdentityState(sender) != state.Invite {
+		return InvitationIsMissing
 	}
 
 	return nil

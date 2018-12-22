@@ -198,7 +198,7 @@ func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block 
 
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.StateDB, block *types.Block) common.Hash {
 
-	// calculate fee rewad
+	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
 	burnFee = burnFee.Mul(decimal.NewFromFloat32(chain.config.Consensus.FeeBurnRate))
 	intBurn := math.ToInt(&burnFee)
@@ -265,62 +265,80 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*
 	return totalFee, nil
 }
 
-func (chain *Blockchain) applyTxOnState(state *state.StateDB, tx *types.Transaction) (*big.Int, error) {
+func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transaction) (*big.Int, error) {
 	sender, _ := types.Sender(tx)
 
-	if expected := state.GetNonce(sender) + 1; expected != tx.AccountNonce {
+	if expected := stateDB.GetNonce(sender) + 1; expected != tx.AccountNonce {
 		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
 			expected, tx.AccountNonce))
 	}
 	fee := chain.getTxFee(tx)
+	totalCost := chain.getTxCost(tx)
 
 	switch tx.Type {
-	case types.ApprovingTx:
-		invites := state.GetInvites(sender)
-		if invites == 0 {
-			return nil, errors.New("not enough invites")
+	case types.ActivationTx:
+		senderIdentity := stateDB.GetOrNewIdentityObject(sender)
+		if senderIdentity.State() != state.Invite {
+			return nil, errors.New("invitation is missing")
 		}
-		state.GetOrNewIdentityObject(sender).Approve()
-		state.SubInvite(sender, 1)
-		break
-	case types.SendTx:
+		balance := stateDB.GetBalance(sender)
+		change := new(big.Int).Sub(balance, totalCost)
+		if change.Sign() < 0 {
+			return nil, errors.New("not enough funds")
+		}
 
-		balance := state.GetBalance(sender)
+		// zero balance and kill temp identity
+		stateDB.SetBalance(sender, big.NewInt(0))
+		senderIdentity.SetState(state.Killed)
+
+		// verify identity and add transfer all available funds from temp account
+		recipient := *tx.To
+		stateDB.GetOrNewIdentityObject(recipient).SetState(state.Verified)
+		stateDB.AddBalance(recipient, change)
+		break
+	case types.RegularTx:
+
+		balance := stateDB.GetBalance(sender)
 		amount := tx.AmountOrZero()
-		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
+		change := new(big.Int).Sub(balance, totalCost)
 		if change.Sign() < 0 {
 			return nil, errors.New("not enough funds")
 		}
-		state.SubBalance(sender, amount)
-		state.SubBalance(sender, fee)
-		state.AddBalance(*tx.To, amount)
+		stateDB.SubBalance(sender, totalCost)
+		stateDB.AddBalance(*tx.To, amount)
 		break
-	case types.SendInviteTx:
-		invites := state.GetInvites(sender)
+	case types.InviteTx:
+		invites := stateDB.GetInvites(sender)
 		if invites == 0 {
 			return nil, errors.New("not enough invites")
 		}
-		balance := state.GetBalance(sender)
-		amount := tx.AmountOrZero()
-		change := new(big.Int).Sub(new(big.Int).Sub(balance, amount), fee)
+		balance := stateDB.GetBalance(sender)
+		change := new(big.Int).Sub(balance, totalCost)
 		if change.Sign() < 0 {
 			return nil, errors.New("not enough funds")
 		}
-		state.SubInvite(sender, 1)
-		state.SubBalance(sender, fee)
-		state.AddInvite(*tx.To, 1)
+
+		stateDB.SubInvite(sender, 1)
+		stateDB.SubBalance(sender, totalCost)
+
+		stateDB.GetOrNewIdentityObject(*tx.To).SetState(state.Invite)
+		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
 		break
-	case types.RevokeTx:
-		state.GetOrNewIdentityObject(sender).Revoke()
+	case types.KillTx:
+		stateDB.GetOrNewIdentityObject(sender).SetState(state.Killed)
 	}
 
-	state.SetNonce(sender, tx.AccountNonce)
+	stateDB.SetNonce(sender, tx.AccountNonce)
 
 	return fee, nil
 }
 
 func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
 	return types.CalculateFee(chain.appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+}
+
+func (chain *Blockchain) getTxCost(tx *types.Transaction) *big.Int {
+	return types.CalculateCost(chain.appState.ValidatorsCache.GetCountOfValidNodes(), tx)
 }
 
 func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {

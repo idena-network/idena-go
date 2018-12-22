@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	SendTx       uint16 = 0x0
-	ApprovingTx  uint16 = 0x1
-	SendInviteTx uint16 = 0x2
-	RevokeTx     uint16 = 0x3
+	RegularTx    uint16 = 0x0
+	ActivationTx uint16 = 0x1
+	InviteTx     uint16 = 0x2
+	KillTx       uint16 = 0x3
 )
 
 type Network = int32
@@ -31,7 +31,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash

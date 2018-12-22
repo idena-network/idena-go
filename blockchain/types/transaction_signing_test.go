@@ -12,7 +12,7 @@ func TestSignTx(t *testing.T) {
 
 	tx := Transaction{
 		AccountNonce: 0,
-		Type:         ApprovingTx,
+		Type:         ActivationTx,
 		To:           &addr,
 		Amount:       new(big.Int),
 	}

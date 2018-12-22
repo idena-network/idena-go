@@ -11,10 +11,14 @@ import (
 type IdentityState uint8
 
 const (
-	Candidate IdentityState = 0
-	Verified  IdentityState = 1
-	Suspended IdentityState = 2
-	Killed    IdentityState = 3
+	Undefined IdentityState = 0
+	Invite    IdentityState = 1
+	Candidate IdentityState = 2
+	Verified  IdentityState = 3
+	Suspended IdentityState = 4
+	Killed    IdentityState = 5
+
+
 
 	MaxInvitesAmount = math.MaxUint8
 )
@@ -201,8 +205,8 @@ func (s *stateIdentity) State() IdentityState {
 	return s.data.State
 }
 
-func (s *stateIdentity) Approve() {
-	s.data.State = Verified
+func (s *stateIdentity) SetState(state IdentityState) {
+	s.data.State = state
 	s.touch()
 }
 
@@ -235,10 +239,7 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 	s.data.Stake = amount
 	s.touch()
 }
-func (s *stateIdentity) Revoke() {
-	s.data.State = Suspended
-	s.touch()
-}
+
 func (s *stateIdentity) AddInvite(i uint8) {
 	if s.Invites() == MaxInvitesAmount {
 		return

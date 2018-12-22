@@ -53,7 +53,7 @@ func (v *ValidatorsCache) Contains(addr common.Address) bool {
 func (v *ValidatorsCache) RefreshIfUpdated(transactions []*types.Transaction) {
 	shouldRefresh := false
 	for _, tx := range transactions {
-		if tx.Type == types.ApprovingTx || tx.Type == types.RevokeTx {
+		if tx.Type == types.ActivationTx || tx.Type == types.KillTx {
 			shouldRefresh = true
 			break
 		}

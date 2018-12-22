@@ -20,7 +20,7 @@ func TestValidatorsCache_Contains(t *testing.T) {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		arr = append(arr, addr)
 		obj := stateDb.GetOrNewIdentityObject(addr)
-		obj.Approve()
+		obj.SetState(state.Verified)
 	}
 	stateDb.Commit(false)
 

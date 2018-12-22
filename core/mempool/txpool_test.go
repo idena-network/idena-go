@@ -47,7 +47,7 @@ func getAppState() *appstate.AppState {
 
 	// need at least 1 network size
 	id := stateDb.GetOrNewIdentityObject(crypto.PubkeyToAddress(key.PublicKey))
-	id.Approve()
+	id.SetState(state.Verified)
 
 	stateDb.Commit(false)
 
@@ -63,7 +63,7 @@ func getTx(nonce uint64, key *ecdsa.PrivateKey) *types.Transaction {
 
 	tx := types.Transaction{
 		AccountNonce: nonce,
-		Type:         types.SendTx,
+		Type:         types.RegularTx,
 		To:           &addr,
 		Amount:       new(big.Int),
 	}
