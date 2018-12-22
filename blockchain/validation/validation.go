@@ -84,7 +84,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 		return RecipientRequired
 	}
 
-	if appState.ValidatorsCache.Contains(sender) {
+	if appState.ValidatorsCache.Contains(*tx.To) {
 		return NodeAlreadyActivated
 	}
 
