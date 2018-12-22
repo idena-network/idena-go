@@ -115,6 +115,9 @@ func (api *DnaApi) Identities() []Identity {
 
 		var s string
 		switch data.State {
+		case state.Invite:
+			s = "Invite"
+			break
 		case state.Candidate:
 			s = "Candidate"
 			break
@@ -124,8 +127,11 @@ func (api *DnaApi) Identities() []Identity {
 		case state.Suspended:
 			s = "Suspended"
 			break
-		default:
+		case state.Killed:
 			s = "Killed"
+			break
+		default:
+			s = "Undefined"
 			break
 		}
 
