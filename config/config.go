@@ -68,3 +68,12 @@ func (c *Config) ResolvePath(path string) string {
 	}
 	return filepath.Join(c.DataDir, path)
 }
+
+func (c *Config) KeyStoreDataDir() (string, error) {
+	instanceDir := filepath.Join(c.DataDir, "keystore")
+	if err := os.MkdirAll(instanceDir, 0700); err != nil {
+		log.Error(fmt.Sprintf("Failed to create keystore datadir: %v", err))
+		return "", err
+	}
+	return instanceDir, nil
+}

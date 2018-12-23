@@ -13,6 +13,7 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
+	"idena-go/keystore"
 	"idena-go/log"
 	"idena-go/p2p"
 	"idena-go/pengings"
@@ -38,6 +39,7 @@ type Node struct {
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
 	log             log.Logger
 	srv             *p2p.Server
+	keyStore        *keystore.KeyStore
 }
 
 func NewNode(config *config.Config) (*Node, error) {
@@ -52,6 +54,13 @@ func NewNode(config *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	keyStoreDir, err := config.KeyStoreDataDir()
+	if err != nil {
+		return nil, err
+	}
+
+	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 
 	appState := appstate.NewAppState(stateDb)
 	votes := pengings.NewVotes(appState)
@@ -70,6 +79,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		consensusEngine: consensusEngine,
 		txpool:          txpool,
 		log:             log.New(),
+		keyStore:        keyStore,
 	}, nil
 }
 
