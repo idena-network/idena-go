@@ -183,7 +183,13 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(node.consensusEngine, node.txpool),
+			Service:   api.NewDnaApi(node.consensusEngine, node.txpool, node.keyStore),
+			Public:    true,
+		},
+		{
+			Namespace: "account",
+			Version:   "1.0",
+			Service:   api.NewAccountApi(node.keyStore),
 			Public:    true,
 		},
 	}

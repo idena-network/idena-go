@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"idena-go/blockchain/types"
-	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -157,7 +156,7 @@ func (ks *KeyStore) SignHash(a Account, hash []byte) ([]byte, error) {
 }
 
 // SignTx signs the given transaction with the requested account.
-func (ks *KeyStore) SignTx(a Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
+func (ks *KeyStore) SignTx(a Account, tx *types.Transaction) (*types.Transaction, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -166,10 +165,7 @@ func (ks *KeyStore) SignTx(a Account, tx *types.Transaction, chainID *big.Int) (
 	if !found {
 		return nil, ErrLocked
 	}
-	// Depending on the presence of the chain ID, sign with EIP155 or homestead
-	if chainID != nil {
-		return types.SignTx(tx, unlockedKey.PrivateKey)
-	}
+
 	return types.SignTx(tx, unlockedKey.PrivateKey)
 }
 
@@ -187,17 +183,13 @@ func (ks *KeyStore) SignHashWithPassphrase(a Account, passphrase string, hash []
 
 // SignTxWithPassphrase signs the transaction if the private key matching the
 // given address can be decrypted with the given passphrase.
-func (ks *KeyStore) SignTxWithPassphrase(a Account, passphrase string, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
+func (ks *KeyStore) SignTxWithPassphrase(a Account, passphrase string, tx *types.Transaction) (*types.Transaction, error) {
 	_, key, err := ks.getDecryptedKey(a, passphrase)
 	if err != nil {
 		return nil, err
 	}
 	defer zeroKey(key.PrivateKey)
 
-	// Depending on the presence of the chain ID, sign with EIP155 or homestead
-	if chainID != nil {
-		return types.SignTx(tx, key.PrivateKey)
-	}
 	return types.SignTx(tx, key.PrivateKey)
 }
 

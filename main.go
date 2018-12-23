@@ -125,7 +125,7 @@ func getDefaultRPCConfig(rpcAddr string, rpcPort int) *rpc.Config {
 		HTTPCors:         []string{"*"},
 		HTTPHost:         rpcAddr,
 		HTTPPort:         rpcPort,
-		HTTPModules:      []string{"net", "dna"},
+		HTTPModules:      []string{"net", "dna", "account"},
 		HTTPVirtualHosts: []string{"localhost"},
 		HTTPTimeouts:     rpc.DefaultHTTPTimeouts,
 	}

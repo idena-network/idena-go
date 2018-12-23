@@ -9,6 +9,7 @@ import (
 	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
+	"idena-go/keystore"
 	"idena-go/rlp"
 	"math/big"
 )
@@ -16,10 +17,11 @@ import (
 type DnaApi struct {
 	engine *consensus.Engine
 	txpool *mempool.TxPool
+	ks     *keystore.KeyStore
 }
 
-func NewDnaApi(engine *consensus.Engine, txpool *mempool.TxPool) *DnaApi {
-	return &DnaApi{engine, txpool}
+func NewDnaApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore) *DnaApi {
+	return &DnaApi{engine, txpool, ks}
 }
 
 type State struct {
@@ -77,7 +79,7 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		tx.Payload = *args.Payload
 	}
 
-	signedTx, err := types.SignTx(&tx, api.engine.GetKey())
+	signedTx, err := api.signTransaction(args.From, &tx)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -88,6 +90,17 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	}
 
 	return signedTx.Hash(), nil
+}
+
+func (api *DnaApi) signTransaction(from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+	if from == api.GetCoinbaseAddr() {
+		return types.SignTx(tx, api.engine.GetKey())
+	}
+	account, err := api.ks.Find(keystore.Account{Address: from})
+	if err != nil {
+		return nil, err
+	}
+	return api.ks.SignTx(account, tx)
 }
 
 type Identity struct {
