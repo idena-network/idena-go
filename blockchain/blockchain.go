@@ -255,7 +255,11 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*big.Int, error) {
 	totalFee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
-		if fee, err := chain.applyTxOnState(state, block.Body.Transactions[i]); err != nil {
+		tx := block.Body.Transactions[i]
+		if err := validation.ValidateTx(chain.appState, tx); err != nil {
+			return nil, err
+		}
+		if fee, err := chain.applyTxOnState(state, tx); err != nil {
 			return nil, err
 		} else {
 			totalFee.Add(totalFee, fee)
@@ -278,14 +282,9 @@ func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transa
 	switch tx.Type {
 	case types.ActivationTx:
 		senderIdentity := stateDB.GetOrNewIdentityObject(sender)
-		if senderIdentity.State() != state.Invite {
-			return nil, errors.New("invitation is missing")
-		}
+
 		balance := stateDB.GetBalance(sender)
 		change := new(big.Int).Sub(balance, totalCost)
-		if change.Sign() < 0 {
-			return nil, errors.New("not enough funds")
-		}
 
 		// zero balance and kill temp identity
 		stateDB.SetBalance(sender, big.NewInt(0))
@@ -297,26 +296,11 @@ func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transa
 		stateDB.AddBalance(recipient, change)
 		break
 	case types.RegularTx:
-
-		balance := stateDB.GetBalance(sender)
 		amount := tx.AmountOrZero()
-		change := new(big.Int).Sub(balance, totalCost)
-		if change.Sign() < 0 {
-			return nil, errors.New("not enough funds")
-		}
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, amount)
 		break
 	case types.InviteTx:
-		invites := stateDB.GetInvites(sender)
-		if invites == 0 {
-			return nil, errors.New("not enough invites")
-		}
-		balance := stateDB.GetBalance(sender)
-		change := new(big.Int).Sub(balance, totalCost)
-		if change.Sign() < 0 {
-			return nil, errors.New("not enough funds")
-		}
 
 		stateDB.SubInvite(sender, 1)
 		stateDB.SubBalance(sender, totalCost)

@@ -27,7 +27,7 @@ type validator struct {
 func init() {
 	validators = make(map[types.TxType]*validator)
 	validators[types.RegularTx] = &validator{
-		validate: validateSendTx,
+		validate: validateRegularTx,
 	}
 
 	validators[types.ActivationTx] = &validator{
@@ -61,8 +61,8 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 	return nil
 }
 
-// specific validation for sendTx
-func validateSendTx(appState *appstate.AppState, tx *types.Transaction) error {
+// specific validation for regularTx
+func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil {
@@ -88,7 +88,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 		return NodeAlreadyActivated
 	}
 
-	if err := validateSendTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx); err != nil {
 		return err
 	}
 
@@ -102,7 +102,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateSendTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx); err != nil {
 		return err
 	}
 
