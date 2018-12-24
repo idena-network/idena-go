@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
@@ -62,24 +63,101 @@ type SendTxArgs struct {
 	Payload *hexutil.Bytes `json:"payload"`
 }
 
+// SendInviteArgs represents the arguments to send invite
+type SendInviteArgs struct {
+	To     common.Address `json:"to"`
+	Amount *big.Float     `json:"amount"`
+	Nonce  uint64         `json:"nonce"`
+}
+
+type ActivateInviteArgs struct {
+	Key   string         `json:"key"`
+	To    common.Address `json:"to"`
+	Nonce uint64         `json:"nonce"`
+}
+
+type Invite struct {
+	Hash     common.Hash    `json:"hash"`
+	Receiver common.Address `json:"receiver"`
+	Key      string         `json:"key"`
+}
+
+func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
+	receiver := args.To
+	var key *ecdsa.PrivateKey
+
+	if receiver == (common.Address{}) {
+		key, _ = crypto.GenerateKey()
+		receiver = crypto.PubkeyToAddress(key.PublicKey)
+	}
+
+	hash, err := api.sendTx(api.GetCoinbaseAddr(), receiver, types.InviteTx, args.Amount, args.Nonce, nil, key)
+
+	if err != nil {
+		return Invite{}, err
+	}
+
+	var stringKey string
+	if key != nil {
+		stringKey = hex.EncodeToString(crypto.FromECDSA(key))
+	}
+
+	return Invite{
+		Receiver: receiver,
+		Hash:     hash,
+		Key:      stringKey,
+	}, nil
+}
+
+func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) {
+	var key *ecdsa.PrivateKey
+	from := api.GetCoinbaseAddr()
+	if len(args.Key) > 0 {
+		var err error
+		b, err := hex.DecodeString(args.Key)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		key, err = crypto.ToECDSA(b)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		from = crypto.PubkeyToAddress(key.PublicKey)
+	}
+
+	hash, err := api.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, nil, key)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
 func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 
+	var payload []byte
+	if args.Payload != nil {
+		payload = *args.Payload
+	}
+
+	return api.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, payload, nil)
+}
+
+func (api *DnaApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint64, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
 	tx := types.Transaction{
-		AccountNonce: args.Nonce,
-		Type:         args.Type,
-		To:           &args.To,
-		Amount:       convertToInt(args.Amount),
+		AccountNonce: nonce,
+		Type:         txType,
+		To:           &to,
+		Amount:       convertToInt(amount),
+		Payload:      payload,
 	}
 
 	if tx.AccountNonce == 0 {
-		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(args.From) + 1
+		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(from) + 1
 	}
 
-	if args.Payload != nil {
-		tx.Payload = *args.Payload
-	}
-
-	signedTx, err := api.signTransaction(args.From, &tx)
+	signedTx, err := api.signTransaction(from, &tx, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -92,7 +170,10 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	return signedTx.Hash(), nil
 }
 
-func (api *DnaApi) signTransaction(from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+func (api *DnaApi) signTransaction(from common.Address, tx *types.Transaction, key *ecdsa.PrivateKey) (*types.Transaction, error) {
+	if key != nil {
+		return types.SignTx(tx, key)
+	}
 	if from == api.GetCoinbaseAddr() {
 		return types.SignTx(tx, api.engine.GetKey())
 	}
