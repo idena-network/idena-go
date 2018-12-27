@@ -26,18 +26,19 @@ const (
 )
 
 type Engine struct {
-	chain     *blockchain.Blockchain
-	pm        *protocol.ProtocolManager
-	log       log.Logger
-	process   string
-	pubKey    []byte
-	config    *config.ConsensusConf
-	proposals *pengings.Proposals
-	secretKey *ecdsa.PrivateKey
-	votes     *pengings.Votes
-	txpool    *mempool.TxPool
-	addr      common.Address
-	appState  *appstate.AppState
+	chain      *blockchain.Blockchain
+	pm         *protocol.ProtocolManager
+	log        log.Logger
+	process    string
+	pubKey     []byte
+	config     *config.ConsensusConf
+	proposals  *pengings.Proposals
+	secretKey  *ecdsa.PrivateKey
+	votes      *pengings.Votes
+	txpool     *mempool.TxPool
+	addr       common.Address
+	appState   *appstate.AppState
+	downloader *protocol.Downloader
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -45,14 +46,15 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 	votes *pengings.Votes,
 	txpool *mempool.TxPool) *Engine {
 	return &Engine{
-		chain:     chain,
-		pm:        pm,
-		log:       log.New(),
-		config:    config,
-		proposals: proposals,
-		appState:  appState,
-		votes:     votes,
-		txpool:    txpool,
+		chain:      chain,
+		pm:         pm,
+		log:        log.New(),
+		config:     config,
+		proposals:  proposals,
+		appState:   appState,
+		votes:      votes,
+		txpool:     txpool,
+		downloader: protocol.NewDownloader(pm, chain),
 	}
 }
 
@@ -83,7 +85,7 @@ func (engine *Engine) loop() {
 	engine.appState.ValidatorsCache.Load()
 
 	for {
-		engine.syncBlockchain()
+		engine.downloader.SyncBlockchain()
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
@@ -224,42 +226,6 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
 	return block
 }
 
-func (engine *Engine) syncBlockchain() {
-
-	for {
-		bestHeight, peerId, err := engine.pm.GetBestHeight()
-
-		head := engine.chain.Head
-		if err != nil {
-			log.Info("We have peers but don't know their heads. Go to sleep")
-			time.Sleep(time.Second * 10)
-		} else if bestHeight > head.Height() {
-			engine.loadFromPeer(peerId, bestHeight)
-		} else {
-			engine.log.Info(fmt.Sprintf("Node is synced %v", peerId))
-			break
-		}
-	}
-}
-
-func (engine *Engine) loadFromPeer(peerId string, height uint64) {
-
-	engine.log.Info(fmt.Sprintf("Start loading blocks from %v", peerId))
-	head := engine.chain.Head
-	for h := head.Height() + 1; h <= height; h++ {
-		block := engine.pm.GetBlockFromPeer(peerId, h)
-		if block == nil {
-			engine.log.Warn("Can't load block by height. Try resync")
-			time.Sleep(time.Second * 5)
-			return
-		} else {
-			if err := engine.chain.AddBlock(block); err != nil {
-				engine.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", peerId, err))
-				return
-			}
-		}
-	}
-}
 
 func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.process = "Reduction started"

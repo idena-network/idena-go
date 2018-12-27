@@ -16,7 +16,7 @@ const (
 	KillTx       uint16 = 0x3
 )
 
-type Network = int32
+type Network = uint32
 
 type Seed [32]byte
 

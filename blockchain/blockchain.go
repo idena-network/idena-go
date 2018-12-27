@@ -39,6 +39,7 @@ type Blockchain struct {
 	repo *repo
 
 	Head            *types.Block
+	genesis         *types.Block
 	config          *config.Config
 	vrfSigner       vrf.PrivateKey
 	pubKey          *ecdsa.PublicKey
@@ -76,6 +77,10 @@ func (chain *Blockchain) GetHead() *types.Block {
 	return chain.repo.ReadBlock(head.Hash())
 }
 
+func (chain *Blockchain) Network() types.Network {
+	return chain.config.Network
+}
+
 func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	signer, err := p256.NewVRFSigner(secretKey)
 	if err != nil {
@@ -88,6 +93,9 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	head := chain.GetHead()
 	if head != nil {
 		chain.SetCurrentHead(head)
+		if chain.genesis = chain.GetBlockByHeight(1); chain.genesis == nil {
+			return errors.New("genesis block is not found")
+		}
 	} else {
 		chain.GenerateGenesis(chain.config.Network)
 	}
@@ -107,7 +115,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 
 	var emptyHash [32]byte
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
-	block := types.Block{Header: &types.Header{
+	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash: emptyHash,
 			Time:       big.NewInt(0),
@@ -118,8 +126,9 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 		BlockSeed: seed,
 	}}
 
-	chain.insertBlock(&block)
-	return &block
+	chain.insertBlock(block)
+	chain.genesis = block
+	return block
 }
 
 func (chain *Blockchain) GetBlockByHeight(height uint64) *types.Block {
@@ -550,4 +559,7 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 		return 5
 	}
 	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
+}
+func (chain *Blockchain) Genesis() common.Hash {
+	return chain.genesis.Hash()
 }

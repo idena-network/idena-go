@@ -17,7 +17,7 @@ const (
 
 type Config struct {
 	DataDir   string
-	Network   int32
+	Network   uint32
 	Consensus *ConsensusConf
 	P2P       *p2p.Config
 	RPC       *rpc.Config

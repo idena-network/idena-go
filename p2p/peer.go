@@ -135,10 +135,6 @@ func (p *Peer) Node() *enode.Node {
 	return p.rw.node
 }
 
-func (p *Peer) Connection() MsgReadWriter {
-	return p.rw
-}
-
 // Name returns the node name that the remote node advertised.
 func (p *Peer) Name() string {
 	return p.rw.name

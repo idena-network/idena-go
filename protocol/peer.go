@@ -3,9 +3,11 @@ package protocol
 import (
 	"fmt"
 	"github.com/deckarep/golang-set"
+	"github.com/pkg/errors"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/p2p"
+	"time"
 )
 
 const (
@@ -13,11 +15,15 @@ const (
 	MaxKwownTxs    = 2000
 	MaxKnownProofs = 1000
 	MaxKnownVotes  = 100000
+
+	handshakeTimeout = 10 * time.Second
 )
 
 type peer struct {
 	*p2p.Peer
+	rw              p2p.MsgReadWriter
 	id              string
+	knownHeight     uint64
 	knownTxs        mapset.Set // Set of transaction hashes known to be known by this peer
 	knownBlocks     mapset.Set // Set of block hashes known to be known by this peer
 	knownVotes      mapset.Set // Set of hashes of votes known to be known by this peer
@@ -27,11 +33,18 @@ type peer struct {
 	queuedBlocks    chan *types.Block  // Queue of blocks to broadcast to the peer
 	queuedProposals chan *types.Block
 	queuedVotes     chan *types.Vote
+	queuedRequests  chan *request
 	term            chan struct{}
 }
 
-func (pm *ProtocolManager) makePeer(p *p2p.Peer) *peer {
+type request struct {
+	msgcode uint64
+	data    interface{}
+}
+
+func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	return &peer{
+		rw:              rw,
 		Peer:            p,
 		id:              fmt.Sprintf("%x", p.ID().Bytes()[:8]),
 		knownBlocks:     mapset.NewSet(),
@@ -41,6 +54,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer) *peer {
 		queuedBlocks:    make(chan *types.Block, 10),
 		queuedVotes:     make(chan *types.Vote, 100),
 		queuedProposals: make(chan *types.Block, 10),
+		queuedRequests:  make(chan *request, 20),
 		knownProofs:     mapset.NewSet(),
 		queuedProofs:    make(chan *proposeProof, 10),
 		term:            make(chan struct{}),
@@ -52,22 +66,29 @@ func (p *peer) SendBlockAsync(block *types.Block) {
 }
 
 func (p *peer) SendHeader(header *types.Header, code uint64) {
-	p2p.Send(p.Connection(), code, header)
+	p.queuedRequests <- &request{msgcode: code, data: header}
 }
 
 func (p *peer) RequestLastBlock() {
-	p2p.Send(p.Connection(), GetHead, struct{}{})
+	p.queuedRequests <- &request{msgcode: GetHead, data: struct{}{}}
 }
 func (p *peer) RequestBlock(height uint64) {
-	p2p.Send(p.Connection(), GetBlockByHeight, &getBlockByHeightRequest{
+	p.queuedRequests <- &request{msgcode: GetBlockByHeight, data: &getBlockByHeightRequest{
 		Height: height,
-	})
+	}}
 }
 
 func (p *peer) RequestBlockByHash(hash common.Hash) {
-	p2p.Send(p.Connection(), GetBlockByHash, &getBlockBodyRequest{
+	p.queuedRequests <- &request{msgcode: GetBlockByHash, data: &getBlockBodyRequest{
 		Hash: hash,
-	})
+	}}
+}
+
+func (p *peer) RequestBlocksRange(from uint64, to uint64) {
+	p.queuedRequests <- &request{msgcode: GetBlocksRange, data: &getBlocksRangeRequest{
+		From: from,
+		To:   to,
+	}}
 }
 
 func (p *peer) broadcast() {
@@ -75,29 +96,34 @@ func (p *peer) broadcast() {
 	for {
 		select {
 		case block := <-p.queuedBlocks:
-			if err := p2p.Send(p.Connection(), BlockBody, block); err != nil {
+			if err := p2p.Send(p.rw, BlockBody, block); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
 
 		case proof := <-p.queuedProofs:
-			if err := p2p.Send(p.Connection(), ProposeProof, proof); err != nil {
+			if err := p2p.Send(p.rw, ProposeProof, proof); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
 
 		case block := <-p.queuedProposals:
-			if err := p2p.Send(p.Connection(), ProposeBlock, block); err != nil {
+			if err := p2p.Send(p.rw, ProposeBlock, block); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
 		case vote := <-p.queuedVotes:
-			if err := p2p.Send(p.Connection(), Vote, vote); err != nil {
+			if err := p2p.Send(p.rw, Vote, vote); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
 		case tx := <-p.queuedTxs:
-			if err := p2p.Send(p.Connection(), NewTx, tx); err != nil {
+			if err := p2p.Send(p.rw, NewTx, tx); err != nil {
+				p.Log().Error(err.Error())
+				return
+			}
+		case request := <-p.queuedRequests:
+			if err := p2p.Send(p.rw, request.msgcode, request.data); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
@@ -106,6 +132,59 @@ func (p *peer) broadcast() {
 		}
 	}
 }
+
+func (p *peer) Handshake(network types.Network, height uint64, genesis common.Hash) error {
+	errc := make(chan error, 2)
+	var handShake handshakeData
+
+	go func() {
+		errc <- p2p.Send(p.rw, Handshake, &handshakeData{
+
+			NetworkId:    network,
+			Height:       height,
+			GenesisBlock: genesis,
+		})
+	}()
+	go func() {
+		errc <- p.readStatus(&handShake, network, genesis)
+	}()
+	timeout := time.NewTimer(handshakeTimeout)
+	defer timeout.Stop()
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errc:
+			if err != nil {
+				return err
+			}
+		case <-timeout.C:
+			return p2p.DiscReadTimeout
+		}
+	}
+	p.knownHeight = handShake.Height
+	return nil
+}
+
+func (p *peer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+	msg, err := p.rw.ReadMsg()
+	if err != nil {
+		return err
+	}
+	if msg.Code != Handshake {
+		return errors.New(fmt.Sprintf("first msg has code %x (!= %x)", msg.Code, Handshake))
+	}
+	if err := msg.Decode(&handShake); err != nil {
+		return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
+	}
+	if handShake.GenesisBlock != genesis {
+		return errors.New(fmt.Sprintf("Bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
+	}
+	if handShake.NetworkId != network {
+		return errors.New(fmt.Sprintf("Network mismatch: %d (!= %d)", handShake.NetworkId, network))
+	}
+
+	return nil
+}
+
 func (p *peer) SendProofAsync(proof *proposeProof) {
 	p.queuedProofs <- proof
 	p.markProof(proof)

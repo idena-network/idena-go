@@ -99,7 +99,10 @@ func (node *Node) Start() {
 	node.srv = &p2p.Server{
 		Config: *config,
 	}
-	node.blockchain.InitializeChain(node.key)
+	if err := node.blockchain.InitializeChain(node.key); err != nil {
+		node.log.Error("Cannot initialize blockchain", "error", err.Error())
+		return
+	}
 	node.consensusEngine.SetKey(node.key)
 	node.consensusEngine.Start()
 	node.srv.Start()

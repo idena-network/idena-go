@@ -13,15 +13,17 @@ import (
 )
 
 const (
-	BlockBody        = 21
-	GetHead          = 22
-	Head             = 23
-	GetBlockByHeight = 24
-	ProposeBlock     = 25
-	ProposeProof     = 26
-	Vote             = 27
-	NewTx            = 28
-	GetBlockByHash   = 29
+	Handshake        = 0x01
+	BlockBody        = 0x02
+	GetHead          = 0x03
+	Head             = 0x04
+	GetBlockByHeight = 0x05
+	ProposeBlock     = 0x06
+	ProposeProof     = 0x07
+	Vote             = 0x08
+	NewTx            = 0x09
+	GetBlockByHash   = 0x0A
+	GetBlocksRange   = 0x0B
 )
 const (
 	DecodeErr = 1
@@ -34,11 +36,12 @@ type ProtocolManager struct {
 
 	heads chan *peerHead
 
-	incomeBlocks chan *types.Block
-	proposals    *pengings.Proposals
-	votes        *pengings.Votes
-	txpool       *mempool.TxPool
-	txChan       chan *types.Transaction
+	incomeBlocks  chan *types.Block
+	proposals     *pengings.Proposals
+	votes         *pengings.Votes
+	txpool        *mempool.TxPool
+	txChan        chan *types.Transaction
+	incomeBatches map[string][]*batch
 }
 
 type getBlockBodyRequest struct {
@@ -47,6 +50,11 @@ type getBlockBodyRequest struct {
 
 type getBlockByHeightRequest struct {
 	Height uint64
+}
+
+type getBlocksRangeRequest struct {
+	From uint64
+	To   uint64
 }
 
 type proposeProof struct {
@@ -61,19 +69,26 @@ type peerHead struct {
 	peer   *peer
 }
 
+type handshakeData struct {
+	NetworkId    types.Network
+	Height       uint64
+	GenesisBlock common.Hash
+}
+
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool) *ProtocolManager {
 
 	txChan := make(chan *types.Transaction, 100)
 	txpool.Subscribe(txChan)
 	return &ProtocolManager{
-		blockchain:   chain,
-		peers:        newPeerSet(),
-		heads:        make(chan *peerHead, 10),
-		incomeBlocks: make(chan *types.Block, 100),
-		proposals:    proposals,
-		votes:        votes,
-		txpool:       txpool,
-		txChan:       txChan,
+		blockchain:    chain,
+		peers:         newPeerSet(),
+		heads:         make(chan *peerHead, 10),
+		incomeBlocks:  make(chan *types.Block, 1000),
+		incomeBatches: make(map[string][]*batch),
+		proposals:     proposals,
+		votes:         votes,
+		txpool:        txpool,
+		txChan:        txChan,
 	}
 }
 
@@ -82,7 +97,7 @@ func (pm *ProtocolManager) Start() {
 }
 
 func (pm *ProtocolManager) handle(p *peer) error {
-	msg, err := p.Connection().ReadMsg()
+	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
 	}
@@ -114,7 +129,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		pm.incomeBlocks <- &response
+		if batch, ok := pm.incomeBatches[p.id]; ok {
+			for _, b := range batch {
+				if response.Height() >= b.from && response.Height() <= b.to {
+					b.blocks <- &response
+					break
+				}
+			}
+		}
+
 	case ProposeProof:
 		var query proposeProof
 		if err := msg.Decode(&query); err != nil {
@@ -158,16 +181,35 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if block != nil {
 			p.ProposeBlockAsync(block)
 		}
+	case GetBlocksRange:
+		var query getBlocksRangeRequest
+		if err := msg.Decode(&query); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		go pm.provideBlocks(p, query.From, query.To)
 	}
 	return nil
 }
 
-func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-	peer := pm.makePeer(p)
+func (pm *ProtocolManager) provideBlocks(p *peer, from uint64, to uint64) {
+	for i := from; i <= to; i++ {
+		block := pm.blockchain.GetBlockByHeight(i)
+		if block != nil {
+			p.SendBlockAsync(block)
+		}
+	}
+}
 
+func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
+	peer := pm.makePeer(p, rw)
+	if err := peer.Handshake(pm.blockchain.Network(), pm.blockchain.Head.Height(), pm.blockchain.Genesis()); err != nil {
+		p.Log().Info("Idena handshake failed", "err", err)
+		return err
+	}
 	pm.syncTxPool(peer)
 	pm.registerPeer(peer)
 	defer pm.unregister(peer)
+	p.Log().Info("Peer successfully connected", "peerId", p.ID())
 	return pm.runListening(peer)
 }
 
@@ -213,6 +255,19 @@ waiting:
 	}
 	return best.height, best.peer.id, nil
 }
+
+func (pm *ProtocolManager) GetKnownHeights() map[string]uint64 {
+	result := make(map[string]uint64)
+	peers := pm.peers.Peers()
+	if len(peers) == 0 {
+		return nil
+	}
+	for _, peer := range peers {
+		result[peer.id] = peer.knownHeight
+	}
+	return result
+}
+
 func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types.Block {
 	peer := pm.peers.Peer(peerId)
 	if peer == nil {
@@ -231,6 +286,25 @@ func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types
 		}
 	}
 }
+
+func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64) (error, *batch) {
+	peer := pm.peers.Peer(peerId)
+	if peer == nil {
+		return errors.New("peer is not found"), nil
+	}
+
+	batch := &batch{
+		from:   from,
+		to:     to,
+		p:      peer,
+		blocks: make(chan *types.Block, to-from),
+	}
+	pm.incomeBatches[peerId] = append(pm.incomeBatches[peerId], batch)
+
+	peer.RequestBlocksRange(from, to)
+	return nil, batch
+}
+
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
 	msg := &proposeProof{
 		Round:  round,
