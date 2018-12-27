@@ -129,10 +129,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if batch, ok := pm.incomeBatches[p.id]; ok {
-			for _, b := range batch {
+		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
+			for _, b := range peerBatches {
 				if response.Height() >= b.from && response.Height() <= b.to {
 					b.blocks <- &response
+					//TODO: delete full batch
 					break
 				}
 			}

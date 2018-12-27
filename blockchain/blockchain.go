@@ -473,8 +473,8 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 
 func (chain *Blockchain) validateBlockParentHash(block *types.Block) error {
 	head := chain.Head
-	if head.Height() != (block.Height() - 1) {
-		return errors.New("Height is invalid")
+	if head.Height()+1 != (block.Height()) {
+		return errors.New(fmt.Sprintf("Height is invalid. Expected=%v but received=%v", head.Height()+1, block.Height()))
 	}
 	if head.Hash() != block.Header.ParentHash() {
 		return errors.New("ParentHash is invalid")
