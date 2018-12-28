@@ -228,3 +228,8 @@ func (p *peer) markTx(tx *types.Transaction) {
 	}
 	p.knownTxs.Add(tx)
 }
+func (p *peer) setHeight(newHeight uint64) {
+	if newHeight > p.knownHeight {
+		p.knownHeight = newHeight
+	}
+}

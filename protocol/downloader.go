@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	BatchSize = 100
+	BatchSize = 200
 )
 
 type Downloader struct {
@@ -58,7 +58,7 @@ func (d *Downloader) SyncBlockchain() {
 
 		from := head.Height() + 1
 	loop:
-		for ; from < top; {
+		for ; from <= top; {
 			for peer, height := range knownHeights {
 				if height < from {
 					continue
@@ -87,7 +87,7 @@ func (d *Downloader) SyncBlockchain() {
 func (d *Downloader) consumeBlocks(term chan interface{}, completed chan interface{}) {
 	defer close(term)
 	for {
-		timeout := time.After(time.Second * 5)
+		timeout := time.After(time.Second * 15)
 
 		select {
 		case batch := <-d.batches:
@@ -120,7 +120,7 @@ func (d *Downloader) downloadBatch(from, to uint64, ignoredPeer string) *batch {
 		return nil
 	}
 	for peerId, height := range knownHeights {
-		if peerId != ignoredPeer && height >= to {
+		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
 			if err, batch := d.pm.GetBlocksRange(peerId, from, to); err != nil {
 				continue
 			} else {

@@ -129,6 +129,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		p.Log().Trace("Income block", "height", response.Height())
 		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
 			for _, b := range peerBatches {
 				if response.Height() >= b.from && response.Height() <= b.to {
@@ -145,6 +146,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.markProof(&query)
+		// if peer proposes this msg it should be on `query.Round-1` height
+		p.setHeight(query.Round - 1)
 		if pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round) {
 			pm.ProposeProof(query.Round, query.Hash, query.Proof, query.PubKey)
 		}
@@ -154,6 +157,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.markBlock(&block)
+		// if peer proposes this msg it should be on `query.Round-1` height
+		p.setHeight(block.Height() - 1)
 		if pm.proposals.AddProposedBlock(&block) {
 			pm.ProposeBlock(&block)
 		}
@@ -187,7 +192,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		go pm.provideBlocks(p, query.From, query.To)
+		pm.provideBlocks(p, query.From, query.To)
 	}
 	return nil
 }
@@ -197,6 +202,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, from uint64, to uint64) {
 		block := pm.blockchain.GetBlockByHeight(i)
 		if block != nil {
 			p.SendBlockAsync(block)
+			p.Log().Trace("Publish block", "height", block.Height())
 		}
 	}
 }

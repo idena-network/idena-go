@@ -226,7 +226,6 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
 	return block
 }
 
-
 func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.process = "Reduction started"
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
