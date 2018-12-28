@@ -33,6 +33,7 @@ import (
 var (
 	addressPrefix  = []byte("a")
 	identityPrefix = []byte("i")
+	globalPrefix   = []byte("global")
 )
 
 type StateDB struct {
@@ -44,6 +45,9 @@ type StateDB struct {
 	stateAccountsDirty   map[common.Address]struct{}
 	stateIdentities      map[common.Address]*stateIdentity
 	stateIdentitiesDirty map[common.Address]struct{}
+
+	stateGlobal      *stateGlobal
+	stateGlobalDirty bool
 
 	log  log.Logger
 	lock sync.Mutex
@@ -126,6 +130,8 @@ func (s *StateDB) Clear() {
 	s.stateAccountsDirty = make(map[common.Address]struct{})
 	s.stateIdentities = make(map[common.Address]*stateIdentity)
 	s.stateIdentitiesDirty = make(map[common.Address]struct{})
+	s.stateGlobal = nil
+	s.stateGlobalDirty = false
 	s.lock = sync.Mutex{}
 }
 
@@ -157,6 +163,11 @@ func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
 		return stateObject.Stake()
 	}
 	return common.Big0
+}
+
+func (s *StateDB) GetEpoch() uint16 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.Epoch
 }
 
 /*
@@ -205,6 +216,10 @@ func (s *StateDB) SubInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).SubInvite(amount)
 }
 
+func (s *StateDB) IncEpoch() {
+	s.GetOrNewGlobalObject().IncEpoch()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -229,6 +244,16 @@ func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 	}
 
 	s.tree.Set(append(identityPrefix, addr[:]...), data)
+}
+
+// updateStateAccountObject writes the given object to the trie.
+func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
+	data, err := rlp.EncodeToBytes(stateObject)
+	if err != nil {
+		panic(fmt.Errorf("can't encode object, %v", err))
+	}
+
+	s.tree.Set(globalPrefix, data)
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
@@ -299,6 +324,29 @@ func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdent
 	return obj
 }
 
+// Retrieve a state account given my the address. Returns nil if not found.
+func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
+	// Prefer 'live' objects.
+	if obj := s.stateGlobal; obj != nil {
+		return obj
+	}
+
+	// Load the object from the database.
+	_, enc := s.tree.Get(globalPrefix)
+	if len(enc) == 0 {
+		return nil
+	}
+	var data Global
+	if err := rlp.DecodeBytes(enc, &data); err != nil {
+		s.log.Error("Failed to decode state global object", "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newGlobalObject(s, data, s.MarkStateGlobalObjectDirty)
+	s.setStateGlobalObject(obj)
+	return obj
+}
+
 func (s *StateDB) setStateAccountObject(object *stateAccount) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -311,6 +359,13 @@ func (s *StateDB) setStateIdentityObject(object *stateIdentity) {
 	defer s.lock.Unlock()
 
 	s.stateIdentities[object.Address()] = object
+}
+
+func (s *StateDB) setStateGlobalObject(object *stateGlobal) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateGlobal = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -327,6 +382,15 @@ func (s *StateDB) GetOrNewIdentityObject(addr common.Address) *stateIdentity {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject == nil || stateObject.deleted {
 		stateObject, _ = s.createIdentity(addr)
+	}
+	return stateObject
+}
+
+// Retrieve a state object or create a new state object if nil
+func (s *StateDB) GetOrNewGlobalObject() *stateGlobal {
+	stateObject := s.getStateGlobal()
+	if stateObject == nil {
+		stateObject = s.createGlobal()
 	}
 	return stateObject
 }
@@ -349,6 +413,15 @@ func (s *StateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 	s.stateIdentitiesDirty[addr] = struct{}{}
 }
 
+// MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
+// state object cache iteration to find a handful of modified ones.
+func (s *StateDB) MarkStateGlobalObjectDirty() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateGlobalDirty = true
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
 	newobj = newAccountObject(s, addr, Account{}, s.MarkStateAccountObjectDirty)
@@ -363,6 +436,13 @@ func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdenti
 	newobj.touch()
 	s.setStateIdentityObject(newobj)
 	return newobj, prev
+}
+
+func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
+	stateObject = newGlobalObject(s, Global{}, s.MarkStateGlobalObjectDirty)
+	stateObject.touch()
+	s.setStateGlobalObject(stateObject)
+	return stateObject
 }
 
 // Commit writes the state to the underlying in-memory trie database.
@@ -407,6 +487,34 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
+
+	// if epoch has changed
+	if s.stateGlobalDirty {
+		currentEpoch := s.GetEpoch()
+		s.updateStateGlobalObject(s.stateGlobal)
+		s.stateGlobalDirty = false
+
+		// remove account if epoch is lower
+		s.IterateAccounts(func(key []byte, value []byte) bool {
+			if key == nil {
+				return true
+			}
+			addr := common.Address{}
+			addr.SetBytes(key[1:])
+
+			var data Account
+			if err := rlp.DecodeBytes(value, &data); err != nil {
+				return false
+			}
+
+			if data.Epoch < currentEpoch && data.Balance.Sign() == 0 {
+				s.deleteStateAccountObject(newAccountObject(s, addr, data, s.MarkStateAccountObjectDirty))
+			}
+
+			return false
+		})
+
+	}
 }
 
 func (s *StateDB) Reset() {
@@ -441,6 +549,13 @@ func (s *StateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool
 	end := append(identityPrefix, common.MaxAddr...)
 	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
 }
+
+func (s *StateDB) IterateAccounts(fn func(key []byte, value []byte) bool) bool {
+	start := append(addressPrefix, common.MinAddr...)
+	end := append(addressPrefix, common.MaxAddr...)
+	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+}
+
 func (s *StateDB) GetInvites(addr common.Address) uint8 {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
@@ -448,6 +563,7 @@ func (s *StateDB) GetInvites(addr common.Address) uint8 {
 	}
 	return 0
 }
+
 func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
@@ -455,5 +571,3 @@ func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 	}
 	return Undefined
 }
-
-

@@ -18,8 +18,6 @@ const (
 	Suspended IdentityState = 4
 	Killed    IdentityState = 5
 
-
-
 	MaxInvitesAmount = math.MaxUint8
 )
 
@@ -45,10 +43,21 @@ type stateIdentity struct {
 	onDirty func(addr common.Address) // Callback method to mark a state object newly dirty
 }
 
+type stateGlobal struct {
+	data Global
+
+	onDirty func() // Callback method to mark a state object newly dirty
+}
+
+type Global struct {
+	Epoch uint16
+}
+
 // Account is the Idena consensus representation of accounts.
 // These objects are stored in the main account trie.
 type Account struct {
-	Nonce   uint64
+	Nonce   uint32
+	Epoch   uint16
 	Balance *big.Int
 }
 
@@ -78,6 +87,15 @@ func newIdentityObject(db *StateDB, address common.Address, data Identity, onDir
 
 	return &stateIdentity{
 		address: address,
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
+// newGlobalObject creates a global state object.
+func newGlobalObject(db *StateDB, data Global, onDirty func()) *stateGlobal {
+
+	return &stateGlobal{
 		data:    data,
 		onDirty: onDirty,
 	}
@@ -142,7 +160,7 @@ func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) 
 
 // empty returns whether the account is considered empty.
 func (s *stateAccount) empty() bool {
-	return s.data.Balance.Sign() == 0
+	return s.data.Balance.Sign() == 0 && s.data.Nonce == 0
 }
 
 // Returns the address of the contract/account
@@ -150,11 +168,11 @@ func (s *stateAccount) Address() common.Address {
 	return s.address
 }
 
-func (s *stateAccount) SetNonce(nonce uint64) {
+func (s *stateAccount) SetNonce(nonce uint32) {
 	s.setNonce(nonce)
 }
 
-func (s *stateAccount) setNonce(nonce uint64) {
+func (s *stateAccount) setNonce(nonce uint32) {
 	s.data.Nonce = nonce
 	s.touch()
 }
@@ -167,7 +185,7 @@ func (s *stateAccount) Balance() *big.Int {
 	return s.data.Balance
 }
 
-func (s *stateAccount) Nonce() uint64 {
+func (s *stateAccount) Nonce() uint32 {
 	return s.data.Nonce
 }
 
@@ -248,4 +266,24 @@ func (s *stateIdentity) AddInvite(i uint8) {
 }
 func (s *stateIdentity) SubInvite(i uint8) {
 	s.SetInvites(s.Invites() - i)
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (s *stateGlobal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
+}
+
+func (s *stateGlobal) Epoch() uint16 {
+	return s.data.Epoch
+}
+
+func (s *stateGlobal) IncEpoch() {
+	s.data.Epoch++
+	s.touch()
+}
+
+func (s *stateGlobal) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
 }

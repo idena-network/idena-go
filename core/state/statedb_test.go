@@ -103,3 +103,18 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 
 	require.Equal(t, Verified, fromDb.State())
 }
+
+func TestStateGlobal_IncEpoch(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb, _ := NewLatest(database)
+
+	require.Equal(t, uint16(0), stateDb.GetEpoch())
+
+	stateDb.IncEpoch()
+	stateDb.IncEpoch()
+
+	stateDb.Commit(false)
+	stateDb.Clear()
+
+	require.Equal(t, uint16(2), stateDb.GetEpoch())
+}
