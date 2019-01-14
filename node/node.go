@@ -21,7 +21,6 @@ import (
 	"idena-go/rpc"
 	"net"
 	"os"
-	"runtime"
 	"strings"
 )
 
@@ -45,11 +44,7 @@ type Node struct {
 }
 
 func StartDefaultNode(path string) string {
-	if runtime.GOOS == "windows" {
-		log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
-	} else {
-		log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
-	}
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
 
 	c := config.GetDefaultConfig(
 		path,
@@ -214,7 +209,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(node.consensusEngine, node.txpool, node.keyStore),
+			Service:   api.NewDnaApi(node.consensusEngine, node.blockchain, node.txpool, node.keyStore),
 			Public:    true,
 		},
 		{

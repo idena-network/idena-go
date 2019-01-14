@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
@@ -19,10 +20,11 @@ type DnaApi struct {
 	engine *consensus.Engine
 	txpool *mempool.TxPool
 	ks     *keystore.KeyStore
+	bc     *blockchain.Blockchain
 }
 
-func NewDnaApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore) *DnaApi {
-	return &DnaApi{engine, txpool, ks}
+func NewDnaApi(engine *consensus.Engine, bc *blockchain.Blockchain, txpool *mempool.TxPool, ks *keystore.KeyStore) *DnaApi {
+	return &DnaApi{engine, txpool, ks, bc}
 }
 
 type State struct {
@@ -247,6 +249,19 @@ func (api *DnaApi) Identities() []Identity {
 	})
 
 	return identities
+}
+
+type Block struct {
+	Hash   common.Hash
+	Height uint64
+}
+
+func (api *DnaApi) LastBlock() Block {
+	lastBlock := api.bc.Head
+	return Block{
+		Hash:   lastBlock.Hash(),
+		Height: lastBlock.Height(),
+	}
 }
 
 func convertToInt(amount *big.Float) *big.Int {
