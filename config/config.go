@@ -6,6 +6,8 @@ import (
 	"idena-go/crypto"
 	"idena-go/log"
 	"idena-go/p2p"
+	"idena-go/p2p/enode"
+	"idena-go/p2p/nat"
 	"idena-go/rpc"
 	"os"
 	"path/filepath"
@@ -13,6 +15,13 @@ import (
 
 const (
 	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
+)
+
+var (
+	DefaultBootnode = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
+	DefaultPort     = 40404
+	DefaultRpcHost  = "localhost"
+	DefaultRpcPort  = 9009
 )
 
 type Config struct {
@@ -76,4 +85,30 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 		return "", err
 	}
 	return instanceDir, nil
+}
+
+func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string) *Config {
+	var nodes []*enode.Node
+	if bootstrap != "" {
+		p, err := enode.ParseV4(bootstrap)
+		if err == nil {
+			nodes = append(nodes, p)
+		} else {
+			log.Warn("Cant parse bootstrap node")
+		}
+	}
+
+	c := Config{
+		DataDir: datadir,
+		P2P: &p2p.Config{
+			ListenAddr:     fmt.Sprintf(":%d", port),
+			MaxPeers:       25,
+			NAT:            nat.Any(),
+			BootstrapNodes: nodes,
+		},
+		Consensus: GetDefaultConsensusConfig(automine),
+		RPC:       rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
+	}
+
+	return &c
 }

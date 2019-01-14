@@ -42,3 +42,15 @@ func (c *Config) HTTPEndpoint() string {
 	}
 	return fmt.Sprintf("%s:%d", c.HTTPHost, c.HTTPPort)
 }
+
+func GetDefaultRPCConfig(rpcAddr string, rpcPort int) *Config {
+	// DefaultConfig contains reasonable default settings.
+	return &Config{
+		HTTPCors:         []string{"*"},
+		HTTPHost:         rpcAddr,
+		HTTPPort:         rpcPort,
+		HTTPModules:      []string{"net", "dna", "account"},
+		HTTPVirtualHosts: []string{"localhost"},
+		HTTPTimeouts:     DefaultHTTPTimeouts,
+	}
+}

@@ -20,6 +20,8 @@ import (
 	"idena-go/protocol"
 	"idena-go/rpc"
 	"net"
+	"os"
+	"runtime"
 	"strings"
 )
 
@@ -40,6 +42,32 @@ type Node struct {
 	log             log.Logger
 	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
+}
+
+func StartDefaultNode(path string) string {
+	if runtime.GOOS == "windows" {
+		log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
+	} else {
+		log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	}
+
+	c := config.GetDefaultConfig(
+		path,
+		config.DefaultPort,
+		false,
+		config.DefaultRpcHost,
+		config.DefaultRpcPort,
+		config.DefaultBootnode)
+
+	n, err := NewNode(c)
+
+	if err != nil {
+		return err.Error()
+	}
+
+	n.Start()
+
+	return "done"
 }
 
 func NewNode(config *config.Config) (*Node, error) {
@@ -114,7 +142,7 @@ func (node *Node) Start() {
 	}
 }
 
-func (node *Node) Wait() {
+func (node *Node) WaitForStop() {
 	<-node.stop
 }
 
