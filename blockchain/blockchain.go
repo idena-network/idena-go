@@ -190,7 +190,7 @@ func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block) er
 		}
 	}
 	hash, version, _ := state.Commit(true)
-	chain.log.Info("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
+	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
 	chain.txpool.ResetTo(block)
 	chain.appState.ValidatorsCache.RefreshIfUpdated(block.Body.Transactions)
 	return nil

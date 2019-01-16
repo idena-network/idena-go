@@ -8,3 +8,8 @@ type batch struct {
 	to   uint64
 	blocks chan *types.Block
 }
+
+type blockRange struct{
+	BatchId uint32
+	Blocks []*types.Block
+}

@@ -21,20 +21,20 @@ const (
 
 type peer struct {
 	*p2p.Peer
-	rw              p2p.MsgReadWriter
-	id              string
-	knownHeight     uint64
-	knownTxs        mapset.Set // Set of transaction hashes known to be known by this peer
-	knownBlocks     mapset.Set // Set of block hashes known to be known by this peer
-	knownVotes      mapset.Set // Set of hashes of votes known to be known by this peer
-	knownProofs     mapset.Set // Set of hashes of proposer proofs known to be known by this peer
-	queuedTxs       chan *types.Transaction
-	queuedProofs    chan *proposeProof // Queue of proposer proofs to broadcast to the peer
-	queuedBlocks    chan *types.Block  // Queue of blocks to broadcast to the peer
-	queuedProposals chan *types.Block
-	queuedVotes     chan *types.Vote
-	queuedRequests  chan *request
-	term            chan struct{}
+	rw                p2p.MsgReadWriter
+	id                string
+	knownHeight       uint64
+	knownTxs          mapset.Set // Set of transaction hashes known to be known by this peer
+	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
+	knownVotes        mapset.Set // Set of hashes of votes known to be known by this peer
+	knownProofs       mapset.Set // Set of hashes of proposer proofs known to be known by this peer
+	queuedTxs         chan *types.Transaction
+	queuedProofs      chan *proposeProof // Queue of proposer proofs to broadcast to the peer
+	queuedBlockRanges chan *blockRange   // Queue of blocks ranges to broadcast to the peer
+	queuedProposals   chan *types.Block
+	queuedVotes       chan *types.Vote
+	queuedRequests    chan *request
+	term              chan struct{}
 }
 
 type request struct {
@@ -44,25 +44,25 @@ type request struct {
 
 func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	return &peer{
-		rw:              rw,
-		Peer:            p,
-		id:              fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownBlocks:     mapset.NewSet(),
-		knownTxs:        mapset.NewSet(),
-		knownVotes:      mapset.NewSet(),
-		queuedTxs:       make(chan *types.Transaction, 100),
-		queuedBlocks:    make(chan *types.Block, 10),
-		queuedVotes:     make(chan *types.Vote, 100),
-		queuedProposals: make(chan *types.Block, 10),
-		queuedRequests:  make(chan *request, 20),
-		knownProofs:     mapset.NewSet(),
-		queuedProofs:    make(chan *proposeProof, 10),
-		term:            make(chan struct{}),
+		rw:                rw,
+		Peer:              p,
+		id:                fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		knownBlocks:       mapset.NewSet(),
+		knownTxs:          mapset.NewSet(),
+		knownVotes:        mapset.NewSet(),
+		queuedTxs:         make(chan *types.Transaction, 100),
+		queuedBlockRanges: make(chan *blockRange, 10),
+		queuedVotes:       make(chan *types.Vote, 100),
+		queuedProposals:   make(chan *types.Block, 10),
+		queuedRequests:    make(chan *request, 20),
+		knownProofs:       mapset.NewSet(),
+		queuedProofs:      make(chan *proposeProof, 10),
+		term:              make(chan struct{}),
 	}
 }
 
-func (p *peer) SendBlockAsync(block *types.Block) {
-	p.queuedBlocks <- block
+func (p *peer) SendBlockRangeAsync(blockRange *blockRange) {
+	p.queuedBlockRanges <- blockRange
 }
 
 func (p *peer) SendHeader(header *types.Header, code uint64) {
@@ -72,11 +72,6 @@ func (p *peer) SendHeader(header *types.Header, code uint64) {
 func (p *peer) RequestLastBlock() {
 	p.queuedRequests <- &request{msgcode: GetHead, data: struct{}{}}
 }
-func (p *peer) RequestBlock(height uint64) {
-	p.queuedRequests <- &request{msgcode: GetBlockByHeight, data: &getBlockByHeightRequest{
-		Height: height,
-	}}
-}
 
 func (p *peer) RequestBlockByHash(hash common.Hash) {
 	p.queuedRequests <- &request{msgcode: GetBlockByHash, data: &getBlockBodyRequest{
@@ -84,10 +79,11 @@ func (p *peer) RequestBlockByHash(hash common.Hash) {
 	}}
 }
 
-func (p *peer) RequestBlocksRange(from uint64, to uint64) {
+func (p *peer) RequestBlocksRange(batchId uint32, from uint64, to uint64) {
 	p.queuedRequests <- &request{msgcode: GetBlocksRange, data: &getBlocksRangeRequest{
-		From: from,
-		To:   to,
+		BatchId: batchId,
+		From:    from,
+		To:      to,
 	}}
 }
 
@@ -95,18 +91,16 @@ func (p *peer) broadcast() {
 	defer p.Log().Info("Peer exited from broadcast loop")
 	for {
 		select {
-		case block := <-p.queuedBlocks:
-			if err := p2p.Send(p.rw, BlockBody, block); err != nil {
+		case blockRange := <-p.queuedBlockRanges:
+			if err := p2p.Send(p.rw, BlocksRange, blockRange); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
-
 		case proof := <-p.queuedProofs:
 			if err := p2p.Send(p.rw, ProposeProof, proof); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
-
 		case block := <-p.queuedProposals:
 			if err := p2p.Send(p.rw, ProposeBlock, block); err != nil {
 				p.Log().Error(err.Error())

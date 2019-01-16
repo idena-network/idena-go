@@ -9,24 +9,28 @@ import (
 	"idena-go/core/mempool"
 	"idena-go/p2p"
 	"idena-go/pengings"
+	"sync/atomic"
 	"time"
 )
 
 const (
-	Handshake        = 0x01
-	BlockBody        = 0x02
-	GetHead          = 0x03
-	Head             = 0x04
-	GetBlockByHeight = 0x05
-	ProposeBlock     = 0x06
-	ProposeProof     = 0x07
-	Vote             = 0x08
-	NewTx            = 0x09
-	GetBlockByHash   = 0x0A
-	GetBlocksRange   = 0x0B
+	Handshake      = 0x01
+	GetHead        = 0x02
+	Head           = 0x03
+	ProposeBlock   = 0x04
+	ProposeProof   = 0x05
+	Vote           = 0x06
+	NewTx          = 0x07
+	GetBlockByHash = 0x08
+	GetBlocksRange = 0x09
+	BlocksRange    = 0x0A
 )
 const (
 	DecodeErr = 1
+)
+
+var (
+	batchId = uint32(1)
 )
 
 type ProtocolManager struct {
@@ -41,7 +45,7 @@ type ProtocolManager struct {
 	votes         *pengings.Votes
 	txpool        *mempool.TxPool
 	txChan        chan *types.Transaction
-	incomeBatches map[string][]*batch
+	incomeBatches map[string]map[uint32]*batch
 }
 
 type getBlockBodyRequest struct {
@@ -53,8 +57,9 @@ type getBlockByHeightRequest struct {
 }
 
 type getBlocksRangeRequest struct {
-	From uint64
-	To   uint64
+	BatchId uint32
+	From    uint64
+	To      uint64
 }
 
 type proposeProof struct {
@@ -84,7 +89,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		peers:         newPeerSet(),
 		heads:         make(chan *peerHead, 10),
 		incomeBlocks:  make(chan *types.Block, 1000),
-		incomeBatches: make(map[string][]*batch),
+		incomeBatches: make(map[string]map[uint32]*batch),
 		proposals:     proposals,
 		votes:         votes,
 		txpool:        txpool,
@@ -115,28 +120,18 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			peer:   p,
 			height: response.Height(),
 		}
-	case GetBlockByHeight:
-		var query getBlockByHeightRequest
-		if err := msg.Decode(&query); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		block := pm.blockchain.GetBlockByHeight(query.Height)
-		if block != nil {
-			p.SendBlockAsync(block)
-		}
-	case BlockBody:
-		var response types.Block
+	case BlocksRange:
+		var response blockRange
 		if err := msg.Decode(&response); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.Log().Trace("Income block", "height", response.Height())
+		p.Log().Trace("Income blocks range", "batchId", response.BatchId)
 		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
-			for _, b := range peerBatches {
-				if response.Height() >= b.from && response.Height() <= b.to {
-					b.blocks <- &response
-					//TODO: delete full batch
-					break
+			if batch, ok := peerBatches[response.BatchId]; ok {
+				for _, b := range response.Blocks {
+					batch.blocks <- b
 				}
+				delete(peerBatches, response.BatchId)
 			}
 		}
 
@@ -192,19 +187,27 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		pm.provideBlocks(p, query.From, query.To)
+		pm.provideBlocks(p, query.BatchId, query.From, query.To)
 	}
 	return nil
 }
 
-func (pm *ProtocolManager) provideBlocks(p *peer, from uint64, to uint64) {
+func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
+	var result []*types.Block
 	for i := from; i <= to; i++ {
 		block := pm.blockchain.GetBlockByHeight(i)
 		if block != nil {
-			p.SendBlockAsync(block)
+			result = append(result, block)
 			p.Log().Trace("Publish block", "height", block.Height())
+		} else {
+			p.Log().Warn("Do not have requested block", "height", block.Height())
+			return
 		}
 	}
+	p.SendBlockRangeAsync(&blockRange{
+		BatchId: batchId,
+		Blocks:  result,
+	})
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
@@ -275,41 +278,28 @@ func (pm *ProtocolManager) GetKnownHeights() map[string]uint64 {
 	return result
 }
 
-func (pm *ProtocolManager) GetBlockFromPeer(peerId string, height uint64) *types.Block {
-	peer := pm.peers.Peer(peerId)
-	if peer == nil {
-		return nil
-	}
-	go peer.RequestBlock(height)
-	timeout := time.After(time.Second * 10)
-	for {
-		select {
-		case block := <-pm.incomeBlocks:
-			if block.Height() == height {
-				return block
-			}
-		case <-timeout:
-			return nil
-		}
-	}
-}
-
 func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64) (error, *batch) {
 	peer := pm.peers.Peer(peerId)
 	if peer == nil {
 		return errors.New("peer is not found"), nil
 	}
 
-	batch := &batch{
+	b := &batch{
 		from:   from,
 		to:     to,
 		p:      peer,
-		blocks: make(chan *types.Block, to-from),
+		blocks: make(chan *types.Block, to-from+1),
 	}
-	pm.incomeBatches[peerId] = append(pm.incomeBatches[peerId], batch)
+	peerBatches, ok := pm.incomeBatches[peerId]
 
-	peer.RequestBlocksRange(from, to)
-	return nil, batch
+	if !ok {
+		peerBatches = make(map[uint32]*batch)
+		pm.incomeBatches[peerId] = peerBatches
+	}
+	peerBatches[batchId] = b
+	peer.RequestBlocksRange(batchId, from, to)
+	atomic.AddUint32(&batchId, 1)
+	return nil, b
 }
 
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
