@@ -87,7 +87,7 @@ func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error
 func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
-	if tx.To == nil {
+	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
 

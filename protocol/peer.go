@@ -180,15 +180,11 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 }
 
 func (p *peer) SendProofAsync(proof *proposeProof) {
-	p.Log().Info("SendProofAsync started", "Count:", len(p.queuedProofs))
 	p.queuedProofs <- proof
-	p.Log().Info("SendProofAsync finished", "Count:", len(p.queuedProofs))
 	p.markProof(proof)
 }
 func (p *peer) ProposeBlockAsync(block *types.Block) {
-	p.Log().Info("ProposeBlockAsync started", "Count:", len(p.queuedProposals))
 	p.queuedProposals <- block
-	p.Log().Info("ProposeBlockAsync finished", "Count:", len(p.queuedProposals))
 	p.markBlock(block)
 }
 
@@ -217,9 +213,7 @@ func (p *peer) markVote(vote *types.Vote) {
 	p.knownVotes.Add(vote.Hash())
 }
 func (p *peer) SendVoteAsync(vote *types.Vote) {
-	p.Log().Info("SendVoteAsync started", "Count:", len(p.queuedVotes))
 	p.queuedVotes <- vote
-	p.Log().Info("SendVoteAsync finished", "Count:", len(p.queuedProposals))
 	p.markVote(vote)
 }
 func (p *peer) markTx(tx *types.Transaction) {

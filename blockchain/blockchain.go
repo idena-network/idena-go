@@ -349,7 +349,7 @@ func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transa
 
 		// verify identity and add transfer all available funds from temp account
 		recipient := *tx.To
-		stateDB.GetOrNewIdentityObject(recipient).SetState(state.Verified)
+		stateDB.GetOrNewIdentityObject(recipient).SetState(state.Candidate)
 		stateDB.AddBalance(recipient, change)
 		break
 	case types.RegularTx:
