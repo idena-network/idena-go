@@ -350,7 +350,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState := state.NewForCheck(chain.appState.State)
+	checkState := state.NewForCheck(chain.appState.State, chain.Head.Height())
 	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
 	header := &types.ProposedHeader{
@@ -462,7 +462,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 			return err
 		}
 	}
-	checkState := state.NewForCheck(chain.appState.State)
+	checkState := state.NewForCheck(chain.appState.State, chain.Head.Height())
 	if root, err := chain.applyAndValidateBlockState(checkState, block); err != nil {
 		return err
 	} else if root != block.Root() {

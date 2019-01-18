@@ -13,8 +13,12 @@ type AppState struct {
 
 func NewAppState(s *state.StateDB) *AppState {
 	return &AppState{
-		ValidatorsCache: validators.NewValidatorsCache(s),
-		State:           s,
-		NonceCache:      state.NewNonceCache(s),
+		State: s,
 	}
+}
+
+func (s *AppState) Initialize(height uint64) {
+	s.State.Load(height)
+	s.ValidatorsCache = validators.NewValidatorsCache(s.State)
+	s.NonceCache = state.NewNonceCache(s.State)
 }

@@ -73,10 +73,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	stateDb, err := state.NewLatest(db)
-	if err != nil {
-		return nil, err
-	}
+	stateDb := state.NewLazy(db)
 
 	keyStoreDir, err := config.KeyStoreDataDir()
 	if err != nil {
@@ -126,6 +123,8 @@ func (node *Node) Start() {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
 		return
 	}
+	node.appState.Initialize(node.blockchain.Head.Height())
+
 	node.consensusEngine.SetKey(node.key)
 	node.consensusEngine.Start()
 	node.srv.Start()

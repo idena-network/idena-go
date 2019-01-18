@@ -12,7 +12,7 @@ import (
 
 func TestStateDB_Version(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := NewLatest(database)
+	stateDb:= NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	addr := common.Address{}
@@ -26,7 +26,7 @@ func TestStateDB_Version(t *testing.T) {
 
 func TestStateDB_IterateIdentities(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := NewLatest(database)
+	stateDb:= NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	const accountsCount = 10001
@@ -68,7 +68,7 @@ func TestStateDB_IterateIdentities(t *testing.T) {
 
 func TestStateDB_AddBalance(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := NewLatest(database)
+	stateDb := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	key, _ := crypto.GenerateKey()
@@ -88,7 +88,7 @@ func TestStateDB_AddBalance(t *testing.T) {
 
 func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := NewLatest(database)
+	stateDb := NewLazy(database)
 
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)

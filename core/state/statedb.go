@@ -58,11 +58,24 @@ type StakeCache struct {
 	BipValue   *big.Int
 }
 
-func NewForCheck(s *StateDB) *StateDB {
+func NewForCheck(s *StateDB, height uint64) *StateDB {
 	tree := NewMutableTree(s.db)
-	tree.Load()
+	tree.LoadVersion(int64(height))
 	return &StateDB{
 		db:                   s.db,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
+	}
+}
+
+func NewLazy(db dbm.DB) *StateDB {
+	tree := NewMutableTree(db)
+	return &StateDB{
+		db:                   db,
 		tree:                 tree,
 		stateAccounts:        make(map[common.Address]*stateAccount),
 		stateAccountsDirty:   make(map[common.Address]struct{}),
@@ -84,20 +97,6 @@ func NewMemoryState(s *StateDB) *StateDB {
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
 	}
-}
-
-func NewLatest(db dbm.DB) (*StateDB, error) {
-	tree := NewMutableTree(db)
-	tree.Load()
-	return &StateDB{
-		db:                   db,
-		tree:                 tree,
-		stateAccounts:        make(map[common.Address]*stateAccount),
-		stateAccountsDirty:   make(map[common.Address]struct{}),
-		stateIdentities:      make(map[common.Address]*stateIdentity),
-		stateIdentitiesDirty: make(map[common.Address]struct{}),
-		log:                  log.New(),
-	}, nil
 }
 
 func New(height int64, db dbm.DB) (*StateDB, error) {
@@ -452,8 +451,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, e
 
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
-	if version > 1 {
-		err = s.tree.DeleteVersion(version - 1)
+	if version > 10 {
+		err = s.tree.DeleteVersion(version - 10)
 
 		if err != nil {
 			panic(err)

@@ -19,6 +19,7 @@ type Tree interface {
 	Version() int64
 	Hash() common.Hash
 	WorkingHash() common.Hash
+	ExistVersion(version int64) bool
 }
 
 func NewMutableTree(db dbm.DB) *MutableTree {
@@ -31,6 +32,10 @@ type MutableTree struct {
 	tree *iavl.MutableTree
 
 	lock sync.RWMutex
+}
+
+func (t *MutableTree) ExistVersion(version int64) bool {
+	return t.tree.VersionExists(version)
 }
 
 func (t *MutableTree) Hash() common.Hash {
@@ -118,6 +123,10 @@ func (t *MutableTree) DeleteVersion(version int64) error {
 
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
+}
+
+func (t *ImmutableTree) ExistVersion(version int64) bool {
+	panic("Not implemented")
 }
 
 func (t *ImmutableTree) Hash() common.Hash {
