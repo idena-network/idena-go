@@ -17,6 +17,7 @@ func SignTx(tx *Transaction, prv *ecdsa.PrivateKey) (*Transaction, error) {
 
 	return &Transaction{
 		AccountNonce: tx.AccountNonce,
+		Epoch:        tx.Epoch,
 		Amount:       tx.Amount,
 		Payload:      tx.Payload,
 		To:           tx.To,

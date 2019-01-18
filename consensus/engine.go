@@ -194,12 +194,8 @@ func (engine *Engine) completeRound(round uint64) {
 }
 
 func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
+	block := engine.chain.ProposeBlock()
 
-	block, err := engine.chain.ProposeBlock(hash, proof)
-	if err != nil {
-		engine.log.Error("ProposeBlock", "err", err)
-		return nil
-	}
 	engine.log.Info("Proposed block", "block", block.Hash().Hex(), "txs", len(block.Body.Transactions))
 
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)

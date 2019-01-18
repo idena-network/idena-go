@@ -7,7 +7,7 @@ import (
 
 type account struct {
 	stateObject *stateAccount
-	nonce       uint64
+	nonce       uint32
 }
 
 type NonceCache struct {
@@ -27,7 +27,7 @@ func NewNonceCache(sdb *StateDB) *NonceCache {
 
 // GetNonce returns the canonical nonce for the managed or unmanaged account.
 // Because GetNonce mutates the DB, we must take a write lock.
-func (ns *NonceCache) GetNonce(addr common.Address) uint64 {
+func (ns *NonceCache) GetNonce(addr common.Address) uint32 {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 
@@ -40,7 +40,7 @@ func (ns *NonceCache) GetNonce(addr common.Address) uint64 {
 }
 
 // SetNonce sets the new canonical nonce for the managed state
-func (ns *NonceCache) SetNonce(addr common.Address, nonce uint64) {
+func (ns *NonceCache) SetNonce(addr common.Address, nonce uint32) {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 

@@ -14,6 +14,7 @@ const (
 	ActivationTx uint16 = 0x1
 	InviteTx     uint16 = 0x2
 	KillTx       uint16 = 0x3
+	NewEpochTx   uint16 = 0x4
 )
 
 type Network = uint32
@@ -31,7 +32,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash
@@ -70,7 +71,8 @@ type Body struct {
 }
 
 type Transaction struct {
-	AccountNonce uint64
+	AccountNonce uint32
+	Epoch        uint16
 	Type         TxType
 	To           *common.Address `rlp:"nil"`
 	Amount       *big.Int        `json:"value"    gencodec:"required"`

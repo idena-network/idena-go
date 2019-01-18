@@ -50,7 +50,8 @@ type stateGlobal struct {
 }
 
 type Global struct {
-	Epoch uint16
+	Epoch          uint16
+	NextEpochBlock uint64
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -177,6 +178,15 @@ func (s *stateAccount) setNonce(nonce uint32) {
 	s.touch()
 }
 
+func (s *stateAccount) SetEpoch(nonce uint16) {
+	s.setEpoch(nonce)
+}
+
+func (s *stateAccount) setEpoch(nonce uint16) {
+	s.data.Epoch = nonce
+	s.touch()
+}
+
 func (s *stateAccount) Balance() *big.Int {
 
 	if s.data.Balance == nil {
@@ -187,6 +197,10 @@ func (s *stateAccount) Balance() *big.Int {
 
 func (s *stateAccount) Nonce() uint32 {
 	return s.data.Nonce
+}
+
+func (s *stateAccount) Epoch() uint16 {
+	return s.data.Epoch
 }
 
 // Returns the address of the contract/account
@@ -286,4 +300,9 @@ func (s *stateGlobal) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
+}
+
+func (s *stateGlobal) SetNextEpochBlock(u uint64) {
+	s.data.NextEpochBlock = u
+	s.touch()
 }

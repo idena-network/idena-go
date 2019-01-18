@@ -18,6 +18,7 @@ import (
 	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
 	"idena-go/log"
+	"idena-go/rlp"
 	"math/big"
 	"time"
 )
@@ -108,7 +109,7 @@ func (chain *Blockchain) SetCurrentHead(block *types.Block) {
 }
 
 func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
-
+	chain.appState.State.SetNextEpochBlock(100)
 	chain.appState.State.Commit(true)
 
 	root := chain.appState.State.Root()
@@ -189,6 +190,10 @@ func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block) er
 			return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
 		}
 	}
+	if block.Height() >= state.NextEpochBlock() {
+		chain.applyNewEpoch(state)
+	}
+
 	hash, version, _ := state.Commit(true)
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
 	chain.txpool.ResetTo(block)
@@ -236,6 +241,34 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.State
 	return state.Root()
 }
 
+func (chain *Blockchain) applyNewEpoch(stateDB *state.StateDB) {
+	var verified []common.Address
+	stateDB.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+
+		var data state.Identity
+		if err := rlp.DecodeBytes(value, &data); err != nil {
+			return false
+		}
+		if data.State == state.Candidate {
+			verified = append(verified, addr)
+
+		}
+		return false
+	})
+
+	for _, addr := range verified {
+		stateDB.GetOrNewIdentityObject(addr).SetState(state.Verified)
+	}
+
+	stateDB.IncEpoch()
+	stateDB.SetNextEpochBlock(stateDB.NextEpochBlock() + 100)
+}
+
 func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
 	if block.IsEmpty() {
 		return
@@ -281,10 +314,25 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*
 func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transaction) (*big.Int, error) {
 	sender, _ := types.Sender(tx)
 
-	if expected := stateDB.GetNonce(sender) + 1; expected != tx.AccountNonce {
-		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
-			expected, tx.AccountNonce))
+	globalState := stateDB.GetOrNewGlobalObject()
+	senderAccount := stateDB.GetOrNewAccountObject(sender)
+
+	if tx.Epoch != globalState.Epoch() {
+		return nil, errors.New(fmt.Sprintf("invalid tx epoch. Tx=%v expectedEpoch=%v actualEpoch=%v", tx.Hash().Hex(),
+			globalState.Epoch(), tx.Epoch))
 	}
+
+	currentNonce := senderAccount.Nonce()
+	// if epoch was increased, we should reset nonce to 1
+	if senderAccount.Epoch() < globalState.Epoch() {
+		currentNonce = 0
+	}
+
+	if currentNonce+1 != tx.AccountNonce {
+		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+			currentNonce+1, tx.AccountNonce))
+	}
+
 	fee := chain.getTxFee(tx)
 	totalCost := chain.getTxCost(tx)
 
@@ -319,9 +367,14 @@ func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transa
 		break
 	case types.KillTx:
 		stateDB.GetOrNewIdentityObject(sender).SetState(state.Killed)
+		break
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
+
+	if senderAccount.Epoch() != tx.Epoch {
+		stateDB.SetEpoch(sender, tx.Epoch)
+	}
 
 	return fee, nil
 }
@@ -346,7 +399,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 	return chain.getSortition(chain.getProposerData())
 }
 
-func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Block, error) {
+func (chain *Blockchain) ProposeBlock() *types.Block {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
@@ -373,7 +426,7 @@ func (chain *Blockchain) ProposeBlock(hash common.Hash, proof []byte) (*types.Bl
 	block.Header.ProposedHeader.Root = chain.applyBlockRewards(totalFee, checkState, block)
 	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
 
-	return block, nil
+	return block
 }
 
 func (chain *Blockchain) filterTxs(state *state.StateDB, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {

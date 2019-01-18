@@ -48,7 +48,10 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.pending[hash] = tx
 
-	txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
+	if txpool.appState.State.Epoch() == tx.Epoch {
+		txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
+	}
+
 	select {
 	case txpool.txSubscription <- tx:
 	default:
@@ -77,15 +80,31 @@ func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
 	}
 
 	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].Epoch < list[j].Epoch {
+			return true
+		}
+		if list[i].Epoch > list[j].Epoch {
+			return false
+		}
 		return list[i].AccountNonce < list[j].AccountNonce
 	})
 
-	currentNonces := make(map[common.Address]uint64)
-
+	currentNonces := make(map[common.Address]uint32)
+	globalEpoch := txpool.appState.State.Epoch()
 	for _, tx := range list {
 		sender, _ := types.Sender(tx)
+		if tx.Epoch < globalEpoch {
+			continue
+		}
+		// do not process transactions from future epoch
+		if tx.Epoch > globalEpoch {
+			break
+		}
 		if _, ok := currentNonces[sender]; !ok {
 			currentNonces[sender] = txpool.appState.State.GetNonce(sender)
+			if txpool.appState.State.GetEpoch(sender) < globalEpoch {
+				currentNonces[sender] = 0
+			}
 		}
 		if currentNonces[sender]+1 == tx.AccountNonce {
 			result = append(result, tx)
@@ -108,8 +127,14 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 	}
 
 	txpool.appState.NonceCache = state.NewNonceCache(txpool.appState.State)
-
+	globalEpoch := txpool.appState.State.Epoch()
 	for _, tx := range txpool.pending {
+		if tx.Epoch < globalEpoch {
+			txpool.Remove(tx)
+		}
+		if tx.Epoch > globalEpoch {
+			continue
+		}
 		sender, _ := types.Sender(tx)
 		currentCache := txpool.appState.NonceCache.GetNonce(sender)
 		if tx.AccountNonce >= currentCache {

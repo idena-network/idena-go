@@ -11,7 +11,8 @@ import (
 var (
 	NodeAlreadyActivated = errors.New("node is already in validator set")
 	InvalidSignature     = errors.New("invalid signature")
-	InvalidNonce         = errors.New("invalid Nonce")
+	InvalidNonce         = errors.New("invalid nonce")
+	InvalidEpoch         = errors.New("invalid epoch")
 	InsufficientFunds    = errors.New("insufficient funds")
 	InsufficientInvites  = errors.New("insufficient invites")
 	RecipientRequired    = errors.New("recipient is required")
@@ -46,7 +47,13 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 		return InvalidSignature
 	}
 
-	if appState.State.GetNonce(sender) > tx.AccountNonce {
+	globalEpoch := appState.State.Epoch()
+
+	if globalEpoch > tx.Epoch {
+		return InvalidEpoch
+	}
+
+	if appState.State.GetNonce(sender) >= tx.AccountNonce && appState.State.GetEpoch(sender) == globalEpoch && tx.Epoch == globalEpoch {
 		return InvalidNonce
 	}
 

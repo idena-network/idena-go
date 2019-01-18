@@ -108,7 +108,7 @@ func TestStateGlobal_IncEpoch(t *testing.T) {
 	database := db.NewMemDB()
 	stateDb, _ := NewLatest(database)
 
-	require.Equal(t, uint16(0), stateDb.GetEpoch())
+	require.Equal(t, uint16(0), stateDb.Epoch())
 
 	stateDb.IncEpoch()
 	stateDb.IncEpoch()
@@ -116,5 +116,5 @@ func TestStateGlobal_IncEpoch(t *testing.T) {
 	stateDb.Commit(false)
 	stateDb.Clear()
 
-	require.Equal(t, uint16(2), stateDb.GetEpoch())
+	require.Equal(t, uint16(2), stateDb.Epoch())
 }

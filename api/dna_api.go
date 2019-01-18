@@ -61,7 +61,8 @@ type SendTxArgs struct {
 	From    common.Address `json:"from"`
 	To      common.Address `json:"to"`
 	Amount  *big.Float     `json:"amount"`
-	Nonce   uint64         `json:"nonce"`
+	Nonce   uint32         `json:"nonce"`
+	Epoch   uint16         `json:"epoch"`
 	Payload *hexutil.Bytes `json:"payload"`
 }
 
@@ -69,13 +70,15 @@ type SendTxArgs struct {
 type SendInviteArgs struct {
 	To     common.Address `json:"to"`
 	Amount *big.Float     `json:"amount"`
-	Nonce  uint64         `json:"nonce"`
+	Nonce  uint32         `json:"nonce"`
+	Epoch  uint16         `json:"epoch"`
 }
 
 type ActivateInviteArgs struct {
 	Key   string         `json:"key"`
 	To    common.Address `json:"to"`
-	Nonce uint64         `json:"nonce"`
+	Nonce uint32         `json:"nonce"`
+	Epoch uint16         `json:"epoch"`
 }
 
 type Invite struct {
@@ -93,7 +96,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.sendTx(api.GetCoinbaseAddr(), receiver, types.InviteTx, args.Amount, args.Nonce, nil, key)
+	hash, err := api.sendTx(api.GetCoinbaseAddr(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, key)
 
 	if err != nil {
 		return Invite{}, err
@@ -127,7 +130,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, nil, key)
+	hash, err := api.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, args.Epoch, nil, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -143,19 +146,26 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		payload = *args.Payload
 	}
 
-	return api.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, payload, nil)
+	return api.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
 }
 
-func (api *DnaApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint64, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
+func (api *DnaApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
 		To:           &to,
 		Amount:       convertToInt(amount),
 		Payload:      payload,
+		Epoch:        epoch,
 	}
 
-	if tx.AccountNonce == 0 {
+	s := api.engine.GetAppState().State
+
+	if tx.Epoch == 0 {
+		tx.Epoch = s.Epoch()
+	}
+
+	if tx.AccountNonce == 0 && tx.Epoch == s.Epoch() {
 		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(from) + 1
 	}
 
@@ -261,6 +271,20 @@ func (api *DnaApi) LastBlock() Block {
 	return Block{
 		Hash:   lastBlock.Hash(),
 		Height: lastBlock.Height(),
+	}
+}
+
+type Epoch struct {
+	Epoch          uint16
+	NextEpochBlock uint64
+}
+
+func (api *DnaApi) Epoch() Epoch {
+	s := api.engine.GetAppState()
+
+	return Epoch{
+		Epoch:          s.State.Epoch(),
+		NextEpochBlock: s.State.NextEpochBlock(),
 	}
 }
 

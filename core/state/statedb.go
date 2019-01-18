@@ -147,7 +147,7 @@ func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
-func (s *StateDB) GetNonce(addr common.Address) uint64 {
+func (s *StateDB) GetNonce(addr common.Address) uint32 {
 	stateObject := s.getStateAccount(addr)
 	if stateObject != nil {
 		return stateObject.Nonce()
@@ -164,9 +164,23 @@ func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
-func (s *StateDB) GetEpoch() uint16 {
+func (s *StateDB) GetEpoch(addr common.Address) uint16 {
+	stateObject := s.getStateAccount(addr)
+	if stateObject != nil {
+		return stateObject.Epoch()
+	}
+
+	return 0
+}
+
+func (s *StateDB) Epoch() uint16 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.Epoch
+}
+
+func (s *StateDB) NextEpochBlock() uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.NextEpochBlock
 }
 
 /*
@@ -196,11 +210,22 @@ func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
-func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
+func (s *StateDB) SetNonce(addr common.Address, nonce uint32) {
 	stateObject := s.GetOrNewAccountObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
 	}
+}
+
+func (s *StateDB) SetEpoch(addr common.Address, epoch uint16) {
+	stateObject := s.GetOrNewAccountObject(addr)
+	if stateObject != nil {
+		stateObject.SetEpoch(epoch)
+	}
+}
+
+func (s *StateDB) SetNextEpochBlock(b uint64) {
+	s.GetOrNewGlobalObject().SetNextEpochBlock(b)
 }
 
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
@@ -489,7 +514,7 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 
 	// if epoch has changed
 	if s.stateGlobalDirty {
-		currentEpoch := s.GetEpoch()
+		currentEpoch := s.Epoch()
 		s.updateStateGlobalObject(s.stateGlobal)
 		s.stateGlobalDirty = false
 
