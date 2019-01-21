@@ -108,6 +108,11 @@ func (chain *Blockchain) SetCurrentHead(block *types.Block) {
 	chain.Head = block
 }
 
+func (chain *Blockchain) SetHead(height uint64){
+	chain.repo.SetHead(height)
+	chain.SetCurrentHead(chain.GetHead())
+}
+
 func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 	chain.appState.State.SetNextEpochBlock(100)
 	chain.appState.State.Commit(true)

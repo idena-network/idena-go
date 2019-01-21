@@ -151,3 +151,13 @@ func (r *repo) WriteFinalConsensus(hash common.Hash) {
 	key := finalConsensusKey(hash)
 	r.db.Set(key, []byte{0x1})
 }
+
+func (r *repo) SetHead(height uint64) {
+	hash := r.ReadCanonicalHash(height)
+	if hash != (common.Hash{}) {
+		header := r.ReadBlockHeader(hash)
+		if header != nil {
+			r.WriteHead(header)
+		}
+	}
+}
