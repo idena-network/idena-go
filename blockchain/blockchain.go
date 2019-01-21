@@ -190,14 +190,16 @@ func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block) er
 			return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
 		}
 	}
+	newEpoch := false
 	if block.Height() >= state.NextEpochBlock() {
 		chain.applyNewEpoch(state)
+		newEpoch = true
 	}
 
 	hash, version, _ := state.Commit(true)
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
 	chain.txpool.ResetTo(block)
-	chain.appState.ValidatorsCache.RefreshIfUpdated(block.Body.Transactions)
+	chain.appState.ValidatorsCache.RefreshIfUpdated(newEpoch, block.Body.Transactions)
 	return nil
 }
 
