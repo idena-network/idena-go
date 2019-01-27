@@ -108,7 +108,7 @@ func (chain *Blockchain) SetCurrentHead(block *types.Block) {
 	chain.Head = block
 }
 
-func (chain *Blockchain) SetHead(height uint64){
+func (chain *Blockchain) SetHead(height uint64) {
 	chain.repo.SetHead(height)
 	chain.SetCurrentHead(chain.GetHead())
 }
@@ -403,6 +403,12 @@ func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
 }
 
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
+
+	// only validated nodes can propose block
+	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress)  && chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 {
+		return false, common.Hash{}, nil
+	}
+
 	return chain.getSortition(chain.getProposerData())
 }
 
