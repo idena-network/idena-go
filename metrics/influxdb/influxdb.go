@@ -2,56 +2,51 @@ package influxdb
 
 import (
 	"fmt"
+	"idena-go/metrics"
+	"log"
 	uurl "net/url"
 	"time"
 
-	"idena-go/log"
-	"idena-go/metrics"
-	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb1-client"
 )
 
 type reporter struct {
 	reg      metrics.Registry
 	interval time.Duration
 
-	url       uurl.URL
-	database  string
-	username  string
-	password  string
-	namespace string
-	tags      map[string]string
+	url      uurl.URL
+	database string
+	username string
+	password string
+	tags     map[string]string
 
 	client *client.Client
-
-	cache map[string]int64
 }
 
-// InfluxDB starts a InfluxDB reporter which will post the from the given metrics.Registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password, namespace string) {
-	InfluxDBWithTags(r, d, url, database, username, password, namespace, nil)
+// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
+func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password string) {
+	InfluxDBWithTags(r, d, url, database, username, password, nil)
 }
 
-// InfluxDBWithTags starts a InfluxDB reporter which will post the from the given metrics.Registry at each d interval with the specified tags
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password, namespace string, tags map[string]string) {
+// InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
+func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
 	u, err := uurl.Parse(url)
 	if err != nil {
-		log.Warn("Unable to parse InfluxDB", "url", url, "err", err)
+		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
 		return
 	}
 
 	rep := &reporter{
-		reg:       r,
-		interval:  d,
-		url:       *u,
-		database:  database,
-		username:  username,
-		password:  password,
-		namespace: namespace,
-		tags:      tags,
-		cache:     make(map[string]int64),
+		reg:      r,
+		interval: d,
+		url:      *u,
+		database: database,
+		username: username,
+		password: password,
+		tags:     tags,
 	}
 	if err := rep.makeClient(); err != nil {
-		log.Warn("Unable to make InfluxDB client", "err", err)
+		log.Printf("unable to make InfluxDB client. err=%v", err)
 		return
 	}
 
@@ -76,15 +71,15 @@ func (r *reporter) run() {
 		select {
 		case <-intervalTicker:
 			if err := r.send(); err != nil {
-				log.Warn("Unable to send to InfluxDB", "err", err)
+				log.Printf("unable to send metrics to InfluxDB. err=%v", err)
 			}
 		case <-pingTicker:
 			_, _, err := r.client.Ping()
 			if err != nil {
-				log.Warn("Got error while sending a ping to InfluxDB, trying to recreate client", "err", err)
+				log.Printf("got error while sending a ping to InfluxDB, trying to recreate client. err=%v", err)
 
 				if err = r.makeClient(); err != nil {
-					log.Warn("Unable to make InfluxDB client", "err", err)
+					log.Printf("unable to make InfluxDB client. err=%v", err)
 				}
 			}
 		}
@@ -96,25 +91,22 @@ func (r *reporter) send() error {
 
 	r.reg.Each(func(name string, i interface{}) {
 		now := time.Now()
-		namespace := r.namespace
 
 		switch metric := i.(type) {
 		case metrics.Counter:
-			v := metric.Count()
-			l := r.cache[name]
+			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.count", namespace, name),
+				Measurement: fmt.Sprintf("%s.count", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
-					"value": v - l,
+					"value": ms.Count(),
 				},
 				Time: now,
 			})
-			r.cache[name] = v
 		case metrics.Gauge:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.gauge", namespace, name),
+				Measurement: fmt.Sprintf("%s.gauge", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"value": ms.Value(),
@@ -124,7 +116,7 @@ func (r *reporter) send() error {
 		case metrics.GaugeFloat64:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.gauge", namespace, name),
+				Measurement: fmt.Sprintf("%s.gauge", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"value": ms.Value(),
@@ -135,7 +127,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.histogram", namespace, name),
+				Measurement: fmt.Sprintf("%s.histogram", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count":    ms.Count(),
@@ -156,7 +148,7 @@ func (r *reporter) send() error {
 		case metrics.Meter:
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.meter", namespace, name),
+				Measurement: fmt.Sprintf("%s.meter", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count": ms.Count(),
@@ -171,7 +163,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
-				Measurement: fmt.Sprintf("%s%s.timer", namespace, name),
+				Measurement: fmt.Sprintf("%s.timer", name),
 				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count":    ms.Count(),
@@ -193,27 +185,6 @@ func (r *reporter) send() error {
 				},
 				Time: now,
 			})
-		case metrics.ResettingTimer:
-			t := metric.Snapshot()
-
-			if len(t.Values()) > 0 {
-				ps := t.Percentiles([]float64{50, 95, 99})
-				val := t.Values()
-				pts = append(pts, client.Point{
-					Measurement: fmt.Sprintf("%s%s.span", namespace, name),
-					Tags:        r.tags,
-					Fields: map[string]interface{}{
-						"count": len(val),
-						"max":   val[len(val)-1],
-						"mean":  t.Mean(),
-						"min":   val[0],
-						"p50":   ps[0],
-						"p95":   ps[1],
-						"p99":   ps[2],
-					},
-					Time: now,
-				})
-			}
 		}
 	})
 
