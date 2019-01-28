@@ -477,10 +477,12 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, e
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
 	if version > 10 {
-		err = s.tree.DeleteVersion(version - 10)
+		if s.tree.ExistVersion(version - 10) {
+			err = s.tree.DeleteVersion(version - 10)
 
-		if err != nil {
-			panic(err)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 

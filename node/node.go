@@ -45,7 +45,7 @@ type Node struct {
 }
 
 func StartDefaultNode(path string) string {
-	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.LogfmtFormat())
+	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
 	c := config.GetDefaultConfig(
