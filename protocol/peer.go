@@ -35,6 +35,7 @@ type peer struct {
 	queuedVotes       chan *types.Vote
 	queuedRequests    chan *request
 	term              chan struct{}
+	finished          chan struct{}
 }
 
 type request struct {
@@ -62,33 +63,53 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 }
 
 func (p *peer) SendBlockRangeAsync(blockRange *blockRange) {
-	p.queuedBlockRanges <- blockRange
+	select {
+	case p.queuedBlockRanges <- blockRange:
+	case <-p.finished:
+	}
+
 }
 
 func (p *peer) SendHeader(header *types.Header, code uint64) {
-	p.queuedRequests <- &request{msgcode: code, data: header}
+	select {
+	case p.queuedRequests <- &request{msgcode: code, data: header}:
+	case <-p.finished:
+	}
 }
 
 func (p *peer) RequestLastBlock() {
-	p.queuedRequests <- &request{msgcode: GetHead, data: struct{}{}}
+	select {
+	case p.queuedRequests <- &request{msgcode: GetHead, data: struct{}{}}:
+	case <-p.finished:
+	}
 }
 
 func (p *peer) RequestBlockByHash(hash common.Hash) {
-	p.queuedRequests <- &request{msgcode: GetBlockByHash, data: &getBlockBodyRequest{
+	select {
+	case p.queuedRequests <- &request{msgcode: GetBlockByHash, data: &getBlockBodyRequest{
 		Hash: hash,
-	}}
+	}}:
+	case <-p.finished:
+	}
+
 }
 
 func (p *peer) RequestBlocksRange(batchId uint32, from uint64, to uint64) {
-	p.queuedRequests <- &request{msgcode: GetBlocksRange, data: &getBlocksRangeRequest{
+
+	select {
+	case p.queuedRequests <- &request{msgcode: GetBlocksRange, data: &getBlocksRangeRequest{
 		BatchId: batchId,
 		From:    from,
 		To:      to,
-	}}
+	}}:
+	case <-p.finished:
+	}
+
 }
 
 func (p *peer) broadcast() {
 	defer p.Log().Info("Peer exited from broadcast loop")
+	defer close(p.finished)
 	for {
 		select {
 		case blockRange := <-p.queuedBlockRanges:
@@ -180,17 +201,37 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 }
 
 func (p *peer) SendProofAsync(proof *proposeProof) {
-	p.queuedProofs <- proof
-	p.markProof(proof)
+	select {
+	case p.queuedProofs <- proof:
+		p.markProof(proof)
+	case <-p.finished:
+	}
 }
 func (p *peer) ProposeBlockAsync(block *types.Block) {
-	p.queuedProposals <- block
-	p.markBlock(block)
+	select {
+	case p.queuedProposals <- block:
+		p.markBlock(block)
+	case <-p.finished:
+	}
+
 }
 
 func (p *peer) SendTxAsync(transaction *types.Transaction) {
-	p.queuedTxs <- transaction
-	p.markTx(transaction)
+	select {
+	case p.queuedTxs <- transaction:
+		p.markTx(transaction)
+	case <-p.finished:
+	}
+
+}
+
+func (p *peer) SendVoteAsync(vote *types.Vote) {
+
+	select {
+	case p.queuedVotes <- vote:
+		p.markVote(vote)
+	case <-p.finished:
+	}
 }
 
 func (p *peer) markBlock(block *types.Block) {
@@ -212,10 +253,7 @@ func (p *peer) markVote(vote *types.Vote) {
 	}
 	p.knownVotes.Add(vote.Hash())
 }
-func (p *peer) SendVoteAsync(vote *types.Vote) {
-	p.queuedVotes <- vote
-	p.markVote(vote)
-}
+
 func (p *peer) markTx(tx *types.Transaction) {
 	if p.knownTxs.Cardinality() > MaxKwownTxs {
 		p.knownTxs.Pop()
