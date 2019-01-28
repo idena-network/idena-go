@@ -80,3 +80,43 @@ func (votes *Votes) CompleteRound(round uint64) {
 		return true
 	})
 }
+
+func (votes *Votes) FutureBlockExist(round uint64, neccessaryVotes int) bool {
+	maxRound := round
+
+	votes.votesByRound.Range(func(key, value interface{}) bool {
+		if key.(uint64) > round {
+			byRound := value.(*sync.Map)
+
+			votesCount := make(map[common.Hash]map[uint16]int)
+
+			var byHash map[uint16]int
+
+			byRound.Range(func(key, v interface{}) bool {
+				vote := v.(*types.Vote)
+				var ok bool
+				byHash, ok = votesCount[vote.Header.VotedHash]
+				if !ok {
+					byHash = make(map[uint16]int)
+					votesCount[vote.Header.VotedHash] = byHash
+				}
+				if _, ok := byHash[vote.Header.Step]; ok {
+					byHash[vote.Header.Step]++
+				} else {
+					byHash[vote.Header.Step] = 1
+				}
+				return true
+			})
+
+			for _, v := range byHash {
+				if v >= neccessaryVotes {
+					maxRound = key.(uint64)
+					return false
+				}
+			}
+
+		}
+		return true
+	})
+	return maxRound > round
+}

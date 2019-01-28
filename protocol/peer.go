@@ -59,6 +59,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		knownProofs:       mapset.NewSet(),
 		queuedProofs:      make(chan *proposeProof, 10),
 		term:              make(chan struct{}),
+		finished:          make(chan struct{}),
 	}
 }
 

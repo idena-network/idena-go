@@ -308,6 +308,10 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 			}
 		}
 		step++
+
+		if engine.votes.FutureBlockExist(round, engine.chain.GetCommitteeVotesTreshold(false) ){
+			return common.Hash{}, errors.New("Detected future block")
+		}
 	}
 	return common.Hash{}, errors.New("No consensus")
 }
