@@ -3,9 +3,6 @@ package node
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/api"
 	"idena-go/blockchain"
 	"idena-go/config"
@@ -22,6 +19,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/tendermint/tendermint/libs/db"
 )
 
 type Node struct {
@@ -215,6 +216,12 @@ func (node *Node) apis() []rpc.API {
 			Namespace: "account",
 			Version:   "1.0",
 			Service:   api.NewAccountApi(node.keyStore),
+			Public:    true,
+		},
+		{
+			Namespace: "flip",
+			Version:   "1.0",
+			Service:   api.NewFlipApi(node.pm),
 			Public:    true,
 		},
 	}

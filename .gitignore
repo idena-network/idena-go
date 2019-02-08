@@ -45,7 +45,14 @@ profile.cov
 /dashboard/assets/package-lock.json
 
 **/yarn-error.log
-/*.exe
 /datadir
 /datadir-*/*
 /datadir/*
+
+# executables
+/*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+**/idena-go
