@@ -2,6 +2,7 @@ package appstate
 
 import (
 	dbm "github.com/tendermint/tendermint/libs/db"
+	"idena-go/core/flip"
 	"idena-go/core/state"
 	"idena-go/core/validators"
 )
@@ -11,23 +12,27 @@ type AppState struct {
 	State           *state.StateDB
 	NonceCache      *state.NonceCache
 	IdentityState   *state.IdentityStateDB
+	FlipStore       flip.Store
 }
 
 func NewAppState(db dbm.DB) *AppState {
 	stateDb := state.NewLazy(db)
 	identityStateDb := state.NewLazyIdentityState(db)
+	flipStore := flip.NewStore(db)
 	return &AppState{
 		State:         stateDb,
 		IdentityState: identityStateDb,
+		FlipStore:     flipStore,
 	}
 }
 
-func NewForCheck(appState *AppState, height uint64) *AppState {
+func (s *AppState) ForCheck(height uint64) *AppState {
 	return &AppState{
-		State:           state.NewForCheck(appState.State, height),
-		IdentityState:   state.NewForCheckIdentityState(appState.IdentityState, height),
-		ValidatorsCache: appState.ValidatorsCache,
-		NonceCache:      appState.NonceCache,
+		State:           s.State.ForCheck(height),
+		IdentityState:   s.IdentityState.ForCheckIdentityState(height),
+		ValidatorsCache: s.ValidatorsCache,
+		NonceCache:      s.NonceCache,
+		FlipStore:       flip.NewEmptyStore(),
 	}
 }
 
@@ -47,8 +52,10 @@ func (s *AppState) Precommit() {
 func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
+	s.FlipStore.Reset()
 }
 func (s *AppState) Commit() {
 	s.State.Commit(true)
 	s.IdentityState.Commit(true)
+	s.FlipStore.Commit()
 }

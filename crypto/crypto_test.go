@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"github.com/dedis/kyber/group/edwards25519"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -249,18 +247,4 @@ func TestPythonIntegration(t *testing.T) {
 
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg0, kh, sig0)
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg1, kh, sig1)
-}
-
-
-func TestPubKeyConversion(t *testing.T){
-	key, _ := HexToECDSA(testPrivHex)
-	bytes := FromECDSA(key)
-	suite := edwards25519.NewBlakeSHA256Ed25519()
-
-
-	sec := suite.Scalar().Pick(suite.RandomStream())
-	pub:= suite.Point().Mul(sec, nil)
-	bytes,_ = pub.MarshalBinary()
-
-	require.Equal(t, bytes, bytes)
 }

@@ -18,6 +18,7 @@ package state
 
 import (
 	"fmt"
+	"idena-go/database"
 	"idena-go/log"
 	"idena-go/rlp"
 
@@ -58,7 +59,21 @@ type StakeCache struct {
 	BipValue   *big.Int
 }
 
-func NewForCheck(s *StateDB, height uint64) *StateDB {
+func NewLazy(db dbm.DB) *StateDB {
+	pdb := dbm.NewPrefixDB(db, database.StateDbPrefix)
+	tree := NewMutableTree(pdb)
+	return &StateDB{
+		db:                   pdb,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
+	}
+}
+
+func (s *StateDB) ForCheck(height uint64) *StateDB {
 	tree := NewMutableTree(s.db)
 	tree.LoadVersion(int64(height))
 	return &StateDB{
@@ -72,20 +87,7 @@ func NewForCheck(s *StateDB, height uint64) *StateDB {
 	}
 }
 
-func NewLazy(db dbm.DB) *StateDB {
-	tree := NewMutableTree(db)
-	return &StateDB{
-		db:                   db,
-		tree:                 tree,
-		stateAccounts:        make(map[common.Address]*stateAccount),
-		stateAccountsDirty:   make(map[common.Address]struct{}),
-		stateIdentities:      make(map[common.Address]*stateIdentity),
-		stateIdentitiesDirty: make(map[common.Address]struct{}),
-		log:                  log.New(),
-	}
-}
-
-func NewMemoryState(s *StateDB) *StateDB {
+func (s *StateDB) MemoryState() *StateDB {
 	tree := NewMutableTree(s.db)
 	tree.Load()
 	return &StateDB{

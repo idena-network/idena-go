@@ -17,6 +17,7 @@ import (
 	"idena-go/crypto"
 	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
+	"idena-go/database"
 	"idena-go/log"
 	"idena-go/rlp"
 	"math/big"
@@ -38,7 +39,7 @@ var (
 )
 
 type Blockchain struct {
-	repo *repo
+	repo *database.Repo
 
 	Head            *types.Block
 	genesis         *types.Block
@@ -64,7 +65,7 @@ func init() {
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState) *Blockchain {
 	return &Blockchain{
-		repo:     NewRepo(db),
+		repo:     database.NewRepo(db),
 		config:   config,
 		log:      log.New(),
 		txpool:   txpool,
@@ -320,18 +321,21 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 	}
 }
 
-func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (*big.Int, error) {
-	totalFee := new(big.Int)
+func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (totalFee *big.Int, err error) {
+	totalFee = new(big.Int)
+	fee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 		if err := validation.ValidateTx(chain.appState, tx); err != nil {
 			return nil, err
 		}
-		if fee, err := chain.applyTxOnState(appState, tx); err != nil {
+		if fee, err = chain.applyTxOnState(appState, tx); err != nil {
 			return nil, err
-		} else {
-			totalFee.Add(totalFee, fee)
 		}
+
+		chain.applyTxOnStore(appState, tx)
+
+		totalFee.Add(totalFee, fee)
 	}
 
 	return totalFee, nil
@@ -398,6 +402,8 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.GetOrNewIdentityObject(sender).SetState(state.Killed)
 		appState.IdentityState.Remove(sender)
 		break
+	case types.SubmitFlipTx:
+		stateDB.SubBalance(sender, totalCost)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -439,7 +445,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState := appstate.NewForCheck(chain.appState, chain.Head.Height())
+	checkState := chain.appState.ForCheck(chain.Head.Height())
 
 	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
@@ -576,7 +582,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return errors.New("flags are invalid")
 	}
 
-	checkState := appstate.NewForCheck(chain.appState, chain.Head.Height())
+	checkState := chain.appState.ForCheck(chain.Head.Height())
 
 	if root, identityRoot, err := chain.applyBlockOnState(checkState, block); err != nil {
 		return err
@@ -675,6 +681,16 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 	}
 	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
 }
+
 func (chain *Blockchain) Genesis() common.Hash {
 	return chain.genesis.Hash()
+}
+
+func (chain *Blockchain) applyTxOnStore(appState *appstate.AppState, tx *types.Transaction) {
+	switch tx.Type {
+	case types.SubmitFlipTx:
+		var result common.Hash
+		copy(result[:], tx.Payload)
+		appState.FlipStore.AddMinedFlip(result, appState.State.Epoch())
+	}
 }

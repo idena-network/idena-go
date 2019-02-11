@@ -18,8 +18,8 @@ package types
 
 import (
 	"bytes"
+	"github.com/tendermint/iavl"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/core/state"
 	"idena-go/common"
 	"idena-go/rlp"
 )
@@ -31,12 +31,14 @@ type DerivableList interface {
 
 func DeriveSha(list DerivableList) common.Hash {
 	keybuf := new(bytes.Buffer)
-	tree := state.NewMutableTree(db.NewMemDB())
+	tree := iavl.NewMutableTree(db.NewMemDB(), 1024)
 	for i := 0; i < list.Len(); i++ {
 		keybuf.Reset()
 		rlp.Encode(keybuf, uint(i))
 		tree.Set(keybuf.Bytes(), list.GetRlp(i))
 	}
 
-	return  tree.WorkingHash()
+	var result common.Hash
+	copy(result[:], tree.Hash())
+	return result
 }

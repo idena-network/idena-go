@@ -1,6 +1,10 @@
-package blockchain
+package database
 
 var (
+	StateDbPrefix = []byte("st")
+
+	ApprovedIdentityDbPrefix = []byte("aid")
+
 	// headBlockKey tracks the latest know full block's hash.
 	headBlockKey = []byte("LastBlock")
 
@@ -13,4 +17,8 @@ var (
 	finalConsensusPrefix = []byte("f")
 
 	certPrefix = []byte("c")
+
+	flipPrefix = []byte("FLIP")
+
+	flipEncryptionPrefix = []byte("KEYFLIP")
 )

@@ -4,13 +4,10 @@ import (
 	"fmt"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
+	"idena-go/database"
 	"idena-go/log"
 	"idena-go/rlp"
 	"sync"
-)
-
-var (
-	approvedIdentityDbPrefix = []byte("aid")
 )
 
 type IdentityStateDB struct {
@@ -26,7 +23,7 @@ type IdentityStateDB struct {
 }
 
 func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
-	pdb := dbm.NewPrefixDB(db, approvedIdentityDbPrefix)
+	pdb := dbm.NewPrefixDB(db, database.ApprovedIdentityDbPrefix)
 	tree := NewMutableTree(pdb)
 	return &IdentityStateDB{
 		db:                   pdb,
@@ -37,7 +34,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	}
 }
 
-func NewForCheckIdentityState(s *IdentityStateDB, height uint64) *IdentityStateDB {
+func (s *IdentityStateDB) ForCheckIdentityState(height uint64) *IdentityStateDB {
 	tree := NewMutableTree(s.db)
 	tree.LoadVersion(int64(height))
 	return &IdentityStateDB{

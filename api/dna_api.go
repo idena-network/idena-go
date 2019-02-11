@@ -7,24 +7,19 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
-	"idena-go/consensus"
-	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
-	"idena-go/keystore"
 	"idena-go/rlp"
 	"math/big"
 )
 
 type DnaApi struct {
-	engine *consensus.Engine
-	txpool *mempool.TxPool
-	ks     *keystore.KeyStore
-	bc     *blockchain.Blockchain
+	bc      *blockchain.Blockchain
+	baseApi *BaseApi
 }
 
-func NewDnaApi(engine *consensus.Engine, bc *blockchain.Blockchain, txpool *mempool.TxPool, ks *keystore.KeyStore) *DnaApi {
-	return &DnaApi{engine, txpool, ks, bc}
+func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain) *DnaApi {
+	return &DnaApi{bc, baseApi}
 }
 
 type State struct {
@@ -33,12 +28,12 @@ type State struct {
 
 func (api *DnaApi) State() State {
 	return State{
-		Name: api.engine.GetProcess(),
+		Name: api.baseApi.engine.GetProcess(),
 	}
 }
 
 func (api *DnaApi) GetCoinbaseAddr() common.Address {
-	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
+	return api.baseApi.getCurrentCoinbase()
 }
 
 type Balance struct {
@@ -47,7 +42,7 @@ type Balance struct {
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
-	state := api.engine.GetAppState()
+	state := api.baseApi.engine.GetAppState()
 
 	return Balance{
 		Stake:   convertToFloat(state.State.GetStakeBalance(address)),
@@ -96,7 +91,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.sendTx(api.GetCoinbaseAddr(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, key)
+	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, key)
 
 	if err != nil {
 		return Invite{}, err
@@ -116,7 +111,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 
 func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) {
 	var key *ecdsa.PrivateKey
-	from := api.GetCoinbaseAddr()
+	from := api.baseApi.getCurrentCoinbase()
 	if len(args.Key) > 0 {
 		var err error
 		b, err := hex.DecodeString(args.Key)
@@ -130,7 +125,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, args.Epoch, nil, key)
+	hash, err := api.baseApi.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, args.Epoch, nil, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -146,54 +141,7 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		payload = *args.Payload
 	}
 
-	return api.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
-}
-
-func (api *DnaApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
-	tx := types.Transaction{
-		AccountNonce: nonce,
-		Type:         txType,
-		To:           &to,
-		Amount:       convertToInt(amount),
-		Payload:      payload,
-		Epoch:        epoch,
-	}
-
-	s := api.engine.GetAppState().State
-
-	if tx.Epoch == 0 {
-		tx.Epoch = s.Epoch()
-	}
-
-	if tx.AccountNonce == 0 && tx.Epoch == s.Epoch() {
-		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(from) + 1
-	}
-
-	signedTx, err := api.signTransaction(from, &tx, key)
-
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	if err := api.txpool.Add(signedTx); err != nil {
-		return common.Hash{}, err
-	}
-
-	return signedTx.Hash(), nil
-}
-
-func (api *DnaApi) signTransaction(from common.Address, tx *types.Transaction, key *ecdsa.PrivateKey) (*types.Transaction, error) {
-	if key != nil {
-		return types.SignTx(tx, key)
-	}
-	if from == api.GetCoinbaseAddr() {
-		return types.SignTx(tx, api.engine.GetKey())
-	}
-	account, err := api.ks.Find(keystore.Account{Address: from})
-	if err != nil {
-		return nil, err
-	}
-	return api.ks.SignTx(account, tx)
+	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
 }
 
 type Identity struct {
@@ -207,7 +155,7 @@ type Identity struct {
 
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
-	api.engine.GetAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+	api.baseApi.engine.GetAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -280,7 +228,7 @@ type Epoch struct {
 }
 
 func (api *DnaApi) Epoch() Epoch {
-	s := api.engine.GetAppState()
+	s := api.baseApi.engine.GetAppState()
 
 	return Epoch{
 		Epoch:          s.State.Epoch(),

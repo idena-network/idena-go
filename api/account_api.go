@@ -8,32 +8,32 @@ import (
 
 // NetApi offers helper utils
 type AccountApi struct {
-	ks *keystore.KeyStore
+	baseApi *BaseApi
 }
 
-func NewAccountApi(ks *keystore.KeyStore) *AccountApi {
+func NewAccountApi(baseApi *BaseApi) *AccountApi {
 	return &AccountApi{
-		ks,
+		baseApi,
 	}
 }
 
 func (ap *AccountApi) List() []common.Address {
 	list := make([]common.Address, 0)
-	for _, item := range ap.ks.Accounts() {
+	for _, item := range ap.baseApi.ks.Accounts() {
 		list = append(list, item.Address)
 	}
 	return list
 }
 
 func (ap *AccountApi) Create(passPhrase string) (common.Address, error) {
-	account, err := ap.ks.NewAccount(passPhrase)
+	account, err := ap.baseApi.ks.NewAccount(passPhrase)
 	return account.Address, err
 }
 
 func (ap *AccountApi) Unlock(addr common.Address, passPhrase string, timeout time.Duration) error {
-	return ap.ks.TimedUnlock(keystore.Account{Address: addr}, passPhrase, timeout*time.Second)
+	return ap.baseApi.ks.TimedUnlock(keystore.Account{Address: addr}, passPhrase, timeout*time.Second)
 }
 
 func (ap *AccountApi) Lock(addr common.Address) error {
-	return ap.ks.Lock(addr)
+	return ap.baseApi.ks.Lock(addr)
 }

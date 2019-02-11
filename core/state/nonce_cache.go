@@ -20,7 +20,7 @@ type NonceCache struct {
 
 func NewNonceCache(sdb *StateDB) *NonceCache {
 	return &NonceCache{
-		StateDB:  NewMemoryState(sdb),
+		StateDB:  sdb.MemoryState(),
 		accounts: make(map[common.Address]*account),
 	}
 }

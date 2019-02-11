@@ -8,6 +8,7 @@ import (
 	"idena-go/config"
 	"idena-go/consensus"
 	"idena-go/core/appstate"
+	"idena-go/core/flip"
 	"idena-go/core/mempool"
 	"idena-go/keystore"
 	"idena-go/log"
@@ -42,6 +43,7 @@ type Node struct {
 	log             log.Logger
 	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
+	flipStore       flip.Store
 }
 
 func StartDefaultNode(path string) string {
@@ -75,11 +77,10 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-
 	keyStoreDir, err := config.KeyStoreDataDir()
 	if err != nil {
 		return nil, err
-}
+	}
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 
@@ -91,6 +92,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	proposals := pengings.NewProposals(chain)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool)
+	flipStore := flip.NewStore(db)
 	return &Node{
 		config:          config,
 		blockchain:      chain,
@@ -101,6 +103,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		txpool:          txpool,
 		log:             log.New(),
 		keyStore:        keyStore,
+		flipStore:       flipStore,
 	}, nil
 }
 
@@ -199,6 +202,9 @@ func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB,
 
 // apis returns the collection of RPC descriptors this node offers.
 func (node *Node) apis() []rpc.API {
+
+	baseApi := api.NewBaseApi(node.consensusEngine, node.txpool, node.keyStore)
+
 	return []rpc.API{
 		{
 			Namespace: "net",
@@ -209,19 +215,19 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(node.consensusEngine, node.blockchain, node.txpool, node.keyStore),
+			Service:   api.NewDnaApi(baseApi, node.blockchain),
 			Public:    true,
 		},
 		{
 			Namespace: "account",
 			Version:   "1.0",
-			Service:   api.NewAccountApi(node.keyStore),
+			Service:   api.NewAccountApi(baseApi),
 			Public:    true,
 		},
 		{
 			Namespace: "flip",
 			Version:   "1.0",
-			Service:   api.NewFlipApi(node.pm),
+			Service:   api.NewFlipApi(baseApi, node.flipStore),
 			Public:    true,
 		},
 	}

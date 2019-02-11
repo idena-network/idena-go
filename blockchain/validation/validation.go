@@ -41,6 +41,9 @@ func init() {
 		validate: validateSendInviteTx,
 	}
 
+	validators[types.SubmitFlipTx] = &validator{
+		validate: validateSubmitFlipTx,
+	}
 }
 
 func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
@@ -115,5 +118,18 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) er
 	if appState.State.GetInvites(sender) == 0 {
 		return InsufficientInvites
 	}
+	return nil
+}
+
+func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
+
+	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+		return InsufficientFunds
+	}
+
+	//TODO: you cannot submit more than one flip in current epoch
+
 	return nil
 }

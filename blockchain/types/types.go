@@ -14,6 +14,7 @@ const (
 	ActivationTx uint16 = 0x1
 	InviteTx     uint16 = 0x2
 	KillTx       uint16 = 0x3
+	SubmitFlipTx uint16 = 0x4
 )
 
 type BlockFlag uint32
@@ -38,7 +39,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
@@ -109,6 +110,24 @@ type Vote struct {
 	// caches
 	hash atomic.Value
 	addr atomic.Value
+}
+
+type EncryptedFlip struct {
+	Mined bool
+	Epoch uint16
+	Data  []byte
+}
+
+type Flip struct {
+	Mined bool
+	Epoch uint16
+	Data  *FlipData
+}
+
+type FlipData struct {
+	Category uint16
+	Left     []byte
+	Right    []byte
 }
 
 func rlpHash(x interface{}) (h common.Hash) {

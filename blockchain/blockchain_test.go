@@ -6,7 +6,6 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/math"
-	"idena-go/core/appstate"
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"math/big"
@@ -37,7 +36,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 
-	appState := appstate.NewForCheck(chain.appState, 1)
+	appState := chain.appState.ForCheck(1)
 	chain.applyBlockRewards(fee, appState, block)
 
 	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
