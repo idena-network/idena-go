@@ -2,8 +2,8 @@ package blockchain
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
@@ -30,6 +30,7 @@ const (
 
 const (
 	ProposerRole uint8 = 0x1
+	EpochSize          = 100
 )
 
 var (
@@ -48,6 +49,7 @@ type Blockchain struct {
 	log             log.Logger
 	txpool          *mempool.TxPool
 	appState        *appstate.AppState
+	secretKey       *ecdsa.PrivateKey
 }
 
 func init() {
@@ -89,6 +91,7 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	}
 	chain.vrfSigner = signer
 
+	chain.secretKey = secretKey
 	chain.pubKey = secretKey.Public().(*ecdsa.PublicKey)
 	chain.coinBaseAddress = crypto.PubkeyToAddress(*chain.pubKey)
 	head := chain.GetHead()
@@ -114,19 +117,32 @@ func (chain *Blockchain) SetHead(height uint64) {
 }
 
 func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
-	chain.appState.State.SetNextEpochBlock(100)
-	chain.appState.State.Commit(true)
 
-	root := chain.appState.State.Root()
+	for addr, alloc := range chain.config.GenesisConf.Alloc {
+		if alloc.Balance != nil {
+			chain.appState.State.SetBalance(addr, alloc.Balance)
+		}
+		if alloc.Stake != nil {
+			chain.appState.State.AddStake(addr, alloc.Stake)
+		}
+		chain.appState.State.SetState(addr, alloc.State)
+		if alloc.State == state.Verified {
+			chain.appState.IdentityState.Add(addr)
+		}
+	}
+
+	chain.appState.State.SetNextEpochBlock(EpochSize)
+	chain.appState.Commit()
 
 	var emptyHash [32]byte
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
-			ParentHash: emptyHash,
-			Time:       big.NewInt(0),
-			Height:     1,
-			Root:       root,
+			ParentHash:   emptyHash,
+			Time:         big.NewInt(0),
+			Height:       1,
+			Root:         chain.appState.State.Root(),
+			IdentityRoot: chain.appState.IdentityState.Root(),
 		},
 	}, Body: &types.Body{
 		BlockSeed: seed,
@@ -169,7 +185,7 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		return err
 	}
 	if block.IsEmpty() {
-		if err := chain.applyBlock(chain.appState.State, block); err != nil {
+		if err := chain.processBlock(block); err != nil {
 			return err
 		}
 		chain.insertBlock(chain.GenerateEmptyBlock())
@@ -177,7 +193,7 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		if err := chain.ValidateProposedBlock(block); err != nil {
 			return err
 		}
-		if err := chain.applyBlock(chain.appState.State, block); err != nil {
+		if err := chain.processBlock(block); err != nil {
 			return err
 		}
 		chain.insertBlock(block)
@@ -185,39 +201,39 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 	return nil
 }
 
-func (chain *Blockchain) applyBlock(state *state.StateDB, block *types.Block) error {
+func (chain *Blockchain) processBlock(block *types.Block) error {
 	if !block.IsEmpty() {
-		if root, err := chain.applyAndValidateBlockState(state, block); err != nil {
-			state.Reset()
+		if root, identityRoot, err := chain.applyBlockOnState(chain.appState, block); err != nil {
+			chain.appState.Reset()
 			return err
-		} else if root != block.Root() {
-			state.Reset()
-			return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
+		} else if root != block.Root() || identityRoot != block.IdentityRoot() {
+			chain.appState.Reset()
+			return errors.Errorf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root())
 		}
 	}
-	newEpoch := false
-	if block.Height() >= state.NextEpochBlock() {
-		chain.applyNewEpoch(state)
-		newEpoch = true
-	}
 
-	hash, version, _ := state.Commit(true)
-	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", hash), "version", version, "blockroot", block.Root())
+	chain.appState.Commit()
+	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 	chain.txpool.ResetTo(block)
-	chain.appState.ValidatorsCache.RefreshIfUpdated(newEpoch, block.Body.Transactions)
+	chain.appState.ValidatorsCache.RefreshIfUpdated(!block.IsEmpty() && block.Header.ProposedHeader.Flags.HasFlag(types.IdentityUpdate))
 	return nil
 }
 
-func (chain *Blockchain) applyAndValidateBlockState(state *state.StateDB, block *types.Block) (common.Hash, error) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, err error) {
 	var totalFee *big.Int
-	var err error
-	if totalFee, err = chain.processTxs(state, block); err != nil {
-		return common.Hash{}, err
+	if totalFee, err = chain.processTxs(appState, block); err != nil {
+		return
 	}
-	return chain.applyBlockRewards(totalFee, state, block), nil
+
+	chain.applyBlockRewards(totalFee, appState, block)
+	chain.applyNewEpoch(appState, block)
+
+	appState.Precommit()
+
+	return appState.State.Root(), appState.IdentityState.Root(), nil
 }
 
-func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.StateDB, block *types.Block) common.Hash {
+func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate.AppState, block *types.Block) {
 
 	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
@@ -239,18 +255,21 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, state *state.State
 	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
 
 	// update state
-	state.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
-	state.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
-	state.AddInvite(block.Header.ProposedHeader.Coinbase, 1)
+	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
+	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
+	appState.State.AddInvite(block.Header.ProposedHeader.Coinbase, 1)
 
-	chain.rewardFinalCommittee(state, block)
-	state.Precommit(true)
-	return state.Root()
+	chain.rewardFinalCommittee(appState.State, block)
 }
 
-func (chain *Blockchain) applyNewEpoch(stateDB *state.StateDB) {
+func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types.Block) {
+
+	if block.Height() < appState.State.NextEpochBlock() {
+		return
+	}
+
 	var verified []common.Address
-	stateDB.IterateIdentities(func(key []byte, value []byte) bool {
+	appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -263,17 +282,17 @@ func (chain *Blockchain) applyNewEpoch(stateDB *state.StateDB) {
 		}
 		if data.State == state.Candidate {
 			verified = append(verified, addr)
-
 		}
 		return false
 	})
 
 	for _, addr := range verified {
-		stateDB.GetOrNewIdentityObject(addr).SetState(state.Verified)
+		appState.State.SetState(addr, state.Verified)
+		appState.IdentityState.Add(addr)
 	}
 
-	stateDB.IncEpoch()
-	stateDB.SetNextEpochBlock(stateDB.NextEpochBlock() + 100)
+	appState.State.IncEpoch()
+	appState.State.SetNextEpochBlock(appState.State.NextEpochBlock() + EpochSize)
 }
 
 func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
@@ -301,14 +320,14 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 	}
 }
 
-func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*big.Int, error) {
+func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (*big.Int, error) {
 	totalFee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 		if err := validation.ValidateTx(chain.appState, tx); err != nil {
 			return nil, err
 		}
-		if fee, err := chain.applyTxOnState(state, tx); err != nil {
+		if fee, err := chain.applyTxOnState(appState, tx); err != nil {
 			return nil, err
 		} else {
 			totalFee.Add(totalFee, fee)
@@ -318,7 +337,10 @@ func (chain *Blockchain) processTxs(state *state.StateDB, block *types.Block) (*
 	return totalFee, nil
 }
 
-func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transaction) (*big.Int, error) {
+func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.Transaction) (*big.Int, error) {
+
+	stateDB := appState.State
+
 	sender, _ := types.Sender(tx)
 
 	globalState := stateDB.GetOrNewGlobalObject()
@@ -374,6 +396,7 @@ func (chain *Blockchain) applyTxOnState(stateDB *state.StateDB, tx *types.Transa
 		break
 	case types.KillTx:
 		stateDB.GetOrNewIdentityObject(sender).SetState(state.Killed)
+		appState.IdentityState.Remove(sender)
 		break
 	}
 
@@ -405,7 +428,7 @@ func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
 	// only validated nodes can propose block
-	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress)  && chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 {
+	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress) && chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 {
 		return false, common.Hash{}, nil
 	}
 
@@ -416,7 +439,8 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState := state.NewForCheck(chain.appState.State, chain.Head.Height())
+	checkState := appstate.NewForCheck(chain.appState, chain.Head.Height())
+
 	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 
 	header := &types.ProposedHeader{
@@ -436,21 +460,48 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 			Transactions: filteredTxs,
 		},
 	}
-	block.Header.ProposedHeader.Root = chain.applyBlockRewards(totalFee, checkState, block)
+
+	header.Flags = chain.calculateFlags(block)
+
+	chain.applyNewEpoch(checkState, block)
+	chain.applyBlockRewards(totalFee, checkState, block)
+
+	checkState.Precommit()
+
+	block.Header.ProposedHeader.Root = checkState.State.Root()
+	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
+
 	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
 
 	return block
 }
 
-func (chain *Blockchain) filterTxs(state *state.StateDB, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {
+func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
+
+	var flags types.BlockFlag
+
+	for _, tx := range block.Body.Transactions {
+		if tx.Type == types.KillTx {
+			flags |= types.IdentityUpdate
+		}
+	}
+
+	if chain.Head.Height()+1 >= chain.appState.State.NextEpochBlock() {
+		flags |= types.IdentityUpdate
+	}
+
+	return flags
+}
+
+func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {
 	var result []*types.Transaction
 
 	totalFee := new(big.Int)
 	for _, tx := range txs {
-		if err := validation.ValidateTx(chain.appState, tx); err != nil {
+		if err := validation.ValidateTx(appState, tx); err != nil {
 			continue
 		}
-		if fee, err := chain.applyTxOnState(state, tx); err == nil {
+		if fee, err := chain.applyTxOnState(appState, tx); err == nil {
 			totalFee.Add(totalFee, fee)
 			result = append(result, tx)
 		}
@@ -506,33 +557,31 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return err
 	}
 	if hash != block.Seed() || len(block.Seed()) == 0 {
-		return errors.New("Seed is invalid")
+		return errors.New("seed is invalid")
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
 	if chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 &&
 		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
-		return errors.New("Proposer is not identity")
+		return errors.New("proposer is not identity")
 	}
 
 	var txs = types.Transactions(block.Body.Transactions)
 
 	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
-		return errors.New("TxHash is invalid")
+		return errors.New("txHash is invalid")
 	}
 
-	for i := 0; i < len(block.Body.Transactions); i++ {
-		tx := block.Body.Transactions[i]
-
-		if err := validation.ValidateTx(chain.appState, tx); err != nil {
-			return err
-		}
+	if chain.calculateFlags(block) != block.Header.ProposedHeader.Flags {
+		return errors.New("flags are invalid")
 	}
-	checkState := state.NewForCheck(chain.appState.State, chain.Head.Height())
-	if root, err := chain.applyAndValidateBlockState(checkState, block); err != nil {
+
+	checkState := appstate.NewForCheck(chain.appState, chain.Head.Height())
+
+	if root, identityRoot, err := chain.applyBlockOnState(checkState, block); err != nil {
 		return err
-	} else if root != block.Root() {
-		return errors.New(fmt.Sprintf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root()))
+	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
+		return errors.Errorf("Invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 	return nil
 }
@@ -543,7 +592,7 @@ func (chain *Blockchain) validateBlockParentHash(block *types.Block) error {
 		return errors.New(fmt.Sprintf("Height is invalid. Expected=%v but received=%v", head.Height()+1, block.Height()))
 	}
 	if head.Hash() != block.Header.ParentHash() {
-		return errors.New("ParentHash is invalid")
+		return errors.New("parentHash is invalid")
 	}
 	return nil
 }

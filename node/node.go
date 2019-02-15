@@ -12,7 +12,6 @@ import (
 	"idena-go/consensus"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
-	"idena-go/core/state"
 	"idena-go/keystore"
 	"idena-go/log"
 	"idena-go/p2p"
@@ -75,16 +74,15 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	stateDb := state.NewLazy(db)
 
 	keyStoreDir, err := config.KeyStoreDataDir()
 	if err != nil {
 		return nil, err
-	}
+}
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 
-	appState := appstate.NewAppState(stateDb)
+	appState := appstate.NewAppState(db)
 	votes := pengings.NewVotes(appState)
 
 	txpool := mempool.NewTxPool(appState)

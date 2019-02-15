@@ -17,6 +17,8 @@ var (
 	InsufficientInvites  = errors.New("insufficient invites")
 	RecipientRequired    = errors.New("recipient is required")
 	InvitationIsMissing  = errors.New("invitation is missing")
+	EmptyPayload         = errors.New("payload can't be empty")
+	InvalidEpochTx       = errors.New("invalid epoch tx")
 
 	validators map[types.TxType]*validator
 )
@@ -38,6 +40,7 @@ func init() {
 	validators[types.InviteTx] = &validator{
 		validate: validateSendInviteTx,
 	}
+
 }
 
 func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {

@@ -11,7 +11,7 @@ import (
 
 func TestValidatorsCache_Contains(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := state.NewLatest(database)
+	stateDb := state.NewLazy(database)
 
 	var arr []common.Address
 

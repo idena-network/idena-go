@@ -14,7 +14,12 @@ const (
 	ActivationTx uint16 = 0x1
 	InviteTx     uint16 = 0x2
 	KillTx       uint16 = 0x3
-	NewEpochTx   uint16 = 0x4
+)
+
+type BlockFlag uint32
+
+const (
+	IdentityUpdate BlockFlag = 1 << iota
 )
 
 type Network = uint32
@@ -24,19 +29,22 @@ type Seed [32]byte
 func (h Seed) Bytes() []byte { return h[:] }
 
 type EmptyBlockHeader struct {
-	ParentHash common.Hash
-	Height     uint64
-	Root       common.Hash
+	ParentHash   common.Hash
+	Height       uint64
+	Root         common.Hash
+	IdentityRoot common.Hash
 }
 
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
-	Root           common.Hash
+	Root           common.Hash    // root of state tree
+	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
+	Flags          BlockFlag
 }
 
 type Header struct {
@@ -90,6 +98,10 @@ type BlockCert []*Vote
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction
 
+type NewEpochPayload struct {
+	Identities []common.Address
+}
+
 type Vote struct {
 	Header    *VoteHeader
 	Signature []byte
@@ -133,6 +145,13 @@ func (b *Block) Root() common.Hash {
 		return b.Header.EmptyBlockHeader.Root
 	}
 	return b.Header.ProposedHeader.Root
+}
+
+func (b *Block) IdentityRoot() common.Hash {
+	if b.IsEmpty() {
+		return b.Header.EmptyBlockHeader.IdentityRoot
+	}
+	return b.Header.ProposedHeader.IdentityRoot
 }
 
 func (h *Header) Hash() common.Hash {
@@ -229,3 +248,12 @@ func (s Transactions) GetRlp(i int) []byte {
 }
 
 func (s BlockCert) Len() int { return len(s) }
+
+func (p NewEpochPayload) Bytes() []byte {
+	enc, _ := rlp.EncodeToBytes(p)
+	return enc
+}
+
+func (f BlockFlag) HasFlag(flag BlockFlag) bool {
+	return f&flag != 0
+}

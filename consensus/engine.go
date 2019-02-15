@@ -82,8 +82,6 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 }
 
 func (engine *Engine) loop() {
-	engine.appState.ValidatorsCache.Load()
-
 	for {
 		engine.downloader.SyncBlockchain()
 		if !engine.config.Automine && !engine.pm.HasPeers() {

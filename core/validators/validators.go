@@ -50,15 +50,7 @@ func (v *ValidatorsCache) Contains(addr common.Address) bool {
 	return v.nodesSet.Contains(addr)
 }
 
-func (v *ValidatorsCache) RefreshIfUpdated(shouldRefresh bool, transactions []*types.Transaction) {
-	if !shouldRefresh {
-		for _, tx := range transactions {
-			if tx.Type == types.KillTx {
-				shouldRefresh = true
-				break
-			}
-		}
-	}
+func (v *ValidatorsCache) RefreshIfUpdated(shouldRefresh bool) {
 	if shouldRefresh {
 		v.loadValidNodes()
 	}

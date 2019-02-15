@@ -156,5 +156,6 @@ func (d *Downloader) processBatch(batch *batch) error {
 			return reload()
 		}
 	}
+	d.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil
 }

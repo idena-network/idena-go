@@ -3,13 +3,10 @@ package tests
 import (
 	"crypto/ecdsa"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/config"
-	"idena-go/core/appstate"
-	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"math/big"
@@ -17,25 +14,27 @@ import (
 )
 
 func TestTransactions_EpochChanging(t *testing.T) {
-	database := db.NewMemDB()
-	coinbaseKey, _ := crypto.GenerateKey()
-	app := getAppState(database, coinbaseKey)
-	pool := mempool.NewTxPool(app)
-	chain := blockchain.NewBlockchain(config.GetDefaultConfig("", 0, true, "", 0, ""), database, pool, app)
-
-	chain.InitializeChain(coinbaseKey)
-
+	require := require.New(t)
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
 
 	addr1 := crypto.PubkeyToAddress(key1.PublicKey)
 	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
-
 	balance := getAmount(100000)
-	app.State.AddBalance(addr1, balance)
-	app.State.AddBalance(addr2, balance)
 
-	app.State.Commit(true)
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[addr1] = config.GenesisAllocation{
+		Balance: balance,
+		State:   state.Candidate,
+	}
+	alloc[addr2] = config.GenesisAllocation{
+		Balance: balance,
+		State:   state.Invite,
+	}
+
+	conf := blockchain.GetDefaultConsensusConfig(false)
+	conf.FinalCommitteeReward = big.NewInt(0)
+	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, alloc)
 
 	tx1 := generateTx(getAmount(12), addr2, 1, 0, key1)
 	tx2 := generateTx(getAmount(88), addr1, 1, 0, key2)
@@ -51,62 +50,49 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	spend2 := feeTx2
 	receive2 := new(big.Int).Add(balance, getAmount(44))
 
-	require.NoError(t, pool.Add(tx1))
-	require.NoError(t, pool.Add(tx2))
-	require.NoError(t, pool.Add(tx3))
+	require.NoError(pool.Add(tx1))
+	require.NoError(pool.Add(tx2))
+	require.NoError(pool.Add(tx3))
 
 	block := chain.ProposeBlock()
-	require.NoError(t, chain.AddBlock(block))
-
-	require.Equal(t, app.State.GetBalance(addr1), new(big.Int).Sub(receive1, spend1))
-	require.Equal(t, app.State.GetBalance(addr2), new(big.Int).Sub(receive2, spend2))
+	require.NoError(chain.AddBlock(block))
+	require.Equal(appState.State.GetBalance(addr1), new(big.Int).Sub(receive1, spend1))
+	require.Equal(appState.State.GetBalance(addr2), new(big.Int).Sub(receive2, spend2))
 
 	//new epoch
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 98; i++ {
 		block = chain.ProposeBlock()
-		require.NoError(t, chain.AddBlock(block))
+		require.NoError(chain.AddBlock(block))
 	}
 
 	// new epoch started
 	tx1 = generateTx(getAmount(15), addr2, 1, 1, key1)
 	tx2 = generateTx(getAmount(10), addr1, 2, 1, key2) // wont be mined, nonce from future
 
-	spend1 = types.CalculateCost(1, tx1)
-	receive1 = app.State.GetBalance(addr1)
+	spend1 = types.CalculateCost(2, tx1)
+	receive1 = appState.State.GetBalance(addr1)
 
-	receive2 = new(big.Int).Add(app.State.GetBalance(addr2), getAmount(15))
+	receive2 = new(big.Int).Add(appState.State.GetBalance(addr2), getAmount(15))
 
-	require.NoError(t, pool.Add(tx1))
-	require.NoError(t, pool.Add(tx2))
+	require.NoError(pool.Add(tx1))
+	require.NoError(pool.Add(tx2))
 
 	block = chain.ProposeBlock()
-	require.NoError(t, chain.AddBlock(block))
+	require.NoError(chain.AddBlock(block))
 
-	require.Equal(t, 1, len(block.Body.Transactions))
+	require.Equal(1, len(block.Body.Transactions))
 
-	require.Equal(t, app.State.GetBalance(addr1), new(big.Int).Sub(receive1, spend1))
-	require.Equal(t, app.State.GetBalance(addr2), receive2)
+	require.Equal(uint16(1), appState.State.Epoch())
 
+	require.Equal(new(big.Int).Sub(receive1, spend1), appState.State.GetBalance(addr1))
+	require.Equal(receive2, appState.State.GetBalance(addr2))
+
+	require.True(appState.IdentityState.IsApproved(addr1))
+	require.False(appState.IdentityState.IsApproved(addr2))
 }
 
 func getAmount(amount int64) *big.Int {
 	return new(big.Int).Mul(common.DnaBase, big.NewInt(amount))
-}
-
-func getAppState(database db.DB, key *ecdsa.PrivateKey) *appstate.AppState {
-
-	stateDb, _ := state.NewLatest(database)
-
-	// need at least 1 network size
-	id := stateDb.GetOrNewIdentityObject(crypto.PubkeyToAddress(key.PublicKey))
-	id.SetState(state.Verified)
-
-	stateDb.Commit(false)
-
-	res := appstate.NewAppState(stateDb)
-	res.ValidatorsCache.Load()
-
-	return res
 }
 
 func generateTx(amount *big.Int, to common.Address, nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {

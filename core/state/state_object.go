@@ -42,7 +42,13 @@ type stateIdentity struct {
 	deleted bool
 	onDirty func(addr common.Address) // Callback method to mark a state object newly dirty
 }
+type stateApprovedIdentity struct {
+	address common.Address
+	data    ApprovedIdentity
 
+	deleted bool
+	onDirty func(addr common.Address) // Callback method to mark a state object newly dirty
+}
 type stateGlobal struct {
 	data Global
 
@@ -68,6 +74,10 @@ type Identity struct {
 	Invites  uint8
 	Age      uint16
 	State    IdentityState
+}
+
+type ApprovedIdentity struct {
+	Approved bool
 }
 
 // newAccountObject creates a state object.
@@ -97,6 +107,13 @@ func newIdentityObject(db *StateDB, address common.Address, data Identity, onDir
 func newGlobalObject(db *StateDB, data Global, onDirty func()) *stateGlobal {
 
 	return &stateGlobal{
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+func newApprovedIdentityObject(db *IdentityStateDB, address common.Address, data ApprovedIdentity, onDirty func(addr common.Address)) *stateApprovedIdentity {
+	return &stateApprovedIdentity{
+		address: address,
 		data:    data,
 		onDirty: onDirty,
 	}
@@ -145,7 +162,6 @@ func (s *stateAccount) setBalance(amount *big.Int) {
 	if s.data.Balance == nil {
 		s.data.Balance = new(big.Int)
 	}
-
 	s.data.Balance = amount
 	if s.onDirty != nil {
 		s.onDirty(s.Address())
@@ -305,4 +321,29 @@ func (s *stateGlobal) touch() {
 func (s *stateGlobal) SetNextEpochBlock(u uint64) {
 	s.data.NextEpochBlock = u
 	s.touch()
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (s *stateApprovedIdentity) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
+}
+
+func (s *stateApprovedIdentity) Address() common.Address {
+	return s.address
+}
+
+// empty returns whether the account is considered empty.
+func (s *stateApprovedIdentity) empty() bool {
+	return !s.data.Approved
+}
+
+func (s *stateApprovedIdentity) touch() {
+	if s.onDirty != nil {
+		s.onDirty(s.Address())
+		s.onDirty = nil
+	}
+}
+
+func (s *stateApprovedIdentity) SetState(approved bool) {
+	s.data.Approved = approved
 }

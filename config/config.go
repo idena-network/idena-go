@@ -25,11 +25,12 @@ var (
 )
 
 type Config struct {
-	DataDir   string
-	Network   uint32
-	Consensus *ConsensusConf
-	P2P       *p2p.Config
-	RPC       *rpc.Config
+	DataDir     string
+	Network     uint32
+	Consensus   *ConsensusConf
+	P2P         *p2p.Config
+	RPC         *rpc.Config
+	GenesisConf *GenesisConf
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -106,8 +107,9 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 			NAT:            nat.Any(),
 			BootstrapNodes: nodes,
 		},
-		Consensus: GetDefaultConsensusConfig(automine),
-		RPC:       rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
+		Consensus:   GetDefaultConsensusConfig(automine),
+		RPC:         rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
+		GenesisConf: &GenesisConf{},
 	}
 
 	return &c

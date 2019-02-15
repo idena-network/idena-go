@@ -99,26 +99,6 @@ func NewMemoryState(s *StateDB) *StateDB {
 	}
 }
 
-func New(height int64, db dbm.DB) (*StateDB, error) {
-	tree := NewMutableTree(db)
-
-	_, err := tree.LoadVersion(height)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &StateDB{
-		db:                   db,
-		tree:                 tree,
-		stateAccounts:        make(map[common.Address]*stateAccount),
-		stateAccountsDirty:   make(map[common.Address]struct{}),
-		stateIdentities:      make(map[common.Address]*stateIdentity),
-		stateIdentitiesDirty: make(map[common.Address]struct{}),
-		log:                  log.New(),
-	}, nil
-}
-
 func (s *StateDB) Load(height uint64) error {
 	_, err := s.tree.LoadVersion(int64(height))
 	return err
@@ -230,6 +210,10 @@ func (s *StateDB) SetNextEpochBlock(b uint64) {
 
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
+}
+
+func (s *StateDB) SetState(address common.Address, state IdentityState) {
+	s.GetOrNewIdentityObject(address).SetState(state)
 }
 
 func (s *StateDB) AddInvite(address common.Address, amount uint8) {

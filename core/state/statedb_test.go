@@ -106,7 +106,7 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 
 func TestStateGlobal_IncEpoch(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb, _ := NewLatest(database)
+	stateDb:= NewLazy(database)
 
 	require.Equal(t, uint16(0), stateDb.Epoch())
 

@@ -12,7 +12,7 @@ const (
 )
 
 func CalculateFee(networkSize int, tx *Transaction) *big.Int {
-	if tx.Type == KillTx || tx.Type == NewEpochTx {
+	if tx.Type == KillTx {
 		return big.NewInt(0)
 	}
 	if networkSize == 0 {

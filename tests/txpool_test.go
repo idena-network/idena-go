@@ -1,28 +1,32 @@
-package mempool
+package tests
 
 import (
 	"crypto/ecdsa"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/db"
+	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/core/appstate"
-	"idena-go/core/state"
+	"idena-go/config"
 	"idena-go/crypto"
 	"math/big"
 	"testing"
 )
 
 func TestTxPool_BuildBlockTransactions(t *testing.T) {
-	app := getAppState()
-	pool := NewTxPool(app)
 
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
-
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
-	app.State.AddBalance(crypto.PubkeyToAddress(key1.PublicKey), balance)
-	app.State.AddBalance(crypto.PubkeyToAddress(key2.PublicKey), balance)
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[crypto.PubkeyToAddress(key1.PublicKey)] = config.GenesisAllocation{
+		Balance: balance,
+	}
+	alloc[crypto.PubkeyToAddress(key2.PublicKey)] = config.GenesisAllocation{
+		Balance: balance,
+	}
+
+	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
 
 	pool.Add(getTx(3, 0, key1))
 	pool.Add(getTx(1, 0, key1))
@@ -39,7 +43,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	}
 
 	app.State.IncEpoch()
-	app.State.Commit(true)
+	app.Commit()
 
 	pool.Add(getTx(3, 0, key1))
 	pool.Add(getTx(1, 0, key1))
@@ -56,12 +60,16 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 }
 
 func TestTxPool_InvalidEpoch(t *testing.T) {
-	app := getAppState()
-	pool := NewTxPool(app)
-
 	key, _ := crypto.GenerateKey()
 
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[crypto.PubkeyToAddress(key.PublicKey)] = config.GenesisAllocation{
+		Balance: balance,
+	}
+
+	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -75,23 +83,6 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	require.Error(t, err)
 }
 
-func getAppState() *appstate.AppState {
-	database := db.NewMemDB()
-	stateDb, _ := state.NewLatest(database)
-
-	key, _ := crypto.GenerateKey()
-
-	// need at least 1 network size
-	id := stateDb.GetOrNewIdentityObject(crypto.PubkeyToAddress(key.PublicKey))
-	id.SetState(state.Verified)
-
-	stateDb.Commit(false)
-
-	res := appstate.NewAppState(stateDb)
-	res.ValidatorsCache.Load()
-
-	return res
-}
 
 func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
 
