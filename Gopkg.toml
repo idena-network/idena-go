@@ -54,10 +54,6 @@
   version = "1.0.0"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/influxdata/influxdb1-client"
-
-[[constraint]]
   name = "github.com/jackpal/go-nat-pmp"
   version = "1.0.1"
 

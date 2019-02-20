@@ -114,18 +114,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:a89cb8146ddad083ea0a446d5a3d82f244c4afa883851e06ac5d5af81968332b"
-  name = "github.com/influxdata/influxdb1-client"
-  packages = [
-    ".",
-    "models",
-    "pkg/escape",
-  ]
-  pruneopts = "UT"
-  revision = "16c852ea613fa2d42fcdccc9a8b0802a8bdc6140"
-
-[[projects]]
   digest = "1:32b82e71cf24f8b78323e0d7903c4b90278486283965aa2a19b1ea13763b8f34"
   name = "github.com/jackpal/go-nat-pmp"
   packages = ["."]
@@ -374,7 +362,6 @@
     "github.com/huin/goupnp/dcps/internetgateway1",
     "github.com/huin/goupnp/dcps/internetgateway2",
     "github.com/huin/goupnp/httpu",
-    "github.com/influxdata/influxdb1-client",
     "github.com/jackpal/go-nat-pmp",
     "github.com/pborman/uuid",
     "github.com/pkg/errors",

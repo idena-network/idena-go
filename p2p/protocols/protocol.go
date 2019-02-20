@@ -32,15 +32,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"idena-go/log"
+	"idena-go/p2p"
+	"idena-go/rlp"
 	"io"
 	"reflect"
 	"sync"
-	"time"
-
-	"idena-go/log"
-	"idena-go/metrics"
-	"idena-go/p2p"
-	"idena-go/rlp"
 )
 
 // error codes used by this  protocol scheme
@@ -188,9 +185,9 @@ func (s *Spec) NewMsg(code uint64) (interface{}, bool) {
 // Peer represents a remote peer or protocol instance that is running on a peer connection with
 // a remote peer
 type Peer struct {
-	*p2p.Peer              // the p2p.Peer object representing the remote
-	rw   p2p.MsgReadWriter // p2p.MsgReadWriter to send messages to and read messages from
-	spec *Spec
+	*p2p.Peer                   // the p2p.Peer object representing the remote
+	rw        p2p.MsgReadWriter // p2p.MsgReadWriter to send messages to and read messages from
+	spec      *Spec
 }
 
 // NewPeer constructs a new peer
@@ -214,7 +211,6 @@ func (p *Peer) Run(handler func(ctx context.Context, msg interface{}) error) err
 	for {
 		if err := p.handleIncoming(handler); err != nil {
 			if err != io.EOF {
-				metrics.GetOrRegisterCounter("peer.handleincoming.error", nil).Inc(1)
 				log.Error("peer.handleIncoming", "err", err)
 			}
 
@@ -235,8 +231,6 @@ func (p *Peer) Drop(err error) {
 // this low level call will be wrapped by libraries providing routed or broadcast sends
 // but often just used to forward and push messages to directly connected peers
 func (p *Peer) Send(ctx context.Context, msg interface{}) error {
-	defer metrics.GetOrRegisterResettingTimer("peer.send_t", nil).UpdateSince(time.Now())
-	metrics.GetOrRegisterCounter("peer.send", nil).Inc(1)
 
 	var b bytes.Buffer
 	//if tracing.Enabled {
