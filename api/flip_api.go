@@ -22,12 +22,6 @@ func NewFlipApi(baseApi *BaseApi, flipStore flip.Store) *FlipApi {
 	return &FlipApi{baseApi, flipStore}
 }
 
-type Flip struct {
-	Category uint16         `json:"category"`
-	Left     *hexutil.Bytes `json:"left"`
-	Right    *hexutil.Bytes `json:"right"`
-}
-
 type FlipSubmitResponse struct {
 	TxHash   common.Hash `json:"txHash"`
 	FlipHash common.Hash `json:"flipHash"`
@@ -69,9 +63,9 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 }
 
 type FlipResponse struct {
-	Hex   []byte `json:"hex"`
-	Epoch uint16 `json:"epoch"`
-	Mined bool   `json:"mined"`
+	Hex   hexutil.Bytes `json:"hex"`
+	Epoch uint16        `json:"epoch"`
+	Mined bool          `json:"mined"`
 }
 
 func (api *FlipApi) GetFlip(hash common.Hash) (FlipResponse, error) {
@@ -82,6 +76,7 @@ func (api *FlipApi) GetFlip(hash common.Hash) (FlipResponse, error) {
 	}
 
 	return FlipResponse{
+		Hex:   hexutil.Bytes(flip.Data),
 		Mined: flip.Mined,
 		Epoch: flip.Epoch,
 	}, nil
