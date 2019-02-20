@@ -112,22 +112,10 @@ type Vote struct {
 	addr atomic.Value
 }
 
-type EncryptedFlip struct {
-	Mined bool
-	Epoch uint16
-	Data  []byte
-}
-
 type Flip struct {
 	Mined bool
 	Epoch uint16
-	Data  *FlipData
-}
-
-type FlipData struct {
-	Category uint16
-	Left     []byte
-	Right    []byte
+	Data  []byte
 }
 
 func rlpHash(x interface{}) (h common.Hash) {

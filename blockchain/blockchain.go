@@ -292,6 +292,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		appState.IdentityState.Add(addr)
 	}
 
+	appState.State.ClearFlips()
 	appState.State.IncEpoch()
 	appState.State.SetNextEpochBlock(appState.State.NextEpochBlock() + EpochSize)
 }
@@ -403,6 +404,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(sender)
 		break
 	case types.SubmitFlipTx:
+		stateDB.AddFlip(common.BytesToHash(tx.Payload))
 		stateDB.SubBalance(sender, totalCost)
 	}
 
@@ -562,7 +564,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	if hash != block.Seed() || len(block.Seed()) == 0 {
+	if hash != block.Seed() {
 		return errors.New("seed is invalid")
 	}
 
@@ -689,8 +691,6 @@ func (chain *Blockchain) Genesis() common.Hash {
 func (chain *Blockchain) applyTxOnStore(appState *appstate.AppState, tx *types.Transaction) {
 	switch tx.Type {
 	case types.SubmitFlipTx:
-		var result common.Hash
-		copy(result[:], tx.Payload)
-		appState.FlipStore.AddMinedFlip(result, appState.State.Epoch())
+		appState.FlipStore.AddMinedFlip(common.BytesToHash(tx.Payload), appState.State.Epoch())
 	}
 }

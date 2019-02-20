@@ -1,7 +1,6 @@
 package flip
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"github.com/pkg/errors"
@@ -18,7 +17,7 @@ import (
 )
 
 type Store interface {
-	PrepareFlip(epoch uint16, category uint16, left []byte, right []byte) (common.Hash, error)
+	PrepareFlip(epoch uint16, hex []byte) (common.Hash, error)
 
 	GetFlip(hash common.Hash) (*types.Flip, error)
 
@@ -35,7 +34,7 @@ func NewEmptyStore() *EmptyFlipStore {
 	return &EmptyFlipStore{}
 }
 
-func (EmptyFlipStore) PrepareFlip(epoch uint16, category uint16, left []byte, right []byte) (common.Hash, error) {
+func (EmptyFlipStore) PrepareFlip(epoch uint16, hex []byte) (common.Hash, error) {
 	panic("implement me")
 }
 
@@ -71,25 +70,17 @@ func NewStore(db dbm.DB) *FlipStore {
 	}
 }
 
-func (store *FlipStore) PrepareFlip(epoch uint16, category uint16, left []byte, right []byte) (common.Hash, error) {
+func (store *FlipStore) PrepareFlip(epoch uint16, hex []byte) (common.Hash, error) {
 	store.lock.Lock()
 	defer store.lock.Unlock()
 
 	encryptionKey := store.getFlipEncryptionKey(epoch)
 
-	flipData := &types.FlipData{
-		Category: category,
-		Left:     left,
-		Right:    right,
-	}
-
-	flipRlp, _ := rlp.EncodeToBytes(flipData)
-
-	encFlip, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, flipRlp, nil, nil)
+	encFlip, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, hex, nil, nil)
 
 	flipHash := rlpHash(encFlip)
 
-	store.repo.WriteFlip(flipHash, &types.EncryptedFlip{
+	store.repo.WriteFlip(flipHash, &types.Flip{
 		Mined: false,
 		Epoch: epoch,
 		Data:  encFlip,
@@ -115,14 +106,8 @@ func (store *FlipStore) GetFlip(hash common.Hash) (*types.Flip, error) {
 		return nil, err
 	}
 
-	flipData := new(types.FlipData)
-	if err := rlp.Decode(bytes.NewReader(decryptedFlip), flipData); err != nil {
-		log.Error("invalid flip", "err", err)
-		return nil, err
-	}
-
 	return &types.Flip{
-		Data:  flipData,
+		Data:  decryptedFlip,
 		Epoch: flip.Epoch,
 		Mined: flip.Mined,
 	}, nil

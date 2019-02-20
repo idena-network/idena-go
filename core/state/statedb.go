@@ -54,11 +54,6 @@ type StateDB struct {
 	lock sync.Mutex
 }
 
-type StakeCache struct {
-	TotalValue *big.Int
-	BipValue   *big.Int
-}
-
 func NewLazy(db dbm.DB) *StateDB {
 	pdb := dbm.NewPrefixDB(db, database.StateDbPrefix)
 	tree := NewMutableTree(pdb)
@@ -228,6 +223,14 @@ func (s *StateDB) SubInvite(address common.Address, amount uint8) {
 
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
+}
+
+func (s *StateDB) AddFlip(flip common.Hash) {
+	s.GetOrNewGlobalObject().AddFlip(flip)
+}
+
+func (s *StateDB) ClearFlips() {
+	s.GetOrNewGlobalObject().ClearFlips()
 }
 
 //

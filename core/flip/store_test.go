@@ -11,11 +11,9 @@ func TestFlipStore_GetFlip(t *testing.T) {
 
 	flipStore := NewStore(db.NewMemDB())
 
-	left := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x10, 0x50}
+	hex := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x10, 0x50}
 
-	right := []byte{0x3, 0x23, 0x31, 0x4, 0x5, 0x6, 0x10, 0x50}
-
-	hash, err := flipStore.PrepareFlip(1, 10, left, right)
+	hash, err := flipStore.PrepareFlip(1, hex)
 
 	require.NoError(err)
 
@@ -23,7 +21,5 @@ func TestFlipStore_GetFlip(t *testing.T) {
 
 	require.NoError(err)
 	require.Equal(uint16(1), flip.Epoch)
-	require.Equal(left, flip.Data.Left)
-	require.Equal(right, flip.Data.Right)
-	require.Equal(uint16(10), flip.Data.Category)
+	require.Equal(hex, flip.Data)
 }

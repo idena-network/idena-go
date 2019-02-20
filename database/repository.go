@@ -173,13 +173,13 @@ func (r *Repo) SetHead(height uint64) {
 	}
 }
 
-func (r *Repo) ReadFlip(hash common.Hash) *types.EncryptedFlip {
+func (r *Repo) ReadFlip(hash common.Hash) *types.Flip {
 	key := flipKey(hash)
 	data := r.db.Get(key)
 	if data == nil {
 		return nil
 	}
-	flip := new(types.EncryptedFlip)
+	flip := new(types.Flip)
 	if err := rlp.Decode(bytes.NewReader(data), flip); err != nil {
 		log.Error("invalid flip", "err", err)
 		return nil
@@ -187,7 +187,7 @@ func (r *Repo) ReadFlip(hash common.Hash) *types.EncryptedFlip {
 	return flip
 }
 
-func (r *Repo) WriteFlip(hash common.Hash, flip *types.EncryptedFlip) {
+func (r *Repo) WriteFlip(hash common.Hash, flip *types.Flip) {
 	key := flipKey(hash)
 
 	existed := r.db.Get(key)
@@ -208,7 +208,7 @@ func (r *Repo) SetFlipMined(hash common.Hash, epoch uint16) {
 	existed := r.db.Get(key)
 
 	if existed == nil {
-		r.WriteFlip(hash, &types.EncryptedFlip{
+		r.WriteFlip(hash, &types.Flip{
 			Data:  nil,
 			Epoch: epoch,
 			Mined: true,
@@ -216,7 +216,7 @@ func (r *Repo) SetFlipMined(hash common.Hash, epoch uint16) {
 		return
 	}
 
-	flip := new(types.EncryptedFlip)
+	flip := new(types.Flip)
 	if err := rlp.Decode(bytes.NewReader(existed), flip); err != nil {
 		log.Error("invalid flip", "err", err)
 		return

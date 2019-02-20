@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MaxFlipSize = 1024 * 150
+	MaxFlipSize = 1024 * 600
 )
 
 type FlipApi struct {
@@ -34,26 +34,21 @@ type FlipSubmitResponse struct {
 }
 
 // SubmitFlip receives an image as hex
-func (api *FlipApi) SubmitFlip(data Flip) (FlipSubmitResponse, error) {
+func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 
-	if data.Left == nil || data.Right == nil {
+	if hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
-	leftFlip := *data.Left
-	rightFlip := *data.Right
+	flip := *hex
 
-	if len(leftFlip) > MaxFlipSize {
-		return FlipSubmitResponse{}, errors.Errorf("left flip is too big, max expected size %v, actual %v", MaxFlipSize, len(leftFlip))
-	}
-
-	if len(rightFlip) > MaxFlipSize {
-		return FlipSubmitResponse{}, errors.Errorf("right flip is too big, max expected size %v, actual %v", MaxFlipSize, len(rightFlip))
+	if len(flip) > MaxFlipSize {
+		return FlipSubmitResponse{}, errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(flip))
 	}
 
 	epoch := api.baseApi.engine.GetAppState().State.Epoch()
 
-	hash, err := api.flipStore.PrepareFlip(epoch, data.Category, leftFlip, rightFlip)
+	hash, err := api.flipStore.PrepareFlip(epoch, flip)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -74,11 +69,9 @@ func (api *FlipApi) SubmitFlip(data Flip) (FlipSubmitResponse, error) {
 }
 
 type FlipResponse struct {
-	Category uint16        `json:"category"`
-	Left     hexutil.Bytes `json:"left"`
-	Right    hexutil.Bytes `json:"right"`
-	Epoch    uint16        `json:"epoch"`
-	Mined    bool          `json:"mined"`
+	Hex   []byte `json:"hex"`
+	Epoch uint16 `json:"epoch"`
+	Mined bool   `json:"mined"`
 }
 
 func (api *FlipApi) GetFlip(hash common.Hash) (FlipResponse, error) {
@@ -89,10 +82,7 @@ func (api *FlipApi) GetFlip(hash common.Hash) (FlipResponse, error) {
 	}
 
 	return FlipResponse{
-		Mined:    flip.Mined,
-		Epoch:    flip.Epoch,
-		Left:     hexutil.Bytes(flip.Data.Left),
-		Right:    hexutil.Bytes(flip.Data.Right),
-		Category: flip.Data.Category,
+		Mined: flip.Mined,
+		Epoch: flip.Epoch,
 	}, nil
 }
