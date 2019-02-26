@@ -10,6 +10,7 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
+	"idena-go/ipfs"
 	"idena-go/keystore"
 	"idena-go/log"
 	"idena-go/p2p"
@@ -44,6 +45,7 @@ type Node struct {
 	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
 	flipStore       flip.Store
+	ipfsProxy       ipfs.IpfsProxy
 }
 
 func StartDefaultNode(path string) string {
@@ -93,6 +95,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool)
 	flipStore := flip.NewStore(db)
+	ipfsProxy := ipfs.NewIpfsProxy()
 	return &Node{
 		config:          config,
 		blockchain:      chain,
@@ -104,6 +107,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		log:             log.New(),
 		keyStore:        keyStore,
 		flipStore:       flipStore,
+		ipfsProxy:       ipfsProxy,
 	}, nil
 }
 
