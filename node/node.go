@@ -45,7 +45,7 @@ type Node struct {
 	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
 	flipStore       flip.Store
-	ipfsProxy       ipfs.IpfsProxy
+	ipfsProxy       ipfs.Proxy
 }
 
 func StartDefaultNode(path string) string {
