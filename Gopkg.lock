@@ -7,7 +7,7 @@
   name = "github.com/aristanetworks/goarista"
   packages = ["monotime"]
   pruneopts = "UT"
-  revision = "c1e4b37418775d8f5e0c0c1a68766d321b32d6ca"
+  revision = "728bce664cf5dfb921941b240828f989a2c8f8e3"
 
 [[projects]]
   digest = "1:76d1289ecedf525572a61afd9d67270d26d87e94f422586334d1d1032d3c25fc"
@@ -90,12 +90,12 @@
   version = "v0.0.1"
 
 [[projects]]
-  digest = "1:236d7e1bdb50d8f68559af37dbcf9d142d56b431c9b2176d41e2a009b664cda8"
+  digest = "1:582b704bebaa06b48c29b0cec224a6058a09c86883aaddabde889cd1a5f73e1b"
   name = "github.com/google/uuid"
   packages = ["."]
   pruneopts = "UT"
-  revision = "9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8"
-  version = "v1.1.0"
+  revision = "0cd6bf5da1e1c83f8b45653022c74f71af0538a4"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:c00cc6d95a674b4b923ac069d364445043bc67836e9bd8aeff8440cfbe6a2cc7"
@@ -122,12 +122,12 @@
   version = "v1.0.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:39b27d1381a30421f9813967a5866fba35dc1d4df43a6eefe3b7a5444cb07214"
+  digest = "1:a74b5a8e34ee5843cd6e65f698f3e75614f812ff170c2243425d75bc091e9af2"
   name = "github.com/jmhodges/levigo"
   packages = ["."]
   pruneopts = "UT"
-  revision = "c42d9e0ca023e2198120196f842701bb4c55d7b9"
+  revision = "853d788c5c416eaaee5b044570784a96c7a26975"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -214,7 +214,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:685fdfea42d825ebd39ee0994354b46c374cf2c2b2d97a41a8dee1807c6a9b62"
+  digest = "1:b96cee7ae2088198a9887fd14af90102f8cd33fb3d55a900facde4214b1e0bb3"
   name = "github.com/syndtr/goleveldb"
   packages = [
     "leveldb",
@@ -231,7 +231,7 @@
     "leveldb/util",
   ]
   pruneopts = "UT"
-  revision = "2f17a3356c6616cbfc4ae4c38147dc062a68fb0e"
+  revision = "4217c9f31f5816db02addc94e56061da77f288d8"
 
 [[projects]]
   digest = "1:ad9c4c1a4e7875330b1f62906f2830f043a23edb5db997e3a5ac5d3e6eadf80a"
@@ -250,7 +250,7 @@
   version = "v0.12.1"
 
 [[projects]]
-  digest = "1:95ed6b0c9ab38099d2f975c0bf2c67b298a5ab8d458789a0bffd8d99bc8ec028"
+  digest = "1:d418ab1e06c0be7f532d1cf3c4adca010bceab7c6cb5d9e1d01889907eb5569b"
   name = "github.com/tendermint/tendermint"
   packages = [
     "crypto/merkle",
@@ -260,8 +260,8 @@
     "libs/log",
   ]
   pruneopts = "UT"
-  revision = "28d75ec8016b7fb043735cbe4c4d92ec73355de7"
-  version = "v0.30.0"
+  revision = "e0f8936455029a40287a69d5b0e7baa4d5864da1"
+  version = "v0.30.1"
 
 [[projects]]
   branch = "master"
@@ -272,7 +272,7 @@
     "scrypt",
   ]
   pruneopts = "UT"
-  revision = "a4c6cb3142f211c99e4bf4cd769535b29a9b616f"
+  revision = "8dd112bcdc25174059e45e07517d9fc663123347"
 
 [[projects]]
   branch = "master"
@@ -285,18 +285,18 @@
     "websocket",
   ]
   pruneopts = "UT"
-  revision = "3a22650c66bd7f4fb6d1e8072ffd7b75c8a27898"
+  revision = "92fc7df08ae7536330f5a21328292abfa70520a8"
 
 [[projects]]
   branch = "master"
-  digest = "1:c0d028f9873255bac3cfaa3915499ae0ed186d21d6ab558ca6378f9429854ce5"
+  digest = "1:9d1657fbbef403ab54f7eb39278a787f35536ef37f7c2a0775f49ea3356d5076"
   name = "golang.org/x/sys"
   packages = [
     "cpu",
     "unix",
   ]
   pruneopts = "UT"
-  revision = "90b0e4468f9980bf79a2290394adaf7f045c5d24"
+  revision = "a34e9553db1e492c9a76e60db2296ae7e5fbb772"
 
 [[projects]]
   digest = "1:aa4d6967a3237f8367b6bf91503964a77183ecf696f1273e8ad3551bb4412b5f"

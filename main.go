@@ -51,6 +51,16 @@ func main() {
 			Name:  "automine",
 			Usage: "Mine blocks alone without peers",
 		},
+		cli.StringFlag{
+			Name:  "ipfsbootnode",
+			Usage: "Ipfs bootstrap nodes (';' as delimiter)",
+			Value: config.DefaultIpfsBootstrap,
+		},
+		cli.IntFlag{
+			Name:  "ipfsport",
+			Usage: "Ipfs port",
+			Value: config.DefaultIpfsPort,
+		},
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -67,7 +77,9 @@ func main() {
 			context.Bool("automine"),
 			context.String("rpcaddr"),
 			context.Int("rpcport"),
-			context.String("bootnode"))
+			context.String("bootnode"),
+			context.String("ipfsbootnode"),
+			context.Int("ipfsport"))
 
 		n, _ := node.NewNode(c)
 		n.Start()

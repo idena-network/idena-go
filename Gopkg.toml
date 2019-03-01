@@ -4,7 +4,7 @@
 # for detailed Gopkg.toml documentation.
 #
 # required = ["github.com/user/thing/cmd/thing"]
-# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+# ignored = ["github.com/dgraph-io/badger"]
 #
 # [[constraint]]
 #   name = "github.com/user/project"
@@ -24,6 +24,7 @@
 #   go-tests = true
 #   unused-packages = true
 
+ignored = ["github.com/ipsn/go-ipfs/*"]
 
 [[constraint]]
   branch = "master"

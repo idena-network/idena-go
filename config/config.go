@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"idena-go/crypto"
+	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/p2p"
 	"idena-go/p2p/enode"
@@ -18,10 +19,12 @@ const (
 )
 
 var (
-	DefaultBootnode = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
-	DefaultPort     = 40404
-	DefaultRpcHost  = "localhost"
-	DefaultRpcPort  = 9009
+	DefaultBootnode      = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
+	DefaultPort          = 40404
+	DefaultRpcHost       = "localhost"
+	DefaultRpcPort       = 9009
+	DefaultIpfsBootstrap = ""
+	DefaultIpfsPort      = 4002
 )
 
 type Config struct {
@@ -31,6 +34,7 @@ type Config struct {
 	P2P         *p2p.Config
 	RPC         *rpc.Config
 	GenesisConf *GenesisConf
+	IpfsConf    *ipfs.IpfsConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -88,7 +92,7 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string) *Config {
+func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int) *Config {
 	var nodes []*enode.Node
 	if bootstrap != "" {
 		p, err := enode.ParseV4(bootstrap)
@@ -110,6 +114,7 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 		Consensus:   GetDefaultConsensusConfig(automine),
 		RPC:         rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
 		GenesisConf: &GenesisConf{},
+		IpfsConf:    ipfs.GetDefaultIpfsConfig(datadir, ipfsPort, ipfsBootstrap),
 	}
 
 	return &c

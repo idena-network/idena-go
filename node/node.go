@@ -58,7 +58,9 @@ func StartDefaultNode(path string) string {
 		false,
 		config.DefaultRpcHost,
 		config.DefaultRpcPort,
-		config.DefaultBootnode)
+		config.DefaultBootnode,
+		config.DefaultIpfsBootstrap,
+		config.DefaultIpfsPort)
 
 	n, err := NewNode(c)
 
@@ -84,6 +86,11 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	ipfsProxy, err := ipfs.NewIpfsProxy(config.IpfsConf)
+	if err != nil {
+		return nil, err
+	}
+
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 
 	appState := appstate.NewAppState(db)
@@ -95,7 +102,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool)
 	flipStore := flip.NewStore(db)
-	ipfsProxy := ipfs.NewIpfsProxy()
+
 	return &Node{
 		config:          config,
 		blockchain:      chain,
