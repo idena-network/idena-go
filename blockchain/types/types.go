@@ -317,7 +317,7 @@ func (b Body) Bytes() []byte {
 	return enc
 }
 
-func (b Body) FromBytes(data []byte) {
+func (b *Body) FromBytes(data []byte) {
 	if len(data) != 0 {
 		rlp.DecodeBytes(data, b)
 	}
