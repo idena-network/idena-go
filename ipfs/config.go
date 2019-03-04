@@ -53,8 +53,6 @@ func GetDefaultIpfsConfig(datadir string, ipfsPort int, bootstrap string) *IpfsC
 }
 
 func (c *IpfsConfig) Initialize() error {
-	c.cfg.SetBootstrapPeers(c.bootnodes)
-
 	if !fsrepo.IsInitialized(c.datadir) {
 
 		if err := fsrepo.Init(c.datadir, c.cfg); err != nil {
@@ -62,6 +60,9 @@ func (c *IpfsConfig) Initialize() error {
 		}
 
 		return writeSwarmKey(c.datadir)
+	} else {
+		c.cfg, _ = fsrepo.ConfigAt(c.datadir)
+		c.cfg.SetBootstrapPeers(c.bootnodes)
 	}
 	return nil
 }

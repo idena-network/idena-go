@@ -1,8 +1,10 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"fmt"
+	cid2 "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
@@ -18,6 +20,7 @@ import (
 	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
 	"idena-go/database"
+	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
 	"math/big"
@@ -41,8 +44,8 @@ var (
 type Blockchain struct {
 	repo *database.Repo
 
-	Head            *types.Block
-	genesis         *types.Block
+	Head            *types.Header
+	genesis         *types.Header
 	config          *config.Config
 	vrfSigner       vrf.PrivateKey
 	pubKey          *ecdsa.PublicKey
@@ -51,6 +54,7 @@ type Blockchain struct {
 	txpool          *mempool.TxPool
 	appState        *appstate.AppState
 	secretKey       *ecdsa.PrivateKey
+	ipfs            ipfs.Proxy
 }
 
 func init() {
@@ -63,22 +67,20 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState) *Blockchain {
+func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy) *Blockchain {
 	return &Blockchain{
 		repo:     database.NewRepo(db),
 		config:   config,
 		log:      log.New(),
 		txpool:   txpool,
 		appState: appState,
+		ipfs:     ipfs,
 	}
 }
 
-func (chain *Blockchain) GetHead() *types.Block {
+func (chain *Blockchain) GetHead() *types.Header {
 	head := chain.repo.ReadHead()
-	if head == nil {
-		return nil
-	}
-	return chain.repo.ReadBlock(head.Hash())
+	return head
 }
 
 func (chain *Blockchain) Network() types.Network {
@@ -98,7 +100,7 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	head := chain.GetHead()
 	if head != nil {
 		chain.SetCurrentHead(head)
-		if chain.genesis = chain.GetBlockByHeight(1); chain.genesis == nil {
+		if chain.genesis = chain.GetBlockHeaderByHeight(1); chain.genesis == nil {
 			return errors.New("genesis block is not found")
 		}
 	} else {
@@ -108,8 +110,8 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
-func (chain *Blockchain) SetCurrentHead(block *types.Block) {
-	chain.Head = block
+func (chain *Blockchain) SetCurrentHead(head *types.Header) {
+	chain.Head = head
 }
 
 func (chain *Blockchain) SetHead(height uint64) {
@@ -117,7 +119,7 @@ func (chain *Blockchain) SetHead(height uint64) {
 	chain.SetCurrentHead(chain.GetHead())
 }
 
-func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
+func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
 
 	for addr, alloc := range chain.config.GenesisConf.Alloc {
 		if alloc.Balance != nil {
@@ -144,22 +146,16 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) *types.Block {
 			Height:       1,
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
+			BlockSeed:    seed,
 		},
 	}, Body: &types.Body{
-		BlockSeed: seed,
 	}}
 
-	chain.insertBlock(block)
-	chain.genesis = block
-	return block
-}
-
-func (chain *Blockchain) GetBlockByHeight(height uint64) *types.Block {
-	hash := chain.repo.ReadCanonicalHash(height)
-	if hash == (common.Hash{}) {
-		return nil
+	if err := chain.insertBlock(block); err != nil {
+		return nil, err
 	}
-	return chain.repo.ReadBlock(hash)
+	chain.genesis = block.Header
+	return block, nil
 }
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
@@ -173,10 +169,9 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 			},
 		},
 		Body: &types.Body{
-			Transactions: []*types.Transaction{},
 		},
 	}
-	block.Body.BlockSeed = types.Seed(crypto.Keccak256Hash(chain.GetSeedData(block)))
+	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(chain.GetSeedData(block)))
 	return block
 }
 
@@ -189,7 +184,9 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		if err := chain.processBlock(block); err != nil {
 			return err
 		}
-		chain.insertBlock(chain.GenerateEmptyBlock())
+		if err := chain.insertBlock(chain.GenerateEmptyBlock()); err != nil {
+			return err
+		}
 	} else {
 		if err := chain.ValidateProposedBlock(block); err != nil {
 			return err
@@ -197,7 +194,9 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		if err := chain.processBlock(block); err != nil {
 			return err
 		}
-		chain.insertBlock(block)
+		if err := chain.insertBlock(block); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -429,7 +428,7 @@ func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
 	head := chain.Head
 	result := head.Seed().Bytes()
 	result = append(result, common.ToBytes(proposalBlock.Height())...)
-	result = append(result, proposalBlock.Hash().Bytes()...)
+	result = append(result, proposalBlock.ProposeHash().Bytes()...)
 	return result
 }
 
@@ -450,6 +449,11 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	checkState := chain.appState.ForCheck(chain.Head.Height())
 
 	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
+	body := &types.Body{
+		Transactions: filteredTxs,
+	}
+	var cid cid2.Cid
+	cid, _ = chain.ipfs.Cid(body.Bytes())
 
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
@@ -458,15 +462,14 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
+		IpfsHash:       cid.Bytes(),
 	}
 
 	block := &types.Block{
 		Header: &types.Header{
 			ProposedHeader: header,
 		},
-		Body: &types.Body{
-			Transactions: filteredTxs,
-		},
+		Body: body,
 	}
 
 	header.Flags = chain.calculateFlags(block)
@@ -478,8 +481,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	block.Header.ProposedHeader.Root = checkState.State.Root()
 	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
-
-	block.Body.BlockSeed, block.Body.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
+	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
 
 	return block
 }
@@ -517,11 +519,19 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 	return result, totalFee
 }
 
-func (chain *Blockchain) insertBlock(block *types.Block) {
-	chain.repo.WriteBlock(block)
+func (chain *Blockchain) insertBlock(block *types.Block) error {
+	chain.repo.WriteBlockHeader(block)
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
-	chain.SetCurrentHead(block)
+	cid, err := chain.ipfs.Add(block.Body.Bytes())
+	if !block.IsEmpty() && bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) !=0 {
+		return errors.New("bad cid")
+
+	}
+	if err == nil {
+		chain.SetCurrentHead(block.Header)
+	}
+	return err
 }
 
 func (chain *Blockchain) getProposerData() []byte {
@@ -560,7 +570,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return err
 	}
 
-	hash, err := verifier.ProofToHash(seedData, block.Body.SeedProof)
+	hash, err := verifier.ProofToHash(seedData, block.Header.ProposedHeader.SeedProof)
 	if err != nil {
 		return err
 	}
@@ -646,7 +656,30 @@ func (chain *Blockchain) WriteFinalConsensus(hash common.Hash, cert *types.Block
 	chain.repo.WriteCert(hash, cert)
 }
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
-	return chain.repo.ReadBlock(hash)
+	header := chain.repo.ReadBlockHeader(hash)
+	if header.EmptyBlockHeader != nil {
+		return &types.Block{
+			Header: header,
+		}
+	}
+	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
+		return nil
+	} else {
+		body := &types.Body{}
+		body.FromBytes(bodyBytes)
+		return &types.Block{
+			Header: header,
+			Body:   body,
+		}
+	}
+}
+
+func (chain *Blockchain) GetBlockHeaderByHeight(height uint64) *types.Header {
+	hash := chain.repo.ReadCanonicalHash(height)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	return chain.repo.ReadBlockHeader(hash)
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {

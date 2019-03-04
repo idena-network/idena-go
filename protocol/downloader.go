@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
+	"idena-go/blockchain/types"
 	"idena-go/common/math"
+	"idena-go/ipfs"
 	"idena-go/log"
 	"time"
 )
@@ -18,13 +20,15 @@ type Downloader struct {
 	log     log.Logger
 	chain   *blockchain.Blockchain
 	batches chan *batch
+	ipfs    ipfs.Proxy
 }
 
-func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain) *Downloader {
+func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy) *Downloader {
 	return &Downloader{
 		pm:    pm,
 		chain: chain,
 		log:   log.New("component", "downloader"),
+		ipfs:  ipfs,
 	}
 }
 
@@ -145,11 +149,16 @@ func (d *Downloader) processBatch(batch *batch) error {
 		}
 
 		select {
-		case block := <-batch.blocks:
-			if err := d.chain.AddBlock(block); err != nil {
-				d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
-				// TODO: ban bad peer
+		case header := <-batch.headers:
+			if block, err := d.GetBlock(header); err != nil {
+				d.log.Error("fail to retrieve block", "err", err)
 				return reload()
+			} else {
+				if err := d.chain.AddBlock(block); err != nil {
+					d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
+					// TODO: ban bad peer
+					return reload()
+				}
 			}
 		case <-timeout:
 			d.log.Warn("process batch - timeout was reached")
@@ -158,4 +167,24 @@ func (d *Downloader) processBatch(batch *batch) error {
 	}
 	d.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil
+}
+
+func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
+	if header.EmptyBlockHeader != nil {
+		return &types.Block{
+			Header: header,
+			Body:   &types.Body{},
+		}, nil
+	}
+	if bodyBytes, err := d.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
+		return nil, err
+	} else {
+		d.log.Info("Retrieve block body from ipfs", "hash", header.Hash().Hex())
+		body := &types.Body{}
+		body.FromBytes(bodyBytes)
+		return &types.Block{
+			Header: header,
+			Body:   body,
+		}, nil
+	}
 }

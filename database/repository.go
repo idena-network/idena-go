@@ -32,10 +32,6 @@ func headerKey(hash common.Hash) []byte {
 	return append(headerPrefix, hash.Bytes()...)
 }
 
-func bodyKey(hash common.Hash) []byte {
-	return append(bodyPrefix, hash.Bytes()...)
-}
-
 func certKey(hash common.Hash) []byte {
 	return append(certPrefix, hash.Bytes()...)
 }
@@ -71,30 +67,30 @@ func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 	return header
 }
 
-func (r *Repo) ReadBlockBody(hash common.Hash) *types.Body {
-	data := r.db.Get(bodyKey(hash))
-	if data == nil {
-		return nil
-	}
-	body := new(types.Body)
-	if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
-		log.Error("Invalid block body RLP", "hash", hash, "err", err)
-		return nil
-	}
-	return body
-}
+//func (r *Repo) ReadBlockBody(hash common.Hash) *types.Body {
+//	data := r.db.Get(bodyKey(hash))
+//	if data == nil {
+//		return nil
+//	}
+//	body := new(types.Body)
+//	if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
+//		log.Error("Invalid block body RLP", "hash", hash, "err", err)
+//		return nil
+//	}
+//	return body
+//}
 
-func (r *Repo) ReadBlock(hash common.Hash) *types.Block {
-	header := r.ReadBlockHeader(hash)
-	if header == nil {
-		return nil
-	}
-
-	return &types.Block{
-		Header: header,
-		Body:   r.ReadBlockBody(hash),
-	}
-}
+//func (r *Repo) ReadBlock(hash common.Hash) *types.Block {
+//	header := r.ReadBlockHeader(hash)
+//	if header == nil {
+//		return nil
+//	}
+//
+//	return &types.Block{
+//		Header: header,
+//		//Body:   r.ReadBlockBody(hash),
+//	}
+//}
 
 func (r *Repo) ReadHead() *types.Header {
 	data := r.db.Get(headBlockKey)
@@ -118,22 +114,13 @@ func (r *Repo) WriteHead(header *types.Header) {
 	r.db.Set(headBlockKey, data)
 }
 
-func (r *Repo) WriteBlock(block *types.Block) {
+func (r *Repo) WriteBlockHeader(block *types.Block) {
 	data, err := rlp.EncodeToBytes(block.Header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
 
 	r.db.Set(headerKey(block.Hash()), data)
-	// body doesn't exist for empty block
-	if block.Body == nil {
-		return
-	}
-	data, err = rlp.EncodeToBytes(block.Body)
-	if err != nil {
-		log.Crit("Failed to RLP encode header", "err", err)
-	}
-	r.db.Set(bodyKey(block.Hash()), data)
 }
 
 func (r *Repo) WriteCert(hash common.Hash, cert *types.BlockCert) {

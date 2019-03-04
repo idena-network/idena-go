@@ -211,7 +211,7 @@ func (p *peer) SendProofAsync(proof *proposeProof) {
 func (p *peer) ProposeBlockAsync(block *types.Block) {
 	select {
 	case p.queuedProposals <- block:
-		p.markBlock(block)
+		p.markHeader(block.Header)
 	case <-p.finished:
 	}
 
@@ -235,7 +235,7 @@ func (p *peer) SendVoteAsync(vote *types.Vote) {
 	}
 }
 
-func (p *peer) markBlock(block *types.Block) {
+func (p *peer) markHeader(block *types.Header) {
 	if p.knownBlocks.Cardinality() > MaxKnownBlocks {
 		p.knownBlocks.Pop()
 	}

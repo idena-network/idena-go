@@ -34,18 +34,24 @@ type EmptyBlockHeader struct {
 	Height       uint64
 	Root         common.Hash
 	IdentityRoot common.Hash
+	BlockSeed    Seed
 }
 
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
 	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
 	Flags          BlockFlag
+	IpfsHash       []byte // ipfs hash of block body
+
+	BlockSeed Seed
+
+	SeedProof []byte
 }
 
 type Header struct {
@@ -68,14 +74,11 @@ type Block struct {
 	Body *Body
 
 	// caches
-	hash atomic.Value
+	hash        atomic.Value
+	proposeHash atomic.Value
 }
 
 type Body struct {
-	BlockSeed Seed
-
-	SeedProof []byte
-
 	Transactions []*Transaction
 }
 
@@ -134,13 +137,46 @@ func (b *Block) Hash() common.Hash {
 	return v
 }
 
+func (b *Block) ProposeHash() common.Hash {
+	if hash := b.proposeHash.Load(); hash != nil {
+		return hash.(common.Hash)
+	}
+	var hash common.Hash
+	if !b.IsEmpty() {
+		h := b.Header.ProposedHeader
+		hash = rlpHash([]interface{}{
+			h.IpfsHash,
+			h.Root,
+			h.IdentityRoot,
+			h.Height,
+			h.Flags,
+			h.Coinbase,
+			h.ParentHash,
+			h.TxHash,
+			h.ProposerPubKey,
+			h.Time,
+		})
+	} else {
+		h := b.Header.EmptyBlockHeader
+		hash = rlpHash([]interface{}{
+			h.Root,
+			h.IdentityRoot,
+			h.Height,
+			h.ParentHash,
+		})
+	}
+	b.proposeHash.Store(hash)
+	return hash
+}
+
 func (b *Block) IsEmpty() bool {
 	return b.Header.EmptyBlockHeader != nil
 }
 
 func (b *Block) Seed() Seed {
-	return b.Body.BlockSeed
+	return b.Header.Seed()
 }
+
 func (b *Block) Height() uint64 {
 	if b.IsEmpty() {
 		return b.Header.EmptyBlockHeader.Height
@@ -180,6 +216,14 @@ func (h *Header) ParentHash() common.Hash {
 		return h.ProposedHeader.ParentHash
 	}
 	return h.EmptyBlockHeader.ParentHash
+}
+
+func (h *Header) Seed() Seed {
+	if h.EmptyBlockHeader != nil {
+		return h.EmptyBlockHeader.BlockSeed
+	} else {
+		return h.ProposedHeader.BlockSeed
+	}
 }
 
 func (h *ProposedHeader) Hash() common.Hash {
@@ -263,4 +307,25 @@ func (p NewEpochPayload) Bytes() []byte {
 
 func (f BlockFlag) HasFlag(flag BlockFlag) bool {
 	return f&flag != 0
+}
+
+func (b Body) Bytes() []byte {
+	if len(b.Transactions) == 0 {
+		return []byte{}
+	}
+	enc, _ := rlp.EncodeToBytes(b)
+	return enc
+}
+
+func (b Body) FromBytes(data []byte) {
+	if len(data) != 0 {
+		rlp.DecodeBytes(data, b)
+	}
+	if b.Transactions == nil {
+		b.Transactions = Transactions{}
+	}
+}
+
+func (b Body) IsEmpty() bool {
+	return len(b.Transactions) == 0
 }

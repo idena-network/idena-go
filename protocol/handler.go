@@ -110,7 +110,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	switch msg.Code {
 	case GetHead:
 		header := pm.blockchain.GetHead()
-		p.SendHeader(header.Header, Head)
+		p.SendHeader(header, Head)
 	case Head:
 		var response types.Header
 		if err := msg.Decode(&response); err != nil {
@@ -128,8 +128,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Trace("Income blocks range", "batchId", response.BatchId)
 		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
 			if batch, ok := peerBatches[response.BatchId]; ok {
-				for _, b := range response.Blocks {
-					batch.blocks <- b
+				for _, b := range response.Headers {
+					batch.headers <- b
 				}
 				delete(peerBatches, response.BatchId)
 			}
@@ -151,7 +151,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markBlock(&block)
+		p.markHeader(block.Header)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
 		if pm.proposals.AddProposedBlock(&block) {
@@ -193,9 +193,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 }
 
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
-	var result []*types.Block
+	var result []*types.Header
 	for i := from; i <= to; i++ {
-		block := pm.blockchain.GetBlockByHeight(i)
+		block := pm.blockchain.GetBlockHeaderByHeight(i)
 		if block != nil {
 			result = append(result, block)
 			p.Log().Trace("Publish block", "height", block.Height())
@@ -206,7 +206,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 	}
 	p.SendBlockRangeAsync(&blockRange{
 		BatchId: batchId,
-		Blocks:  result,
+		Headers: result,
 	})
 }
 
@@ -285,10 +285,10 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 	}
 
 	b := &batch{
-		from:   from,
-		to:     to,
-		p:      peer,
-		blocks: make(chan *types.Block, to-from+1),
+		from:    from,
+		to:      to,
+		p:       peer,
+		headers: make(chan *types.Header, to-from+1),
 	}
 	peerBatches, ok := pm.incomeBatches[peerId]
 

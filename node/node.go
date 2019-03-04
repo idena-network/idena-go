@@ -97,10 +97,10 @@ func NewNode(config *config.Config) (*Node, error) {
 	votes := pengings.NewVotes(appState)
 
 	txpool := mempool.NewTxPool(appState)
-	chain := blockchain.NewBlockchain(config, db, txpool, appState)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy)
 	proposals := pengings.NewProposals(chain)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy)
 	flipStore := flip.NewStore(db)
 
 	return &Node{

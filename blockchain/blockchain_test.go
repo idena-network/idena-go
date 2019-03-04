@@ -126,3 +126,4 @@ func Test_ApplyActivateTx(t *testing.T) {
 	require.Equal(t, state.Candidate, appState.State.GetIdentityState(receiver))
 	require.Equal(t, -1, big.NewInt(0).Cmp(appState.State.GetBalance(receiver)))
 }
+
