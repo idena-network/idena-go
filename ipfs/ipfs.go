@@ -9,6 +9,7 @@ import (
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-ipfs-files"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipsn/go-ipfs/plugin/loader"
 	"idena-go/log"
 	"path/filepath"
@@ -134,8 +135,16 @@ func (p ipfsProxy) Pin(key []byte) error {
 }
 
 func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
-	format := cid.V0Builder{}
-	return format.Sum(data)
+
+	if len(data) == 0 {
+		return EmptyCid, nil
+	}
+
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	file := files.NewBytesFile(data)
+	path, _ := api.Unixfs().Add(context.Background(), file, options.Unixfs.HashOnly(true))
+	return path.Cid(), nil
 }
 
 func loadPlugins(ipfsPath string) (*loader.PluginLoader, error) {

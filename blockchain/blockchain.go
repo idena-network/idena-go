@@ -147,6 +147,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
 			BlockSeed:    seed,
+			IpfsHash:     ipfs.EmptyCid.Bytes(),
 		},
 	}, Body: &types.Body{
 	}}
@@ -524,7 +525,7 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
 	cid, err := chain.ipfs.Add(block.Body.Bytes())
-	if !block.IsEmpty() && bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) !=0 {
+	if !block.IsEmpty() && bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
 		return errors.New("bad cid")
 
 	}
