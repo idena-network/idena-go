@@ -168,17 +168,23 @@ func loadPlugins(ipfsPath string) (*loader.PluginLoader, error) {
 	return plugins, nil
 }
 
-type InMemoryIpfs struct {
+func NewMemoryIpfsProxy() Proxy {
+	return &memoryIpfs{
+		values: make(map[cid.Cid][]byte),
+	}
+}
+
+type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
-func (i InMemoryIpfs) Add(data []byte) (cid.Cid, error) {
+func (i memoryIpfs) Add(data []byte) (cid.Cid, error) {
 	cid, _ := i.Cid(data)
 	i.values[cid] = data
 	return cid, nil
 }
 
-func (i InMemoryIpfs) Get(key []byte) ([]byte, error) {
+func (i memoryIpfs) Get(key []byte) ([]byte, error) {
 	c, err := cid.Parse(key)
 	if err != nil {
 		return nil, err
@@ -189,11 +195,11 @@ func (i InMemoryIpfs) Get(key []byte) ([]byte, error) {
 	return nil, errors.New("not found")
 }
 
-func (InMemoryIpfs) Pin(key []byte) error {
+func (memoryIpfs) Pin(key []byte) error {
 	return nil
 }
 
-func (InMemoryIpfs) Cid(data []byte) (cid.Cid, error) {
+func (memoryIpfs) Cid(data []byte) (cid.Cid, error) {
 	format := cid.V0Builder{}
 	return format.Sum(data)
 }

@@ -59,7 +59,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	txPool := mempool.NewTxPool(appState)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.InMemoryIpfs{})
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy())
 
 	chain.InitializeChain(key)
 	appState.Initialize(chain.Head.Height())
