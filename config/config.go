@@ -23,7 +23,7 @@ var (
 	DefaultPort          = 40404
 	DefaultRpcHost       = "localhost"
 	DefaultRpcPort       = 9009
-	DefaultIpfsBootstrap = ""
+	DefaultIpfsBootstrap = "/ip4/127.0.0.1/tcp/4002/ipfs/QmcGxQehQ8YG65FNghjEhjPTc4p6MbYT5REJJ48rC4amoC"
 	DefaultIpfsPort      = 4002
 )
 
