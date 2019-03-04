@@ -61,8 +61,15 @@ func (c *IpfsConfig) Initialize() error {
 
 		return writeSwarmKey(c.datadir)
 	} else {
-		c.cfg, _ = fsrepo.ConfigAt(c.datadir)
-		c.cfg.SetBootstrapPeers(c.bootnodes)
+		current, _ := fsrepo.ConfigAt(c.datadir)
+
+		//if port was changed
+		current.Addresses.Swarm = c.cfg.Addresses.Swarm
+
+		// if bootnodes were changed
+		current.SetBootstrapPeers(c.bootnodes)
+
+		c.cfg = current
 	}
 	return nil
 }
