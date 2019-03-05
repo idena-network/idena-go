@@ -58,7 +58,7 @@ type stateGlobal struct {
 type Global struct {
 	Epoch          uint16
 	NextEpochBlock uint64
-	Flips          []common.Hash
+	Flips          [][]byte
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -313,13 +313,13 @@ func (s *stateGlobal) IncEpoch() {
 	s.touch()
 }
 
-func (s *stateGlobal) AddFlip(flip common.Hash) {
-	s.data.Flips = append(s.data.Flips, flip)
+func (s *stateGlobal) AddFlipCid(flipCid []byte) {
+	s.data.Flips = append(s.data.Flips, flipCid)
 	s.touch()
 }
 
-func (s *stateGlobal) ClearFlips() {
-	s.data.Flips = []common.Hash{}
+func (s *stateGlobal) ClearFlipCids() {
+	s.data.Flips = [][]byte{}
 	s.touch()
 }
 

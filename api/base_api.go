@@ -5,6 +5,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/consensus"
+	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
 	"idena-go/keystore"
@@ -21,11 +22,15 @@ func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.K
 	return &BaseApi{engine, txpool, ks}
 }
 
+func (api *BaseApi) getAppState() *appstate.AppState {
+	return api.engine.GetAppState()
+}
+
 func (api *BaseApi) getCurrentCoinbase() common.Address {
 	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
 }
 
-func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
+func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) *types.Transaction {
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
@@ -45,17 +50,34 @@ func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.
 		tx.AccountNonce = api.engine.GetAppState().NonceCache.GetNonce(from) + 1
 	}
 
-	signedTx, err := api.signTransaction(from, &tx, key)
+	return &tx
+}
+
+func (api *BaseApi) getSignedTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (*types.Transaction, error) {
+	tx := api.getTx(from, to, txType, amount, nonce, epoch, payload, key)
+
+	return api.signTransaction(from, tx, key)
+}
+
+func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
+
+	tx := api.getTx(from, to, txType, amount, nonce, epoch, payload, key)
+
+	signedTx, err := api.signTransaction(from, tx, key)
 
 	if err != nil {
 		return common.Hash{}, err
 	}
 
-	if err := api.txpool.Add(signedTx); err != nil {
+	return api.sendInternalTx(signedTx)
+}
+
+func (api *BaseApi) sendInternalTx(tx *types.Transaction) (common.Hash, error) {
+	if err := api.txpool.Add(tx); err != nil {
 		return common.Hash{}, err
 	}
 
-	return signedTx.Hash(), nil
+	return tx.Hash(), nil
 }
 
 func (api *BaseApi) signTransaction(from common.Address, tx *types.Transaction, key *ecdsa.PrivateKey) (*types.Transaction, error) {

@@ -40,7 +40,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
@@ -116,9 +116,8 @@ type Vote struct {
 }
 
 type Flip struct {
-	Mined bool
-	Epoch uint16
-	Data  []byte
+	Tx   *Transaction
+	Data []byte
 }
 
 func rlpHash(x interface{}) (h common.Hash) {

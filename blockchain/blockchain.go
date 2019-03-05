@@ -149,8 +149,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			BlockSeed:    seed,
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
 		},
-	}, Body: &types.Body{
-	}}
+	}, Body: &types.Body{}}
 
 	if err := chain.insertBlock(block); err != nil {
 		return nil, err
@@ -169,8 +168,7 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 				Root:       chain.appState.State.Root(),
 			},
 		},
-		Body: &types.Body{
-		},
+		Body: &types.Body{},
 	}
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(chain.GetSeedData(block)))
 	return block
@@ -334,8 +332,6 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 			return nil, err
 		}
 
-		chain.applyTxOnStore(appState, tx)
-
 		totalFee.Add(totalFee, fee)
 	}
 
@@ -404,7 +400,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(sender)
 		break
 	case types.SubmitFlipTx:
-		stateDB.AddFlip(common.BytesToHash(tx.Payload))
+		stateDB.AddFlip(tx.Payload)
 		stateDB.SubBalance(sender, totalCost)
 	}
 
@@ -720,11 +716,4 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 
 func (chain *Blockchain) Genesis() common.Hash {
 	return chain.genesis.Hash()
-}
-
-func (chain *Blockchain) applyTxOnStore(appState *appstate.AppState, tx *types.Transaction) {
-	switch tx.Type {
-	case types.SubmitFlipTx:
-		appState.FlipStore.AddMinedFlip(common.BytesToHash(tx.Payload), appState.State.Epoch())
-	}
 }

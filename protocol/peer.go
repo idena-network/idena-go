@@ -12,6 +12,7 @@ import (
 
 const (
 	MaxKnownBlocks = 300
+	MaxKnownFlips  = 100
 	MaxKwownTxs    = 2000
 	MaxKnownProofs = 1000
 	MaxKnownVotes  = 100000
@@ -28,11 +29,13 @@ type peer struct {
 	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
 	knownVotes        mapset.Set // Set of hashes of votes known to be known by this peer
 	knownProofs       mapset.Set // Set of hashes of proposer proofs known to be known by this peer
+	knownFlips        mapset.Set // Set of hashes of flip transactions known by this peer
 	queuedTxs         chan *types.Transaction
 	queuedProofs      chan *proposeProof // Queue of proposer proofs to broadcast to the peer
 	queuedBlockRanges chan *blockRange   // Queue of blocks ranges to broadcast to the peer
 	queuedProposals   chan *types.Block
 	queuedVotes       chan *types.Vote
+	queuedFlips       chan *types.Flip
 	queuedRequests    chan *request
 	term              chan struct{}
 	finished          chan struct{}
@@ -51,11 +54,13 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		knownBlocks:       mapset.NewSet(),
 		knownTxs:          mapset.NewSet(),
 		knownVotes:        mapset.NewSet(),
+		knownFlips:        mapset.NewSet(),
 		queuedTxs:         make(chan *types.Transaction, 100),
 		queuedBlockRanges: make(chan *blockRange, 10),
 		queuedVotes:       make(chan *types.Vote, 100),
 		queuedProposals:   make(chan *types.Block, 10),
 		queuedRequests:    make(chan *request, 20),
+		queuedFlips:       make(chan *types.Flip, 10),
 		knownProofs:       mapset.NewSet(),
 		queuedProofs:      make(chan *proposeProof, 10),
 		term:              make(chan struct{}),
@@ -135,6 +140,11 @@ func (p *peer) broadcast() {
 			}
 		case tx := <-p.queuedTxs:
 			if err := p2p.Send(p.rw, NewTx, tx); err != nil {
+				p.Log().Error(err.Error())
+				return
+			}
+		case flip := <-p.queuedFlips:
+			if err := p2p.Send(p.rw, NewFlip, flip); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}
@@ -235,6 +245,15 @@ func (p *peer) SendVoteAsync(vote *types.Vote) {
 	}
 }
 
+func (p *peer) SendFlipAsync(flip *types.Flip) {
+
+	select {
+	case p.queuedFlips <- flip:
+		p.markFlip(flip)
+	case <-p.finished:
+	}
+}
+
 func (p *peer) markHeader(block *types.Header) {
 	if p.knownBlocks.Cardinality() > MaxKnownBlocks {
 		p.knownBlocks.Pop()
@@ -259,8 +278,16 @@ func (p *peer) markTx(tx *types.Transaction) {
 	if p.knownTxs.Cardinality() > MaxKwownTxs {
 		p.knownTxs.Pop()
 	}
-	p.knownTxs.Add(tx)
+	p.knownTxs.Add(tx.Hash())
 }
+
+func (p *peer) markFlip(flip *types.Flip) {
+	if p.knownFlips.Cardinality() > MaxKnownFlips {
+		p.knownFlips.Pop()
+	}
+	p.knownFlips.Add(flip.Tx.Hash())
+}
+
 func (p *peer) setHeight(newHeight uint64) {
 	if newHeight > p.knownHeight {
 		p.knownHeight = newHeight

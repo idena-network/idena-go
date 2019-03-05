@@ -44,7 +44,7 @@ type Node struct {
 	log             log.Logger
 	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
-	flipStore       flip.Store
+	fp              *flip.Flipper
 	ipfsProxy       ipfs.Proxy
 }
 
@@ -99,9 +99,9 @@ func NewNode(config *config.Config) (*Node, error) {
 	txpool := mempool.NewTxPool(appState)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy)
 	proposals := pengings.NewProposals(chain)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool)
+	flipStore := flip.NewStore(db, ipfsProxy)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy)
-	flipStore := flip.NewStore(db)
 
 	return &Node{
 		config:          config,
@@ -113,7 +113,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		txpool:          txpool,
 		log:             log.New(),
 		keyStore:        keyStore,
-		flipStore:       flipStore,
+		fp:              flipStore,
 		ipfsProxy:       ipfsProxy,
 	}, nil
 }
@@ -238,7 +238,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "flip",
 			Version:   "1.0",
-			Service:   api.NewFlipApi(baseApi, node.flipStore),
+			Service:   api.NewFlipApi(baseApi, node.fp, node.pm, node.ipfsProxy),
 			Public:    true,
 		},
 	}

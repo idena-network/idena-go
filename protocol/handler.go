@@ -6,6 +6,7 @@ import (
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/core/flip"
 	"idena-go/core/mempool"
 	"idena-go/p2p"
 	"idena-go/pengings"
@@ -24,9 +25,11 @@ const (
 	GetBlockByHash = 0x08
 	GetBlocksRange = 0x09
 	BlocksRange    = 0x0A
+	NewFlip        = 0x0B
 )
 const (
 	DecodeErr = 1
+	FlipErr   = 2
 )
 
 var (
@@ -44,6 +47,7 @@ type ProtocolManager struct {
 	proposals     *pengings.Proposals
 	votes         *pengings.Votes
 	txpool        *mempool.TxPool
+	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
 	incomeBatches map[string]map[uint32]*batch
 }
@@ -80,7 +84,7 @@ type handshakeData struct {
 	GenesisBlock common.Hash
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper) *ProtocolManager {
 
 	txChan := make(chan *types.Transaction, 100)
 	txpool.Subscribe(txChan)
@@ -94,6 +98,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		votes:         votes,
 		txpool:        txpool,
 		txChan:        txChan,
+		flipper:       fp,
 	}
 }
 
@@ -188,6 +193,16 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		pm.provideBlocks(p, query.BatchId, query.From, query.To)
+	case NewFlip:
+		var flip types.Flip
+		if err := msg.Decode(&flip); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.markFlip(&flip)
+		if err := pm.flipper.AddNewFlip(flip); err != nil {
+			return errResp(FlipErr, "%v: %v", flip.Tx.Hash(), err)
+		}
+		pm.BroadcastFlip(&flip)
 	}
 	return nil
 }
@@ -341,6 +356,13 @@ func (pm *ProtocolManager) BroadcastTx(transaction *types.Transaction) {
 		peer.SendTxAsync(transaction)
 	}
 }
+
+func (pm *ProtocolManager) BroadcastFlip(flip *types.Flip) {
+	for _, peer := range pm.peers.PeersWithoutFlip(flip.Tx.Hash()) {
+		peer.SendFlipAsync(flip)
+	}
+}
+
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
 	for _, peer := range pm.peers.Peers() {
 		peer.RequestBlockByHash(hash)

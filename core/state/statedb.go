@@ -160,6 +160,11 @@ func (s *StateDB) NextEpochBlock() uint64 {
 	return stateObject.data.NextEpochBlock
 }
 
+func (s *StateDB) FlipCids() [][]byte {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.Flips
+}
+
 /*
  * SETTERS
  */
@@ -225,12 +230,12 @@ func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
 
-func (s *StateDB) AddFlip(flip common.Hash) {
-	s.GetOrNewGlobalObject().AddFlip(flip)
+func (s *StateDB) AddFlip(flipCid []byte) {
+	s.GetOrNewGlobalObject().AddFlipCid(flipCid)
 }
 
 func (s *StateDB) ClearFlips() {
-	s.GetOrNewGlobalObject().ClearFlips()
+	s.GetOrNewGlobalObject().ClearFlipCids()
 }
 
 //

@@ -160,63 +160,6 @@ func (r *Repo) SetHead(height uint64) {
 	}
 }
 
-func (r *Repo) ReadFlip(hash common.Hash) *types.Flip {
-	key := flipKey(hash)
-	data := r.db.Get(key)
-	if data == nil {
-		return nil
-	}
-	flip := new(types.Flip)
-	if err := rlp.Decode(bytes.NewReader(data), flip); err != nil {
-		log.Error("invalid flip", "err", err)
-		return nil
-	}
-	return flip
-}
-
-func (r *Repo) WriteFlip(hash common.Hash, flip *types.Flip) {
-	key := flipKey(hash)
-
-	existed := r.db.Get(key)
-	if existed != nil {
-		log.Crit("flip exists", "flip", hash)
-		return
-	}
-
-	newFlip, err := rlp.EncodeToBytes(flip)
-	if err != nil {
-		log.Crit("failed to RLP encode flip", "err", err)
-	}
-	r.db.Set(key, newFlip)
-}
-
-func (r *Repo) SetFlipMined(hash common.Hash, epoch uint16) {
-	key := flipKey(hash)
-	existed := r.db.Get(key)
-
-	if existed == nil {
-		r.WriteFlip(hash, &types.Flip{
-			Data:  nil,
-			Epoch: epoch,
-			Mined: true,
-		})
-		return
-	}
-
-	flip := new(types.Flip)
-	if err := rlp.Decode(bytes.NewReader(existed), flip); err != nil {
-		log.Error("invalid flip", "err", err)
-		return
-	}
-	flip.Mined = true
-
-	newFlip, err := rlp.EncodeToBytes(flip)
-	if err != nil {
-		log.Crit("failed to RLP encode flip", "err", err)
-	}
-	r.db.Set(key, newFlip)
-}
-
 func (r *Repo) ReadFlipKey(epoch uint16) []byte {
 	key := flipEncryptionKey(epoch)
 	return r.db.Get(key)
