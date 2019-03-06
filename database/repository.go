@@ -158,3 +158,17 @@ func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 	}
 	r.db.Set(txIndexKey(txHash), data)
 }
+
+func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
+	key := txIndexKey(hash)
+	data := r.db.Get(key)
+	if data == nil {
+		return nil
+	}
+	index := new(types.TransactionIndex)
+	if err := rlp.Decode(bytes.NewReader(data), index); err != nil {
+		log.Error("invalid transaction index RLP", "err", err)
+		return nil
+	}
+	return index
+}

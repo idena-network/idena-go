@@ -225,11 +225,36 @@ func (h *Header) Seed() Seed {
 	}
 }
 
-func (b *Header) IdentityRoot() common.Hash {
-	if b.EmptyBlockHeader != nil {
-		return b.EmptyBlockHeader.IdentityRoot
+func (h *Header) Root() common.Hash {
+	if h.EmptyBlockHeader != nil {
+		return h.EmptyBlockHeader.Root
+	} else {
+		return h.ProposedHeader.Root
 	}
-	return b.ProposedHeader.IdentityRoot
+}
+
+func (h *Header) IdentityRoot() common.Hash {
+	if h.EmptyBlockHeader != nil {
+		return h.EmptyBlockHeader.IdentityRoot
+	} else {
+		return h.ProposedHeader.IdentityRoot
+	}
+}
+
+func (h *Header) Time() *big.Int {
+	if h.EmptyBlockHeader != nil {
+		return nil
+	} else {
+		return h.ProposedHeader.Time
+	}
+}
+
+func (h *Header) IpfsHash() []byte {
+	if h.EmptyBlockHeader != nil {
+		return nil
+	} else {
+		return h.ProposedHeader.IpfsHash
+	}
 }
 
 func (h *ProposedHeader) Hash() common.Hash {

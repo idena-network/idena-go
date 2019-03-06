@@ -676,16 +676,24 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 			Header: header,
 		}
 	}
-	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
+	if bodyBytes, err := chain.ipfs.GetDirectory(header.ProposedHeader.IpfsHash); err != nil {
 		return nil
 	} else {
 		body := &types.Body{}
-		body.FromBytes(bodyBytes)
+		body.FromIpfs(bodyBytes)
 		return &types.Block{
 			Header: header,
 			Body:   body,
 		}
 	}
+}
+
+func (chain *Blockchain) GetBlockByHeight(height uint64) *types.Block {
+	hash := chain.repo.ReadCanonicalHash(height)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	return chain.GetBlock(hash)
 }
 
 func (chain *Blockchain) GetBlockHeaderByHeight(height uint64) *types.Header {
@@ -694,6 +702,25 @@ func (chain *Blockchain) GetBlockHeaderByHeight(height uint64) *types.Header {
 		return nil
 	}
 	return chain.repo.ReadBlockHeader(hash)
+}
+
+func (chain *Blockchain) GetTx(hash common.Hash) *types.Transaction {
+	idx := chain.repo.ReadTxIndex(hash)
+	if idx == nil {
+		return nil
+	}
+	data, err := chain.ipfs.GetFile(idx.Cid, fmt.Sprintf("%v_%x", idx.Idx, hash))
+
+	if err != nil {
+		return nil
+	}
+
+	decoded := new(types.Transaction)
+	if err := rlp.DecodeBytes(data, decoded); err != nil {
+		chain.log.Error("invalid transaction RLP", "err", err)
+		return nil
+	}
+	return decoded
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {

@@ -33,6 +33,7 @@ type Proxy interface {
 	AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid, error)
 	GetDirectory(key []byte) (map[string][]byte, error)
 	Get(key []byte) ([]byte, error)
+	GetFile(directoryKey []byte, filename string) ([]byte, error)
 	Pin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
 }
@@ -175,13 +176,29 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	if c == EmptyCid {
 		return []byte{}, nil
 	}
+	return p.get(iface.IpfsPath(c))
+}
+
+func (p ipfsProxy) GetFile(directoryKey []byte, filename string) ([]byte, error) {
+	c, err := cid.Cast(directoryKey)
+	if err != nil {
+		return nil, err
+	}
+	if c == EmptyCid {
+		return []byte{}, nil
+	}
+
+	return p.get(iface.Join(iface.IpfsPath(c), filename))
+}
+
+func (p ipfsProxy) get(path iface.Path) ([]byte, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	f, err := api.Unixfs().Get(ctx, iface.IpfsPath(c))
+	f, err := api.Unixfs().Get(ctx, path)
 
 	if err != nil {
-		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
+		p.log.Error("fail to read from ipfs", "cid", path.String(), "err", err)
 		return nil, err
 	}
 
@@ -193,7 +210,7 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.log.Info("read data from ipfs", "cid", c.String())
+	p.log.Info("read data from ipfs", "cid", path.String())
 	return buf.Bytes(), nil
 }
 
@@ -250,6 +267,15 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i memoryIpfs) GetFile(directoryKey []byte, filename string) ([]byte, error) {
+	dir, err := i.GetDirectory(directoryKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return dir[filename], nil
 }
 
 func (i memoryIpfs) GetDirectory(key []byte) (map[string][]byte, error) {

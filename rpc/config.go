@@ -49,7 +49,7 @@ func GetDefaultRPCConfig(rpcAddr string, rpcPort int) *Config {
 		HTTPCors:         []string{"*"},
 		HTTPHost:         rpcAddr,
 		HTTPPort:         rpcPort,
-		HTTPModules:      []string{"net", "dna", "account", "flip"},
+		HTTPModules:      []string{"net", "dna", "account", "flip", "bcn"},
 		HTTPVirtualHosts: []string{"localhost"},
 		HTTPTimeouts:     DefaultHTTPTimeouts,
 	}

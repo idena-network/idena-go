@@ -209,19 +209,6 @@ func (api *DnaApi) Identities() []Identity {
 	return identities
 }
 
-type Block struct {
-	Hash   common.Hash
-	Height uint64
-}
-
-func (api *DnaApi) LastBlock() Block {
-	lastBlock := api.bc.Head
-	return Block{
-		Hash:   lastBlock.Hash(),
-		Height: lastBlock.Height(),
-	}
-}
-
 type Epoch struct {
 	Epoch          uint16
 	NextEpochBlock uint64

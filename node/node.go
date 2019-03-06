@@ -242,5 +242,11 @@ func (node *Node) apis() []rpc.API {
 			Service:   api.NewFlipApi(baseApi, node.fp, node.pm, node.ipfsProxy),
 			Public:    true,
 		},
+		{
+			Namespace: "bcn",
+			Version:   "1.0",
+			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy),
+			Public:    true,
+		},
 	}
 }

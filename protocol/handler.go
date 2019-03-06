@@ -10,6 +10,7 @@ import (
 	"idena-go/core/mempool"
 	"idena-go/p2p"
 	"idena-go/pengings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -37,7 +38,7 @@ var (
 )
 
 type ProtocolManager struct {
-	blockchain *blockchain.Blockchain
+	bcn *blockchain.Blockchain
 
 	peers *peerSet
 
@@ -50,6 +51,7 @@ type ProtocolManager struct {
 	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
 	incomeBatches map[string]map[uint32]*batch
+	batchedLock   sync.Mutex
 }
 
 type getBlockBodyRequest struct {
@@ -89,7 +91,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 	txChan := make(chan *types.Transaction, 100)
 	txpool.Subscribe(txChan)
 	return &ProtocolManager{
-		blockchain:    chain,
+		bcn:           chain,
 		peers:         newPeerSet(),
 		heads:         make(chan *peerHead, 10),
 		incomeBlocks:  make(chan *types.Block, 1000),
@@ -114,7 +116,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	defer msg.Discard()
 	switch msg.Code {
 	case GetHead:
-		header := pm.blockchain.GetHead()
+		header := pm.bcn.GetHead()
 		p.SendHeader(header, Head)
 	case Head:
 		var response types.Header
@@ -136,7 +138,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 				for _, b := range response.Headers {
 					batch.headers <- b
 				}
+				pm.batchedLock.Lock()
 				delete(peerBatches, response.BatchId)
+				pm.batchedLock.Unlock()
 			}
 		}
 
@@ -183,7 +187,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(&query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		block := pm.blockchain.GetBlock(query.Hash)
+		block := pm.bcn.GetBlock(query.Hash)
 		if block != nil {
 			p.ProposeBlockAsync(block)
 		}
@@ -210,7 +214,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
 	var result []*types.Header
 	for i := from; i <= to; i++ {
-		block := pm.blockchain.GetBlockHeaderByHeight(i)
+		block := pm.bcn.GetBlockHeaderByHeight(i)
 		if block != nil {
 			result = append(result, block)
 			p.Log().Trace("Publish block", "height", block.Height())
@@ -227,7 +231,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 	peer := pm.makePeer(p, rw)
-	if err := peer.Handshake(pm.blockchain.Network(), pm.blockchain.Head.Height(), pm.blockchain.Genesis()); err != nil {
+	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis()); err != nil {
 		p.Log().Info("Idena handshake failed", "err", err)
 		return err
 	}
@@ -309,7 +313,9 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 
 	if !ok {
 		peerBatches = make(map[uint32]*batch)
+		pm.batchedLock.Lock()
 		pm.incomeBatches[peerId] = peerBatches
+		pm.batchedLock.Unlock()
 	}
 	peerBatches[batchId] = b
 	peer.RequestBlocksRange(batchId, from, to)
