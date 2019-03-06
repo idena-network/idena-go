@@ -25,6 +25,7 @@ var (
 	DefaultRpcPort       = 9009
 	DefaultIpfsBootstrap = "/ip4/127.0.0.1/tcp/4002/ipfs/QmcGxQehQ8YG65FNghjEhjPTc4p6MbYT5REJJ48rC4amoC"
 	DefaultIpfsPort      = 4002
+	DefaultNoDiscovery   = false
 )
 
 type Config struct {
@@ -92,7 +93,7 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int) *Config {
+func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int, noDiscovery bool) *Config {
 	var nodes []*enode.Node
 	if bootstrap != "" {
 		p, err := enode.ParseV4(bootstrap)
@@ -110,6 +111,7 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 			MaxPeers:       25,
 			NAT:            nat.Any(),
 			BootstrapNodes: nodes,
+			NoDiscovery:    noDiscovery,
 		},
 		Consensus:   GetDefaultConsensusConfig(automine),
 		RPC:         rpc.GetDefaultRPCConfig(rpcaddr, rpcport),

@@ -61,6 +61,10 @@ func main() {
 			Usage: "Ipfs port",
 			Value: config.DefaultIpfsPort,
 		},
+		cli.BoolFlag{
+			Name:  "nodiscovery",
+			Usage: "NoDiscovery can be used to disable the peer discovery mechanism.",
+		},
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -79,7 +83,8 @@ func main() {
 			context.Int("rpcport"),
 			context.String("bootnode"),
 			context.String("ipfsbootnode"),
-			context.Int("ipfsport"))
+			context.Int("ipfsport"),
+			context.Bool("nodiscovery"))
 
 		n, _ := node.NewNode(c)
 		n.Start()

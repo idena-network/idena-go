@@ -163,9 +163,10 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	block := &types.Block{
 		Header: &types.Header{
 			EmptyBlockHeader: &types.EmptyBlockHeader{
-				ParentHash: head.Hash(),
-				Height:     head.Height() + 1,
-				Root:       chain.appState.State.Root(),
+				ParentHash:   head.Hash(),
+				Height:       head.Height() + 1,
+				Root:         chain.appState.State.Root(),
+				IdentityRoot: chain.Head.IdentityRoot(),
 			},
 		},
 		Body: &types.Body{},
@@ -450,7 +451,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		Transactions: filteredTxs,
 	}
 	var cid cid2.Cid
-	cid, _ = chain.ipfs.Cid(body.Bytes())
+	cid, _ = chain.ipfs.AddDirectory(body.ToIpfs(), true)
 
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
@@ -520,10 +521,9 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteBlockHeader(block)
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
-	cid, err := chain.ipfs.Add(block.Body.Bytes())
+	cid, err := chain.ipfs.AddDirectory(block.Body.ToIpfs(), false)
 	if !block.IsEmpty() && bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
 		return errors.New("bad cid")
-
 	}
 	if err == nil {
 		chain.SetCurrentHead(block.Header)

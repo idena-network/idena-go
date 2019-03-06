@@ -1,11 +1,14 @@
 package types
 
 import (
+	"fmt"
 	"idena-go/common"
 	"idena-go/crypto"
 	"idena-go/crypto/sha3"
 	"idena-go/rlp"
 	"math/big"
+	"strconv"
+	"strings"
 	"sync/atomic"
 )
 
@@ -190,10 +193,7 @@ func (b *Block) Root() common.Hash {
 }
 
 func (b *Block) IdentityRoot() common.Hash {
-	if b.IsEmpty() {
-		return b.Header.EmptyBlockHeader.IdentityRoot
-	}
-	return b.Header.ProposedHeader.IdentityRoot
+	return b.Header.IdentityRoot()
 }
 
 func (h *Header) Hash() common.Hash {
@@ -223,6 +223,13 @@ func (h *Header) Seed() Seed {
 	} else {
 		return h.ProposedHeader.BlockSeed
 	}
+}
+
+func (b *Header) IdentityRoot() common.Hash {
+	if b.EmptyBlockHeader != nil {
+		return b.EmptyBlockHeader.IdentityRoot
+	}
+	return b.ProposedHeader.IdentityRoot
 }
 
 func (h *ProposedHeader) Hash() common.Hash {
@@ -327,4 +334,40 @@ func (b *Body) FromBytes(data []byte) {
 
 func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
+}
+
+func (b Body) ToIpfs() map[string][]byte {
+	txs := make(map[string][]byte)
+	for i, tx := range b.Transactions {
+		enc, _ := rlp.EncodeToBytes(tx)
+		txs[fmt.Sprintf("%v_%x", i, tx.Hash())] = enc
+	}
+	return txs
+}
+
+func (b *Body) FromIpfs(txs map[string][]byte) {
+	list := make([]*Transaction, len(txs))
+	for key, tx := range txs {
+		parts := strings.Split(key, "_")
+		if len(parts) != 2 {
+			continue
+		}
+		if idx, err := strconv.Atoi(parts[0]); err != nil {
+			continue
+		} else {
+			decoded := &Transaction{}
+			if err := rlp.DecodeBytes(tx, decoded); err != nil {
+				continue
+			}
+			list[idx] = decoded
+		}
+	}
+	result := make([]*Transaction, 0)
+	for _, tx := range list {
+		if tx != nil {
+			result = append(result, tx)
+		}
+	}
+
+	b.Transactions = Transactions(result)
 }

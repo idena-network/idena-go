@@ -12,6 +12,7 @@ import (
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipsn/go-ipfs/plugin/loader"
 	"idena-go/log"
+	"idena-go/rlp"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -29,6 +30,8 @@ func init() {
 
 type Proxy interface {
 	Add(data []byte) (cid.Cid, error)
+	AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid, error)
+	GetDirectory(key []byte) (map[string][]byte, error)
 	Get(key []byte) ([]byte, error)
 	Pin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
@@ -55,25 +58,28 @@ func NewIpfsProxy(config *IpfsConfig) (Proxy, error) {
 	}
 	node.Repo.SetConfig(config.cfg)
 	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().Pretty())
-	go watch(node)
+	go watchPeers(node)
 	return &ipfsProxy{
 		node: node,
 		log:  logger,
 	}, nil
 }
 
-func watch(node *core.IpfsNode) {
+func watchPeers(node *core.IpfsNode) {
 	api, _ := coreapi.NewCoreAPI(node)
 	logger := log.New("component", "ipfs watch")
+
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		info, err := api.Swarm().Peers(ctx)
 		cancel()
-		logger.Info("peers info", "err", err)
+		if err != nil {
+			logger.Info("peers info", "err", err)
+		}
 		for index, i := range info {
 			logger.Info(strconv.Itoa(index), "id", i.ID().String(), "addr", i.Address().String())
 		}
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 	}
 }
 
@@ -91,6 +97,74 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	}
 	p.log.Info("Add ipfs data", "cid", path.Cid().String())
 	return path.Cid(), nil
+}
+
+func (p ipfsProxy) AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid, error) {
+
+	if len(data) == 0 {
+		return EmptyCid, nil
+	}
+	nodes := make(map[string]files.Node)
+	for key, value := range data {
+		nodes[key] = files.NewBytesFile(value)
+	}
+	dir := files.NewMapDirectory(nodes)
+	api, _ := coreapi.NewCoreAPI(p.node)
+	path, err := api.Unixfs().Add(context.Background(), dir, options.Unixfs.HashOnly(hashOnly), options.Unixfs.Wrap(true))
+	if err != nil {
+		return cid.Cid{}, err
+	}
+	p.log.Info("Add ipfs data dir", "cid", path.Cid().String())
+	return path.Cid(), nil
+}
+
+func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
+	c, err := cid.Cast(key)
+	if err != nil {
+		return nil, err
+	}
+	if c == EmptyCid {
+		return make(map[string][]byte), nil
+	}
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel()
+
+	// download entire directory
+	_, err = api.Unixfs().Get(ctx, iface.IpfsPath(c))
+	if err != nil {
+		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
+		return nil, err
+	}
+
+	links, err := api.Unixfs().Ls(ctx, iface.IpfsPath(c))
+
+	if err != nil {
+		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
+		return nil, err
+	}
+	result := make(map[string][]byte)
+	for link := range links {
+		if link.Type != iface.TFile {
+			continue
+		}
+		f, err := api.Unixfs().Get(ctx, iface.IpfsPath(link.Link.Cid))
+		if err != nil {
+			p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
+			return nil, err
+		}
+		file := files.ToFile(f)
+
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(file)
+
+		if err != nil {
+			return nil, err
+		}
+		result[link.Link.Name] = buf.Bytes()
+	}
+	return result, nil
 }
 
 func (p ipfsProxy) Get(key []byte) ([]byte, error) {
@@ -176,6 +250,28 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i memoryIpfs) GetDirectory(key []byte) (map[string][]byte, error) {
+	c, err := cid.Parse(key)
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := i.values[c]; ok {
+		m := make(map[string][]byte)
+		rlp.DecodeBytes(v, &m)
+		return m, nil
+	}
+	return nil, errors.New("not found")
+}
+
+func (i memoryIpfs) AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid, error) {
+	enc, _ := rlp.EncodeToBytes(data)
+	cid, _ := i.Cid(enc)
+	if !hashOnly {
+		i.values[cid] = enc
+	}
+	return cid, nil
 }
 
 func (i memoryIpfs) Add(data []byte) (cid.Cid, error) {
