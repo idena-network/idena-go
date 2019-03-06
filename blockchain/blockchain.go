@@ -704,23 +704,23 @@ func (chain *Blockchain) GetBlockHeaderByHeight(height uint64) *types.Header {
 	return chain.repo.ReadBlockHeader(hash)
 }
 
-func (chain *Blockchain) GetTx(hash common.Hash) *types.Transaction {
+func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.TransactionIndex) {
 	idx := chain.repo.ReadTxIndex(hash)
 	if idx == nil {
-		return nil
+		return nil, nil
 	}
 	data, err := chain.ipfs.GetFile(idx.Cid, fmt.Sprintf("%v_%x", idx.Idx, hash))
 
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	decoded := new(types.Transaction)
 	if err := rlp.DecodeBytes(data, decoded); err != nil {
 		chain.log.Error("invalid transaction RLP", "err", err)
-		return nil
+		return nil, nil
 	}
-	return decoded
+	return decoded, idx
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {

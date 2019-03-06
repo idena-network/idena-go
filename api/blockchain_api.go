@@ -42,13 +42,14 @@ type Block struct {
 }
 
 type Transaction struct {
-	Type    string          `json:"type"`
-	From    common.Address  `json:"from"`
-	To      *common.Address `json:"to"`
-	Amount  *big.Float      `json:"amount"`
-	Nonce   uint32          `json:"nonce"`
-	Epoch   uint16          `json:"epoch"`
-	Payload hexutil.Bytes   `json:"payload"`
+	Type      string          `json:"type"`
+	From      common.Address  `json:"from"`
+	To        *common.Address `json:"to"`
+	Amount    *big.Float      `json:"amount"`
+	Nonce     uint32          `json:"nonce"`
+	Epoch     uint16          `json:"epoch"`
+	Payload   hexutil.Bytes   `json:"payload"`
+	BlockHash common.Hash
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -68,20 +69,21 @@ func (api *BlockchainApi) Block(hash common.Hash) *Block {
 }
 
 func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
-	tx := api.bc.GetTx(hash)
+	tx, idx := api.bc.GetTx(hash)
 	if tx == nil {
 		return nil
 	}
 	sender, _ := types.Sender(tx)
 
 	return &Transaction{
-		Epoch:   tx.Epoch,
-		Payload: hexutil.Bytes(tx.Payload),
-		Amount:  convertToFloat(tx.Amount),
-		From:    sender,
-		Nonce:   tx.AccountNonce,
-		To:      tx.To,
-		Type:    txTypeMap[tx.Type],
+		Epoch:     tx.Epoch,
+		Payload:   hexutil.Bytes(tx.Payload),
+		Amount:    convertToFloat(tx.Amount),
+		From:      sender,
+		Nonce:     tx.AccountNonce,
+		To:        tx.To,
+		Type:      txTypeMap[tx.Type],
+		BlockHash: idx.BlockHash,
 	}
 }
 
