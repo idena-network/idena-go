@@ -522,13 +522,23 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
 	cid, err := chain.ipfs.AddDirectory(block.Body.ToIpfs(), false)
-	if !block.IsEmpty() && bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
-		return errors.New("bad cid")
-	}
+	chain.writeTxIndex(block, cid)
+
 	if err == nil {
 		chain.SetCurrentHead(block.Header)
 	}
 	return err
+}
+
+func (chain *Blockchain) writeTxIndex(block *types.Block, cid cid2.Cid) {
+	for i, tx := range block.Body.Transactions {
+		idx := &types.TransactionIndex{
+			Cid:       cid.Bytes(),
+			BlockHash: block.Hash(),
+			Idx:       uint32(i),
+		}
+		chain.repo.WriteTxIndex(tx.Hash(), idx)
+	}
 }
 
 func (chain *Blockchain) getProposerData() []byte {
@@ -598,6 +608,13 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("Invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
+
+	cid, _ := chain.ipfs.AddDirectory(block.Body.ToIpfs(), true)
+
+	if bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
+		return errors.New("invalid block cid")
+	}
+
 	return nil
 }
 

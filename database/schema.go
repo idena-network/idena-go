@@ -14,6 +14,8 @@ var (
 
 	finalConsensusPrefix = []byte("f")
 
+	transactionIndexPrefix = []byte("ti")
+
 	certPrefix = []byte("c")
 
 	flipPrefix = []byte("FLIP")

@@ -44,6 +44,10 @@ func finalConsensusKey(hash common.Hash) []byte {
 	return append(finalConsensusPrefix, hash.Bytes()...)
 }
 
+func txIndexKey(hash common.Hash) []byte {
+	return append(transactionIndexPrefix, hash.Bytes()...)
+}
+
 func flipKey(hash common.Hash) []byte {
 	return append(flipPrefix, hash.Bytes()...)
 }
@@ -67,31 +71,6 @@ func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 	return header
 }
 
-//func (r *Repo) ReadBlockBody(hash common.Hash) *types.Body {
-//	data := r.db.Get(bodyKey(hash))
-//	if data == nil {
-//		return nil
-//	}
-//	body := new(types.Body)
-//	if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
-//		log.Error("Invalid block body RLP", "hash", hash, "err", err)
-//		return nil
-//	}
-//	return body
-//}
-
-//func (r *Repo) ReadBlock(hash common.Hash) *types.Block {
-//	header := r.ReadBlockHeader(hash)
-//	if header == nil {
-//		return nil
-//	}
-//
-//	return &types.Block{
-//		Header: header,
-//		//Body:   r.ReadBlockBody(hash),
-//	}
-//}
-
 func (r *Repo) ReadHead() *types.Header {
 	data := r.db.Get(headBlockKey)
 	if data == nil {
@@ -110,6 +89,7 @@ func (r *Repo) WriteHead(header *types.Header) {
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
+		return
 	}
 	r.db.Set(headBlockKey, data)
 }
@@ -168,4 +148,13 @@ func (r *Repo) ReadFlipKey(epoch uint16) []byte {
 func (r *Repo) WriteFlipKey(epoch uint16, encKey []byte) {
 	key := flipEncryptionKey(epoch)
 	r.db.Set(key, encKey)
+}
+
+func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
+	data, err := rlp.EncodeToBytes(index)
+	if err != nil {
+		log.Crit("failed to RLP encode tranction index", "err", err)
+		return
+	}
+	r.db.Set(txIndexKey(txHash), data)
 }
