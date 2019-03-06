@@ -14,17 +14,15 @@ import (
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
-	"sync"
 )
 
 type Flipper struct {
 	repo      *database.Repo
 	log       log.Logger
-	lock      sync.Mutex
 	ipfsProxy ipfs.Proxy
 }
 
-func NewStore(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
+func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
 	return &Flipper{
 		repo:      database.NewRepo(db),
 		log:       log.New(),
@@ -37,7 +35,7 @@ type IpfsFlip struct {
 	Epoch uint16
 }
 
-func (store *Flipper) AddNewFlip(flip types.Flip) error {
+func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 	ipf := IpfsFlip{
 		Data:  flip.Data,
 		Epoch: flip.Tx.Epoch,
@@ -45,7 +43,7 @@ func (store *Flipper) AddNewFlip(flip types.Flip) error {
 
 	data, _ := rlp.EncodeToBytes(ipf)
 
-	c, err := store.ipfsProxy.Cid(data)
+	c, err := fp.ipfsProxy.Cid(data)
 
 	if err != nil {
 		return err
@@ -55,16 +53,14 @@ func (store *Flipper) AddNewFlip(flip types.Flip) error {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
-	_, err = store.ipfsProxy.Add(data)
+	_, err = fp.ipfsProxy.Add(data)
 
 	return err
 }
 
-func (store *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error) {
-	store.lock.Lock()
-	defer store.lock.Unlock()
+func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error) {
 
-	encryptionKey := store.getFlipEncryptionKey(epoch)
+	encryptionKey := fp.getFlipEncryptionKey(epoch)
 
 	encrypted, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, hex, nil, nil)
 
@@ -79,7 +75,7 @@ func (store *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, er
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)
 
-	c, err := store.ipfsProxy.Cid(ipfsData)
+	c, err := fp.ipfsProxy.Cid(ipfsData)
 
 	if err != nil {
 		return cid.Cid{}, nil, err
@@ -88,8 +84,8 @@ func (store *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, er
 	return c, encrypted, nil
 }
 
-func (store *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
-	data, err := store.ipfsProxy.Get(key)
+func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
+	data, err := fp.ipfsProxy.Get(key)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -99,7 +95,7 @@ func (store *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 		return nil, 0, err
 	}
 
-	encryptionKey := store.getFlipEncryptionKey(ipf.Epoch)
+	encryptionKey := fp.getFlipEncryptionKey(ipf.Epoch)
 	if encryptionKey == nil {
 		return nil, 0, errors.New("flip key is missing")
 	}
@@ -113,14 +109,14 @@ func (store *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 	return decryptedFlip, ipf.Epoch, nil
 }
 
-func (store *Flipper) getFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
-	key := store.repo.ReadFlipKey(epoch)
+func (fp *Flipper) getFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
+	key := fp.repo.ReadFlipKey(epoch)
 	var ecdsaKey *ecdsa.PrivateKey
 
 	if key == nil {
 		ecdsaKey, _ = crypto.GenerateKey()
 		key = crypto.FromECDSA(ecdsaKey)
-		store.repo.WriteFlipKey(epoch, key)
+		fp.repo.WriteFlipKey(epoch, key)
 	} else {
 		ecdsaKey, _ = crypto.ToECDSA(key)
 	}
