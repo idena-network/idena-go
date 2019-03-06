@@ -53,8 +53,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "ipfsbootnode",
-			Usage: "Ipfs bootstrap nodes (';' as delimiter)",
-			Value: config.DefaultIpfsBootstrap,
+			Usage: "Ipfs bootstrap node (overrides existing)",
 		},
 		cli.IntFlag{
 			Name:  "ipfsport",

@@ -59,7 +59,7 @@ func StartDefaultNode(path string) string {
 		config.DefaultRpcHost,
 		config.DefaultRpcPort,
 		config.DefaultBootnode,
-		config.DefaultIpfsBootstrap,
+		"",
 		config.DefaultIpfsPort,
 		config.DefaultNoDiscovery)
 

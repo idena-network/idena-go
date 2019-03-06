@@ -19,13 +19,12 @@ const (
 )
 
 var (
-	DefaultBootnode      = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
-	DefaultPort          = 40404
-	DefaultRpcHost       = "localhost"
-	DefaultRpcPort       = 9009
-	DefaultIpfsBootstrap = "/ip4/127.0.0.1/tcp/4002/ipfs/QmcGxQehQ8YG65FNghjEhjPTc4p6MbYT5REJJ48rC4amoC"
-	DefaultIpfsPort      = 4002
-	DefaultNoDiscovery   = false
+	DefaultBootnode    = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
+	DefaultPort        = 40404
+	DefaultRpcHost     = "localhost"
+	DefaultRpcPort     = 9009
+	DefaultIpfsPort    = 4002
+	DefaultNoDiscovery = false
 )
 
 type Config struct {

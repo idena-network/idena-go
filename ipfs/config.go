@@ -8,11 +8,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const swarmKeyFile = "swarm.key"
 const swarmKey = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
+
+var DefaultBootstrapNodes = []string{
+	"/ip4/127.0.0.1/tcp/4002/ipfs/QmcGxQehQ8YG65FNghjEhjPTc4p6MbYT5REJJ48rC4amoC",
+}
 
 type IpfsConfig struct {
 	cfg       *config.Config
@@ -24,14 +27,12 @@ func GetDefaultIpfsConfig(datadir string, ipfsPort int, bootstrap string) *IpfsC
 	var bps []config.BootstrapPeer
 
 	if bootstrap != "" {
-		b := strings.Split(bootstrap, ";")
-		for _, item := range b {
-			peer, err := config.ParseBootstrapPeer(item)
-			if err != nil {
-				continue
-			}
+		peer, err := config.ParseBootstrapPeer(bootstrap)
+		if err == nil {
 			bps = append(bps, peer)
 		}
+	} else {
+		bps, _ = config.ParseBootstrapPeers(DefaultBootstrapNodes)
 	}
 
 	ipfsConfig, _ := config.Init(os.Stdout, 2048)
@@ -43,7 +44,7 @@ func GetDefaultIpfsConfig(datadir string, ipfsPort int, bootstrap string) *IpfsC
 		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", ipfsPort),
 		fmt.Sprintf("/ip6/::/tcp/%d", ipfsPort),
 	}
-	ipfsConfig.Bootstrap = []string{}
+	ipfsConfig.Bootstrap = config.BootstrapPeerStrings(bps)
 
 	return &IpfsConfig{
 		cfg:       ipfsConfig,
