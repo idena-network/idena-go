@@ -144,10 +144,9 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 	txpool.appState.NonceCache = state.NewNonceCache(txpool.appState.State)
 	globalEpoch := txpool.appState.State.Epoch()
 
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
+	pending := txpool.GetPendingTransaction()
 
-	for _, tx := range txpool.pending {
+	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
 		}

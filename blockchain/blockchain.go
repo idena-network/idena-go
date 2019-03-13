@@ -326,7 +326,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	fee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		if err := validation.ValidateTx(chain.appState, tx); err != nil {
+		if err := validation.ValidateTx(appState, tx); err != nil {
 			return nil, err
 		}
 		if fee, err = chain.applyTxOnState(appState, tx); err != nil {

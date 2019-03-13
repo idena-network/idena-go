@@ -90,8 +90,11 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	}
 	api, _ := coreapi.NewCoreAPI(p.node)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
 	file := files.NewBytesFile(data)
-	path, err := api.Unixfs().Add(context.Background(), file)
+	path, err := api.Unixfs().Add(ctx, file)
 
 	if err != nil {
 		return cid.Cid{}, err
@@ -111,7 +114,11 @@ func (p ipfsProxy) AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid,
 	}
 	dir := files.NewMapDirectory(nodes)
 	api, _ := coreapi.NewCoreAPI(p.node)
-	path, err := api.Unixfs().Add(context.Background(), dir, options.Unixfs.HashOnly(hashOnly), options.Unixfs.Wrap(true))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	path, err := api.Unixfs().Add(ctx, dir, options.Unixfs.HashOnly(hashOnly), options.Unixfs.Wrap(true))
 	if err != nil {
 		return cid.Cid{}, err
 	}
@@ -222,7 +229,10 @@ func (p ipfsProxy) Pin(key []byte) error {
 		return err
 	}
 
-	return api.Pin().Add(context.Background(), iface.IpfsPath(c))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	return api.Pin().Add(ctx, iface.IpfsPath(c))
 }
 
 func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
@@ -233,8 +243,11 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
 	file := files.NewBytesFile(data)
-	path, _ := api.Unixfs().Add(context.Background(), file, options.Unixfs.HashOnly(true))
+	path, _ := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true))
 	return path.Cid(), nil
 }
 
