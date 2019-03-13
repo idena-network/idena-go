@@ -12,6 +12,10 @@ import (
 	"sync"
 )
 
+const (
+	BlockBodySize = 1024 * 1024
+)
+
 type TxPool struct {
 	pending        map[common.Hash]*types.Transaction
 	txSubscription chan *types.Transaction
@@ -63,6 +67,9 @@ func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {
 	txpool.txSubscription = transactions
 }
 func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
 	var list []*types.Transaction
 
 	for _, tx := range txpool.pending {
@@ -75,9 +82,11 @@ func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
 	var list []*types.Transaction
 	var result []*types.Transaction
 
+	txpool.mutex.Lock()
 	for _, tx := range txpool.pending {
 		list = append(list, tx)
 	}
+	txpool.mutex.Unlock()
 
 	sort.SliceStable(list, func(i, j int) bool {
 		if list[i].Epoch < list[j].Epoch {
@@ -91,7 +100,11 @@ func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
 
 	currentNonces := make(map[common.Address]uint32)
 	globalEpoch := txpool.appState.State.Epoch()
+	size := 0
 	for _, tx := range list {
+		if size > BlockBodySize {
+			break
+		}
 		sender, _ := types.Sender(tx)
 		if tx.Epoch < globalEpoch {
 			continue
@@ -108,6 +121,7 @@ func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
 		}
 		if currentNonces[sender]+1 == tx.AccountNonce {
 			result = append(result, tx)
+			size += tx.Size()
 			currentNonces[sender] = tx.AccountNonce
 		}
 	}
@@ -122,12 +136,17 @@ func (txpool *TxPool) Remove(transaction *types.Transaction) {
 }
 
 func (txpool *TxPool) ResetTo(block *types.Block) {
+
 	for _, tx := range block.Body.Transactions {
 		txpool.Remove(tx)
 	}
 
 	txpool.appState.NonceCache = state.NewNonceCache(txpool.appState.State)
 	globalEpoch := txpool.appState.State.Epoch()
+
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
 	for _, tx := range txpool.pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
