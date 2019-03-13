@@ -24,7 +24,9 @@
 #   go-tests = true
 #   unused-packages = true
 
-ignored = ["github.com/ipsn/go-ipfs/*"]
+ignored = ["github.com/ipsn/go-ipfs/vendor/*"]
+
+required = ["github.com/ipsn/go-ipfs"]
 
 [[constraint]]
   branch = "master"

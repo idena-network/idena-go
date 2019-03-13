@@ -150,7 +150,7 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 		if link.Type != iface.TFile {
 			continue
 		}
-		f, err := api.Unixfs().Get(ctx, iface.IpfsPath(link.Link.Cid))
+		f, err := api.Unixfs().Get(ctx, iface.IpfsPath(link.Cid))
 		if err != nil {
 			p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
 			return nil, err
@@ -163,7 +163,7 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		result[link.Link.Name] = buf.Bytes()
+		result[link.Name] = buf.Bytes()
 	}
 	return result, nil
 }
