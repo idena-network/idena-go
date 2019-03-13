@@ -934,7 +934,6 @@
     "github.com/huin/goupnp/dcps/internetgateway1",
     "github.com/huin/goupnp/dcps/internetgateway2",
     "github.com/huin/goupnp/httpu",
-    "github.com/ipsn/go-ipfs",
     "github.com/ipsn/go-ipfs/core",
     "github.com/ipsn/go-ipfs/core/coreapi",
     "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid",
