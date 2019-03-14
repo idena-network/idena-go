@@ -164,7 +164,6 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
 		return nil, err
 	}
-	time.Sleep(time.Second * 31)
 	result := make(map[string][]byte)
 	for link := range links {
 		if link.Type != iface.TFile {
