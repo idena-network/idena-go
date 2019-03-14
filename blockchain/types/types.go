@@ -82,7 +82,7 @@ type Block struct {
 }
 
 type Body struct {
-	Transactions []*Transaction
+	Transactions []*Transaction `rlp:"nil"`
 }
 
 type Transaction struct {
