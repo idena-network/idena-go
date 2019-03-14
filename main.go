@@ -65,18 +65,19 @@ func main() {
 			Usage: "NoDiscovery can be used to disable the peer discovery mechanism.",
 		},
 		cli.IntFlag{
-			Name:"verbosity",
-			Usage:"Log verbosity",
+			Name:  "verbosity",
+			Usage: "Log verbosity",
 			Value: 3,
 		},
 	}
 
 	app.Action = func(context *cli.Context) error {
 
+		logLvl := log.Lvl(context.Int("verbosity"))
 		if runtime.GOOS == "windows" {
-			log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(context.Int("verbosity")), log.StreamHandler(os.Stdout, log.LogfmtFormat())))
+			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
 		} else {
-			log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 		}
 
 		c := config.GetDefaultConfig(
