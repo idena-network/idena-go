@@ -18,6 +18,7 @@ package event
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 )
@@ -142,6 +143,10 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 		panic(feedTypeError{op: "Send", got: rvalue.Type(), want: f.etype})
 	}
 	f.mu.Unlock()
+
+	if rvalue.Type().String() == "*p2p.PeerEvent" && rvalue.Elem().FieldByName("Type").String() == "drop" {
+		fmt.Printf("entered to feed send drop")
+	}
 
 	// Set the sent value on all channels.
 	for i := firstSubSendCase; i < len(f.sendCases); i++ {

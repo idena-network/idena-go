@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"idena-go/log"
 	"github.com/jackpal/go-nat-pmp"
+	"idena-go/log"
 )
 
 // An implementation of nat.Interface can map local ports to ports

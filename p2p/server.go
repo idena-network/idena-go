@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"sort"
 	"sync"
@@ -228,7 +227,7 @@ type transport interface {
 	MsgReadWriter
 	// transports must provide Close because we use MsgPipe in some of
 	// the tests. Closing the actual network connection doesn't do
-	// anything in those tests because NsgPipe doesn't use it.
+	// anything in those tests because MsgPipe doesn't use it.
 	close(err error)
 }
 
@@ -391,7 +390,7 @@ type sharedUDPConn struct {
 func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
 	packet, ok := <-s.unhandled
 	if !ok {
-		return 0, nil, fmt.Errorf("Connection was closed")
+		return 0, nil, errors.New("Connection was closed")
 	}
 	l := len(packet.Data)
 	if l > len(b) {
@@ -425,7 +424,7 @@ func (srv *Server) Start() (err error) {
 
 	// static fields
 	if srv.PrivateKey == nil {
-		return fmt.Errorf("Server.PrivateKey must be set to a non-nil key")
+		return errors.New("Server.PrivateKey must be set to a non-nil key")
 	}
 	if srv.newTransport == nil {
 		srv.newTransport = newRLPX
@@ -749,7 +748,7 @@ running:
 		case pd := <-srv.delpeer:
 			// A peer disconnected.
 			d := common.PrettyDuration(mclock.Now() - pd.created)
-			pd.log.Debug("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
+			pd.log.Info("Removing p2p peer", "duration", d, "peers", len(peers)-1, "req", pd.requested, "err", pd.err)
 			delete(peers, pd.ID())
 			if pd.Inbound() {
 				inboundCount--
@@ -885,7 +884,7 @@ func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *enode.Node) 
 	return err
 }
 
-func (srv *Server) setupConn(connection *conn, flags connFlag, dialDest *enode.Node) error {
+func (srv *Server) setupConn(c *conn, flags connFlag, dialDest *enode.Node) error {
 	// Prevent leftover pending conns from entering the handshake.
 	srv.lock.Lock()
 	running := srv.running
@@ -898,13 +897,13 @@ func (srv *Server) setupConn(connection *conn, flags connFlag, dialDest *enode.N
 	if dialDest != nil {
 		dialPubkey = new(ecdsa.PublicKey)
 		if err := dialDest.Load((*enode.Secp256k1)(dialPubkey)); err != nil {
-			return fmt.Errorf("dial destination doesn't have a secp256k1 public key")
+			return errors.New("dial destination doesn't have a secp256k1 public key")
 		}
 	}
 	// Run the encryption handshake.
-	remotePubkey, err := connection.doEncHandshake(srv.PrivateKey, dialPubkey)
+	remotePubkey, err := c.doEncHandshake(srv.PrivateKey, dialPubkey)
 	if err != nil {
-		srv.log.Trace("Failed RLPx handshake", "addr", connection.fd.RemoteAddr(), "conn", connection.flags, "err", err)
+		srv.log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
 		return err
 	}
 	if dialDest != nil {
@@ -912,29 +911,29 @@ func (srv *Server) setupConn(connection *conn, flags connFlag, dialDest *enode.N
 		if dialPubkey.X.Cmp(remotePubkey.X) != 0 || dialPubkey.Y.Cmp(remotePubkey.Y) != 0 {
 			return DiscUnexpectedIdentity
 		}
-		connection.node = dialDest
+		c.node = dialDest
 	} else {
-		connection.node = nodeFromConn(remotePubkey, connection.fd)
+		c.node = nodeFromConn(remotePubkey, c.fd)
 	}
 
-	clog := srv.log.New("id", connection.node.ID(), "addr", connection.fd.RemoteAddr(), "conn", connection.flags)
-	err = srv.checkpoint(connection, srv.posthandshake)
+	clog := srv.log.New("id", c.node.ID(), "addr", c.fd.RemoteAddr(), "conn", c.flags)
+	err = srv.checkpoint(c, srv.posthandshake)
 	if err != nil {
 		clog.Trace("Rejected peer before protocol handshake", "err", err)
 		return err
 	}
 	// Run the protocol handshake
-	phs, err := connection.doProtoHandshake(srv.ourHandshake)
+	phs, err := c.doProtoHandshake(srv.ourHandshake)
 	if err != nil {
 		clog.Trace("Failed proto handshake", "err", err)
 		return err
 	}
-	if id := connection.node.ID(); !bytes.Equal(crypto.Keccak256(phs.ID), id[:]) {
-		clog.Trace("Wrong devp2p handshake identity", "phsid", fmt.Sprintf("%x", phs.ID))
+	if id := c.node.ID(); !bytes.Equal(crypto.Keccak256(phs.ID), id[:]) {
+		clog.Trace("Wrong devp2p handshake identity", "phsid", hex.EncodeToString(phs.ID))
 		return DiscUnexpectedIdentity
 	}
-	connection.caps, connection.name = phs.Caps, phs.Name
-	err = srv.checkpoint(connection, srv.addpeer)
+	c.caps, c.name = phs.Caps, phs.Name
+	err = srv.checkpoint(c, srv.addpeer)
 	if err != nil {
 		clog.Trace("Rejected peer", "err", err)
 		return err
@@ -1001,6 +1000,8 @@ func (srv *Server) runPeer(p *Peer) {
 		Peer:  p.ID(),
 		Error: err.Error(),
 	})
+
+	srv.log.Info("peerFeed event sent", "remoteRequested", remoteRequested, "err", err)
 
 	// Note: run waits for existing peers to be sent on srv.delpeer
 	// before returning, so this send should not select on srv.quit.

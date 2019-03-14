@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"idena-go/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"idena-go/rlp"
 )
 
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))

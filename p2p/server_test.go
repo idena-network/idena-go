@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/sha3"
 	"idena-go/crypto"
-	"idena-go/crypto/sha3"
 	"idena-go/log"
 	"idena-go/p2p/enode"
 	"idena-go/p2p/enr"
@@ -48,8 +48,8 @@ func newTestTransport(rpub *ecdsa.PublicKey, fd net.Conn) transport {
 	wrapped.rw = newRLPXFrameRW(fd, secrets{
 		MAC:        zero16,
 		AES:        zero16,
-		IngressMAC: sha3.NewKeccak256(),
-		EgressMAC:  sha3.NewKeccak256(),
+		IngressMAC: sha3.NewLegacyKeccak256(),
+		EgressMAC:  sha3.NewLegacyKeccak256(),
 	})
 	return &testTransport{rpub: rpub, rlpx: wrapped}
 }
