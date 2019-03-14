@@ -18,7 +18,12 @@ func CalculateFee(networkSize int, tx *Transaction) *big.Int {
 	if networkSize == 0 {
 		return big.NewInt(0)
 	}
-	feePerByte := new(big.Int).Div(common.DnaBase, big.NewInt(int64(networkSize)))
+	var feePerByte *big.Int
+	if networkSize <= 10 {
+		feePerByte = new(big.Int).Div(common.DnaBase, big.NewInt(1000))
+	} else {
+		feePerByte = new(big.Int).Div(common.DnaBase, big.NewInt(int64(networkSize)))
+	}
 
 	return new(big.Int).Mul(feePerByte, big.NewInt(int64(tx.Size())))
 }

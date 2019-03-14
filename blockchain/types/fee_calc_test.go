@@ -12,10 +12,10 @@ func TestCalculateFee(t *testing.T) {
 		Type: RegularTx,
 	}
 	//tx size = 8
-	fee1 := big.NewInt(8e+18)
-	fee2 := big.NewInt(40e+17)
+	fee1 := big.NewInt(8e+15)
+	fee2 := big.NewInt(4e+16)
 	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, tx)))
-	require.Equal(t, 0, fee2.Cmp(CalculateFee(2, tx)))
+	require.Equal(t, 0, fee2.Cmp(CalculateFee(200, tx)))
 }
 
 func TestCalculateCost(t *testing.T) {

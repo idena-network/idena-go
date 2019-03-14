@@ -3,7 +3,6 @@ package ipfs
 import (
 	"bytes"
 	"context"
-	"errors"
 	"github.com/ipsn/go-ipfs/core"
 	"github.com/ipsn/go-ipfs/core/coreapi"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
@@ -11,6 +10,7 @@ import (
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipsn/go-ipfs/plugin/loader"
+	"github.com/pkg/errors"
 	"idena-go/log"
 	"idena-go/rlp"
 	"path/filepath"
@@ -95,7 +95,12 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 
 	file := files.NewBytesFile(data)
 	path, err := api.Unixfs().Add(ctx, file)
-
+	select {
+	case <-ctx.Done():
+		err = errors.New("timeout while writing data to ipfs")
+	default:
+		break
+	}
 	if err != nil {
 		return cid.Cid{}, err
 	}
@@ -119,6 +124,12 @@ func (p ipfsProxy) AddDirectory(data map[string][]byte, hashOnly bool) (cid.Cid,
 	defer cancel()
 
 	path, err := api.Unixfs().Add(ctx, dir, options.Unixfs.HashOnly(hashOnly), options.Unixfs.Wrap(true))
+	select {
+	case <-ctx.Done():
+		err = errors.New("timeout while writing directory to ipfs")
+	default:
+		break
+	}
 	if err != nil {
 		return cid.Cid{}, err
 	}
@@ -141,6 +152,7 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 
 	// download entire directory
 	_, err = api.Unixfs().Get(ctx, iface.IpfsPath(c))
+
 	if err != nil {
 		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
 		return nil, err
@@ -152,6 +164,7 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 		p.log.Error("fail to read from ipfs", "cid", c.String(), "err", err)
 		return nil, err
 	}
+	time.Sleep(time.Second * 31)
 	result := make(map[string][]byte)
 	for link := range links {
 		if link.Type != iface.TFile {
@@ -171,6 +184,13 @@ func (p ipfsProxy) GetDirectory(key []byte) (map[string][]byte, error) {
 			return nil, err
 		}
 		result[link.Name] = buf.Bytes()
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, errors.New("timeout while reading directory from ipfs")
+	default:
+		break
 	}
 	return result, nil
 }
@@ -204,6 +224,13 @@ func (p ipfsProxy) get(path iface.Path) ([]byte, error) {
 	defer cancel()
 	f, err := api.Unixfs().Get(ctx, path)
 
+	select {
+	case <-ctx.Done():
+		err = errors.New("timeout while reading data from ipfs")
+	default:
+		break
+	}
+
 	if err != nil {
 		p.log.Error("fail to read from ipfs", "cid", path.String(), "err", err)
 		return nil, err
@@ -232,7 +259,16 @@ func (p ipfsProxy) Pin(key []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	return api.Pin().Add(ctx, iface.IpfsPath(c))
+	err = api.Pin().Add(ctx, iface.IpfsPath(c))
+
+	select {
+	case <-ctx.Done():
+		err = errors.Errorf("timeout while pinning data to ipfs, key: %v", c.String())
+	default:
+		break
+	}
+
+	return err
 }
 
 func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
@@ -247,8 +283,16 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	defer cancel()
 
 	file := files.NewBytesFile(data)
-	path, _ := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true))
-	return path.Cid(), nil
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true))
+
+	select {
+	case <-ctx.Done():
+		err = errors.New("timeout while getting cid")
+	default:
+		break
+	}
+
+	return path.Cid(), err
 }
 
 func loadPlugins(ipfsPath string) (*loader.PluginLoader, error) {
