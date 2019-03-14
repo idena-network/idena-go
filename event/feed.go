@@ -145,7 +145,7 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 	f.mu.Unlock()
 
 	if rvalue.Type().String() == "*p2p.PeerEvent" && rvalue.Elem().FieldByName("Type").String() == "drop" {
-		fmt.Printf("entered to feed send drop")
+		fmt.Printf("entered to feed send drop\n")
 	}
 
 	// Set the sent value on all channels.
