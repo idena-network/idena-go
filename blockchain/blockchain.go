@@ -451,7 +451,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		Transactions: filteredTxs,
 	}
 	var cid cid2.Cid
-	cid, _ = chain.ipfs.AddDirectory(body.ToIpfs(), true)
+	cid, _ = chain.ipfs.Cid(body.Bytes())
 
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
@@ -521,7 +521,7 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteBlockHeader(block)
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
-	cid, err := chain.ipfs.AddDirectory(block.Body.ToIpfs(), false)
+	cid, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.writeTxIndex(block, cid)
 
 	if err == nil {
@@ -609,7 +609,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 		return errors.Errorf("Invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
-	cid, _ := chain.ipfs.AddDirectory(block.Body.ToIpfs(), true)
+	cid, _ := chain.ipfs.Cid(block.Body.Bytes())
 
 	if bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
 		return errors.New("invalid block cid")
@@ -676,11 +676,11 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 			Header: header,
 		}
 	}
-	if bodyBytes, err := chain.ipfs.GetDirectory(header.ProposedHeader.IpfsHash); err != nil {
+	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
 		return nil
 	} else {
 		body := &types.Body{}
-		body.FromIpfs(bodyBytes)
+		body.FromBytes(bodyBytes)
 		return &types.Block{
 			Header: header,
 			Body:   body,
@@ -709,18 +709,22 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 	if idx == nil {
 		return nil, nil
 	}
-	data, err := chain.ipfs.GetFile(idx.Cid, fmt.Sprintf("%v_%x", idx.Idx, hash))
-
+	data, err := chain.ipfs.Get(idx.Cid)
 	if err != nil {
 		return nil, nil
 	}
+	body := &types.Body{}
+	body.FromBytes(data)
 
-	decoded := new(types.Transaction)
-	if err := rlp.DecodeBytes(data, decoded); err != nil {
-		chain.log.Error("invalid transaction RLP", "err", err)
+	if uint32(len(body.Transactions)) < idx.Idx {
 		return nil, nil
 	}
-	return decoded, idx
+	tx := body.Transactions[idx.Idx]
+
+	if tx.Hash() != hash {
+		return nil, nil
+	}
+	return tx, idx
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {
