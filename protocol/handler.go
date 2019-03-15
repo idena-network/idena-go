@@ -235,8 +235,9 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 		p.Log().Info("Idena handshake failed", "err", err)
 		return err
 	}
-	pm.syncTxPool(peer)
 	pm.registerPeer(peer)
+	go pm.syncTxPool(peer)
+
 	defer pm.unregister(peer)
 	p.Log().Info("Peer successfully connected", "peerId", p.ID())
 	return pm.runListening(peer)
