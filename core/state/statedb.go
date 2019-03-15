@@ -539,8 +539,7 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 
 func (s *StateDB) Reset() {
 	s.Clear()
-	s.tree = NewMutableTree(s.db)
-	s.tree.Load()
+	s.tree.Rollback()
 }
 
 func getOrderedObjectsKeys(objects map[common.Address]struct{}) []common.Address {
@@ -590,4 +589,9 @@ func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 		return stateObject.State()
 	}
 	return Undefined
+}
+
+func (s *StateDB) ResetTo(height uint64) error {
+	_, err := s.tree.LoadVersionForOverwriting(int64(height))
+	return err
 }

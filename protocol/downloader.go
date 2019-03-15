@@ -156,6 +156,7 @@ func (d *Downloader) processBatch(batch *batch) error {
 			} else {
 				if err := d.chain.AddBlock(block); err != nil {
 					d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
+					time.Sleep(time.Second)
 					// TODO: ban bad peer
 					return reload()
 				}
@@ -180,7 +181,7 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 		return nil, err
 	} else {
 		if len(txs) > 0 {
-			d.log.Info("Retrieve block body from ipfs", "hash", header.Hash().Hex())
+			d.log.Debug("Retrieve block body from ipfs", "hash", header.Hash().Hex())
 		}
 		body := &types.Body{}
 		body.FromBytes(txs)

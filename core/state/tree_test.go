@@ -16,7 +16,7 @@ func TestMutableTree_Hash(t *testing.T) {
 	require.NotEqual(t, common.Hash{}, tree.WorkingHash())
 }
 
-func TestMutableTree_Root(t *testing.T){
+func TestMutableTree_Root(t *testing.T) {
 	db := dbm.NewMemDB()
 	tree := NewMutableTree(db)
 	tree.Set([]byte{0x1}, []byte{0x1})
@@ -33,13 +33,39 @@ func TestMutableTree_Root(t *testing.T){
 	root := tree.WorkingHash()
 
 	tree.LoadVersion(1)
-	_, v :=tree.Get([]byte{0x1})
+	_, v := tree.Get([]byte{0x1})
 
-	require.Equal(t,[]byte{0x1},  v)
+	require.Equal(t, []byte{0x1}, v)
 
 	tree.Set([]byte{0x1}, []byte{0x2})
 	tree.Set([]byte{0x11}, []byte{0x17})
 
-	require.Equal(t,root,  tree.WorkingHash())
+	require.Equal(t, root, tree.WorkingHash())
 }
 
+func TestImmutableTree_LoadVersionForOverwriting(t *testing.T) {
+	db := dbm.NewMemDB()
+	tree := NewMutableTree(db)
+	tree.Set([]byte{0x1}, []byte{0x1})
+	tree.Set([]byte{0x11}, []byte{0x11})
+	tree.SaveVersion()
+
+	tree.Set([]byte{0x1}, []byte{0x2})
+	tree.Set([]byte{0x11}, []byte{0x17})
+	tree.SaveVersion()
+
+	_, err := tree.LoadVersionForOverwriting(1)
+	require.Nil(t, err)
+
+	require.False(t, tree.ExistVersion(2))
+
+	tree.tree.Set([]byte{0x1}, []byte{0x3})
+	_, _, err = tree.SaveVersion()
+	require.Nil(t, err)
+
+	_, v := tree.Get([]byte{0x1})
+
+	require.Equal(t, []byte{0x3}, v)
+
+	require.True(t, tree.ExistVersion(2))
+}

@@ -100,7 +100,7 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	if err != nil {
 		return cid.Cid{}, err
 	}
-	p.log.Info("Add ipfs data", "cid", path.Cid().String())
+	p.log.Debug("Add ipfs data", "cid", path.Cid().String())
 	return path.Cid(), nil
 }
 
@@ -142,7 +142,7 @@ func (p ipfsProxy) get(path iface.Path) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.log.Info("read data from ipfs", "cid", path.String())
+	p.log.Debug("read data from ipfs", "cid", path.String())
 	return buf.Bytes(), nil
 }
 

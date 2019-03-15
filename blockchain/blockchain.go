@@ -107,6 +107,8 @@ func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
 		chain.GenerateGenesis(chain.config.Network)
 	}
 	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
+	log.Info("Coinbase address", "addr", chain.coinBaseAddress.Hex())
+
 	return nil
 }
 
@@ -135,7 +137,9 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	}
 
 	chain.appState.State.SetNextEpochBlock(EpochSize)
-	chain.appState.Commit()
+	if err := chain.appState.Commit(); err != nil {
+		return nil, err
+	}
 
 	var emptyHash [32]byte
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
@@ -212,7 +216,9 @@ func (chain *Blockchain) processBlock(block *types.Block) error {
 		}
 	}
 
-	chain.appState.Commit()
+	if err := chain.appState.Commit(); err != nil {
+		return err
+	}
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 	chain.txpool.ResetTo(block)
 	chain.appState.ValidatorsCache.RefreshIfUpdated(!block.IsEmpty() && block.Header.ProposedHeader.Flags.HasFlag(types.IdentityUpdate))

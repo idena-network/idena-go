@@ -48,7 +48,20 @@ func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
 }
-func (s *AppState) Commit() {
-	s.State.Commit(true)
-	s.IdentityState.Commit(true)
+func (s *AppState) Commit() error {
+	_, _, err := s.State.Commit(true)
+	if err != nil {
+		return err
+	}
+	_, _, err = s.IdentityState.Commit(true)
+	return err
+}
+
+func (s *AppState) ResetTo(height uint64) error {
+	err := s.State.ResetTo(height)
+	if err != nil {
+		return err
+	}
+	err = s.IdentityState.ResetTo(height)
+	return err
 }

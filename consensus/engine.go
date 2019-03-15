@@ -84,19 +84,18 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 
 func (engine *Engine) loop() {
 	for {
+		if err := engine.ensureIntegrity(); err != nil {
+			engine.log.Error("Failed to recover stateDb", "err", err)
+			time.Sleep(time.Second * 30)
+			continue
+		}
 		engine.downloader.SyncBlockchain()
+
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
 		}
 		head := engine.chain.Head
-
-		if err := engine.appState.State.Load(head.Height()); err != nil {
-			engine.log.Error("Failed to open stateDb", "err", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsCache.GetCountOfValidNodes())
 
@@ -117,10 +116,7 @@ func (engine *Engine) loop() {
 
 		proposerPubKey := engine.getHighestProposerPubKey(round)
 
-		var proposer string
-		if proposer = hexutil.Encode(proposerPubKey); len(proposerPubKey) == 0 {
-			proposer = "NOT FOUND"
-		}
+		proposer := engine.fmtProposer(proposerPubKey)
 
 		engine.log.Info("Selected proposer", "proposer", proposer)
 		emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -162,10 +158,10 @@ func (engine *Engine) loop() {
 					continue
 				}
 				if hash == blockHash {
-					engine.log.Info("Reached FINAL", "block", blockHash.Hex())
+					engine.log.Info("Reached FINAL", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 					engine.chain.WriteFinalConsensus(blockHash, cert)
 				} else {
-					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex())
+					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
@@ -176,6 +172,17 @@ func (engine *Engine) loop() {
 	}
 }
 
+func (engine *Engine) fmtProposer(proposerPubKey []byte) string {
+	var proposer string
+	if proposer = hexutil.Encode(proposerPubKey); len(proposerPubKey) == 0 {
+		proposer = "NOT FOUND"
+	} else {
+		addr, _ := crypto.PubKeyBytesToAddress(proposerPubKey)
+		proposer = addr.Hex()
+	}
+	return proposer
+}
+
 func (engine *Engine) completeRound(round uint64) {
 
 	engine.proposals.CompleteRound(round)
@@ -183,11 +190,11 @@ func (engine *Engine) completeRound(round uint64) {
 	for _, proof := range engine.proposals.ProcessPendingsProofs() {
 		engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
 	}
-	engine.log.Info("Pending proposals processed")
+	engine.log.Debug("Pending proposals processed")
 	for _, block := range engine.proposals.ProcessPendingsBlocks() {
 		engine.pm.ProposeBlock(block)
 	}
-	engine.log.Info("Pending blocks processed")
+	engine.log.Debug("Pending blocks processed")
 
 	engine.votes.CompleteRound(round)
 }
@@ -351,13 +358,13 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 
 func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Hash, necessaryVotesCount int, timeout time.Duration) (common.Hash, *types.BlockCert, error) {
 
-	engine.log.Info("Start count votes", "step", step, "min-votes", necessaryVotesCount)
-	defer engine.log.Info("Finish count votes", "step", step)
+	engine.log.Debug("Start count votes", "step", step, "min-votes", necessaryVotesCount)
+	defer engine.log.Debug("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
 	validators := engine.appState.ValidatorsCache.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(step == Final))
 	if validators == nil {
-		return common.Hash{}, nil, errors.New(fmt.Sprintf("validators were not setup, step=%v", step))
+		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
 
 	for start := time.Now(); time.Since(start) < timeout; {
@@ -400,7 +407,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 						cert = types.BlockCert(list)
 						bestHash = vote.Header.VotedHash
 						found = cert.Len() >= necessaryVotesCount
-						engine.log.Info(fmt.Sprintf("Has %v/%v votes step=%v", roundVotes.Cardinality(), necessaryVotesCount, step))
+						engine.log.Debug("Has votes", "cnt", roundVotes.Cardinality(), "need", necessaryVotesCount, "step", step, "hash", bestHash.Hex())
 						return !found
 					}
 				}
@@ -433,4 +440,16 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	}
 
 	return nil, errors.New("Block is not found")
+}
+
+func (engine *Engine) ensureIntegrity() error {
+	for engine.chain.Head.Root() != engine.appState.State.Root() ||
+		engine.chain.Head.IdentityRoot() != engine.appState.IdentityState.Root() {
+		if err := engine.appState.ResetTo(engine.chain.Head.Height() - 1); err != nil {
+			return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
+		}
+		engine.chain.SetHead(engine.chain.Head.Height() - 1)
+		engine.log.Warn("blockchain was reseted", "new head", engine.chain.Head.Height())
+	}
+	return nil
 }

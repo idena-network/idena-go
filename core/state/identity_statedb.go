@@ -96,8 +96,7 @@ func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) {
 
 func (s *IdentityStateDB) Reset() {
 	s.Clear()
-	s.tree = NewMutableTree(s.db)
-	s.tree.Load()
+	s.tree.Rollback()
 }
 
 func (s *IdentityStateDB) Clear() {
@@ -193,4 +192,9 @@ func (s *IdentityStateDB) IsApproved(addr common.Address) bool {
 		return stateObject.data.Approved
 	}
 	return false
+}
+
+func (s *IdentityStateDB) ResetTo(height uint64) error {
+	_, err := s.tree.LoadVersionForOverwriting(int64(height))
+	return err
 }
