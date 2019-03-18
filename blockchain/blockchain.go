@@ -676,6 +676,9 @@ func (chain *Blockchain) WriteFinalConsensus(hash common.Hash, cert *types.Block
 }
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	header := chain.repo.ReadBlockHeader(hash)
+	if header == nil {
+		return nil
+	}
 	if header.EmptyBlockHeader != nil {
 		return &types.Block{
 			Header: header,
