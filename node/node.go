@@ -139,7 +139,9 @@ func (node *Node) Start() {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
 		return
 	}
+
 	node.appState.Initialize(node.blockchain.Head.Height())
+	node.txpool.Initialize(node.blockchain.Head)
 
 	node.consensusEngine.SetKey(node.key)
 	node.consensusEngine.Start()

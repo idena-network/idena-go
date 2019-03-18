@@ -22,6 +22,7 @@ type TxPool struct {
 	mutex          *sync.Mutex
 	appState       *appstate.AppState
 	log            log.Logger
+	head           *types.Header
 }
 
 func NewTxPool(appState *appstate.AppState) *TxPool {
@@ -31,6 +32,10 @@ func NewTxPool(appState *appstate.AppState) *TxPool {
 		appState: appState,
 		log:      log.New(),
 	}
+}
+
+func (txpool *TxPool) Initialize(head *types.Header) {
+	txpool.head = head
 }
 
 func (txpool *TxPool) Add(tx *types.Transaction) error {
@@ -45,15 +50,17 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		return errors.New("tx with same hash already exists")
 	}
 
-	if err := validation.ValidateTx(txpool.appState, tx); err != nil {
+	appState := txpool.appState.ForCheck(txpool.head.Height())
+
+	if err := validation.ValidateTx(appState, tx); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}
 
 	txpool.pending[hash] = tx
 
-	if txpool.appState.State.Epoch() == tx.Epoch {
-		txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
+	if appState.State.Epoch() == tx.Epoch {
+		appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 	}
 
 	select {
@@ -136,6 +143,8 @@ func (txpool *TxPool) Remove(transaction *types.Transaction) {
 }
 
 func (txpool *TxPool) ResetTo(block *types.Block) {
+
+	txpool.head = block.Header
 
 	for _, tx := range block.Body.Transactions {
 		txpool.Remove(tx)

@@ -527,8 +527,8 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteBlockHeader(block)
 	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
-	cid, err := chain.ipfs.Add(block.Body.Bytes())
-	chain.writeTxIndex(block, cid)
+	_, err := chain.ipfs.Add(block.Body.Bytes())
+	chain.writeTxIndex(block)
 
 	if err == nil {
 		chain.SetCurrentHead(block.Header)
@@ -536,12 +536,11 @@ func (chain *Blockchain) insertBlock(block *types.Block) error {
 	return err
 }
 
-func (chain *Blockchain) writeTxIndex(block *types.Block, cid cid2.Cid) {
+func (chain *Blockchain) writeTxIndex(block *types.Block) {
 	for i, tx := range block.Body.Transactions {
 		idx := &types.TransactionIndex{
-			Cid:       cid.Bytes(),
 			BlockHash: block.Hash(),
-			Idx:       uint32(i),
+			Idx:       uint16(i),
 		}
 		chain.repo.WriteTxIndex(tx.Hash(), idx)
 	}
@@ -715,14 +714,19 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 	if idx == nil {
 		return nil, nil
 	}
-	data, err := chain.ipfs.Get(idx.Cid)
+	header := chain.repo.ReadBlockHeader(idx.BlockHash)
+	if header == nil || header.ProposedHeader == nil {
+		return nil, nil
+	}
+
+	data, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash)
 	if err != nil {
 		return nil, nil
 	}
 	body := &types.Body{}
 	body.FromBytes(data)
 
-	if uint32(len(body.Transactions)) < idx.Idx {
+	if uint16(len(body.Transactions)) < idx.Idx {
 		return nil, nil
 	}
 	tx := body.Transactions[idx.Idx]
