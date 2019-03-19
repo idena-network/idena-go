@@ -272,7 +272,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
 		if err != nil {
-			hash = emptyBlockHash
+			hash = blockHash
 		} else if hash != emptyBlockHash {
 			for i := uint16(1); i <= 3; i++ {
 				engine.vote(round, step+i, hash)
