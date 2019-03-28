@@ -91,7 +91,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, key)
+	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, nil)
 
 	if err != nil {
 		return Invite{}, err

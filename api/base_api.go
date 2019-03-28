@@ -50,6 +50,7 @@ func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.T
 		currentNonce := api.engine.GetAppState().NonceCache.GetNonce(from)
 		// if epoch was increased, we should reset nonce to 1
 		if s.GetEpoch(from) < s.Epoch() {
+			//TODO: should not be zero if we switched to new epoch
 			currentNonce = 0
 		}
 		tx.AccountNonce = currentNonce + 1

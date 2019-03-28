@@ -79,7 +79,7 @@ func (engine *Engine) GetProcess() string {
 }
 
 func (engine *Engine) GetAppState() *appstate.AppState {
-	return engine.appState
+	return engine.appState.ForCheck(engine.chain.Head.Height())
 }
 
 func (engine *Engine) loop() {
