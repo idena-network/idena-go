@@ -69,12 +69,15 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
+	chain, app, pool := blockchain.NewTestBlockchain(true, alloc)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
 
 	app.State.Commit(true)
+
+	// need to emulate new block
+	chain.Head.ProposedHeader.Height++
 
 	err := pool.Add(getTx(1, 1, key))
 	require.NoError(t, err)
@@ -82,7 +85,6 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	err = pool.Add(getTx(1, 0, key))
 	require.Error(t, err)
 }
-
 
 func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
 

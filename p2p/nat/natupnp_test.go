@@ -21,7 +21,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -29,9 +28,7 @@ import (
 )
 
 func TestUPNP_DDWRT(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skipf("disabled to avoid firewall prompt")
-	}
+	t.Skipf("disabled to avoid firewall prompt")
 
 	dev := &fakeIGD{
 		t: t,
