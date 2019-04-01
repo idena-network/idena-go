@@ -18,7 +18,5 @@ var (
 
 	certPrefix = []byte("c")
 
-	flipPrefix = []byte("FLIP")
-
-	flipEncryptionPrefix = []byte("KEYFLIP")
+	flipEncryptionPrefix = []byte("key")
 )

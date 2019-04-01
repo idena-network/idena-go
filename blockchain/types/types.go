@@ -21,6 +21,8 @@ type BlockFlag uint32
 
 const (
 	IdentityUpdate BlockFlag = 1 << iota
+	ValidationStarted
+	ValidationFinished
 )
 
 type Network = uint32
@@ -251,6 +253,14 @@ func (h *Header) IpfsHash() []byte {
 		return nil
 	} else {
 		return h.ProposedHeader.IpfsHash
+	}
+}
+
+func (h *Header) Flags() BlockFlag {
+	if h.EmptyBlockHeader != nil {
+		return 0
+	} else {
+		return h.ProposedHeader.Flags
 	}
 }
 

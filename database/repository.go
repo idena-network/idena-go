@@ -48,10 +48,6 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
-func flipKey(hash common.Hash) []byte {
-	return append(flipPrefix, hash.Bytes()...)
-}
-
 func flipEncryptionKey(epoch uint16) []byte {
 	enc := make([]byte, 2)
 	binary.BigEndian.PutUint16(enc, epoch)

@@ -21,6 +21,7 @@ import (
 	"idena-go/database"
 	"idena-go/log"
 	"idena-go/rlp"
+	"time"
 
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
@@ -155,9 +156,12 @@ func (s *StateDB) Epoch() uint16 {
 	return stateObject.data.Epoch
 }
 
-func (s *StateDB) NextEpochBlock() uint64 {
+func (s *StateDB) NextValidationTime() time.Time {
 	stateObject := s.GetOrNewGlobalObject()
-	return stateObject.data.NextEpochBlock
+	if stateObject.data.NextValidationTime == nil {
+		return time.Unix(0, 0)
+	}
+	return time.Unix(stateObject.data.NextValidationTime.Int64(), 0)
 }
 
 func (s *StateDB) FlipCids() [][]byte {
@@ -206,8 +210,16 @@ func (s *StateDB) SetEpoch(addr common.Address, epoch uint16) {
 	}
 }
 
-func (s *StateDB) SetNextEpochBlock(b uint64) {
-	s.GetOrNewGlobalObject().SetNextEpochBlock(b)
+func (s *StateDB) SetNextValidationTime(t time.Time) {
+	s.GetOrNewGlobalObject().SetNextValidationTime(t.Unix())
+}
+
+func (s *StateDB) SetGlobalFlag(flag GlobalStateFlag) {
+	s.GetOrNewGlobalObject().SetFlag(flag)
+}
+
+func (s *StateDB) UnsetGlobalFlag(flag GlobalStateFlag) {
+	s.GetOrNewGlobalObject().UnsetFlag(flag)
 }
 
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
@@ -236,6 +248,10 @@ func (s *StateDB) AddFlip(flipCid []byte) {
 
 func (s *StateDB) ClearFlips() {
 	s.GetOrNewGlobalObject().ClearFlipCids()
+}
+
+func (s *StateDB) HasGlobalFlag(flag GlobalStateFlag) bool {
+	return s.GetOrNewGlobalObject().HasFlag(flag)
 }
 
 //

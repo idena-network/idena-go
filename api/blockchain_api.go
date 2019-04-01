@@ -39,6 +39,7 @@ type Block struct {
 	IdentityRoot common.Hash   `json:"identityRoot"` // root of approved identities tree
 	IpfsHash     string        `json:"ipfsCid"`      // ipfs hash of block body
 	Transactions []common.Hash `json:"transactions"`
+	Flags        []string      `json:"flags"`
 }
 
 type Transaction struct {
@@ -107,6 +108,17 @@ func convertToBlock(block *types.Block) *Block {
 		ipfsHashStr = c.String()
 	}
 
+	var flags []string
+	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		flags = append(flags, "Identity update")
+	}
+	if block.Header.Flags().HasFlag(types.ValidationStarted) {
+		flags = append(flags, "Validation started")
+	}
+	if block.Header.Flags().HasFlag(types.ValidationFinished) {
+		flags = append(flags, "Validation finished")
+	}
+
 	return &Block{
 		Hash:         block.Hash(),
 		IdentityRoot: block.IdentityRoot(),
@@ -116,5 +128,6 @@ func convertToBlock(block *types.Block) *Block {
 		Time:         block.Header.Time(),
 		IpfsHash:     ipfsHashStr,
 		Transactions: txs,
+		Flags:        flags,
 	}
 }

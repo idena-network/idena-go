@@ -55,10 +55,18 @@ type stateGlobal struct {
 	onDirty func() // Callback method to mark a state object newly dirty
 }
 
+type GlobalStateFlag uint32
+
+const (
+	FlipSubmissionStarted GlobalStateFlag = 1 << iota
+	ValidationStarted
+)
+
 type Global struct {
-	Epoch          uint16
-	NextEpochBlock uint64
-	Flips          [][]byte
+	Epoch              uint16
+	Flips              [][]byte
+	NextValidationTime *big.Int
+	Flags              GlobalStateFlag
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -323,14 +331,28 @@ func (s *stateGlobal) ClearFlipCids() {
 	s.touch()
 }
 
+func (s *stateGlobal) HasFlag(flag GlobalStateFlag) bool {
+	return s.data.Flags&flag != 0
+}
+
 func (s *stateGlobal) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
 }
 
-func (s *stateGlobal) SetNextEpochBlock(u uint64) {
-	s.data.NextEpochBlock = u
+func (s *stateGlobal) SetNextValidationTime(unix int64) {
+	s.data.NextValidationTime = big.NewInt(unix)
+	s.touch()
+}
+
+func (s *stateGlobal) SetFlag(flag GlobalStateFlag) {
+	s.data.Flags |= flag
+	s.touch()
+}
+
+func (s *stateGlobal) UnsetFlag(flag GlobalStateFlag) {
+	s.data.Flags &= ^flag
 	s.touch()
 }
 

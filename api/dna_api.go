@@ -11,6 +11,7 @@ import (
 	"idena-go/crypto"
 	"idena-go/rlp"
 	"math/big"
+	"time"
 )
 
 type DnaApi struct {
@@ -211,7 +212,7 @@ func (api *DnaApi) Identities() []Identity {
 
 type Epoch struct {
 	Epoch          uint16
-	NextEpochBlock uint64
+	NextValidation time.Time
 }
 
 func (api *DnaApi) Epoch() Epoch {
@@ -219,7 +220,7 @@ func (api *DnaApi) Epoch() Epoch {
 
 	return Epoch{
 		Epoch:          s.State.Epoch(),
-		NextEpochBlock: s.State.NextEpochBlock(),
+		NextValidation: s.State.NextValidationTime(),
 	}
 }
 

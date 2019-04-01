@@ -28,13 +28,13 @@ import (
 )
 
 const (
-	Mainnet types.Network = 0x1
-	Testnet types.Network = 0x2
+	Mainnet types.Network = 0x0
+	Testnet types.Network = 0x1
 )
 
 const (
-	ProposerRole uint8 = 0x1
-	EpochSize          = 100
+	ProposerRole       uint8 = 0x1
+	MaxFutureBlockTime       = time.Minute * 2
 )
 
 var (
@@ -55,6 +55,7 @@ type Blockchain struct {
 	appState        *appstate.AppState
 	secretKey       *ecdsa.PrivateKey
 	ipfs            ipfs.Proxy
+	timing          *timing
 }
 
 func init() {
@@ -75,6 +76,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		txpool:   txpool,
 		appState: appState,
 		ipfs:     ipfs,
+		timing:   NewTiming(config.Validation),
 	}
 }
 
@@ -136,7 +138,6 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		}
 	}
 
-	chain.appState.State.SetNextEpochBlock(EpochSize)
 	if err := chain.appState.Commit(); err != nil {
 		return nil, err
 	}
@@ -233,6 +234,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 
 	chain.applyBlockRewards(totalFee, appState, block)
 	chain.applyNewEpoch(appState, block)
+	chain.applyGlobalParams(appState, block)
 
 	appState.Precommit()
 
@@ -270,7 +272,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 
 func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types.Block) {
 
-	if block.Height() < appState.State.NextEpochBlock() {
+	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
 
@@ -299,7 +301,32 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	appState.State.ClearFlips()
 	appState.State.IncEpoch()
-	appState.State.SetNextEpochBlock(appState.State.NextEpochBlock() + EpochSize)
+
+	appState.State.SetNextValidationTime(getNextValidationTime(chain.config.Validation.ValidationInterval, appState.State.NextValidationTime(), time.Now().UTC()))
+	appState.State.UnsetGlobalFlag(state.FlipSubmissionStarted)
+	appState.State.UnsetGlobalFlag(state.ValidationStarted)
+}
+
+func getNextValidationTime(interval time.Duration, prevValidation time.Time, now time.Time) time.Time {
+	timeToAdd := interval
+	prevValidationStarted := prevValidation
+
+	countIntervals := now.Sub(prevValidationStarted).Nanoseconds() / interval.Nanoseconds()
+	timeToAdd = time.Duration((countIntervals + 1) * interval.Nanoseconds())
+
+	return prevValidation.Add(timeToAdd)
+}
+
+func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
+	// flip submission started
+	if !appState.State.HasGlobalFlag(state.FlipSubmissionStarted) &&
+		chain.timing.isFlipLotteryStarted(appState.State.NextValidationTime(), block.Header.Time()) {
+		appState.State.SetGlobalFlag(state.FlipSubmissionStarted)
+	}
+	// validation started
+	if block.Header.ProposedHeader.Flags.HasFlag(types.ValidationStarted) {
+		appState.State.SetGlobalFlag(state.ValidationStarted)
+	}
 }
 
 func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
@@ -480,6 +507,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	chain.applyNewEpoch(checkState, block)
 	chain.applyBlockRewards(totalFee, checkState, block)
+	chain.applyGlobalParams(checkState, block)
 
 	checkState.Precommit()
 
@@ -500,8 +528,17 @@ func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
 		}
 	}
 
-	if chain.Head.Height()+1 >= chain.appState.State.NextEpochBlock() {
+	appState := chain.appState.State
+
+	if appState.HasGlobalFlag(state.ValidationStarted) &&
+		chain.timing.isValidationFinished(appState.NextValidationTime(), block.Header.Time()) {
 		flags |= types.IdentityUpdate
+		flags |= types.ValidationFinished
+	}
+
+	if !appState.HasGlobalFlag(state.ValidationStarted) &&
+		chain.timing.isValidationStarted(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.ValidationStarted
 	}
 
 	return flags
@@ -572,6 +609,9 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 	if err := chain.validateBlockParentHash(block); err != nil {
 		return err
 	}
+	if err := chain.validateBlockTimestamp(block.Header.Time()); err != nil {
+		return err
+	}
 	var seedData = chain.GetSeedData(block)
 	pubKey, err := crypto.UnmarshalPubkey(block.Header.ProposedHeader.ProposerPubKey)
 	if err != nil {
@@ -630,6 +670,14 @@ func (chain *Blockchain) validateBlockParentHash(block *types.Block) error {
 	}
 	if head.Hash() != block.Header.ParentHash() {
 		return errors.New("parentHash is invalid")
+	}
+	return nil
+}
+
+func (chain *Blockchain) validateBlockTimestamp(timestamp *big.Int) error {
+	blockTime := time.Unix(timestamp.Int64(), 0)
+	if blockTime.Sub(time.Now().UTC()) > MaxFutureBlockTime {
+		return errors.New("block from future")
 	}
 	return nil
 }

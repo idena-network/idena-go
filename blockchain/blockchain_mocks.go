@@ -32,7 +32,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
@@ -43,6 +43,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 		GenesisConf: &config.GenesisConf{
 			Alloc: alloc,
 		},
+		Validation: valConf,
 	}
 
 	db := db.NewMemDB()
@@ -69,5 +70,5 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), alloc)
+	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc)
 }

@@ -35,6 +35,7 @@ type Config struct {
 	RPC         *rpc.Config
 	GenesisConf *GenesisConf
 	IpfsConf    *ipfs.IpfsConfig
+	Validation  *ValidationConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -116,6 +117,7 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 		RPC:         rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
 		GenesisConf: &GenesisConf{},
 		IpfsConf:    ipfs.GetDefaultIpfsConfig(datadir, ipfsPort, ipfsBootstrap),
+		Validation:  GetDefaultValidationConfig(),
 	}
 
 	return &c

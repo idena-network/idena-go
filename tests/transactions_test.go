@@ -11,6 +11,7 @@ import (
 	"idena-go/crypto"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func TestTransactions_EpochChanging(t *testing.T) {
@@ -34,7 +35,11 @@ func TestTransactions_EpochChanging(t *testing.T) {
 
 	conf := blockchain.GetDefaultConsensusConfig(false)
 	conf.FinalCommitteeReward = big.NewInt(0)
-	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, alloc)
+	valConf := config.GetDefaultValidationConfig()
+	valConf.TimeoutBeforeEnd = 0
+	valConf.ValidationInterval = time.Minute * 1
+
+	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, valConf, alloc)
 
 	tx1 := generateTx(getAmount(12), addr2, 1, 0, key1)
 	tx2 := generateTx(getAmount(88), addr1, 1, 0, key2)
@@ -60,10 +65,8 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.Equal(appState.State.GetBalance(addr2), new(big.Int).Sub(receive2, spend2))
 
 	//new epoch
-	for i := 0; i < 98; i++ {
-		block = chain.ProposeBlock()
-		require.NoError(chain.AddBlock(block))
-	}
+	block = chain.ProposeBlock()
+	require.NoError(chain.AddBlock(block))
 
 	// new epoch started
 	tx1 = generateTx(getAmount(15), addr2, 1, 1, key1)

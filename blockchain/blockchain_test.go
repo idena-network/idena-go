@@ -127,3 +127,16 @@ func Test_ApplyActivateTx(t *testing.T) {
 	require.Equal(t, -1, big.NewInt(0).Cmp(appState.State.GetBalance(receiver)))
 }
 
+func Test_getNextValidationTime(t *testing.T) {
+	require := require.New(t)
+
+	now, _ := time.Parse(time.RFC3339, "2019-01-01T05:05:00+00:00")
+	t1, _ := time.Parse(time.RFC3339, "2019-01-01T05:00:00+00:00")
+
+	require.Equal(t1.Add(time.Minute*6), getNextValidationTime(time.Minute, t1, now))
+
+	require.Equal(t1.Add(time.Hour), getNextValidationTime(time.Hour, t1, now))
+
+	require.Equal(t1.Add(time.Second*59*6), getNextValidationTime(time.Second*59, t1, now))
+
+}
