@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/asaskevich/EventBus"
 	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
 	"idena-go/config"
@@ -58,7 +59,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 		}
 	}
 
-	txPool := mempool.NewTxPool(appState)
+	txPool := mempool.NewTxPool(appState, EventBus.New())
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy())
 

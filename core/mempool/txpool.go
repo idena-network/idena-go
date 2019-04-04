@@ -2,9 +2,11 @@ package mempool
 
 import (
 	"errors"
+	"github.com/asaskevich/EventBus"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
+	"idena-go/constants"
 	"idena-go/core/appstate"
 	"idena-go/core/state"
 	"idena-go/log"
@@ -23,14 +25,16 @@ type TxPool struct {
 	appState       *appstate.AppState
 	log            log.Logger
 	head           *types.Header
+	bus            EventBus.Bus
 }
 
-func NewTxPool(appState *appstate.AppState) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus EventBus.Bus) *TxPool {
 	return &TxPool{
 		pending:  make(map[common.Hash]*types.Transaction),
 		mutex:    &sync.Mutex{},
 		appState: appState,
 		log:      log.New(),
+		bus:      bus,
 	}
 }
 
@@ -63,16 +67,11 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 	}
 
-	select {
-	case txpool.txSubscription <- tx:
-	default:
-	}
+	txpool.bus.Publish(constants.NewTxEvent, tx)
+
 	return nil
 }
 
-func (txpool *TxPool) Subscribe(transactions chan *types.Transaction) {
-	txpool.txSubscription = transactions
-}
 func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()

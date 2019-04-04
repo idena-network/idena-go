@@ -34,6 +34,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:e2a1ff1174d564ed4b75a62757f4a9081ed3b8c99ed17e47eb252b048b4ff018"
+  name = "github.com/asaskevich/EventBus"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "d46933a94f05c6657d7b923fcf5ac563ee37ec79"
+
+[[projects]]
+  branch = "master"
   digest = "1:02796fed67c64543bfe3343b26cdc9a221bca2d83e8c7dcf35b5b70f6b5b9c56"
   name = "github.com/bren2010/proquint"
   packages = ["."]
@@ -119,6 +127,14 @@
   pruneopts = "UT"
   revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:f8c16776ffef2e0b95b799caf90073f7d68a8e045037a9df85ecb1640f6ccb30"
+  name = "github.com/ethereum/go-ethereum"
+  packages = ["p2p/simulations/pipes"]
+  pruneopts = "UT"
+  revision = "c942700427557e3ff6de3aaf6b916e2f056c1ec2"
+  version = "v1.8.23"
 
 [[projects]]
   branch = "master"
@@ -925,9 +941,11 @@
   analyzer-version = 1
   input-imports = [
     "github.com/aristanetworks/goarista/monotime",
+    "github.com/asaskevich/EventBus",
     "github.com/cespare/cp",
     "github.com/davecgh/go-spew/spew",
     "github.com/deckarep/golang-set",
+    "github.com/ethereum/go-ethereum/p2p/simulations/pipes",
     "github.com/go-stack/stack",
     "github.com/golang/snappy",
     "github.com/huin/goupnp",
@@ -962,6 +980,7 @@
     "github.com/tendermint/tendermint/libs/db",
     "golang.org/x/crypto/pbkdf2",
     "golang.org/x/crypto/scrypt",
+    "golang.org/x/crypto/sha3",
     "golang.org/x/net/websocket",
     "golang.org/x/sys/cpu",
     "gopkg.in/check.v1",

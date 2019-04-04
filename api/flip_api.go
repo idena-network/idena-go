@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
@@ -54,7 +55,7 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, err
 	}
 
-	tx, err := api.baseApi.getSignedTx(api.baseApi.getCurrentCoinbase(), common.Address{}, types.SubmitFlipTx, nil, 0, 0, cid.Bytes(), nil)
+	tx, err := api.baseApi.getSignedTx(api.baseApi.getCurrentCoinbase(), common.Address{}, types.SubmitFlipTx, decimal.Zero, 0, 0, cid.Bytes(), nil)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err

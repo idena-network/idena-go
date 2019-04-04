@@ -3,6 +3,7 @@ package node
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/asaskevich/EventBus"
 	"idena-go/api"
 	"idena-go/blockchain"
 	"idena-go/config"
@@ -46,6 +47,7 @@ type Node struct {
 	keyStore        *keystore.KeyStore
 	fp              *flip.Flipper
 	ipfsProxy       ipfs.Proxy
+	bus             EventBus.Bus
 }
 
 func StartDefaultNode(path string) string {
@@ -92,16 +94,18 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
+	bus := EventBus.New()
+
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 
 	appState := appstate.NewAppState(db)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState)
+	txpool := mempool.NewTxPool(appState, bus)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy)
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy)
 
 	return &Node{
@@ -116,6 +120,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		keyStore:        keyStore,
 		fp:              flipper,
 		ipfsProxy:       ipfsProxy,
+		bus:             bus,
 	}, nil
 }
 

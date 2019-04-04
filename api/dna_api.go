@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"github.com/shopspring/decimal"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -10,7 +11,6 @@ import (
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/rlp"
-	"math/big"
 	"time"
 )
 
@@ -38,8 +38,8 @@ func (api *DnaApi) GetCoinbaseAddr() common.Address {
 }
 
 type Balance struct {
-	Stake   *big.Float `json:"stake"`
-	Balance *big.Float `json:"balance"`
+	Stake   decimal.Decimal `json:"stake"`
+	Balance decimal.Decimal `json:"balance"`
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
@@ -53,21 +53,21 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	Type    types.TxType   `json:"type"`
-	From    common.Address `json:"from"`
-	To      common.Address `json:"to"`
-	Amount  *big.Float     `json:"amount"`
-	Nonce   uint32         `json:"nonce"`
-	Epoch   uint16         `json:"epoch"`
-	Payload *hexutil.Bytes `json:"payload"`
+	Type    types.TxType    `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Amount  decimal.Decimal `json:"amount"`
+	Nonce   uint32          `json:"nonce"`
+	Epoch   uint16          `json:"epoch"`
+	Payload *hexutil.Bytes  `json:"payload"`
 }
 
 // SendInviteArgs represents the arguments to send invite
 type SendInviteArgs struct {
-	To     common.Address `json:"to"`
-	Amount *big.Float     `json:"amount"`
-	Nonce  uint32         `json:"nonce"`
-	Epoch  uint16         `json:"epoch"`
+	To     common.Address  `json:"to"`
+	Amount decimal.Decimal `json:"amount"`
+	Nonce  uint32          `json:"nonce"`
+	Epoch  uint16          `json:"epoch"`
 }
 
 type ActivateInviteArgs struct {
@@ -126,7 +126,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(from, args.To, types.ActivationTx, nil, args.Nonce, args.Epoch, nil, key)
+	hash, err := api.baseApi.sendTx(from, args.To, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, nil, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -146,12 +146,12 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 type Identity struct {
-	Address  common.Address `json:"address"`
-	Nickname string         `json:"nickname"`
-	Stake    *big.Float     `json:"stake"`
-	Invites  uint8          `json:"invites"`
-	Age      uint16         `json:"age"`
-	State    string         `json:"state"`
+	Address  common.Address  `json:"address"`
+	Nickname string          `json:"nickname"`
+	Stake    decimal.Decimal `json:"stake"`
+	Invites  uint8           `json:"invites"`
+	Age      uint16          `json:"age"`
+	State    string          `json:"state"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -222,24 +222,4 @@ func (api *DnaApi) Epoch() Epoch {
 		Epoch:          s.State.Epoch(),
 		NextValidation: s.State.NextValidationTime(),
 	}
-}
-
-func convertToInt(amount *big.Float) *big.Int {
-	if amount == nil {
-		return nil
-	}
-	initial := new(big.Float).SetInt(common.DnaBase)
-	result, _ := new(big.Float).Mul(initial, amount).Int(nil)
-
-	return result
-}
-
-func convertToFloat(amount *big.Int) *big.Float {
-	if amount == nil {
-		return nil
-	}
-	bigAmount := new(big.Float).SetInt(amount)
-	result := new(big.Float).Quo(bigAmount, new(big.Float).SetInt(common.DnaBase))
-
-	return result
 }

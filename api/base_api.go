@@ -2,8 +2,10 @@ package api
 
 import (
 	"crypto/ecdsa"
+	"github.com/shopspring/decimal"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/common/math"
 	"idena-go/consensus"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
@@ -30,7 +32,7 @@ func (api *BaseApi) getCurrentCoinbase() common.Address {
 	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
 }
 
-func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) *types.Transaction {
+func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) *types.Transaction {
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
@@ -59,13 +61,13 @@ func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.T
 	return &tx
 }
 
-func (api *BaseApi) getSignedTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (*types.Transaction, error) {
+func (api *BaseApi) getSignedTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (*types.Transaction, error) {
 	tx := api.getTx(from, to, txType, amount, nonce, epoch, payload, key)
 
 	return api.signTransaction(from, tx, key)
 }
 
-func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount *big.Float, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
+func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
 
 	tx := api.getTx(from, to, txType, amount, nonce, epoch, payload, key)
 
@@ -98,4 +100,23 @@ func (api *BaseApi) signTransaction(from common.Address, tx *types.Transaction, 
 		return nil, err
 	}
 	return api.ks.SignTx(account, tx)
+}
+
+func convertToInt(amount decimal.Decimal) *big.Int {
+	if amount == (decimal.Decimal{}) {
+		return nil
+	}
+	initial := decimal.NewFromBigInt(common.DnaBase, 0)
+	result := amount.Mul(initial)
+
+	return math.ToInt(&result)
+}
+
+func convertToFloat(amount *big.Int) decimal.Decimal {
+	if amount == nil {
+		return decimal.Zero
+	}
+	decimalAmount := decimal.NewFromBigInt(amount, 0)
+
+	return decimalAmount.Div(decimal.NewFromBigInt(common.DnaBase, 0))
 }

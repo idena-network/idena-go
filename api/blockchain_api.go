@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	"github.com/shopspring/decimal"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -47,7 +48,7 @@ type Transaction struct {
 	Type      string          `json:"type"`
 	From      common.Address  `json:"from"`
 	To        *common.Address `json:"to"`
-	Amount    *big.Float      `json:"amount"`
+	Amount    decimal.Decimal `json:"amount"`
 	Nonce     uint32          `json:"nonce"`
 	Epoch     uint16          `json:"epoch"`
 	Payload   hexutil.Bytes   `json:"payload"`

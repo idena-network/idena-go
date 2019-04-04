@@ -2,10 +2,12 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/asaskevich/EventBus"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/constants"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
 	"idena-go/p2p"
@@ -52,6 +54,7 @@ type ProtocolManager struct {
 	txChan        chan *types.Transaction
 	incomeBatches map[string]map[uint32]*batch
 	batchedLock   sync.Mutex
+	bus           EventBus.Bus
 }
 
 type getBlockBodyRequest struct {
@@ -86,10 +89,7 @@ type handshakeData struct {
 	GenesisBlock common.Hash
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper) *ProtocolManager {
-
-	txChan := make(chan *types.Transaction, 100)
-	txpool.Subscribe(txChan)
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus EventBus.Bus) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
 		peers:         newPeerSet(),
@@ -99,12 +99,14 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		proposals:     proposals,
 		votes:         votes,
 		txpool:        txpool,
-		txChan:        txChan,
+		txChan:        make(chan *types.Transaction, 100),
 		flipper:       fp,
+		bus:           bus,
 	}
 }
 
 func (pm *ProtocolManager) Start() {
+	_ = pm.bus.Subscribe(constants.NewTxEvent, func(tx *types.Transaction) { pm.txChan <- tx })
 	go pm.broadcastLoop()
 }
 
