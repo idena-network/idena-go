@@ -37,6 +37,7 @@ type EmptyBlockHeader struct {
 	Root         common.Hash
 	IdentityRoot common.Hash
 	BlockSeed    Seed
+	Time         *big.Int
 }
 
 type ProposedHeader struct {
@@ -138,38 +139,6 @@ func (b *Block) Hash() common.Hash {
 	return v
 }
 
-func (b *Block) ProposeHash() common.Hash {
-	if hash := b.proposeHash.Load(); hash != nil {
-		return hash.(common.Hash)
-	}
-	var hash common.Hash
-	if !b.IsEmpty() {
-		h := b.Header.ProposedHeader
-		hash = rlpHash([]interface{}{
-			h.IpfsHash,
-			h.Root,
-			h.IdentityRoot,
-			h.Height,
-			h.Flags,
-			h.Coinbase,
-			h.ParentHash,
-			h.TxHash,
-			h.ProposerPubKey,
-			h.Time,
-		})
-	} else {
-		h := b.Header.EmptyBlockHeader
-		hash = rlpHash([]interface{}{
-			h.Root,
-			h.IdentityRoot,
-			h.Height,
-			h.ParentHash,
-		})
-	}
-	b.proposeHash.Store(hash)
-	return hash
-}
-
 func (b *Block) IsEmpty() bool {
 	return b.Header.EmptyBlockHeader != nil
 }
@@ -242,7 +211,7 @@ func (h *Header) IdentityRoot() common.Hash {
 
 func (h *Header) Time() *big.Int {
 	if h.EmptyBlockHeader != nil {
-		return nil
+		return h.EmptyBlockHeader.Time
 	} else {
 		return h.ProposedHeader.Time
 	}

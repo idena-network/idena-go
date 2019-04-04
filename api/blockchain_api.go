@@ -40,6 +40,7 @@ type Block struct {
 	IpfsHash     string        `json:"ipfsCid"`      // ipfs hash of block body
 	Transactions []common.Hash `json:"transactions"`
 	Flags        []string      `json:"flags"`
+	IsEmpty      bool          `json:"isEmpty"`
 }
 
 type Transaction struct {
@@ -120,6 +121,7 @@ func convertToBlock(block *types.Block) *Block {
 	}
 
 	return &Block{
+		IsEmpty:      block.IsEmpty(),
 		Hash:         block.Hash(),
 		IdentityRoot: block.IdentityRoot(),
 		Root:         block.Root(),
