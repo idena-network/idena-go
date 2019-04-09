@@ -6,6 +6,11 @@ import (
 	"idena-go/common"
 	"idena-go/core/appstate"
 	"idena-go/core/state"
+	"idena-go/crypto"
+)
+
+const (
+	MaxPayloadSize = 1024
 )
 
 var (
@@ -19,8 +24,8 @@ var (
 	InvitationIsMissing  = errors.New("invitation is missing")
 	EmptyPayload         = errors.New("payload can't be empty")
 	InvalidEpochTx       = errors.New("invalid epoch tx")
-
-	validators map[types.TxType]*validator
+	InvalidPayload       = errors.New("invalid payload")
+	validators           map[types.TxType]*validator
 )
 
 type validator struct {
@@ -51,6 +56,10 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 
 	if sender == (common.Address{}) {
 		return InvalidSignature
+	}
+
+	if len(tx.Payload) > MaxPayloadSize {
+		return InvalidPayload
 	}
 
 	globalEpoch := appState.State.Epoch()
@@ -93,6 +102,17 @@ func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error
 func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
+	if len(tx.Payload) == 0 {
+		return EmptyPayload
+	}
+
+	if addr, err := crypto.PubKeyBytesToAddress(tx.Payload); err != nil {
+		return err
+	} else {
+		if addr != *tx.To {
+			return InvalidPayload
+		}
+	}
 	if err := validateRegularTx(appState, tx); err != nil {
 		return err
 	}

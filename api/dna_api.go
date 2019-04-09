@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"github.com/shopspring/decimal"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
@@ -71,10 +72,9 @@ type SendInviteArgs struct {
 }
 
 type ActivateInviteArgs struct {
-	Key   string         `json:"key"`
-	To    common.Address `json:"to"`
-	Nonce uint32         `json:"nonce"`
-	Epoch uint16         `json:"epoch"`
+	Key   string `json:"key"`
+	Nonce uint32 `json:"nonce"`
+	Epoch uint16 `json:"epoch"`
 }
 
 type Invite struct {
@@ -126,7 +126,9 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(from, args.To, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, nil, key)
+	payload := crypto.FromECDSAPub(&api.baseApi.engine.GetKey().PublicKey)
+	to := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -152,6 +154,7 @@ type Identity struct {
 	Invites  uint8           `json:"invites"`
 	Age      uint16          `json:"age"`
 	State    string          `json:"state"`
+	PubKey   string          `json:"pubkey"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -202,6 +205,7 @@ func (api *DnaApi) Identities() []Identity {
 			Age:      data.Age,
 			Invites:  data.Invites,
 			Nickname: nickname,
+			PubKey:   fmt.Sprintf("%x", data.PubKey),
 		})
 
 		return false

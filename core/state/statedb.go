@@ -237,6 +237,9 @@ func (s *StateDB) AddInvite(address common.Address, amount uint8) {
 func (s *StateDB) SubInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).SubInvite(amount)
 }
+func (s *StateDB) SetPubKey(address common.Address, pubKey []byte) {
+	s.GetOrNewIdentityObject(address).SetPubKey(pubKey)
+}
 
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()

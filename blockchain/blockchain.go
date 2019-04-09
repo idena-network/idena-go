@@ -274,7 +274,6 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
 	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
 	intStake := math.ToInt(&stake)
-
 	// calculate block reward
 	blockReward := big.NewInt(0)
 	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
@@ -435,6 +434,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		recipient := *tx.To
 		stateDB.GetOrNewIdentityObject(recipient).SetState(state.Candidate)
 		stateDB.AddBalance(recipient, change)
+		stateDB.SetPubKey(recipient, tx.Payload)
 		break
 	case types.RegularTx:
 		amount := tx.AmountOrZero()

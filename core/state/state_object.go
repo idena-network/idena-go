@@ -83,6 +83,7 @@ type Identity struct {
 	Invites  uint8
 	Age      uint16
 	State    IdentityState
+	PubKey   []byte
 }
 
 type ApprovedIdentity struct {
@@ -305,6 +306,11 @@ func (s *stateIdentity) AddInvite(i uint8) {
 }
 func (s *stateIdentity) SubInvite(i uint8) {
 	s.SetInvites(s.Invites() - i)
+}
+
+func (s *stateIdentity) SetPubKey(pubKey []byte) {
+	s.data.PubKey = pubKey
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.
