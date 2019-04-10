@@ -71,7 +71,7 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, bus EventBus.Bus) *Blockchain {
+func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore, bus EventBus.Bus) *Blockchain {
 	return &Blockchain{
 		repo:     database.NewRepo(db),
 		config:   config,
@@ -81,6 +81,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		ipfs:     ipfs,
 		timing:   NewTiming(config.Validation),
 		bus:      bus,
+		secStore: secStore,
 	}
 }
 

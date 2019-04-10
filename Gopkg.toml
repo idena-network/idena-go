@@ -127,3 +127,7 @@
 [[constraint]]
   name = "github.com/awnumar/memguard"
   version = "0.15.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/asaskevich/EventBus"
