@@ -1,7 +1,6 @@
 package node
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"github.com/asaskevich/EventBus"
 	"idena-go/api"
@@ -11,6 +10,7 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
+	"idena-go/crypto"
 	"idena-go/ipfs"
 	"idena-go/keystore"
 	"idena-go/log"
@@ -18,6 +18,7 @@ import (
 	"idena-go/pengings"
 	"idena-go/protocol"
 	"idena-go/rpc"
+	"idena-go/secstore"
 	"net"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ type Node struct {
 	config          *config.Config
 	blockchain      *blockchain.Blockchain
 	appState        *appstate.AppState
-	key             *ecdsa.PrivateKey
+	secStore        *secstore.SecStore
 	pm              *protocol.ProtocolManager
 	stop            chan struct{}
 	proposals       *pengings.Proposals
@@ -97,16 +98,16 @@ func NewNode(config *config.Config) (*Node, error) {
 	bus := EventBus.New()
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
-
+	secStore := secstore.NewSecStore()
 	appState := appstate.NewAppState(db)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState, bus)
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy)
+	txpool := mempool.NewTxPool(appState)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore)
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
 
 	return &Node{
 		config:          config,
@@ -120,15 +121,13 @@ func NewNode(config *config.Config) (*Node, error) {
 		keyStore:        keyStore,
 		fp:              flipper,
 		ipfsProxy:       ipfsProxy,
-		bus:             bus,
+		secStore:        secStore,
 	}, nil
 }
 
 func (node *Node) Start() {
-	node.key = node.config.NodeKey()
 
 	config := node.config.P2P
-	config.PrivateKey = node.key
 	config.Protocols = []p2p.Protocol{
 		{
 			Name:    "AppName",
@@ -140,7 +139,9 @@ func (node *Node) Start() {
 	node.srv = &p2p.Server{
 		Config: *config,
 	}
-	if err := node.blockchain.InitializeChain(node.key); err != nil {
+	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
+
+	if err := node.blockchain.InitializeChain(); err != nil {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
 		return
 	}
@@ -148,7 +149,6 @@ func (node *Node) Start() {
 	node.appState.Initialize(node.blockchain.Head.Height())
 	node.txpool.Initialize(node.blockchain.Head)
 
-	node.consensusEngine.SetKey(node.key)
 	node.consensusEngine.Start()
 	node.srv.Start()
 	node.pm.Start()
@@ -161,6 +161,7 @@ func (node *Node) Start() {
 
 func (node *Node) WaitForStop() {
 	<-node.stop
+	node.secStore.Destroy()
 }
 
 // startRPC is a helper method to start all the various RPC endpoint during node
@@ -222,7 +223,7 @@ func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB,
 // apis returns the collection of RPC descriptors this node offers.
 func (node *Node) apis() []rpc.API {
 
-	baseApi := api.NewBaseApi(node.consensusEngine, node.txpool, node.keyStore)
+	baseApi := api.NewBaseApi(node.consensusEngine, node.txpool, node.keyStore, node.secStore)
 
 	return []rpc.API{
 		{

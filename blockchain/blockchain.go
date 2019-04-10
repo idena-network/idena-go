@@ -17,12 +17,12 @@ import (
 	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
-	"idena-go/crypto/vrf"
 	"idena-go/crypto/vrf/p256"
 	"idena-go/database"
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
+	"idena-go/secstore"
 	"math/big"
 	"time"
 )
@@ -43,13 +43,12 @@ var (
 )
 
 type Blockchain struct {
-	repo *database.Repo
-
+	repo            *database.Repo
+	secStore        *secstore.SecStore
 	Head            *types.Header
 	genesis         *types.Header
 	config          *config.Config
-	vrfSigner       vrf.PrivateKey
-	pubKey          *ecdsa.PublicKey
+	pubKey          []byte
 	coinBaseAddress common.Address
 	log             log.Logger
 	txpool          *mempool.TxPool
@@ -69,7 +68,7 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy) *Blockchain {
+func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore) *Blockchain {
 	return &Blockchain{
 		repo:     database.NewRepo(db),
 		config:   config,
@@ -77,7 +76,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		txpool:   txpool,
 		appState: appState,
 		ipfs:     ipfs,
-		timing:   NewTiming(config.Validation),
+		secStore: secStore,
 	}
 }
 
@@ -90,16 +89,10 @@ func (chain *Blockchain) Network() types.Network {
 	return chain.config.Network
 }
 
-func (chain *Blockchain) InitializeChain(secretKey *ecdsa.PrivateKey) error {
-	signer, err := p256.NewVRFSigner(secretKey)
-	if err != nil {
-		return err
-	}
-	chain.vrfSigner = signer
+func (chain *Blockchain) InitializeChain() error {
 
-	chain.secretKey = secretKey
-	chain.pubKey = secretKey.Public().(*ecdsa.PublicKey)
-	chain.coinBaseAddress = crypto.PubkeyToAddress(*chain.pubKey)
+	chain.coinBaseAddress = chain.secStore.GetAddress()
+	chain.pubKey = chain.secStore.GetPubKey()
 	head := chain.GetHead()
 	if head != nil {
 		chain.SetCurrentHead(head)
@@ -509,7 +502,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
-		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
+		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
 		IpfsHash:       cid.Bytes(),
@@ -532,7 +525,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	block.Header.ProposedHeader.Root = checkState.State.Root()
 	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
-	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.vrfSigner.Evaluate(chain.GetSeedData(block))
+	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(chain.GetSeedData(block))
 
 	return block
 }
@@ -611,7 +604,7 @@ func (chain *Blockchain) getProposerData() []byte {
 }
 
 func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
-	hash, proof := chain.vrfSigner.Evaluate(data)
+	hash, proof := chain.secStore.VrfEvaluate(data)
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 

@@ -1,7 +1,6 @@
 package consensus
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
@@ -17,6 +16,7 @@ import (
 	"idena-go/log"
 	"idena-go/pengings"
 	"idena-go/protocol"
+	"idena-go/secstore"
 	"time"
 )
 
@@ -34,18 +34,18 @@ type Engine struct {
 	pubKey     []byte
 	config     *config.ConsensusConf
 	proposals  *pengings.Proposals
-	secretKey  *ecdsa.PrivateKey
 	votes      *pengings.Votes
 	txpool     *mempool.TxPool
 	addr       common.Address
 	appState   *appstate.AppState
 	downloader *protocol.Downloader
+	secStore   *secstore.SecStore
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
-	txpool *mempool.TxPool, ipfs ipfs.Proxy) *Engine {
+	txpool *mempool.TxPool, ipfs ipfs.Proxy, secStore *secstore.SecStore) *Engine {
 	return &Engine{
 		chain:      chain,
 		pm:         pm,
@@ -56,20 +56,13 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		votes:      votes,
 		txpool:     txpool,
 		downloader: protocol.NewDownloader(pm, chain, ipfs),
+		secStore:   secStore,
 	}
 }
 
-func (engine *Engine) SetKey(key *ecdsa.PrivateKey) {
-	engine.secretKey = key
-	engine.pubKey = crypto.FromECDSAPub(key.Public().(*ecdsa.PublicKey))
-	engine.addr = crypto.PubkeyToAddress(*key.Public().(*ecdsa.PublicKey))
-}
-
-func (engine *Engine) GetKey() *ecdsa.PrivateKey {
-	return engine.secretKey
-}
-
 func (engine *Engine) Start() {
+	engine.pubKey = engine.secStore.GetPubKey()
+	engine.addr = engine.secStore.GetAddress()
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
 	go engine.loop()
 }
@@ -345,7 +338,7 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 				VotedHash:  block,
 			},
 		}
-		vote.Signature, _ = crypto.Sign(vote.Header.SignatureHash().Bytes(), engine.secretKey)
+		vote.Signature = engine.secStore.Sign(vote.Header.SignatureHash().Bytes())
 		engine.pm.SendVote(&vote)
 
 		engine.log.Info("Voted for", "step", step, "block", block.Hex())

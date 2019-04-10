@@ -125,5 +125,5 @@
   unused-packages = true
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/asaskevich/EventBus"
+  name = "github.com/awnumar/memguard"
+  version = "0.15.0"

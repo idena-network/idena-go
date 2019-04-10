@@ -9,19 +9,20 @@ import (
 	"idena-go/consensus"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
-	"idena-go/crypto"
 	"idena-go/keystore"
+	"idena-go/secstore"
 	"math/big"
 )
 
 type BaseApi struct {
-	engine *consensus.Engine
-	txpool *mempool.TxPool
-	ks     *keystore.KeyStore
+	engine   *consensus.Engine
+	txpool   *mempool.TxPool
+	ks       *keystore.KeyStore
+	secStore *secstore.SecStore
 }
 
-func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore) *BaseApi {
-	return &BaseApi{engine, txpool, ks}
+func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore, secStore *secstore.SecStore) *BaseApi {
+	return &BaseApi{engine, txpool, ks, secStore}
 }
 
 func (api *BaseApi) getAppState() *appstate.AppState {
@@ -29,7 +30,7 @@ func (api *BaseApi) getAppState() *appstate.AppState {
 }
 
 func (api *BaseApi) getCurrentCoinbase() common.Address {
-	return crypto.PubkeyToAddress(*api.engine.GetKey().Public().(*ecdsa.PublicKey))
+	return api.secStore.GetAddress()
 }
 
 func (api *BaseApi) getTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) *types.Transaction {
@@ -93,7 +94,7 @@ func (api *BaseApi) signTransaction(from common.Address, tx *types.Transaction, 
 		return types.SignTx(tx, key)
 	}
 	if from == api.getCurrentCoinbase() {
-		return types.SignTx(tx, api.engine.GetKey())
+		return api.secStore.SignTx(tx)
 	}
 	account, err := api.ks.Find(keystore.Account{Address: from})
 	if err != nil {

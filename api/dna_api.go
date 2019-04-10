@@ -205,7 +205,6 @@ func (api *DnaApi) Identities() []Identity {
 			Age:      data.Age,
 			Invites:  data.Invites,
 			Nickname: nickname,
-			PubKey:   fmt.Sprintf("%x", data.PubKey),
 		})
 
 		return false

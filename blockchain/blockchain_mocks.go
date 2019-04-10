@@ -10,6 +10,7 @@ import (
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/ipfs"
+	"idena-go/secstore"
 	"math/big"
 	"time"
 )
@@ -51,7 +52,8 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	appState := appstate.NewAppState(db)
 
 	key, _ := crypto.GenerateKey()
-
+	secStore := secstore.NewSecStore()
+	secStore.AddKey(crypto.FromECDSA(key))
 	if withIdentity {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		cfg.GenesisConf.Alloc[addr] = config.GenesisAllocation{
@@ -61,9 +63,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	txPool := mempool.NewTxPool(appState, EventBus.New())
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy())
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore)
 
-	chain.InitializeChain(key)
+	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 	txPool.Initialize(chain.Head)
 
