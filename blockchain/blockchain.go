@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/asaskevich/EventBus"
 	cid2 "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -13,6 +14,7 @@ import (
 	"idena-go/common"
 	"idena-go/common/math"
 	"idena-go/config"
+	"idena-go/constants"
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
@@ -56,6 +58,7 @@ type Blockchain struct {
 	secretKey       *ecdsa.PrivateKey
 	ipfs            ipfs.Proxy
 	timing          *timing
+	bus             EventBus.Bus
 }
 
 func init() {
@@ -68,7 +71,7 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore) *Blockchain {
+func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, bus EventBus.Bus) *Blockchain {
 	return &Blockchain{
 		repo:     database.NewRepo(db),
 		config:   config,
@@ -76,7 +79,8 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		txpool:   txpool,
 		appState: appState,
 		ipfs:     ipfs,
-		secStore: secStore,
+		timing:   NewTiming(config.Validation),
+		bus:      bus,
 	}
 }
 
@@ -202,6 +206,9 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 	if err := chain.insertBlock(block); err != nil {
 		return err
 	}
+
+	chain.bus.Publish(constants.AddBlockEvent)
+
 	return nil
 }
 

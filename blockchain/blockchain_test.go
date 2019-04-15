@@ -138,5 +138,4 @@ func Test_getNextValidationTime(t *testing.T) {
 	require.Equal(t1.Add(time.Hour), getNextValidationTime(time.Hour, t1, now))
 
 	require.Equal(t1.Add(time.Second*59*6), getNextValidationTime(time.Second*59, t1, now))
-
 }

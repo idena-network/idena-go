@@ -1,4 +1,4 @@
-package blockchain
+package ceremony
 
 import (
 	"encoding/binary"

@@ -83,7 +83,7 @@ type Identity struct {
 	Invites  uint8
 	Age      uint16
 	State    IdentityState
-	PubKey   []byte
+	PubKey   []byte `rlp:"nil"`
 }
 
 type ApprovedIdentity struct {

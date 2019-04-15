@@ -102,8 +102,8 @@ func NewNode(config *config.Config) (*Node, error) {
 	appState := appstate.NewAppState(db)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState)
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore)
+	txpool := mempool.NewTxPool(appState, bus)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, bus)
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper)

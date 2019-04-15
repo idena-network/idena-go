@@ -41,6 +41,12 @@ func Sender(tx *Transaction) (common.Address, error) {
 	return addr, nil
 }
 
+// Sender may cache the address, allowing it to be used regardless of
+// signing method.
+func SenderPubKey(tx *Transaction) ([]byte, error) {
+	return crypto.Ecrecover(signatureHash(tx)[:], tx.Signature)
+}
+
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func signatureHash(tx *Transaction) common.Hash {

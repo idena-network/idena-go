@@ -20,6 +20,7 @@ type Flipper struct {
 	repo      *database.Repo
 	log       log.Logger
 	ipfsProxy ipfs.Proxy
+	pubKey    []byte
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
@@ -31,14 +32,25 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
 }
 
 type IpfsFlip struct {
-	Data  []byte
-	Epoch uint16
+	Data   []byte
+	Epoch  uint16
+	PubKey []byte
+}
+
+type FlipKey struct {
+	Key *ecies.PrivateKey
+	Cid cid.Cid
 }
 
 func (fp *Flipper) AddNewFlip(flip types.Flip) error {
+	pubKey, err := types.SenderPubKey(flip.Tx)
+	if err != nil {
+		return errors.Errorf("flip tx has invalid pubkey, tx: %v", flip.Tx.Hash())
+	}
 	ipf := IpfsFlip{
-		Data:  flip.Data,
-		Epoch: flip.Tx.Epoch,
+		Data:   flip.Data,
+		Epoch:  flip.Tx.Epoch,
+		PubKey: pubKey,
 	}
 
 	data, _ := rlp.EncodeToBytes(ipf)
@@ -69,8 +81,9 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 	}
 
 	ipf := IpfsFlip{
-		Data:  encrypted,
-		Epoch: epoch,
+		Data:   encrypted,
+		Epoch:  epoch,
+		PubKey: fp.pubKey,
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)
@@ -107,6 +120,10 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 	}
 
 	return decryptedFlip, ipf.Epoch, nil
+}
+
+func (fp *Flipper) GetMyEncryptionKeys(epoch uint16) []FlipKey {
+	return make([]FlipKey, 0)
 }
 
 func (fp *Flipper) getFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {

@@ -123,6 +123,13 @@ type Flip struct {
 	Data []byte
 }
 
+type KeyPackage struct {
+	Keys [][]byte
+
+	// caches
+	hash atomic.Value
+}
+
 func rlpHash(x interface{}) (h common.Hash) {
 	hw := sha3.NewKeccak256()
 	rlp.Encode(hw, x)
@@ -335,4 +342,13 @@ func (b *Body) FromBytes(data []byte) {
 
 func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
+}
+
+func (kp *KeyPackage) Hash() common.Hash {
+	if hash := kp.hash.Load(); hash != nil {
+		return hash.(common.Hash)
+	}
+	h := rlpHash(kp)
+	kp.hash.Store(h)
+	return h
 }

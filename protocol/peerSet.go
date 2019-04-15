@@ -168,3 +168,16 @@ func (ps *peerSet) PeersWithoutVote(hash common.Hash) []*peer {
 	}
 	return list
 }
+
+func (ps *peerSet) PeersWithoutKeysPackage(hash common.Hash) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.knownKeyPackages.Contains(hash) {
+			list = append(list, p)
+		}
+	}
+	return list
+}
