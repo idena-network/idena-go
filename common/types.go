@@ -21,13 +21,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"idena-go/common/hexutil"
+	"idena-go/crypto/sha3"
 	"math/big"
 	"math/rand"
 	"reflect"
 	"strings"
-
-	"idena-go/common/hexutil"
-	"idena-go/crypto/sha3"
 )
 
 // Lengths of hashes and addresses in bytes.
@@ -350,3 +349,4 @@ func (ma *MixedcaseAddress) ValidChecksum() bool {
 func (ma *MixedcaseAddress) Original() string {
 	return ma.original
 }
+

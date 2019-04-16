@@ -5,6 +5,7 @@ import (
 	"errors"
 	"idena-go/common"
 	"idena-go/crypto"
+	"idena-go/rlp"
 )
 
 // SignTx returns transaction signed with given private key
@@ -44,13 +45,13 @@ func Sender(tx *Transaction) (common.Address, error) {
 // Sender may cache the address, allowing it to be used regardless of
 // signing method.
 func SenderPubKey(tx *Transaction) ([]byte, error) {
-	return crypto.Ecrecover(signatureHash(tx)[:], tx.Signature)
+	return crypto.Ecrecover(signatureHash(tx).Bytes(), tx.Signature)
 }
 
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func signatureHash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
+	return rlp.Hash([]interface{}{
 		tx.AccountNonce,
 		tx.Type,
 		tx.To,

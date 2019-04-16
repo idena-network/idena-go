@@ -33,6 +33,14 @@
   revision = "728bce664cf5dfb921941b240828f989a2c8f8e3"
 
 [[projects]]
+  branch = "master"
+  digest = "1:e2a1ff1174d564ed4b75a62757f4a9081ed3b8c99ed17e47eb252b048b4ff018"
+  name = "github.com/asaskevich/EventBus"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "d46933a94f05c6657d7b923fcf5ac563ee37ec79"
+
+[[projects]]
   digest = "1:47fd1237abeac1246a1e690f3c6c8e8c5b963b5bf946be4f9c8210453a502a11"
   name = "github.com/awnumar/memguard"
   packages = [
@@ -42,14 +50,6 @@
   pruneopts = "UT"
   revision = "f431f51ecd92dc926a5084ac3e9c89080ec7edf4"
   version = "v0.15.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:e2a1ff1174d564ed4b75a62757f4a9081ed3b8c99ed17e47eb252b048b4ff018"
-  name = "github.com/asaskevich/EventBus"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "d46933a94f05c6657d7b923fcf5ac563ee37ec79"
 
 [[projects]]
   branch = "master"

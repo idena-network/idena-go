@@ -6,7 +6,6 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/core/state"
-	"idena-go/crypto/sha3"
 	"idena-go/rlp"
 	"math/big"
 	"sort"
@@ -91,16 +90,9 @@ func sortValidNodes(nodes []*common.Address) []*common.Address {
 }
 
 func indexGenerator(seed types.Seed, round uint64, step uint16, iteration uint32, maxValue *big.Int) int64 {
-	data := rlpHash([]interface{}{
+	data := rlp.Hash([]interface{}{
 		seed, round, step, iteration,
 	})
 	var hash = new(big.Int).SetBytes(data[:])
 	return new(big.Int).Mod(hash, maxValue).Int64()
-}
-
-func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
-	rlp.Encode(hw, x)
-	hw.Sum(h[:0])
-	return h
 }

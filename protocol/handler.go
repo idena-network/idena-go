@@ -29,7 +29,7 @@ const (
 	GetBlocksRange = 0x09
 	BlocksRange    = 0x0A
 	NewFlip        = 0x0B
-	KeyPackage     = 0x0C
+	FlipKey        = 0x0C
 )
 const (
 	DecodeErr = 1
@@ -210,14 +210,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(FlipErr, "%v: %v", flip.Tx.Hash(), err)
 		}
 		pm.BroadcastFlip(&flip)
-	case KeyPackage:
-		var keyPackage types.KeyPackage
-		if err := msg.Decode(&keyPackage); err != nil {
+	case FlipKey:
+		var flipKey types.FlipKey
+		if err := msg.Decode(&flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markKeyPackage(&keyPackage)
+		p.markFlipKey(&flipKey)
 
-		pm.BroadcastKeyPackage(&keyPackage)
+		pm.BroadcastFlipKey(&flipKey)
 	}
 
 	return nil
@@ -382,9 +382,9 @@ func (pm *ProtocolManager) BroadcastFlip(flip *types.Flip) {
 	}
 }
 
-func (pm *ProtocolManager) BroadcastKeyPackage(keyPackage *types.KeyPackage) {
-	for _, peer := range pm.peers.PeersWithoutKeysPackage(keyPackage.Hash()) {
-		peer.SendKeyPackageAsync(keyPackage)
+func (pm *ProtocolManager) BroadcastFlipKey(flipKey *types.FlipKey) {
+	for _, peer := range pm.peers.PeersWithoutFlipKey(flipKey.Hash()) {
+		peer.SendKeyPackageAsync(flipKey)
 	}
 }
 

@@ -125,8 +125,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		}
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
-
-	payload := crypto.FromECDSAPub(&api.baseApi.engine.GetKey().PublicKey)
+	payload := api.baseApi.secStore.GetPubKey()
 	to := api.baseApi.getCurrentCoinbase()
 	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 

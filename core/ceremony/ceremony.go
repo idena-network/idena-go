@@ -97,7 +97,7 @@ func (vc *ValidationCeremony) sendFlipKeys(block *types.Block) {
 	}
 
 	for _, item := range packages {
-		vc.pm.BroadcastKeyPackage(item)
+		vc.pm.BroadcastFlipKey(item)
 	}
 }
 

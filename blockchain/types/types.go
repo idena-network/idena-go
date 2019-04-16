@@ -3,7 +3,6 @@ package types
 import (
 	"idena-go/common"
 	"idena-go/crypto"
-	"idena-go/crypto/sha3"
 	"idena-go/rlp"
 	"math/big"
 	"sync/atomic"
@@ -123,20 +122,6 @@ type Flip struct {
 	Data []byte
 }
 
-type KeyPackage struct {
-	Keys [][]byte
-
-	// caches
-	hash atomic.Value
-}
-
-func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
-	rlp.Encode(hw, x)
-	hw.Sum(h[:0])
-	return h
-}
-
 func (b *Block) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
@@ -241,14 +226,14 @@ func (h *Header) Flags() BlockFlag {
 }
 
 func (h *ProposedHeader) Hash() common.Hash {
-	return rlpHash(h)
+	return rlp.Hash(h)
 }
 func (h *EmptyBlockHeader) Hash() common.Hash {
-	return rlpHash(h)
+	return rlp.Hash(h)
 }
 
 func (h *VoteHeader) SignatureHash() common.Hash {
-	return rlpHash(h)
+	return rlp.Hash(h)
 }
 
 func (v *Vote) Hash() common.Hash {
@@ -256,7 +241,7 @@ func (v *Vote) Hash() common.Hash {
 	if hash := v.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlpHash([]interface{}{v.Header.SignatureHash(),
+	h := rlp.Hash([]interface{}{v.Header.SignatureHash(),
 		v.VoterAddr(),
 	})
 	v.hash.Store(h)
@@ -290,7 +275,7 @@ func (tx *Transaction) Hash() common.Hash {
 	if hash := tx.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlpHash(tx)
+	h := rlp.Hash(tx)
 	tx.hash.Store(h)
 	return h
 }
@@ -344,11 +329,14 @@ func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
 }
 
-func (kp *KeyPackage) Hash() common.Hash {
-	if hash := kp.hash.Load(); hash != nil {
-		return hash.(common.Hash)
-	}
-	h := rlpHash(kp)
-	kp.hash.Store(h)
-	return h
+type FlipKey struct {
+	Key       []byte
+	Signature []byte
+
+	from   atomic.Value
+	pubkey atomic.Value
+}
+
+func (k FlipKey) Hash() common.Hash {
+	return rlp.Hash(k)
 }
