@@ -333,8 +333,7 @@ type FlipKey struct {
 	Key       []byte
 	Signature []byte
 
-	from   atomic.Value
-	pubkey atomic.Value
+	from atomic.Value
 }
 
 func (k FlipKey) Hash() common.Hash {

@@ -36,6 +36,11 @@ func (s *SecStore) SignTx(tx *types.Transaction) (*types.Transaction, error) {
 	return types.SignTx(tx, sec)
 }
 
+func (s *SecStore) SignFlipKey(fk *types.FlipKey) (*types.FlipKey, error) {
+	sec, _ := crypto.ToECDSA(s.buffer.Buffer())
+	return types.SignFlipKey(fk, sec)
+}
+
 func (s *SecStore) GetAddress() common.Address {
 	sec, _ := crypto.ToECDSA(s.buffer.Buffer())
 	return crypto.PubkeyToAddress(sec.PublicKey)

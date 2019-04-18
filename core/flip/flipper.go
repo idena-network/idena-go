@@ -72,7 +72,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 
 func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error) {
 
-	encryptionKey := fp.getFlipEncryptionKey(epoch)
+	encryptionKey := fp.GetFlipEncryptionKey(epoch)
 
 	encrypted, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, hex, nil, nil)
 
@@ -108,7 +108,7 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 		return nil, 0, err
 	}
 
-	encryptionKey := fp.getFlipEncryptionKey(ipf.Epoch)
+	encryptionKey := fp.GetFlipEncryptionKey(ipf.Epoch)
 	if encryptionKey == nil {
 		return nil, 0, errors.New("flip key is missing")
 	}
@@ -122,11 +122,7 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 	return decryptedFlip, ipf.Epoch, nil
 }
 
-func (fp *Flipper) GetMyEncryptionKeys(epoch uint16) []FlipKey {
-	return make([]FlipKey, 0)
-}
-
-func (fp *Flipper) getFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
+func (fp *Flipper) GetFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
 	key := fp.repo.ReadFlipKey(epoch)
 	var ecdsaKey *ecdsa.PrivateKey
 

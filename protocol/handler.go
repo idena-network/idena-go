@@ -65,10 +65,6 @@ type getBlockBodyRequest struct {
 	Hash common.Hash
 }
 
-type getBlockByHeightRequest struct {
-	Height uint64
-}
-
 type getBlocksRangeRequest struct {
 	BatchId uint32
 	From    uint64

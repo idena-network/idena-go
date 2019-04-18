@@ -1,8 +1,6 @@
 package ceremony
 
 import (
-	"bytes"
-	"crypto/rand"
 	"github.com/asaskevich/EventBus"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -11,9 +9,10 @@ import (
 	"idena-go/core/flip"
 	"idena-go/core/state"
 	"idena-go/crypto"
-	"idena-go/crypto/ecies"
+	"idena-go/log"
 	"idena-go/protocol"
 	"idena-go/rlp"
+	"idena-go/secstore"
 )
 
 const (
@@ -21,25 +20,34 @@ const (
 )
 
 type ValidationCeremony struct {
-	bus        EventBus.Bus
-	blocksChan chan *types.Block
-	appState   *appstate.AppState
-	flipper    *flip.Flipper
-	pm         *protocol.ProtocolManager
+	bus                EventBus.Bus
+	blocksChan         chan *types.Block
+	appState           *appstate.AppState
+	flipper            *flip.Flipper
+	pm                 *protocol.ProtocolManager
+	secStore           *secstore.SecStore
+	log                log.Logger
+	flipsPerCandidate  [][]int
+	candidatesPerFlips [][]int
+	keySent            bool
 }
 
-func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager) *ValidationCeremony {
+func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore) *ValidationCeremony {
 	return &ValidationCeremony{
 		flipper:    flipper,
 		appState:   appState,
 		bus:        bus,
 		blocksChan: make(chan *types.Block, 100),
 		pm:         pm,
+		secStore:   secStore,
+		log:        log.New(),
 	}
 }
 
-func (vc *ValidationCeremony) Start() {
-	_ = vc.bus.Subscribe(constants.NewTxEvent, func(block *types.Block) { vc.blocksChan <- block })
+func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
+	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
+
+	vc.processBlock(currentBlock)
 
 	go vc.watchingLoop()
 }
@@ -54,51 +62,49 @@ func (vc *ValidationCeremony) watchingLoop() {
 }
 
 func (vc *ValidationCeremony) processBlock(block *types.Block) {
-
-	prevState := vc.appState.State.ForCheck(block.Height() - 1)
-	flipSubmissionStarted := prevState.HasGlobalFlag(state.FlipSubmissionStarted)
-
-	// check if flip submission started
-	if !flipSubmissionStarted && vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
-		//vc.sendFlipKeys(block)
-	}
+	vc.calculateFlipCandidates(block)
+	vc.sendFlipKey()
 }
 
-func (vc *ValidationCeremony) sendFlipKeys(block *types.Block) {
+func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
+	if vc.candidatesPerFlips != nil && vc.flipsPerCandidate != nil {
+		return
+	}
+
+	if !vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
+		return
+	}
+
 	participants := vc.getParticipants()
 
-	// TODO: need to get current-100 block height
-	_, candidatesPerFlip := SortFlips(len(participants), FlipsPerAddress, block.Header.Seed().Bytes())
+	flipsPerCandidate, candidatesPerFlip := SortFlips(len(participants), FlipsPerAddress, block.Header.Seed().Bytes())
 
-	allFlips := vc.appState.State.FlipCids()
+	vc.flipsPerCandidate = flipsPerCandidate
+	vc.candidatesPerFlips = candidatesPerFlip
+}
 
-	myKeys := vc.flipper.GetMyEncryptionKeys(vc.appState.State.Epoch())
-
-	var packages []*types.KeyPackage
-
-	for i := 0; i < len(allFlips); i++ {
-		for j := 0; j < len(myKeys); j++ {
-			// if this flip is our, we should send key
-			if bytes.Compare(myKeys[j].Cid.Bytes(), allFlips[i]) == 0 {
-				candidates := candidatesPerFlip[i]
-
-				p := new(types.KeyPackage)
-
-				for k := 0; k < len(candidates); k++ {
-					ecdsaPubKey, _ := crypto.UnmarshalPubkey(participants[candidates[k]].PubKey)
-					eciesPubKey := ecies.ImportECDSAPublic(ecdsaPubKey)
-					encrypted, _ := ecies.Encrypt(rand.Reader, eciesPubKey, myKeys[j].Cid.Bytes(), nil, nil)
-					p.Keys = append(p.Keys, encrypted)
-				}
-
-				packages = append(packages, p)
-			}
-		}
+func (vc *ValidationCeremony) sendFlipKey() {
+	if vc.keySent || !vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
+		return
 	}
 
-	for _, item := range packages {
-		vc.pm.BroadcastFlipKey(item)
+	epoch := vc.appState.State.Epoch()
+	key := vc.flipper.GetFlipEncryptionKey(epoch)
+
+	msg := types.FlipKey{
+		Key: crypto.FromECDSA(key.ExportECDSA()),
 	}
+
+	signedMsg, err := vc.secStore.SignFlipKey(&msg)
+
+	if err != nil {
+		vc.log.Error("cannot sign flip key", "epoch", epoch, "err", err)
+		return
+	}
+
+	vc.pm.BroadcastFlipKey(signedMsg)
+
+	vc.keySent = true
 }
 
 type Participant struct {

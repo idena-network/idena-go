@@ -8,6 +8,7 @@ import (
 	"idena-go/config"
 	"idena-go/consensus"
 	"idena-go/core/appstate"
+	"idena-go/core/ceremony"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
@@ -50,6 +51,7 @@ type Node struct {
 	fp              *flip.Flipper
 	ipfsProxy       ipfs.Proxy
 	bus             EventBus.Bus
+	ceremony        *ceremony.ValidationCeremony
 }
 
 func StartDefaultNode(path string) string {
@@ -111,6 +113,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	flipper := flip.NewFlipper(db, ipfsProxy)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
+	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore)
 
 	return &Node{
 		config:          config,
@@ -127,6 +130,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		secStore:        secStore,
 		bus:             bus,
 		flipKeyPool:     flipKeyPool,
+		ceremony:        ceremony,
 	}, nil
 }
 
