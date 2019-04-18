@@ -40,6 +40,7 @@ type Node struct {
 	votes           *pengings.Votes
 	consensusEngine *consensus.Engine
 	txpool          *mempool.TxPool
+	flipKeyPool     *mempool.KeysPool
 	rpcAPIs         []rpc.API
 	httpListener    net.Listener // HTTP RPC listener socket to server API requests
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
@@ -103,10 +104,12 @@ func NewNode(config *config.Config) (*Node, error) {
 	votes := pengings.NewVotes(appState)
 
 	txpool := mempool.NewTxPool(appState, bus)
+	flipKeyPool := mempool.NewKeysPool(appState, bus)
+
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
 
 	return &Node{
@@ -123,6 +126,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		ipfsProxy:       ipfsProxy,
 		secStore:        secStore,
 		bus:             bus,
+		flipKeyPool:     flipKeyPool,
 	}, nil
 }
 
@@ -149,6 +153,7 @@ func (node *Node) Start() {
 
 	node.appState.Initialize(node.blockchain.Head.Height())
 	node.txpool.Initialize(node.blockchain.Head)
+	node.flipKeyPool.Initialize(node.blockchain.Head)
 
 	node.consensusEngine.Start()
 	node.srv.Start()

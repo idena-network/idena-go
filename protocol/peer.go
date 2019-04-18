@@ -153,8 +153,8 @@ func (p *peer) broadcast() {
 				p.Log().Error(err.Error())
 				return
 			}
-		case keyPackage := <-p.queuedFlipKeys:
-			if err := p2p.Send(p.rw, FlipKey, keyPackage); err != nil {
+		case flipKey := <-p.queuedFlipKeys:
+			if err := p2p.Send(p.rw, FlipKey, flipKey); err != nil {
 				p.Log().Error(err.Error())
 				return
 			}

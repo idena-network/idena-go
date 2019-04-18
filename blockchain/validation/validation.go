@@ -153,3 +153,13 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) er
 
 	return nil
 }
+
+
+func ValidateFlipKey(appState *appstate.AppState, key *types.FlipKey) error{
+	sender, _ := types.SenderFlipKey(key)
+	if sender == (common.Address{}) {
+		return InvalidSignature
+	}
+	return nil
+}
+

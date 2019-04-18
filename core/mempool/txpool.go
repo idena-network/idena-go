@@ -48,7 +48,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	defer txpool.mutex.Unlock()
 
 	hash := tx.Hash()
-	sender, _ := types.Sender(tx)
+
 
 	if _, ok := txpool.pending[hash]; ok {
 		return errors.New("tx with same hash already exists")
@@ -63,6 +63,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.pending[hash] = tx
 
+	sender, _ := types.Sender(tx)
 	if appState.State.Epoch() == tx.Epoch {
 		appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 	}

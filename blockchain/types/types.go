@@ -241,9 +241,9 @@ func (v *Vote) Hash() common.Hash {
 	if hash := v.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlp.Hash([]interface{}{v.Header.SignatureHash(),
+	h := common.Hash(rlp.Hash([]interface{}{v.Header.SignatureHash(),
 		v.VoterAddr(),
-	})
+	}))
 	v.hash.Store(h)
 	return h
 }
@@ -275,7 +275,7 @@ func (tx *Transaction) Hash() common.Hash {
 	if hash := tx.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := rlp.Hash(tx)
+	h := common.Hash(rlp.Hash(tx))
 	tx.hash.Store(h)
 	return h
 }

@@ -47,12 +47,15 @@ type ProtocolManager struct {
 
 	heads chan *peerHead
 
-	incomeBlocks  chan *types.Block
-	proposals     *pengings.Proposals
-	votes         *pengings.Votes
+	incomeBlocks chan *types.Block
+	proposals    *pengings.Proposals
+	votes        *pengings.Votes
+
 	txpool        *mempool.TxPool
+	flipKeyPool   *mempool.KeysPool
 	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
+	flipKeyChan   chan *types.FlipKey
 	incomeBatches map[string]map[uint32]*batch
 	batchedLock   sync.Mutex
 	bus           EventBus.Bus
@@ -90,7 +93,8 @@ type handshakeData struct {
 	GenesisBlock common.Hash
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus EventBus.Bus) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus EventBus.Bus,
+	flipKeyPool *mempool.KeysPool) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
 		peers:         newPeerSet(),
@@ -101,13 +105,17 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		votes:         votes,
 		txpool:        txpool,
 		txChan:        make(chan *types.Transaction, 100),
+		flipKeyChan:   make(chan *types.FlipKey, 200),
 		flipper:       fp,
 		bus:           bus,
+		flipKeyPool:   flipKeyPool,
 	}
 }
 
 func (pm *ProtocolManager) Start() {
 	_ = pm.bus.Subscribe(constants.NewTxEvent, func(tx *types.Transaction) { pm.txChan <- tx })
+	_ = pm.bus.Subscribe(constants.NewFlipKey, func(key *types.FlipKey) { pm.flipKeyChan <- key })
+
 	go pm.broadcastLoop()
 }
 
@@ -217,7 +225,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		p.markFlipKey(&flipKey)
 
-		pm.BroadcastFlipKey(&flipKey)
+		pm.flipKeyPool.Add(&flipKey)
 	}
 
 	return nil
@@ -248,7 +256,9 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 		return err
 	}
 	pm.registerPeer(peer)
+
 	go pm.syncTxPool(peer)
+	go pm.syncFlipKeyPool(peer)
 
 	defer pm.unregister(peer)
 	p.Log().Info("Peer successfully connected", "peerId", p.ID())
@@ -330,9 +340,9 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 		pm.incomeBatches[peerId] = peerBatches
 		pm.batchedLock.Unlock()
 	}
-	peerBatches[batchId] = b
-	peer.RequestBlocksRange(batchId, from, to)
-	atomic.AddUint32(&batchId, 1)
+	id := atomic.AddUint32(&batchId, 1)
+	peerBatches[id] = b
+	peer.RequestBlocksRange(id, from, to)
 	return nil, b
 }
 
@@ -367,6 +377,8 @@ func (pm *ProtocolManager) broadcastLoop() {
 		select {
 		case tx := <-pm.txChan:
 			pm.BroadcastTx(tx)
+		case key := <-pm.flipKeyChan:
+			pm.BroadcastFlipKey(key)
 		}
 	}
 }
@@ -408,5 +420,12 @@ func (pm *ProtocolManager) syncTxPool(p *peer) {
 	pending := pm.txpool.GetPendingTransaction()
 	for _, tx := range pending {
 		p.SendTxAsync(tx)
+	}
+}
+
+func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {
+	keys := pm.flipKeyPool.GetFlipKeys()
+	for _, key := range keys {
+		p.SendKeyPackageAsync(key)
 	}
 }
