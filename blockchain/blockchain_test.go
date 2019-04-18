@@ -20,7 +20,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 		Height:         2,
 		ParentHash:     chain.Head.Hash(),
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
-		ProposerPubKey: crypto.FromECDSAPub(chain.pubKey),
+		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
 		Coinbase:       chain.coinBaseAddress,
 	}
