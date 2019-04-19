@@ -14,6 +14,7 @@ import (
 	"idena-go/protocol"
 	"idena-go/rlp"
 	"idena-go/secstore"
+	"sync"
 )
 
 const (
@@ -30,8 +31,10 @@ type ValidationCeremony struct {
 	log                log.Logger
 	flipsPerCandidate  [][]int
 	candidatesPerFlips [][]int
+	flipsToSolve       [][]byte
 	keySent            bool
 	participants       []*Participant
+	mutex              *sync.Mutex
 }
 
 func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore) *ValidationCeremony {
@@ -55,12 +58,7 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 }
 
 func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
-	pubKey := vc.secStore.GetPubKey()
-	if vc.participants == nil {
-		return nil
-	}
-
-	return getFlipsToSolve(pubKey, vc.participants, vc.flipsPerCandidate, vc.appState.State.FlipCids())
+	return vc.flipsToSolve
 }
 
 func (vc *ValidationCeremony) watchingLoop() {
@@ -83,16 +81,21 @@ func (vc *ValidationCeremony) processBlock(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
+	vc.mutex.Lock()
 	if vc.participants != nil {
 		return
 	}
-
 	vc.participants = vc.getParticipants()
+	vc.mutex.Unlock()
 
 	flipsPerCandidate, candidatesPerFlip := SortFlips(len(vc.participants), FlipsPerAddress, block.Header.Seed().Bytes())
 
 	vc.flipsPerCandidate = flipsPerCandidate
 	vc.candidatesPerFlips = candidatesPerFlip
+
+	vc.flipsToSolve = getFlipsToSolve(vc.secStore.GetPubKey(), vc.participants, vc.flipsPerCandidate, vc.appState.State.FlipCids())
+
+	go vc.flipper.Pin(vc.flipsToSolve)
 }
 
 func (vc *ValidationCeremony) sendFlipKey() {
