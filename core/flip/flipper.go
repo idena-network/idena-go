@@ -21,6 +21,7 @@ type Flipper struct {
 	log       log.Logger
 	ipfsProxy ipfs.Proxy
 	pubKey    []byte
+	hasFlips  bool
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
@@ -135,4 +136,25 @@ func (fp *Flipper) GetFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
 	}
 
 	return ecies.ImportECDSA(ecdsaKey)
+}
+
+func (fp *Flipper) Pin(cids [][]byte) {
+	for len(cids) > 0 {
+
+		key := cids[0]
+		cids = cids[1:]
+
+		err := fp.ipfsProxy.Pin(key)
+		if err != nil {
+			cid, _ := cid.Cast(key)
+			fp.log.Warn("Can't pin flip by cid", "cid", cid.String(), "err", err)
+			cids = append(cids, key)
+		}
+	}
+	fp.log.Info("All flips were pinned")
+	fp.hasFlips = true
+}
+
+func( fp *Flipper) HasFlips() bool{
+	return fp.hasFlips
 }
