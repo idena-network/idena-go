@@ -1,6 +1,7 @@
 package ceremony
 
 import (
+	"bytes"
 	"github.com/asaskevich/EventBus"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -30,6 +31,7 @@ type ValidationCeremony struct {
 	flipsPerCandidate  [][]int
 	candidatesPerFlips [][]int
 	keySent            bool
+	participants       []*Participant
 }
 
 func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore) *ValidationCeremony {
@@ -52,6 +54,15 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	go vc.watchingLoop()
 }
 
+func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
+	pubKey := vc.secStore.GetPubKey()
+	if vc.participants == nil {
+		return nil
+	}
+
+	return getFlipsToSolve(pubKey, vc.participants, vc.flipsPerCandidate, vc.appState.State.FlipCids())
+}
+
 func (vc *ValidationCeremony) watchingLoop() {
 	for {
 		select {
@@ -62,29 +73,30 @@ func (vc *ValidationCeremony) watchingLoop() {
 }
 
 func (vc *ValidationCeremony) processBlock(block *types.Block) {
-	vc.calculateFlipCandidates(block)
-	vc.sendFlipKey()
-}
-
-func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
-	if vc.candidatesPerFlips != nil && vc.flipsPerCandidate != nil {
-		return
-	}
 
 	if !vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
 		return
 	}
 
-	participants := vc.getParticipants()
+	vc.calculateFlipCandidates(block)
+	vc.sendFlipKey()
+}
 
-	flipsPerCandidate, candidatesPerFlip := SortFlips(len(participants), FlipsPerAddress, block.Header.Seed().Bytes())
+func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
+	if vc.participants != nil {
+		return
+	}
+
+	vc.participants = vc.getParticipants()
+
+	flipsPerCandidate, candidatesPerFlip := SortFlips(len(vc.participants), FlipsPerAddress, block.Header.Seed().Bytes())
 
 	vc.flipsPerCandidate = flipsPerCandidate
 	vc.candidatesPerFlips = candidatesPerFlip
 }
 
 func (vc *ValidationCeremony) sendFlipKey() {
-	if vc.keySent || !vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
+	if vc.keySent {
 		return
 	}
 
@@ -144,4 +156,21 @@ func (vc *ValidationCeremony) getParticipants() []*Participant {
 	})
 
 	return m
+}
+
+func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandidate [][]int, flipCids [][]byte) [][]byte {
+	var result [][]byte
+	for i := 0; i < len(participants); i++ {
+		if bytes.Compare(participants[i].PubKey, pubKey) == 0 {
+			myFlips := flipsPerCandidate[i]
+			allFlips := flipCids
+
+			for j := 0; j < len(myFlips); j++ {
+				result = append(result, allFlips[myFlips[j]%len(allFlips)])
+			}
+			break
+		}
+	}
+
+	return result
 }

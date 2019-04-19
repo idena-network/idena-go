@@ -8,6 +8,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
+	"idena-go/core/ceremony"
 	"idena-go/core/flip"
 	"idena-go/ipfs"
 	"idena-go/protocol"
@@ -22,11 +23,12 @@ type FlipApi struct {
 	fp        *flip.Flipper
 	pm        *protocol.ProtocolManager
 	ipfsProxy ipfs.Proxy
+	ceremony  *ceremony.ValidationCeremony
 }
 
 // NewFlipApi creates a new FlipApi instance
-func NewFlipApi(baseApi *BaseApi, fp *flip.Flipper, pm *protocol.ProtocolManager, ipfsProxy ipfs.Proxy) *FlipApi {
-	return &FlipApi{baseApi, fp, pm, ipfsProxy}
+func NewFlipApi(baseApi *BaseApi, fp *flip.Flipper, pm *protocol.ProtocolManager, ipfsProxy ipfs.Proxy, ceremony *ceremony.ValidationCeremony) *FlipApi {
+	return &FlipApi{baseApi, fp, pm, ipfsProxy, ceremony}
 }
 
 type FlipSubmitResponse struct {
@@ -83,6 +85,26 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	return FlipSubmitResponse{
 		TxHash:   tx.Hash(),
 		FlipHash: cid.String(),
+	}, nil
+}
+
+type FlipsResponse struct {
+	Hexes []hexutil.Bytes `json:"hex"`
+}
+
+func (api *FlipApi) GetFlips() (FlipsResponse, error) {
+	flips := api.ceremony.GetFlipsToSolve()
+	if flips == nil {
+		return FlipsResponse{}, errors.New("ceremony is not started")
+	}
+
+	var result []hexutil.Bytes
+	for _, v := range flips {
+		result = append(result, hexutil.Bytes(v))
+	}
+
+	return FlipsResponse{
+		Hexes: result,
 	}, nil
 }
 

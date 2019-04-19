@@ -8,27 +8,32 @@ import (
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
+	"idena-go/core/mempool"
 	"idena-go/crypto"
 	"idena-go/crypto/ecies"
 	"idena-go/database"
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
+	"sync"
 )
 
 type Flipper struct {
 	repo      *database.Repo
 	log       log.Logger
+	keyspool  *mempool.KeysPool
 	ipfsProxy ipfs.Proxy
 	pubKey    []byte
 	hasFlips  bool
+	mutex     *sync.Mutex
 }
 
-func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy) *Flipper {
+func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool) *Flipper {
 	return &Flipper{
 		repo:      database.NewRepo(db),
 		log:       log.New(),
 		ipfsProxy: ipfsProxy,
+		keyspool:  keyspool,
 	}
 }
 
@@ -36,11 +41,6 @@ type IpfsFlip struct {
 	Data   []byte
 	Epoch  uint16
 	PubKey []byte
-}
-
-type FlipKey struct {
-	Key *ecies.PrivateKey
-	Cid cid.Cid
 }
 
 func (fp *Flipper) AddNewFlip(flip types.Flip) error {
@@ -109,9 +109,21 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 		return nil, 0, err
 	}
 
-	encryptionKey := fp.GetFlipEncryptionKey(ipf.Epoch)
-	if encryptionKey == nil {
-		return nil, 0, errors.New("flip key is missing")
+	// if flip is mine
+	var encryptionKey *ecies.PrivateKey
+	if bytes.Compare(ipf.PubKey, fp.pubKey) == 0 {
+		encryptionKey = fp.GetFlipEncryptionKey(ipf.Epoch)
+		if encryptionKey == nil {
+			return nil, 0, errors.New("flip key is missing")
+		}
+	} else {
+		addr, _ := crypto.PubKeyBytesToAddress(ipf.PubKey)
+		flipKey := fp.keyspool.GetFlipKey(addr)
+		if flipKey == nil {
+			return nil, 0, errors.New("flip key is missing")
+		}
+		ecdsaKey, _ := crypto.ToECDSA(flipKey.Key)
+		encryptionKey = ecies.ImportECDSA(ecdsaKey)
 	}
 
 	decryptedFlip, err := encryptionKey.Decrypt(ipf.Data, nil, nil)
@@ -124,6 +136,9 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 }
 
 func (fp *Flipper) GetFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
+	fp.mutex.Lock()
+	defer fp.mutex.Unlock()
+
 	key := fp.repo.ReadFlipKey(epoch)
 	var ecdsaKey *ecdsa.PrivateKey
 

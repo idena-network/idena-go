@@ -110,7 +110,7 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
 	proposals := pengings.NewProposals(chain)
-	flipper := flip.NewFlipper(db, ipfsProxy)
+	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore)
@@ -257,7 +257,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "flip",
 			Version:   "1.0",
-			Service:   api.NewFlipApi(baseApi, node.fp, node.pm, node.ipfsProxy),
+			Service:   api.NewFlipApi(baseApi, node.fp, node.pm, node.ipfsProxy, node.ceremony),
 			Public:    true,
 		},
 		{
