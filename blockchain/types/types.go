@@ -9,18 +9,20 @@ import (
 )
 
 const (
-	RegularTx    uint16 = 0x0
-	ActivationTx uint16 = 0x1
-	InviteTx     uint16 = 0x2
-	KillTx       uint16 = 0x3
-	SubmitFlipTx uint16 = 0x4
+	RegularTx     uint16 = 0x0
+	ActivationTx  uint16 = 0x1
+	InviteTx      uint16 = 0x2
+	KillTx        uint16 = 0x3
+	SubmitFlipTx  uint16 = 0x4
+	SubmitAnswers uint16 = 0x5
 )
 
 type BlockFlag uint32
 
 const (
 	IdentityUpdate BlockFlag = 1 << iota
-	ValidationStarted
+	ShortSessionStarted
+	LongSessionStarted
 	ValidationFinished
 )
 
@@ -42,7 +44,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree

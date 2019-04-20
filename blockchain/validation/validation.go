@@ -25,6 +25,8 @@ var (
 	EmptyPayload         = errors.New("payload can't be empty")
 	InvalidEpochTx       = errors.New("invalid epoch tx")
 	InvalidPayload       = errors.New("invalid payload")
+	InvalidRecipient     = errors.New("invalid recipient")
+	LateTx = errors.New("tx can't be accepted due to validation ceremony")
 	validators           map[types.TxType]*validator
 )
 
@@ -48,6 +50,9 @@ func init() {
 
 	validators[types.SubmitFlipTx] = &validator{
 		validate: validateSubmitFlipTx,
+	}
+	validators[types.SubmitAnswers] = &validator{
+		validate: validateSubmitAnswersTx,
 	}
 }
 
@@ -92,7 +97,7 @@ func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error
 	}
 
 	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
-	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
 	}
 	return nil
@@ -125,6 +130,10 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 		return InvitationIsMissing
 	}
 
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+		return LateTx
+	}
+
 	return nil
 }
 
@@ -138,15 +147,26 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) er
 	if appState.State.GetInvites(sender) == 0 {
 		return InsufficientInvites
 	}
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+		return LateTx
+	}
 	return nil
 }
 
 func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 
-	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
-	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
-		return InsufficientFunds
+	if err := validateRegularTx(appState, tx); err != nil {
+		return err
+	}
+
+	if *tx.To != sender {
+		return InvalidRecipient
+	}
+
+
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+		return LateTx
 	}
 
 	//TODO: you cannot submit more than one flip in current epoch
@@ -154,12 +174,28 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) er
 	return nil
 }
 
+func validateSubmitAnswersTx(appState *appstate.AppState, tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
 
-func ValidateFlipKey(appState *appstate.AppState, key *types.FlipKey) error{
+	if err := validateRegularTx(appState, tx); err != nil {
+		return err
+	}
+
+	if len(tx.Payload) != common.HashLength {
+		return InvalidPayload
+	}
+
+	if *tx.To != sender {
+		return InvalidRecipient
+	}
+	return nil
+	//return appState.EvidenceMap.ValidateTx(tx)
+}
+
+func ValidateFlipKey(appState *appstate.AppState, key *types.FlipKey) error {
 	sender, _ := types.SenderFlipKey(key)
 	if sender == (common.Address{}) {
 		return InvalidSignature
 	}
 	return nil
 }
-

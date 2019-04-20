@@ -3,6 +3,7 @@ package ceremony
 import (
 	"bytes"
 	"github.com/asaskevich/EventBus"
+	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/constants"
@@ -10,6 +11,7 @@ import (
 	"idena-go/core/flip"
 	"idena-go/core/state"
 	"idena-go/crypto"
+	"idena-go/database"
 	"idena-go/log"
 	"idena-go/protocol"
 	"idena-go/rlp"
@@ -23,6 +25,7 @@ const (
 
 type ValidationCeremony struct {
 	bus                EventBus.Bus
+	db                 dbm.DB
 	blocksChan         chan *types.Block
 	appState           *appstate.AppState
 	flipper            *flip.Flipper
@@ -35,9 +38,10 @@ type ValidationCeremony struct {
 	keySent            bool
 	participants       []*Participant
 	mutex              *sync.Mutex
+	epochDb            *database.EpochDb
 }
 
-func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore) *ValidationCeremony {
+func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB) *ValidationCeremony {
 	return &ValidationCeremony{
 		flipper:    flipper,
 		appState:   appState,
@@ -46,12 +50,13 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 		pm:         pm,
 		secStore:   secStore,
 		log:        log.New(),
+		db:         db,
 	}
 }
 
 func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
-
+	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.processBlock(currentBlock)
 
 	go vc.watchingLoop()
@@ -72,12 +77,13 @@ func (vc *ValidationCeremony) watchingLoop() {
 
 func (vc *ValidationCeremony) processBlock(block *types.Block) {
 
-	if !vc.appState.State.HasGlobalFlag(state.FlipSubmissionStarted) {
+	if !vc.appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
 		return
 	}
 
 	vc.calculateFlipCandidates(block)
-	vc.sendFlipKey()
+	vc.writeMinedAnswers(block)
+	vc.broadcastFlipKey()
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
@@ -98,7 +104,7 @@ func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
 	go vc.flipper.Pin(vc.flipsToSolve)
 }
 
-func (vc *ValidationCeremony) sendFlipKey() {
+func (vc *ValidationCeremony) broadcastFlipKey() {
 	if vc.keySent {
 		return
 	}
@@ -176,4 +182,13 @@ func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandida
 	}
 
 	return result
+}
+
+
+func (vc *ValidationCeremony) writeMinedAnswers(block *types.Block) {
+	for _, tx := range block.Body.Transactions {
+		if tx.Type == types.SubmitAnswers {
+			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload))
+		}
+	}
 }

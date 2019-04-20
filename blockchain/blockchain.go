@@ -323,7 +323,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(getNextValidationTime(chain.config.Validation.ValidationInterval, appState.State.NextValidationTime(), time.Now().UTC()))
-	appState.State.UnsetGlobalFlag(state.FlipSubmissionStarted)
+	appState.State.UnsetGlobalFlag(state.FlipLotteryStarted)
 	appState.State.UnsetGlobalFlag(state.ValidationStarted)
 }
 
@@ -339,12 +339,12 @@ func getNextValidationTime(interval time.Duration, prevValidation time.Time, now
 
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
 	// flip submission started
-	if !appState.State.HasGlobalFlag(state.FlipSubmissionStarted) &&
+	if !appState.State.HasGlobalFlag(state.FlipLotteryStarted) &&
 		chain.timing.isFlipLotteryStarted(appState.State.NextValidationTime(), block.Header.Time()) {
-		appState.State.SetGlobalFlag(state.FlipSubmissionStarted)
+		appState.State.SetGlobalFlag(state.FlipLotteryStarted)
 	}
 	// validation started
-	if block.Header.Flags().HasFlag(types.ValidationStarted) {
+	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		appState.State.SetGlobalFlag(state.ValidationStarted)
 	}
 }
@@ -558,7 +558,7 @@ func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
 
 	if !appState.HasGlobalFlag(state.ValidationStarted) &&
 		chain.timing.isValidationStarted(appState.NextValidationTime(), block.Header.Time()) {
-		flags |= types.ValidationStarted
+		flags |= types.ShortSessionStarted
 	}
 
 	return flags

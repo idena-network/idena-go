@@ -14,6 +14,14 @@
   revision = "65cc252bf6691cb3c7014bcb2c8dc29de91e3a7e"
 
 [[projects]]
+  digest = "1:5a1309e5b4731d8c1c13bf48759fe8c391a2acb4d1f39ee5bd9f72f6f1f25a47"
+  name = "github.com/RoaringBitmap/roaring"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8d778e47dd84f169ef4436abb474b0e0101a6dae"
+  version = "v0.4.17"
+
+[[projects]]
   branch = "master"
   digest = "1:e05c7b72aeba7570b1d2f9c6dc9f0373d224b16b70fa886c504de867bffe1c2e"
   name = "github.com/aead/chacha20"
@@ -100,6 +108,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:5cffdbcd56da3f9cc3cbc5268fa4c7cd56782eef32fafc764f668d5ac2fd5335"
+  name = "github.com/danil-lashin/tendermint"
+  packages = ["libs/db"]
+  pruneopts = "UT"
+  revision = "4695414393a3e0bc3836fb1cece7f1f3768d3311"
+  version = "v0.31.4"
+
+[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -162,6 +178,14 @@
   pruneopts = "UT"
   revision = "bad65a492f32121a87197f4a085905c35e2a367e"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:dc925a7d0f70e394be6a79f060b06dfdecfabdc88cfd1cfa1c9d9462c6edca1f"
+  name = "github.com/glycerine/go-unsnap-stream"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f9677308dec2b35e76737f9713df328ad11b1fea"
 
 [[projects]]
   digest = "1:704b145137b5555c6bac6a7e52875e4df8a0a1b7ea74aaae864abcab61e672b0"
@@ -682,6 +706,14 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:c22fdadfe2de0e1df75987cac34f1c721157dc24f180c76b4ef66a3c9637a799"
+  name = "github.com/mschoch/smat"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "90eadee771aeab36e8bf796039b8c261bebebe4f"
+
+[[projects]]
   digest = "1:450b7623b185031f3a456801155c8320209f75d0d4c4e633c6b1e59d44d6e392"
   name = "github.com/opentracing/opentracing-go"
   packages = [
@@ -700,6 +732,14 @@
   pruneopts = "UT"
   revision = "adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1"
   version = "v1.2"
+
+[[projects]]
+  digest = "1:5e73b34a27d827212102605789de00bd411b2e434812133c83935fe9897c75e1"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
@@ -828,12 +868,28 @@
   version = "v0.30.1"
 
 [[projects]]
+  digest = "1:c97e8a5e5c435c3287f581cdb4441ba34577ec6ead8422bfedafa6269af7abf6"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = "UT"
+  revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "master"
   digest = "1:0102dfa2f98777db8ff68c920bef1be3ff8504e90485b6cdd24d61b981b487b6"
   name = "github.com/whyrusleeping/go-logging"
   packages = ["."]
   pruneopts = "UT"
   revision = "0457bb6b88fc1973573aaf6b5145d8d3ae972390"
+
+[[projects]]
+  digest = "1:85ddc8a0e53c1ebe8ba228f2303fb156feffd8f2b4bead4d1d0af9c293c6054f"
+  name = "github.com/willf/bitset"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "20ad246f50b49590afcb1ed8ad143da7163869cb"
+  version = "v1.1.10"
 
 [[projects]]
   branch = "master"
@@ -951,10 +1007,12 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/RoaringBitmap/roaring",
     "github.com/aristanetworks/goarista/monotime",
     "github.com/asaskevich/EventBus",
     "github.com/awnumar/memguard",
     "github.com/cespare/cp",
+    "github.com/danil-lashin/tendermint/libs/db",
     "github.com/davecgh/go-spew/spew",
     "github.com/deckarep/golang-set",
     "github.com/ethereum/go-ethereum/p2p/simulations/pipes",

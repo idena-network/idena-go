@@ -58,7 +58,7 @@ type stateGlobal struct {
 type GlobalStateFlag uint32
 
 const (
-	FlipSubmissionStarted GlobalStateFlag = 1 << iota
+	FlipLotteryStarted GlobalStateFlag = 1 << iota
 	ValidationStarted
 )
 

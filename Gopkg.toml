@@ -131,3 +131,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/asaskevich/EventBus"
+
+[[constraint]]
+  name = "github.com/RoaringBitmap/roaring"
+  version = "0.4.17"

@@ -114,7 +114,7 @@ func convertToBlock(block *types.Block) *Block {
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		flags = append(flags, "Identity update")
 	}
-	if block.Header.Flags().HasFlag(types.ValidationStarted) {
+	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		flags = append(flags, "Validation started")
 	}
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
