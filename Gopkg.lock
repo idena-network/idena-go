@@ -108,14 +108,6 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:5cffdbcd56da3f9cc3cbc5268fa4c7cd56782eef32fafc764f668d5ac2fd5335"
-  name = "github.com/danil-lashin/tendermint"
-  packages = ["libs/db"]
-  pruneopts = "UT"
-  revision = "4695414393a3e0bc3836fb1cece7f1f3768d3311"
-  version = "v0.31.4"
-
-[[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
@@ -243,6 +235,14 @@
   pruneopts = "UT"
   revision = "2a8bb927dd31d8daada140a5d09578521ce5c36a"
   version = "v0.0.1"
+
+[[projects]]
+  digest = "1:4d5b7025122c6148eb48a96f95a6d4a72058dabe25ddd83e8acf102815c493e2"
+  name = "github.com/google/tink"
+  packages = ["go/subtle/random"]
+  pruneopts = "UT"
+  revision = "6f073f11f59c703b14793f9f8cbf7a3aa7ac4a89"
+  version = "v1.2.2"
 
 [[projects]]
   digest = "1:582b704bebaa06b48c29b0cec224a6058a09c86883aaddabde889cd1a5f73e1b"
@@ -1012,12 +1012,12 @@
     "github.com/asaskevich/EventBus",
     "github.com/awnumar/memguard",
     "github.com/cespare/cp",
-    "github.com/danil-lashin/tendermint/libs/db",
     "github.com/davecgh/go-spew/spew",
     "github.com/deckarep/golang-set",
     "github.com/ethereum/go-ethereum/p2p/simulations/pipes",
     "github.com/go-stack/stack",
     "github.com/golang/snappy",
+    "github.com/google/tink/go/subtle/random",
     "github.com/huin/goupnp",
     "github.com/huin/goupnp/dcps/internetgateway1",
     "github.com/huin/goupnp/dcps/internetgateway2",

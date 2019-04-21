@@ -49,7 +49,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	db := db.NewMemDB()
-	appState := appstate.NewAppState(db)
+	appState := appstate.NewAppState(db, EventBus.New())
 
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()

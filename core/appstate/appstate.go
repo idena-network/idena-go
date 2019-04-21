@@ -1,6 +1,7 @@
 package appstate
 
 import (
+	"github.com/asaskevich/EventBus"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/core/state"
 	"idena-go/core/validators"
@@ -11,14 +12,16 @@ type AppState struct {
 	State           *state.StateDB
 	NonceCache      *state.NonceCache
 	IdentityState   *state.IdentityStateDB
+	EvidenceMap     *EvidenceMap
 }
 
-func NewAppState(db dbm.DB) *AppState {
+func NewAppState(db dbm.DB, bus EventBus.Bus) *AppState {
 	stateDb := state.NewLazy(db)
 	identityStateDb := state.NewLazyIdentityState(db)
 	return &AppState{
 		State:         stateDb,
 		IdentityState: identityStateDb,
+		EvidenceMap:   NewEvidenceMap(bus),
 	}
 }
 

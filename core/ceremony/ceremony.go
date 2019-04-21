@@ -184,7 +184,6 @@ func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandida
 	return result
 }
 
-
 func (vc *ValidationCeremony) writeMinedAnswers(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
 		if tx.Type == types.SubmitAnswers {

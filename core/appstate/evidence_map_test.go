@@ -1,10 +1,10 @@
-package mempool
+package appstate
 
 import (
 	"fmt"
 	"github.com/asaskevich/EventBus"
 	"github.com/google/tink/go/subtle/random"
-	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
+	"github.com/stretchr/testify/require"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"testing"

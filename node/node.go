@@ -102,7 +102,7 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
-	appState := appstate.NewAppState(db)
+	appState := appstate.NewAppState(db, bus)
 	votes := pengings.NewVotes(appState)
 
 	txpool := mempool.NewTxPool(appState, bus)

@@ -26,7 +26,7 @@ var (
 	InvalidEpochTx       = errors.New("invalid epoch tx")
 	InvalidPayload       = errors.New("invalid payload")
 	InvalidRecipient     = errors.New("invalid recipient")
-	LateTx = errors.New("tx can't be accepted due to validation ceremony")
+	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
 	validators           map[types.TxType]*validator
 )
 
@@ -130,7 +130,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 		return InvitationIsMissing
 	}
 
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
 		return LateTx
 	}
 
@@ -147,7 +147,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) er
 	if appState.State.GetInvites(sender) == 0 {
 		return InsufficientInvites
 	}
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
 		return LateTx
 	}
 	return nil
@@ -164,8 +164,7 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) er
 		return InvalidRecipient
 	}
 
-
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted){
+	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
 		return LateTx
 	}
 
@@ -188,8 +187,7 @@ func validateSubmitAnswersTx(appState *appstate.AppState, tx *types.Transaction)
 	if *tx.To != sender {
 		return InvalidRecipient
 	}
-	return nil
-	//return appState.EvidenceMap.ValidateTx(tx)
+	return appState.EvidenceMap.ValidateTx(tx)
 }
 
 func ValidateFlipKey(appState *appstate.AppState, key *types.FlipKey) error {
