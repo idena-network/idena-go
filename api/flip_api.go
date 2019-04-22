@@ -88,14 +88,10 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	}, nil
 }
 
-type FlipsResponse struct {
-	Hexes []hexutil.Bytes `json:"hex"`
-}
-
-func (api *FlipApi) GetFlips() (FlipsResponse, error) {
+func (api *FlipApi) FlipHashes() ([]hexutil.Bytes, error) {
 	flips := api.ceremony.GetFlipsToSolve()
 	if flips == nil {
-		return FlipsResponse{}, errors.New("ceremony is not started")
+		return nil, errors.New("ceremony is not started")
 	}
 
 	var result []hexutil.Bytes
@@ -103,9 +99,7 @@ func (api *FlipApi) GetFlips() (FlipsResponse, error) {
 		result = append(result, hexutil.Bytes(v))
 	}
 
-	return FlipsResponse{
-		Hexes: result,
-	}, nil
+	return result, nil
 }
 
 type FlipResponse struct {
@@ -114,7 +108,7 @@ type FlipResponse struct {
 	Mined bool          `json:"mined"`
 }
 
-func (api *FlipApi) GetFlip(hash string) (FlipResponse, error) {
+func (api *FlipApi) Flip(hash string) (FlipResponse, error) {
 	cids := api.baseApi.getAppState().State.FlipCids()
 	c, _ := cid.Decode(hash)
 	cidBytes := c.Bytes()
@@ -138,4 +132,35 @@ func (api *FlipApi) GetFlip(hash string) (FlipResponse, error) {
 		Epoch: epoch,
 		Mined: mined,
 	}, nil
+}
+
+type FlipAnswer struct {
+	Hash   *hexutil.Bytes `json:"hex"`
+	Answer int            `json:"answer"`
+}
+
+type SubmitAnswersArgs struct {
+	Answers []FlipAnswer
+	Nonce   uint32 `json:"nonce"`
+	Epoch   uint16 `json:"epoch"`
+}
+
+func (api *FlipApi) SubmitAnswers(args SubmitAnswersArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+
+	m := make([]*types.FlipAnswer, 0)
+	for _, item := range args.Answers {
+		h := common.BytesToHash(*item.Hash)
+		m = append(m, &types.FlipAnswer{
+			Hash:   h,
+			Answer: item.Answer,
+		})
+	}
+
+	hash, err := api.ceremony.SaveOwnShortAnswers(m)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return api.baseApi.sendTx(from, from, types.SubmitAnswers, decimal.Decimal{}, args.Nonce, args.Epoch, hash[:], nil)
 }

@@ -66,6 +66,15 @@ func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
 	return vc.flipsToSolve
 }
 
+func (vc *ValidationCeremony) SaveOwnShortAnswers(answers []*types.FlipAnswer) (common.Hash, error) {
+	err := vc.epochDb.WriteOwnShortAnswers(answers)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return common.Hash(rlp.Hash(answers)), nil
+}
+
 func (vc *ValidationCeremony) watchingLoop() {
 	for {
 		select {

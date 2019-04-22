@@ -42,14 +42,22 @@ var (
 	addressT = reflect.TypeOf(Address{})
 	MinAddr  = Address{}.Bytes()
 	MaxAddr  []byte
+	MinHash  = [HashLength]byte{}
+	MaxHash  []byte
 )
 
 func init() {
-	var max [AddressLength]byte
-	for i := range max {
-		max[i] = 0xFF
+	var maxAddr [AddressLength]byte
+	for i := range maxAddr {
+		maxAddr[i] = 0xFF
 	}
-	MaxAddr = max[:]
+	MaxAddr = maxAddr[:]
+
+	var maxHash [HashLength]byte
+	for i := range maxHash {
+		maxHash[i] = 0xFF
+	}
+	MaxHash = maxHash[:]
 }
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
@@ -349,4 +357,3 @@ func (ma *MixedcaseAddress) ValidChecksum() bool {
 func (ma *MixedcaseAddress) Original() string {
 	return ma.original
 }
-
