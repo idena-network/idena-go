@@ -1,4 +1,4 @@
-package database
+package ceremony
 
 import (
 	"github.com/stretchr/testify/require"

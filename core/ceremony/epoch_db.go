@@ -1,11 +1,13 @@
-package database
+package ceremony
 
 import (
+	"bytes"
 	"encoding/binary"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/log"
 	"idena-go/rlp"
 	"time"
 )
@@ -81,13 +83,28 @@ func (edb *EpochDb) ReadShortSessionTime() *time.Time {
 	return &t
 }
 
-func (edb *EpochDb) WriteAnswers(shortRlp []byte, longRlp []byte) {
+func (edb *EpochDb) WriteAnswers(short []dbAnswer, long []dbAnswer) {
+
+	shortRlp, _ := rlp.EncodeToBytes(short)
+	longRlp, _ := rlp.EncodeToBytes(long)
+
 	edb.db.Set(ShortAnswersKey, shortRlp)
 	edb.db.Set(LongShortAnswersKey, longRlp)
 }
 
-func (edb *EpochDb) ReadAnswers() (shortRlp []byte, longRlp []byte) {
-	return edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
+func (edb *EpochDb) ReadAnswers() (short []dbAnswer, long []dbAnswer) {
+	shortRlp, longRlp := edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
+	if shortRlp != nil {
+		if err := rlp.Decode(bytes.NewReader(shortRlp), short); err != nil {
+			log.Error("invalid short answers rlp", "err", err)
+		}
+	}
+	if longRlp != nil {
+		if err := rlp.Decode(bytes.NewReader(longRlp), long); err != nil {
+			log.Error("invalid long answers rlp", "err", err)
+		}
+	}
+	return short, long
 }
 
 func (edb *EpochDb) WriteEvidenceTxExistence() {

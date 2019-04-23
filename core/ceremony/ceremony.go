@@ -11,7 +11,6 @@ import (
 	"idena-go/core/flip"
 	"idena-go/core/state"
 	"idena-go/crypto"
-	"idena-go/database"
 	"idena-go/log"
 	"idena-go/protocol"
 	"idena-go/rlp"
@@ -37,9 +36,9 @@ type ValidationCeremony struct {
 	candidatesPerFlips [][]int
 	flipsToSolve       [][]byte
 	keySent            bool
-	participants       []*Participant
+	participants       []*participant
 	mutex              *sync.Mutex
-	epochDb            *database.EpochDb
+	epochDb            *EpochDb
 	qualification      *qualification
 }
 
@@ -57,7 +56,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 }
 
 func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
-	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 
 	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
@@ -157,13 +156,8 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 	vc.keySent = true
 }
 
-type Participant struct {
-	PubKey    []byte
-	Candidate bool
-}
-
-func (vc *ValidationCeremony) getParticipants() []*Participant {
-	m := make([]*Participant, 0)
+func (vc *ValidationCeremony) getParticipants() []*participant {
+	m := make([]*participant, 0)
 
 	vc.appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
@@ -178,13 +172,13 @@ func (vc *ValidationCeremony) getParticipants() []*Participant {
 		}
 
 		if data.State == state.Verified {
-			m = append(m, &Participant{
+			m = append(m, &participant{
 				PubKey:    data.PubKey,
 				Candidate: false,
 			})
 		}
 		if data.State == state.Candidate {
-			m = append(m, &Participant{
+			m = append(m, &participant{
 				PubKey:    data.PubKey,
 				Candidate: true,
 			})
@@ -196,7 +190,7 @@ func (vc *ValidationCeremony) getParticipants() []*Participant {
 	return m
 }
 
-func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandidate [][]int, flipCids [][]byte) [][]byte {
+func getFlipsToSolve(pubKey []byte, participants []*participant, flipsPerCandidate [][]int, flipCids [][]byte) [][]byte {
 	var result [][]byte
 	for i := 0; i < len(participants); i++ {
 		if bytes.Compare(participants[i].PubKey, pubKey) == 0 {
