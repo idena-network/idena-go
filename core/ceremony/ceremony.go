@@ -40,10 +40,15 @@ type ValidationCeremony struct {
 	mutex              *sync.Mutex
 	epochDb            *EpochDb
 	qualification      *qualification
+
+	blockHandlers map[state.ValidationPeriod]blockHandler
 }
 
+type blockHandler func(block *types.Block)
+
 func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB) *ValidationCeremony {
-	return &ValidationCeremony{
+
+	vc := &ValidationCeremony{
 		flipper:    flipper,
 		appState:   appState,
 		bus:        bus,
@@ -53,6 +58,15 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 		log:        log.New(),
 		db:         db,
 	}
+
+	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
+		state.NonePeriod:             func(block *types.Block) {},
+		state.FlipLotteryPeriod:      vc.handleFlipLotterPeriod,
+		state.ShortSessionPeriod:     vc.handleShortSessionPeriod,
+		state.LongSessionPeriod:      vc.handleLongSessionPeriod,
+		state.AfterLongSessionPeriod: vc.handleAfterLongSessionPeriod,
+	}
+	return vc
 }
 
 func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
@@ -62,7 +76,7 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
 
 	vc.restoreState()
-	vc.processBlock(currentBlock)
+	vc.handleBlock(currentBlock)
 
 	go vc.watchingLoop()
 }
@@ -92,26 +106,14 @@ func (vc *ValidationCeremony) watchingLoop() {
 	for {
 		select {
 		case block := <-vc.blocksChan:
-			vc.processBlock(block)
+			vc.handleBlock(block)
 			vc.qualification.persistAnswers()
 		}
 	}
 }
 
-func (vc *ValidationCeremony) processBlock(block *types.Block) {
-	if vc.appState.State.ValidationPeriod() == state.NonePeriod {
-		return
-	}
-	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		t := time.Now()
-		vc.epochDb.WriteShortSessionTime(t)
-		vc.appState.EvidenceMap.SetShortSessionTime(&t)
-	}
-
-	vc.calculateFlipCandidates(block)
-	vc.processCeremonyTxs(block)
-	vc.broadcastFlipKey()
-	vc.broadcastEvidenceMap(block)
+func (vc *ValidationCeremony) handleBlock(block *types.Block) {
+	vc.blockHandlers[vc.appState.State.ValidationPeriod()](block)
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
@@ -224,4 +226,32 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
 
 	}
+}
+
+func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
+	vc.calculateFlipCandidates(block)
+	vc.broadcastFlipKey()
+}
+
+func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
+
+	timestamp := vc.epochDb.ReadShortSessionTime()
+	if timestamp != nil {
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
+	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
+		t := time.Now()
+		vc.epochDb.WriteShortSessionTime(t)
+		vc.appState.EvidenceMap.SetShortSessionTime(&t)
+	}
+
+	vc.processCeremonyTxs(block)
+}
+
+func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
+	vc.processCeremonyTxs(block)
+	vc.broadcastEvidenceMap(block)
+}
+
+func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
+
 }
