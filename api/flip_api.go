@@ -135,8 +135,10 @@ func (api *FlipApi) Flip(hash string) (FlipResponse, error) {
 }
 
 type FlipAnswer struct {
-	Hash   *hexutil.Bytes `json:"hex"`
-	Answer int            `json:"answer"`
+	Hash          *hexutil.Bytes `json:"hex"`
+	Easy          bool           `json:"easy"`
+	Inappropriate bool           `json:"inappropriate"`
+	Answer        types.Answer   `json:"answer"`
 }
 
 type SubmitAnswersArgs struct {
@@ -145,22 +147,58 @@ type SubmitAnswersArgs struct {
 	Epoch   uint16 `json:"epoch"`
 }
 
-func (api *FlipApi) SubmitAnswers(args SubmitAnswersArgs) (common.Hash, error) {
-	from := api.baseApi.getCurrentCoinbase()
-
-	m := make([]*types.FlipAnswer, 0)
-	for _, item := range args.Answers {
-		h := common.BytesToHash(*item.Hash)
-		m = append(m, &types.FlipAnswer{
-			Hash:   h,
-			Answer: item.Answer,
-		})
+func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (common.Hash, error) {
+	flipsCount := api.ceremony.ShortSessionFlipsCount()
+	if flipsCount != uint(len(args.Answers)) {
+		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
-	hash, err := api.ceremony.SaveOwnShortAnswers(m)
+	answers := parseAnswers(args.Answers, flipsCount)
+
+	hash, err := api.ceremony.SaveOwnShortAnswers(answers)
 	if err != nil {
 		return common.Hash{}, err
 	}
 
+	from := api.baseApi.getCurrentCoinbase()
+
 	return api.baseApi.sendTx(from, from, types.SubmitAnswersHashTx, decimal.Decimal{}, args.Nonce, args.Epoch, hash[:], nil)
+}
+
+func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, error) {
+	flipsCount := api.ceremony.LongSessionFlipsCount()
+	if flipsCount != uint(len(args.Answers)) {
+		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
+	}
+
+	answers := parseAnswers(args.Answers, flipsCount)
+
+	from := api.baseApi.getCurrentCoinbase()
+
+	return api.baseApi.sendTx(from, from, types.SubmitLongAnswersTx, decimal.Decimal{}, args.Nonce, args.Epoch, answers.Bytes(), nil)
+}
+
+func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {
+	result := types.NewAnswers(flipsCount)
+
+	for i := uint(0); i < uint(len(answers)); i++ {
+		item := answers[i]
+		if item.Answer == types.None {
+			continue
+		}
+		if item.Answer == types.Left {
+			result.Left(i)
+		}
+		if item.Answer == types.Right {
+			result.Right(i)
+		}
+		if item.Inappropriate {
+			result.Inappropriate(i)
+		}
+		if item.Easy {
+			result.Easy(i)
+		}
+	}
+
+	return result
 }

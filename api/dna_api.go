@@ -47,8 +47,8 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	state := api.baseApi.engine.GetAppState()
 
 	return Balance{
-		Stake:   convertToFloat(state.State.GetStakeBalance(address)),
-		Balance: convertToFloat(state.State.GetBalance(address)),
+		Stake:   blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
+		Balance: blockchain.ConvertToFloat(state.State.GetBalance(address)),
 	}
 }
 
@@ -200,7 +200,7 @@ func (api *DnaApi) Identities() []Identity {
 		identities = append(identities, Identity{
 			Address:  addr,
 			State:    s,
-			Stake:    convertToFloat(data.Stake),
+			Stake:    blockchain.ConvertToFloat(data.Stake),
 			Age:      data.Age,
 			Invites:  data.Invites,
 			Nickname: nickname,

@@ -3,7 +3,6 @@ package ceremony
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -57,13 +56,12 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 	return answers
 }
 
-func (edb *EpochDb) WriteOwnShortAnswers(answers []*types.FlipAnswer) error {
-	data, err := rlp.EncodeToBytes(answers)
-	if err != nil {
-		return errors.New("failed to RLP encode answers")
-	}
-	edb.db.Set(OwnShortAnswerKey, data)
-	return nil
+func (edb *EpochDb) WriteOwnShortAnswers(answers *types.Answers) {
+	edb.db.Set(OwnShortAnswerKey, answers.Bytes())
+}
+
+func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
+	return edb.db.Get(OwnShortAnswerKey)
 }
 
 func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) error {

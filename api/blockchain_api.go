@@ -81,7 +81,7 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 	return &Transaction{
 		Epoch:     tx.Epoch,
 		Payload:   hexutil.Bytes(tx.Payload),
-		Amount:    convertToFloat(tx.Amount),
+		Amount:    blockchain.ConvertToFloat(tx.Amount),
 		From:      sender,
 		Nonce:     tx.AccountNonce,
 		To:        tx.To,

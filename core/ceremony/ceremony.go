@@ -3,12 +3,15 @@ package ceremony
 import (
 	"bytes"
 	"github.com/asaskevich/EventBus"
+	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
+	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/constants"
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
+	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/log"
@@ -36,17 +39,19 @@ type ValidationCeremony struct {
 	candidatesPerFlips [][]int
 	flipsToSolve       [][]byte
 	keySent            bool
+	shortAnswersSent   bool
 	participants       []*participant
 	mutex              *sync.Mutex
 	epochDb            *EpochDb
 	qualification      *qualification
+	mempool            *mempool.TxPool
 
 	blockHandlers map[state.ValidationPeriod]blockHandler
 }
 
 type blockHandler func(block *types.Block)
 
-func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB) *ValidationCeremony {
+func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:    flipper,
@@ -57,6 +62,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 		secStore:   secStore,
 		log:        log.New(),
 		db:         db,
+		mempool:    mempool,
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -93,13 +99,9 @@ func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
 	return vc.flipsToSolve
 }
 
-func (vc *ValidationCeremony) SaveOwnShortAnswers(answers []*types.FlipAnswer) (common.Hash, error) {
-	err := vc.epochDb.WriteOwnShortAnswers(answers)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	return common.Hash(rlp.Hash(answers)), nil
+func (vc *ValidationCeremony) SaveOwnShortAnswers(answers *types.Answers) (common.Hash, error) {
+	vc.epochDb.WriteOwnShortAnswers(answers)
+	return common.Hash(rlp.Hash(answers.Bytes())), nil
 }
 
 func (vc *ValidationCeremony) watchingLoop() {
@@ -248,10 +250,46 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
+	if !vc.shortAnswersSent {
+		vc.broadcastShortAnswersTx()
+		vc.shortAnswersSent = true
+	}
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
 }
 
 func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 
+}
+
+func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
+	return FlipsPerAddress
+}
+
+func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
+	return FlipsPerAddress
+}
+
+func (vc *ValidationCeremony) broadcastShortAnswersTx() {
+	addr := vc.secStore.GetAddress()
+	answers := vc.epochDb.ReadOwnShortAnswersBits()
+	if answers == nil {
+		vc.log.Error("short session answers are missing")
+		return
+	}
+
+	tx := blockchain.BuildTx(vc.appState, addr, addr, types.SubmitShortAnswersTx, decimal.Zero, 0, 0, answers)
+
+	signedTx, err := vc.secStore.SignTx(tx)
+
+	if err != nil {
+		vc.log.Error(err.Error())
+		return
+	}
+
+	err = vc.mempool.Add(signedTx)
+
+	if err != nil {
+		vc.log.Error(err.Error())
+	}
 }
