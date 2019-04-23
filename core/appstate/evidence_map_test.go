@@ -34,7 +34,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 			em.newTx(&types.Transaction{
 				To:      &addr,
 				Payload: random.GetRandomBytes(common.HashLength),
-				Type:    types.SubmitAnswersTx,
+				Type:    types.SubmitAnswerHash,
 			})
 		}
 	}

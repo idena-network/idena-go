@@ -589,10 +589,10 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 func (chain *Blockchain) insertBlock(block *types.Block) error {
 	chain.repo.WriteBlockHeader(block)
-	chain.repo.WriteHead(block.Header)
 	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.writeTxIndex(block)
+	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
 		chain.SetCurrentHead(block.Header)

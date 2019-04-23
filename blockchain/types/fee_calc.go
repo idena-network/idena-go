@@ -12,7 +12,7 @@ const (
 )
 
 func CalculateFee(networkSize int, tx *Transaction) *big.Int {
-	if tx.Type == KillTx || tx.Type == SubmitAnswersTx {
+	if tx.Type == KillTx || tx.Type == SubmitAnswerHash {
 		return big.NewInt(0)
 	}
 	if networkSize == 0 {

@@ -162,5 +162,5 @@ func (api *FlipApi) SubmitAnswers(args SubmitAnswersArgs) (common.Hash, error) {
 		return common.Hash{}, err
 	}
 
-	return api.baseApi.sendTx(from, from, types.SubmitAnswersTx, decimal.Decimal{}, args.Nonce, args.Epoch, hash[:], nil)
+	return api.baseApi.sendTx(from, from, types.SubmitAnswerHash, decimal.Decimal{}, args.Nonce, args.Epoch, hash[:], nil)
 }

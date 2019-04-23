@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	ShortAnswerKey      = []byte("short")
+	OwnShortAnswerKey   = []byte("own-short")
 	AnswerHashPrefix    = []byte("hash")
-	ShortSessionTimeKey = []byte("short-time")
+	ShortSessionTimeKey = []byte("time-short")
+	ShortAnswersKey     = []byte("answers-short")
+	LongShortAnswersKey = []byte("answers-long")
 	EvidenceTxExistKey  = []byte("evidence")
 )
 
@@ -58,7 +60,7 @@ func (edb *EpochDb) WriteOwnShortAnswers(answers []*types.FlipAnswer) error {
 	if err != nil {
 		return errors.New("failed to RLP encode answers")
 	}
-	edb.db.Set(ShortAnswerKey, data)
+	edb.db.Set(OwnShortAnswerKey, data)
 	return nil
 }
 
@@ -77,6 +79,15 @@ func (edb *EpochDb) ReadShortSessionTime() *time.Time {
 	timeSeconds := int64(binary.LittleEndian.Uint64(data))
 	t := time.Unix(timeSeconds, 0)
 	return &t
+}
+
+func (edb *EpochDb) WriteAnswers(shortRlp []byte, longRlp []byte) {
+	edb.db.Set(ShortAnswersKey, shortRlp)
+	edb.db.Set(LongShortAnswersKey, longRlp)
+}
+
+func (edb *EpochDb) ReadAnswers() (shortRlp []byte, longRlp []byte) {
+	return edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
 }
 
 func (edb *EpochDb) WriteEvidenceTxExistence() {

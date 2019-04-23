@@ -40,6 +40,7 @@ type ValidationCeremony struct {
 	participants       []*Participant
 	mutex              *sync.Mutex
 	epochDb            *database.EpochDb
+	qualification      *qualification
 }
 
 func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB) *ValidationCeremony {
@@ -56,11 +57,12 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 }
 
 func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
-	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.qualification = NewQualification(vc.epochDb)
+
+	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
 
 	vc.restoreState()
-
 	vc.processBlock(currentBlock)
 
 	go vc.watchingLoop()
@@ -71,6 +73,7 @@ func (vc *ValidationCeremony) restoreState() {
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
 	}
+	vc.qualification.restoreAnswers()
 }
 
 func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
@@ -91,6 +94,7 @@ func (vc *ValidationCeremony) watchingLoop() {
 		select {
 		case block := <-vc.blocksChan:
 			vc.processBlock(block)
+			vc.qualification.persistAnswers()
 		}
 	}
 }
@@ -106,7 +110,7 @@ func (vc *ValidationCeremony) processBlock(block *types.Block) {
 	}
 
 	vc.calculateFlipCandidates(block)
-	vc.writeMinedAnswers(block)
+	vc.processCeremonyTxs(block)
 	vc.broadcastFlipKey()
 	vc.broadcastEvidenceMap(block)
 }
@@ -209,10 +213,15 @@ func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandida
 	return result
 }
 
-func (vc *ValidationCeremony) writeMinedAnswers(block *types.Block) {
+func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.SubmitAnswersTx {
+		if tx.Type == types.SubmitAnswerHash {
 			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload))
+		}
+
+		if tx.Type == types.SubmitShortAnswers || tx.Type == types.SubmitLongAnswers {
+			sender, _ := types.Sender(tx)
+			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswers, sender, tx.Payload)
 		}
 	}
 }

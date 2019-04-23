@@ -9,13 +9,15 @@ import (
 )
 
 const (
-	RegularTx       uint16 = 0x0
-	ActivationTx    uint16 = 0x1
-	InviteTx        uint16 = 0x2
-	KillTx          uint16 = 0x3
-	SubmitFlipTx    uint16 = 0x4
-	SubmitAnswersTx uint16 = 0x5
-	EvidenceTx      uint16 = 0x6
+	RegularTx          uint16 = 0x0
+	ActivationTx       uint16 = 0x1
+	InviteTx           uint16 = 0x2
+	KillTx             uint16 = 0x3
+	SubmitFlipTx       uint16 = 0x4
+	SubmitAnswerHash   uint16 = 0x5
+	SubmitShortAnswers uint16 = 0x6
+	SubmitLongAnswers  uint16 = 0x7
+	EvidenceTx         uint16 = 0x8
 )
 
 type BlockFlag uint32
@@ -47,7 +49,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
