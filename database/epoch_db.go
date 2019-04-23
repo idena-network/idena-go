@@ -1,16 +1,19 @@
 package database
 
 import (
+	"encoding/binary"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/rlp"
+	"time"
 )
 
 var (
-	ShortAnswerKey   = []byte("short")
-	AnswerHashPrefix = []byte("hash")
+	ShortAnswerKey      = []byte("short")
+	AnswerHashPrefix    = []byte("hash")
+	ShortSessionTimeKey = []byte("short-time")
 )
 
 type EpochDb struct {
@@ -23,7 +26,7 @@ func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
 	return &EpochDb{db: dbm.NewPrefixDB(db, prefix)}
 }
 
-func (edb EpochDb) Clear() {
+func (edb *EpochDb) Clear() {
 	it := edb.db.Iterator(nil, nil)
 	var keys [][]byte
 
@@ -35,7 +38,7 @@ func (edb EpochDb) Clear() {
 	}
 }
 
-func (edb EpochDb) WriteAnswerHash(address common.Address, hash common.Hash) {
+func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash) {
 	edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), hash[:])
 }
 
@@ -49,11 +52,28 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 	return answers
 }
 
-func (edb EpochDb) WriteOwnShortAnswers(answers []*types.FlipAnswer) error {
+func (edb *EpochDb) WriteOwnShortAnswers(answers []*types.FlipAnswer) error {
 	data, err := rlp.EncodeToBytes(answers)
 	if err != nil {
 		return errors.New("failed to RLP encode answers")
 	}
 	edb.db.Set(ShortAnswerKey, data)
 	return nil
+}
+
+func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(timestamp.Unix()))
+	edb.db.Set(ShortSessionTimeKey, b)
+	return nil
+}
+
+func (edb *EpochDb) ReadShortSessionTime() *time.Time {
+	data := edb.db.Get(ShortSessionTimeKey)
+	if data == nil {
+		return nil
+	}
+	timeSeconds := int64(binary.LittleEndian.Uint64(data))
+	t := time.Unix(timeSeconds, 0)
+	return &t
 }

@@ -17,6 +17,7 @@ import (
 	"idena-go/rlp"
 	"idena-go/secstore"
 	"sync"
+	"time"
 )
 
 const (
@@ -57,9 +58,19 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+
+	vc.restoreState()
+
 	vc.processBlock(currentBlock)
 
 	go vc.watchingLoop()
+}
+
+func (vc *ValidationCeremony) restoreState() {
+	timestamp := vc.epochDb.ReadShortSessionTime()
+	if timestamp != nil {
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
+	}
 }
 
 func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
@@ -88,6 +99,11 @@ func (vc *ValidationCeremony) processBlock(block *types.Block) {
 
 	if !vc.appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
 		return
+	}
+	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
+		t := time.Now()
+		vc.epochDb.WriteShortSessionTime(t)
+		vc.appState.EvidenceMap.SetShortSessionTime(&t)
 	}
 
 	vc.calculateFlipCandidates(block)

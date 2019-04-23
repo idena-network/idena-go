@@ -8,11 +8,17 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/constants"
+	"time"
+)
+
+var (
+	ShortSessionDuration = time.Minute * 5
 )
 
 type EvidenceMap struct {
-	answersHashes map[common.Address]common.Hash
-	bus           EventBus.Bus
+	answersHashes    map[common.Address]common.Hash
+	bus              EventBus.Bus
+	shortSessionTime *time.Time
 }
 
 func NewEvidenceMap(bus EventBus.Bus) *EvidenceMap {
@@ -27,6 +33,9 @@ func (m *EvidenceMap) ValidateTx(tx *types.Transaction) error {
 			return errors.New("another answer was published already")
 		}
 	}
+	if m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) > ShortSessionDuration {
+		return errors.New("short session ended")
+	}
 	return nil
 }
 
@@ -37,6 +46,7 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	if err := m.ValidateTx(tx); err != nil {
 		return
 	}
+
 	m.answersHashes[*tx.To] = common.BytesToHash(tx.Payload)
 }
 
@@ -59,4 +69,8 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, ignored []com
 	buf := new(bytes.Buffer)
 	rmap.WriteTo(buf)
 	return buf.Bytes()
+}
+
+func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
+	m.shortSessionTime = timestamp
 }
