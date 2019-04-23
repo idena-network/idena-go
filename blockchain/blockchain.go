@@ -323,8 +323,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(getNextValidationTime(chain.config.Validation.ValidationInterval, appState.State.NextValidationTime(), time.Now().UTC()))
-	appState.State.UnsetGlobalFlag(state.FlipLotteryStarted)
-	appState.State.UnsetGlobalFlag(state.ValidationStarted)
+	appState.State.SetValidationPeriod(state.NonePeriod)
 }
 
 func getNextValidationTime(interval time.Duration, prevValidation time.Time, now time.Time) time.Time {
@@ -338,14 +337,22 @@ func getNextValidationTime(interval time.Duration, prevValidation time.Time, now
 }
 
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
-	// flip submission started
-	if !appState.State.HasGlobalFlag(state.FlipLotteryStarted) &&
-		chain.timing.isFlipLotteryStarted(appState.State.NextValidationTime(), block.Header.Time()) {
-		appState.State.SetGlobalFlag(state.FlipLotteryStarted)
+
+	flags := block.Header.Flags()
+	if flags.HasFlag(types.FlipLotterStarted) {
+		appState.State.SetValidationPeriod(state.FlipLotteryPeriod)
 	}
-	// validation started
-	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		appState.State.SetGlobalFlag(state.ValidationStarted)
+
+	if flags.HasFlag(types.ShortSessionStarted) {
+		appState.State.SetValidationPeriod(state.ShortSessionPeriod)
+	}
+
+	if flags.HasFlag(types.LongSessionStarted) {
+		appState.State.SetValidationPeriod(state.LongSessionPeriod)
+	}
+
+	if flags.HasFlag(types.AfterLongSessionStarted) {
+		appState.State.SetValidationPeriod(state.AfterLongSessionPeriod)
 	}
 }
 
@@ -550,15 +557,15 @@ func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
 
 	appState := chain.appState.State
 
-	if appState.HasGlobalFlag(state.ValidationStarted) &&
+	if appState.ValidationPeriod() == state.AfterLongSessionPeriod &&
 		chain.timing.isValidationFinished(appState.NextValidationTime(), block.Header.Time()) {
 		flags |= types.IdentityUpdate
 		flags |= types.ValidationFinished
 	}
 
-	if !appState.HasGlobalFlag(state.ValidationStarted) &&
+	if appState.ValidationPeriod() == state.NonePeriod &&
 		chain.timing.isValidationStarted(appState.NextValidationTime(), block.Header.Time()) {
-		flags |= types.ShortSessionStarted
+		flags |= types.FlipLotterStarted
 	}
 
 	return flags

@@ -14,6 +14,7 @@ var (
 	ShortAnswerKey      = []byte("short")
 	AnswerHashPrefix    = []byte("hash")
 	ShortSessionTimeKey = []byte("short-time")
+	EvidenceTxExistKey  = []byte("evidence")
 )
 
 type EpochDb struct {
@@ -76,4 +77,8 @@ func (edb *EpochDb) ReadShortSessionTime() *time.Time {
 	timeSeconds := int64(binary.LittleEndian.Uint64(data))
 	t := time.Unix(timeSeconds, 0)
 	return &t
+}
+
+func (edb *EpochDb) WriteEvidenceTxExistence() {
+	edb.db.Set(EvidenceTxExistKey, []byte{0x1})
 }

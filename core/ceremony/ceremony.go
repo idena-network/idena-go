@@ -96,8 +96,7 @@ func (vc *ValidationCeremony) watchingLoop() {
 }
 
 func (vc *ValidationCeremony) processBlock(block *types.Block) {
-
-	if !vc.appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
+	if vc.appState.State.ValidationPeriod() == state.NonePeriod {
 		return
 	}
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
@@ -109,6 +108,7 @@ func (vc *ValidationCeremony) processBlock(block *types.Block) {
 	vc.calculateFlipCandidates(block)
 	vc.writeMinedAnswers(block)
 	vc.broadcastFlipKey()
+	vc.broadcastEvidenceMap(block)
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
@@ -211,8 +211,14 @@ func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandida
 
 func (vc *ValidationCeremony) writeMinedAnswers(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.SubmitAnswers {
+		if tx.Type == types.SubmitAnswersTx {
 			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload))
 		}
+	}
+}
+
+func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
+	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
+
 	}
 }

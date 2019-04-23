@@ -51,7 +51,7 @@ func init() {
 	validators[types.SubmitFlipTx] = &validator{
 		validate: validateSubmitFlipTx,
 	}
-	validators[types.SubmitAnswers] = &validator{
+	validators[types.SubmitAnswersTx] = &validator{
 		validate: validateSubmitAnswersTx,
 	}
 }
@@ -130,7 +130,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 		return InvitationIsMissing
 	}
 
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
+	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
 		return LateTx
 	}
 
@@ -147,7 +147,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) er
 	if appState.State.GetInvites(sender) == 0 {
 		return InsufficientInvites
 	}
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
+	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
 		return LateTx
 	}
 	return nil
@@ -164,7 +164,7 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) er
 		return InvalidRecipient
 	}
 
-	if appState.State.HasGlobalFlag(state.FlipLotteryStarted) {
+	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
 		return LateTx
 	}
 

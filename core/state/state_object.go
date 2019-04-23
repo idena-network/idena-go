@@ -55,18 +55,21 @@ type stateGlobal struct {
 	onDirty func() // Callback method to mark a state object newly dirty
 }
 
-type GlobalStateFlag uint32
+type ValidationPeriod uint32
 
 const (
-	FlipLotteryStarted GlobalStateFlag = 1 << iota
-	ValidationStarted
+	NonePeriod             ValidationPeriod = 0
+	FlipLotteryPeriod      ValidationPeriod = 1
+	ShortSessionPeriod     ValidationPeriod = 2
+	LongSessionPeriod      ValidationPeriod = 3
+	AfterLongSessionPeriod ValidationPeriod = 4
 )
 
 type Global struct {
 	Epoch              uint16
 	Flips              [][]byte
 	NextValidationTime *big.Int
-	Flags              GlobalStateFlag
+	ValidationPeriod   ValidationPeriod
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -337,8 +340,8 @@ func (s *stateGlobal) ClearFlipCids() {
 	s.touch()
 }
 
-func (s *stateGlobal) HasFlag(flag GlobalStateFlag) bool {
-	return s.data.Flags&flag != 0
+func (s *stateGlobal) ValidationPeriod() ValidationPeriod {
+	return s.data.ValidationPeriod
 }
 
 func (s *stateGlobal) touch() {
@@ -352,13 +355,8 @@ func (s *stateGlobal) SetNextValidationTime(unix int64) {
 	s.touch()
 }
 
-func (s *stateGlobal) SetFlag(flag GlobalStateFlag) {
-	s.data.Flags |= flag
-	s.touch()
-}
-
-func (s *stateGlobal) UnsetFlag(flag GlobalStateFlag) {
-	s.data.Flags &= ^flag
+func (s *stateGlobal) SetValidationPeriod(period ValidationPeriod) {
+	s.data.ValidationPeriod = period
 	s.touch()
 }
 

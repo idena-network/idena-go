@@ -8,6 +8,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/constants"
+	"sync"
 	"time"
 )
 
@@ -19,10 +20,14 @@ type EvidenceMap struct {
 	answersHashes    map[common.Address]common.Hash
 	bus              EventBus.Bus
 	shortSessionTime *time.Time
+	mutex            *sync.Mutex
 }
 
 func NewEvidenceMap(bus EventBus.Bus) *EvidenceMap {
-	m := &EvidenceMap{bus: bus, answersHashes: make(map[common.Address]common.Hash)}
+	m := &EvidenceMap{
+		bus:           bus,
+		answersHashes: make(map[common.Address]common.Hash),
+	}
 	bus.Subscribe(constants.NewTxEvent, m.newTx)
 	return m
 }
@@ -40,7 +45,7 @@ func (m *EvidenceMap) ValidateTx(tx *types.Transaction) error {
 }
 
 func (m *EvidenceMap) newTx(tx *types.Transaction) {
-	if tx.Type != types.SubmitAnswers {
+	if tx.Type != types.SubmitAnswersTx {
 		return
 	}
 	if err := m.ValidateTx(tx); err != nil {

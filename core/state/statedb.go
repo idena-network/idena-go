@@ -214,12 +214,8 @@ func (s *StateDB) SetNextValidationTime(t time.Time) {
 	s.GetOrNewGlobalObject().SetNextValidationTime(t.Unix())
 }
 
-func (s *StateDB) SetGlobalFlag(flag GlobalStateFlag) {
-	s.GetOrNewGlobalObject().SetFlag(flag)
-}
-
-func (s *StateDB) UnsetGlobalFlag(flag GlobalStateFlag) {
-	s.GetOrNewGlobalObject().UnsetFlag(flag)
+func (s *StateDB) SetValidationPeriod(period ValidationPeriod) {
+	s.GetOrNewGlobalObject().SetValidationPeriod(period)
 }
 
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
@@ -253,8 +249,8 @@ func (s *StateDB) ClearFlips() {
 	s.GetOrNewGlobalObject().ClearFlipCids()
 }
 
-func (s *StateDB) HasGlobalFlag(flag GlobalStateFlag) bool {
-	return s.GetOrNewGlobalObject().HasFlag(flag)
+func (s *StateDB) ValidationPeriod() ValidationPeriod {
+	return s.GetOrNewGlobalObject().ValidationPeriod()
 }
 
 //
