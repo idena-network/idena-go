@@ -9,22 +9,22 @@ import (
 )
 
 const (
-	RegularTx          uint16 = 0x0
-	ActivationTx       uint16 = 0x1
-	InviteTx           uint16 = 0x2
-	KillTx             uint16 = 0x3
-	SubmitFlipTx       uint16 = 0x4
-	SubmitAnswerHash   uint16 = 0x5
-	SubmitShortAnswers uint16 = 0x6
-	SubmitLongAnswers  uint16 = 0x7
-	EvidenceTx         uint16 = 0x8
+	RegularTx            uint16 = 0x0
+	ActivationTx         uint16 = 0x1
+	InviteTx             uint16 = 0x2
+	KillTx               uint16 = 0x3
+	SubmitFlipTx         uint16 = 0x4
+	SubmitAnswersHashTx  uint16 = 0x5
+	SubmitShortAnswersTx uint16 = 0x6
+	SubmitLongAnswersTx  uint16 = 0x7
+	EvidenceTx           uint16 = 0x8
 )
 
 type BlockFlag uint32
 
 const (
 	IdentityUpdate BlockFlag = 1 << iota
-	FlipLotterStarted
+	FlipLotteryStarted
 	ShortSessionStarted
 	LongSessionStarted
 	AfterLongSessionStarted

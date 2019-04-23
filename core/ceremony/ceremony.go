@@ -215,13 +215,13 @@ func getFlipsToSolve(pubKey []byte, participants []*Participant, flipsPerCandida
 
 func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.SubmitAnswerHash {
+		if tx.Type == types.SubmitAnswersHashTx {
 			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload))
 		}
 
-		if tx.Type == types.SubmitShortAnswers || tx.Type == types.SubmitLongAnswers {
+		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
 			sender, _ := types.Sender(tx)
-			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswers, sender, tx.Payload)
+			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswersTx, sender, tx.Payload)
 		}
 	}
 }

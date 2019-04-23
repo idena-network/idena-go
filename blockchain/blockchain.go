@@ -339,7 +339,7 @@ func getNextValidationTime(interval time.Duration, prevValidation time.Time, now
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
 
 	flags := block.Header.Flags()
-	if flags.HasFlag(types.FlipLotterStarted) {
+	if flags.HasFlag(types.FlipLotteryStarted) {
 		appState.State.SetValidationPeriod(state.FlipLotteryPeriod)
 	}
 
@@ -565,7 +565,7 @@ func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
 
 	if appState.ValidationPeriod() == state.NonePeriod &&
 		chain.timing.isValidationStarted(appState.NextValidationTime(), block.Header.Time()) {
-		flags |= types.FlipLotterStarted
+		flags |= types.FlipLotteryStarted
 	}
 
 	return flags

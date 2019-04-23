@@ -51,7 +51,7 @@ func init() {
 	validators[types.SubmitFlipTx] = &validator{
 		validate: validateSubmitFlipTx,
 	}
-	validators[types.SubmitAnswerHash] = &validator{
+	validators[types.SubmitAnswersHashTx] = &validator{
 		validate: validateSubmitAnswersTx,
 	}
 }

@@ -45,7 +45,7 @@ func (m *EvidenceMap) ValidateTx(tx *types.Transaction) error {
 }
 
 func (m *EvidenceMap) newTx(tx *types.Transaction) {
-	if tx.Type != types.SubmitAnswerHash {
+	if tx.Type != types.SubmitAnswersHashTx {
 		return
 	}
 	if err := m.ValidateTx(tx); err != nil {
