@@ -44,7 +44,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int `json:"timestamp"        gencodec:"required"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
@@ -345,4 +345,83 @@ type FlipKey struct {
 
 func (k FlipKey) Hash() common.Hash {
 	return rlp.Hash(k)
+}
+
+type Answer byte
+
+const (
+	None  Answer = 0
+	Left  Answer = 1
+	Right Answer = 2
+)
+
+type Answers struct {
+	Bits       *big.Int
+	FlipsCount uint
+}
+
+func NewAnswers(flipsCount uint) *Answers {
+	a := Answers{
+		Bits:       new(big.Int),
+		FlipsCount: flipsCount,
+	}
+	return &a
+}
+
+func NewAnswersFromBits(flipsCount uint, bits []byte) *Answers {
+	a := Answers{
+		Bits:       new(big.Int).SetBytes(bits),
+		FlipsCount: flipsCount,
+	}
+	return &a
+}
+
+func (a *Answers) Left(flipIndex uint) {
+	if flipIndex >= a.FlipsCount {
+		panic("index is out of range")
+	}
+
+	t := big.NewInt(1)
+	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex))
+}
+
+func (a *Answers) Right(flipIndex uint) {
+	if flipIndex >= a.FlipsCount {
+		panic("index is out of range")
+	}
+
+	t := big.NewInt(1)
+	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount))
+}
+
+func (a *Answers) Inappropriate(flipIndex uint) {
+	if flipIndex >= a.FlipsCount {
+		panic("index is out of range")
+	}
+	t := big.NewInt(1)
+	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*2))
+}
+
+func (a *Answers) Easy(flipIndex uint) {
+	if flipIndex >= a.FlipsCount {
+		panic("index is out of range")
+	}
+	t := big.NewInt(1)
+	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*3))
+}
+
+func (a *Answers) Bytes() []byte {
+	return a.Bits.Bytes()
+}
+
+func (a *Answers) Answer(flipIndex uint) (answer Answer, inappropriate bool, easy bool) {
+	answer = None
+	if a.Bits.Bit(int(flipIndex)) == 1 {
+		answer = Left
+	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount)) == 1 {
+		answer = Right
+	}
+	inappropriate = a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1
+	easy = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
+	return
 }
