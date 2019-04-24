@@ -40,6 +40,7 @@ type ValidationCeremony struct {
 	flipsToSolve       [][]byte
 	keySent            bool
 	shortAnswersSent   bool
+	evidenceSent       bool
 	participants       []*participant
 	mutex              *sync.Mutex
 	epochDb            *EpochDb
@@ -129,10 +130,7 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
-	if !vc.shortAnswersSent {
-		vc.broadcastShortAnswersTx()
-		vc.shortAnswersSent = true
-	}
+	vc.broadcastShortAnswersTx()
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
 }
@@ -263,14 +261,10 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 			sender, _ := types.Sender(tx)
 			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswersTx, sender, tx.Payload)
 		}
-	}
-}
 
-func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
-	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
-		additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())
-		bitmap := vc.appState.EvidenceMap.CalculateBitmap(vc.getParticipantsAddrs(), additional)
-		vc.sendTx(types.EvidenceTx, bitmap)
+		if tx.Type == types.EvidenceTx {
+			vc.epochDb.WriteEvidenceMap(*tx.To, tx.Payload)
+		}
 	}
 }
 
@@ -284,26 +278,48 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
+	if vc.shortAnswersSent {
+		return
+	}
 	answers := vc.epochDb.ReadOwnShortAnswersBits()
 	if answers == nil {
 		vc.log.Error("short session answers are missing")
 		return
 	}
 	vc.sendTx(types.SubmitShortAnswersTx, answers)
+	vc.shortAnswersSent = true
+}
+
+func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
+	if vc.evidenceSent {
+		return
+	}
+	additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())
+	bitmap := vc.appState.EvidenceMap.CalculateBitmap(vc.getParticipantsAddrs(), additional)
+	vc.sendTx(types.EvidenceTx, bitmap)
+	vc.evidenceSent = true
 }
 
 func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) {
-	addr := vc.secStore.GetAddress()
-	tx := blockchain.BuildTx(vc.appState, addr, addr, txType, decimal.Zero, 0, 0, payload)
 
-	signedTx, err := vc.secStore.SignTx(tx)
+	signedTx := &types.Transaction{}
 
-	if err != nil {
-		vc.log.Error(err.Error())
-		return
+	if existTx := vc.epochDb.ReadOwnTx(txType); existTx != nil {
+		rlp.DecodeBytes(existTx, signedTx)
+	} else {
+		addr := vc.secStore.GetAddress()
+		tx := blockchain.BuildTx(vc.appState, addr, addr, txType, decimal.Zero, 0, 0, payload)
+		var err error
+		signedTx, err = vc.secStore.SignTx(tx)
+		if err != nil {
+			vc.log.Error(err.Error())
+			return
+		}
+		txBytes, _ := rlp.EncodeToBytes(signedTx)
+		vc.epochDb.WriteOwnTx(txType, txBytes)
 	}
 
-	err = vc.mempool.Add(signedTx)
+	err := vc.mempool.Add(signedTx)
 
 	if err != nil {
 		vc.log.Error(err.Error())

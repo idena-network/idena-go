@@ -2,7 +2,6 @@ package appstate
 
 import (
 	"bytes"
-	"errors"
 	"github.com/asaskevich/EventBus"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
@@ -17,7 +16,7 @@ var (
 )
 
 type EvidenceMap struct {
-	answersHashes    map[common.Address]common.Hash
+	answersSet       mapset.Set
 	bus              EventBus.Bus
 	shortSessionTime *time.Time
 	mutex            *sync.Mutex
@@ -25,34 +24,22 @@ type EvidenceMap struct {
 
 func NewEvidenceMap(bus EventBus.Bus) *EvidenceMap {
 	m := &EvidenceMap{
-		bus:           bus,
-		answersHashes: make(map[common.Address]common.Hash),
+		bus:        bus,
+		answersSet: mapset.NewSet(),
 	}
 	bus.Subscribe(constants.NewTxEvent, m.newTx)
 	return m
-}
-
-func (m *EvidenceMap) ValidateTx(tx *types.Transaction) error {
-	if v, ok := m.answersHashes[*tx.To]; ok {
-		if bytes.Compare(v.Bytes(), tx.Payload) != 0 {
-			return errors.New("another answer was published already")
-		}
-	}
-	if m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) > ShortSessionDuration {
-		return errors.New("short session ended")
-	}
-	return nil
 }
 
 func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	if tx.Type != types.SubmitAnswersHashTx {
 		return
 	}
-	if err := m.ValidateTx(tx); err != nil {
-		return
-	}
 
-	m.answersHashes[*tx.To] = common.BytesToHash(tx.Payload)
+	//TODO : m.shortSessionTime == nil ?
+	if  m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) < ShortSessionDuration {
+		m.answersSet.Add(*tx.To)
+	}
 }
 
 func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) []byte {
@@ -67,7 +54,7 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []
 			rmap.Add(uint32(i))
 			continue
 		}
-		if _, ok := m.answersHashes[candidate]; ok {
+		if m.answersSet.Contains(candidate) {
 			rmap.Add(uint32(i))
 		}
 	}
@@ -81,12 +68,10 @@ func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
 	m.shortSessionTime = timestamp
 }
 
-func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time{
+func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time {
 	return *m.shortSessionTime
 }
 
-func (m *EvidenceMap) GetShortSessionEndingTime() time.Time{
+func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
 	return m.shortSessionTime.Add(ShortSessionDuration)
 }
-
-

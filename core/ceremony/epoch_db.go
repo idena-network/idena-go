@@ -17,7 +17,8 @@ var (
 	ShortSessionTimeKey = []byte("time-short")
 	ShortAnswersKey     = []byte("answers-short")
 	LongShortAnswersKey = []byte("answers-long")
-	EvidenceTxExistKey  = []byte("evidence")
+	TxOwnPrefix         = []byte("tx")
+	EvidencePrefix      = []byte("evi")
 )
 
 type EpochDb struct {
@@ -58,7 +59,7 @@ func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash, ti
 }
 
 func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
-	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinHash[:]...), append(AnswerHashPrefix, common.MaxHash[:]...))
+	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
 	answers := make(map[common.Address]common.Hash)
 
 	for ; it.Valid(); it.Next() {
@@ -73,7 +74,7 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 }
 
 func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []common.Address {
-	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinHash[:]...), append(AnswerHashPrefix, common.MaxHash[:]...))
+	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
 	var result []common.Address
 	for ; it.Valid(); it.Next() {
 		a := &shortAnswerDb{}
@@ -138,6 +139,16 @@ func (edb *EpochDb) ReadAnswers() (short []dbAnswer, long []dbAnswer) {
 	return short, long
 }
 
-func (edb *EpochDb) WriteEvidenceTxExistence() {
-	edb.db.Set(EvidenceTxExistKey, []byte{0x1})
+func (edb *EpochDb) WriteEvidenceMap(addr common.Address, bitmap []byte) {
+	edb.db.Set(append(EvidencePrefix, addr[:]...), bitmap)
+}
+
+func (edb *EpochDb) WriteOwnTx(txType uint16, tx []byte) {
+	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
+	edb.db.Set(key, tx)
+}
+
+func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
+	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
+	return edb.db.Get(key)
 }

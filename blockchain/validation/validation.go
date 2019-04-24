@@ -40,6 +40,7 @@ func init() {
 		types.SubmitFlipTx:        validateSubmitFlipTx,
 		types.SubmitAnswersHashTx: validateSubmitAnswersHashTx,
 		types.SubmitLongAnswersTx: validateSubmitLongAnswersTx,
+		types.EvidenceTx:          validateEvidenceTx,
 	}
 }
 
@@ -174,14 +175,26 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 	if *tx.To != sender {
 		return InvalidRecipient
 	}
-	return appState.EvidenceMap.ValidateTx(tx)
+	return nil
 }
 
 func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
-	if mempoolTx && appState.State.ValidationPeriod() == state.LongSessionPeriod {
+	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
 		return LateTx
 	}
 
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if *tx.To != sender {
+		return InvalidRecipient
+	}
+
+	return nil
+}
+
+func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
 		return err
 	}
