@@ -95,15 +95,6 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.qualification.restoreAnswers()
 }
 
-func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
-	return vc.flipsToSolve
-}
-
-func (vc *ValidationCeremony) SaveOwnShortAnswers(answers *types.Answers) (common.Hash, error) {
-	vc.epochDb.WriteOwnShortAnswers(answers)
-	return common.Hash(rlp.Hash(answers.Bytes())), nil
-}
-
 func (vc *ValidationCeremony) watchingLoop() {
 	for {
 		select {
@@ -116,6 +107,47 @@ func (vc *ValidationCeremony) watchingLoop() {
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 	vc.blockHandlers[vc.appState.State.ValidationPeriod()](block)
+}
+
+func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
+	vc.calculateFlipCandidates(block)
+	vc.broadcastFlipKey()
+}
+
+func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
+
+	timestamp := vc.epochDb.ReadShortSessionTime()
+	if timestamp != nil {
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
+	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
+		t := time.Now()
+		vc.epochDb.WriteShortSessionTime(t)
+		vc.appState.EvidenceMap.SetShortSessionTime(&t)
+	}
+
+	vc.processCeremonyTxs(block)
+}
+
+func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
+	if !vc.shortAnswersSent {
+		vc.broadcastShortAnswersTx()
+		vc.shortAnswersSent = true
+	}
+	vc.processCeremonyTxs(block)
+	vc.broadcastEvidenceMap(block)
+}
+
+func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
+
+}
+
+func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
+	return vc.flipsToSolve
+}
+
+func (vc *ValidationCeremony) SaveOwnShortAnswers(answers *types.Answers) (common.Hash, error) {
+	vc.epochDb.WriteOwnShortAnswers(answers)
+	return common.Hash(rlp.Hash(answers.Bytes())), nil
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
@@ -194,6 +226,16 @@ func (vc *ValidationCeremony) getParticipants() []*participant {
 	return m
 }
 
+func (vc *ValidationCeremony) getParticipantsAddrs() []common.Address {
+	participants := vc.getParticipants()
+	var result []common.Address
+	for _, p := range participants {
+		addr, _ := crypto.PubKeyBytesToAddress(p.PubKey)
+		result = append(result, addr)
+	}
+	return result
+}
+
 func getFlipsToSolve(pubKey []byte, participants []*participant, flipsPerCandidate [][]int, flipCids [][]byte) [][]byte {
 	var result [][]byte
 	for i := 0; i < len(participants); i++ {
@@ -214,7 +256,7 @@ func getFlipsToSolve(pubKey []byte, participants []*participant, flipsPerCandida
 func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
 		if tx.Type == types.SubmitAnswersHashTx {
-			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload))
+			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload), time.Now())
 		}
 
 		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
@@ -226,40 +268,10 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
-
+		additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())
+		bitmap := vc.appState.EvidenceMap.CalculateBitmap(vc.getParticipantsAddrs(), additional)
+		vc.sendTx(types.EvidenceTx, bitmap)
 	}
-}
-
-func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
-	vc.calculateFlipCandidates(block)
-	vc.broadcastFlipKey()
-}
-
-func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
-
-	timestamp := vc.epochDb.ReadShortSessionTime()
-	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
-	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		t := time.Now()
-		vc.epochDb.WriteShortSessionTime(t)
-		vc.appState.EvidenceMap.SetShortSessionTime(&t)
-	}
-
-	vc.processCeremonyTxs(block)
-}
-
-func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
-	if !vc.shortAnswersSent {
-		vc.broadcastShortAnswersTx()
-		vc.shortAnswersSent = true
-	}
-	vc.processCeremonyTxs(block)
-	vc.broadcastEvidenceMap(block)
-}
-
-func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
-
 }
 
 func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
@@ -271,14 +283,18 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 }
 
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
-	addr := vc.secStore.GetAddress()
+
 	answers := vc.epochDb.ReadOwnShortAnswersBits()
 	if answers == nil {
 		vc.log.Error("short session answers are missing")
 		return
 	}
+	vc.sendTx(types.SubmitShortAnswersTx, answers)
+}
 
-	tx := blockchain.BuildTx(vc.appState, addr, addr, types.SubmitShortAnswersTx, decimal.Zero, 0, 0, answers)
+func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) {
+	addr := vc.secStore.GetAddress()
+	tx := blockchain.BuildTx(vc.appState, addr, addr, txType, decimal.Zero, 0, 0, payload)
 
 	signedTx, err := vc.secStore.SignTx(tx)
 

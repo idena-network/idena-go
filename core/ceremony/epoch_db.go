@@ -24,6 +24,11 @@ type EpochDb struct {
 	db dbm.DB
 }
 
+type shortAnswerDb struct {
+	Hash      common.Hash
+	Timestamp uint64
+}
+
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
 	prefix := []byte("epoch")
 	prefix = append(prefix, uint8(epoch>>8), uint8(epoch&0xff))
@@ -42,18 +47,46 @@ func (edb *EpochDb) Clear() {
 	}
 }
 
-func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash) {
-	edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), hash[:])
+func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash, timestamp time.Time) {
+
+	a := shortAnswerDb{
+		Hash:      hash,
+		Timestamp: uint64(timestamp.Unix()),
+	}
+	encoded, _ := rlp.EncodeToBytes(a)
+	edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), encoded)
 }
 
 func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinHash[:]...), append(AnswerHashPrefix, common.MaxHash[:]...))
 	answers := make(map[common.Address]common.Hash)
 
-	for it.Next(); it.Valid(); {
-		answers[common.BytesToAddress(it.Key())] = common.BytesToHash(it.Value())
+	for ; it.Valid(); it.Next() {
+		a := &shortAnswerDb{}
+		if err := rlp.DecodeBytes(it.Value(), a); err != nil {
+			log.Error("invalid short answers rlp", "err", err)
+		} else {
+			answers[common.BytesToAddress(it.Key())] = a.Hash
+		}
 	}
 	return answers
+}
+
+func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []common.Address {
+	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinHash[:]...), append(AnswerHashPrefix, common.MaxHash[:]...))
+	var result []common.Address
+	for ; it.Valid(); it.Next() {
+		a := &shortAnswerDb{}
+		if err := rlp.DecodeBytes(it.Value(), a); err != nil {
+			log.Error("invalid short answers rlp", "err", err)
+		}
+
+		t := time.Unix(int64(a.Timestamp), 0)
+		if t.After(start) && t.Before(end) {
+			result = append(result, common.BytesToAddress(it.Key()))
+		}
+	}
+	return result
 }
 
 func (edb *EpochDb) WriteOwnShortAnswers(answers *types.Answers) {

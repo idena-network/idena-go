@@ -55,15 +55,16 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	m.answersHashes[*tx.To] = common.BytesToHash(tx.Payload)
 }
 
-func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, ignored []common.Address) []byte {
-	ignoredSet := mapset.NewSet()
+func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) []byte {
+	additionalSet := mapset.NewSet()
 
-	for _, ignore := range ignored {
-		ignoredSet.Add(ignore)
+	for _, add := range additional {
+		additionalSet.Add(add)
 	}
 	rmap := common.NewBitmap(uint32(len(candidates)))
 	for i, candidate := range candidates {
-		if ignoredSet.Contains(candidate) {
+		if additionalSet.Contains(candidate) {
+			rmap.Add(uint32(i))
 			continue
 		}
 		if _, ok := m.answersHashes[candidate]; ok {
@@ -79,3 +80,13 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, ignored []com
 func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
 	m.shortSessionTime = timestamp
 }
+
+func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time{
+	return *m.shortSessionTime
+}
+
+func (m *EvidenceMap) GetShortSessionEndingTime() time.Time{
+	return m.shortSessionTime.Add(ShortSessionDuration)
+}
+
+
