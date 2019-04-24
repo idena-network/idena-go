@@ -45,17 +45,17 @@ func TestValidationCeremony_getFlipsToSolve_fewFlips(t *testing.T) {
 	require.Equal(shouldBe, result)
 }
 
-func getParticipants(myKey []byte, myIndex int, length int) []*Participant {
-	participants := make([]*Participant, 0)
+func getParticipants(myKey []byte, myIndex int, length int) []*participant {
+	participants := make([]*participant, 0)
 
 	for i := 0; i < length; i++ {
 		if i == myIndex {
-			participants = append(participants, &Participant{
+			participants = append(participants, &participant{
 				PubKey:    myKey,
 				Candidate: true,
 			})
 		} else {
-			participants = append(participants, &Participant{
+			participants = append(participants, &participant{
 				PubKey:    []byte{byte(i)},
 				Candidate: true,
 			})

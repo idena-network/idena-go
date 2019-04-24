@@ -56,7 +56,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	appState := txpool.appState.ForCheck(txpool.head.Height())
 
-	if err := validation.ValidateTx(appState, tx); err != nil {
+	if err := validation.ValidateTx(appState, tx, true); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}

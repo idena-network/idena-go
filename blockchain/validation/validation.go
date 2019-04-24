@@ -27,36 +27,23 @@ var (
 	InvalidPayload       = errors.New("invalid payload")
 	InvalidRecipient     = errors.New("invalid recipient")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
-	validators           map[types.TxType]*validator
+	validators           map[types.TxType]validator
 )
 
-type validator struct {
-	validate func(appState *appstate.AppState, tx *types.Transaction) error
-}
+type validator func(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error
 
 func init() {
-	validators = make(map[types.TxType]*validator)
-	validators[types.RegularTx] = &validator{
-		validate: validateRegularTx,
-	}
-
-	validators[types.ActivationTx] = &validator{
-		validate: validateActivationTx,
-	}
-
-	validators[types.InviteTx] = &validator{
-		validate: validateSendInviteTx,
-	}
-
-	validators[types.SubmitFlipTx] = &validator{
-		validate: validateSubmitFlipTx,
-	}
-	validators[types.SubmitAnswersHashTx] = &validator{
-		validate: validateSubmitAnswersTx,
+	validators = map[types.TxType]validator{
+		types.RegularTx:           validateRegularTx,
+		types.ActivationTx:        validateActivationTx,
+		types.InviteTx:            validateSendInviteTx,
+		types.SubmitFlipTx:        validateSubmitFlipTx,
+		types.SubmitAnswersHashTx: validateSubmitAnswersHashTx,
+		types.SubmitLongAnswersTx: validateSubmitLongAnswersTx,
 	}
 }
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -81,7 +68,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 	if !ok {
 		return nil
 	}
-	if err := validator.validate(appState, tx); err != nil {
+	if err := validator(appState, tx, mempoolTx); err != nil {
 		return err
 	}
 
@@ -89,7 +76,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction) error {
 }
 
 // specific validation for regularTx
-func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateRegularTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil || *tx.To == (common.Address{}) {
@@ -104,7 +91,7 @@ func validateRegularTx(appState *appstate.AppState, tx *types.Transaction) error
 }
 
 // specific validation for approving tx
-func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
 	if len(tx.Payload) == 0 {
@@ -118,7 +105,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 			return InvalidPayload
 		}
 	}
-	if err := validateRegularTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
 		return err
 	}
 
@@ -137,10 +124,10 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction) er
 	return nil
 }
 
-func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
 		return err
 	}
 
@@ -153,10 +140,10 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction) er
 	return nil
 }
 
-func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
 		return err
 	}
 
@@ -173,10 +160,10 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction) er
 	return nil
 }
 
-func validateSubmitAnswersTx(appState *appstate.AppState, tx *types.Transaction) error {
+func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx); err != nil {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
 		return err
 	}
 
@@ -188,6 +175,22 @@ func validateSubmitAnswersTx(appState *appstate.AppState, tx *types.Transaction)
 		return InvalidRecipient
 	}
 	return appState.EvidenceMap.ValidateTx(tx)
+}
+
+func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if mempoolTx && appState.State.ValidationPeriod() == state.LongSessionPeriod {
+		return LateTx
+	}
+
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if *tx.To != sender {
+		return InvalidRecipient
+	}
+
+	return nil
 }
 
 func ValidateFlipKey(appState *appstate.AppState, key *types.FlipKey) error {
