@@ -155,14 +155,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (common.Hash, err
 
 	answers := parseAnswers(args.Answers, flipsCount)
 
-	hash, err := api.ceremony.SaveOwnShortAnswers(answers)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	from := api.baseApi.getCurrentCoinbase()
-
-	return api.baseApi.sendTx(from, from, types.SubmitAnswersHashTx, decimal.Decimal{}, args.Nonce, args.Epoch, hash[:], nil)
+	return api.ceremony.SubmitShortAnswers(answers)
 }
 
 func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, error) {
@@ -173,9 +166,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, erro
 
 	answers := parseAnswers(args.Answers, flipsCount)
 
-	from := api.baseApi.getCurrentCoinbase()
-
-	return api.baseApi.sendTx(from, from, types.SubmitLongAnswersTx, decimal.Decimal{}, args.Nonce, args.Epoch, answers.Bytes(), nil)
+	return api.ceremony.SubmitLongAnswers(answers)
 }
 
 func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {

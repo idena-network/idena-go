@@ -88,6 +88,27 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	go vc.watchingLoop()
 }
 
+func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
+	return vc.flipsToSolve
+}
+
+func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
+	vc.epochDb.WriteOwnShortAnswers(answers)
+	return vc.sendTx(types.SubmitAnswersHashTx, rlp.Hash(answers.Bytes())[:])
+}
+
+func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.Hash, error) {
+	return vc.sendTx(types.SubmitLongAnswersTx, answers.Bytes())
+}
+
+func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
+	return FlipsPerAddress
+}
+
+func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
+	return FlipsPerAddress
+}
+
 func (vc *ValidationCeremony) restoreState() {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
@@ -137,15 +158,6 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 
 func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 
-}
-
-func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
-	return vc.flipsToSolve
-}
-
-func (vc *ValidationCeremony) SaveOwnShortAnswers(answers *types.Answers) (common.Hash, error) {
-	vc.epochDb.WriteOwnShortAnswers(answers)
-	return common.Hash(rlp.Hash(answers.Bytes())), nil
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
@@ -268,16 +280,7 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
-	return FlipsPerAddress
-}
-
-func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
-	return FlipsPerAddress
-}
-
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
-
 	if vc.shortAnswersSent {
 		return
 	}
@@ -300,7 +303,7 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 	vc.evidenceSent = true
 }
 
-func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) {
+func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash, error) {
 
 	signedTx := &types.Transaction{}
 
@@ -313,7 +316,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) {
 		signedTx, err = vc.secStore.SignTx(tx)
 		if err != nil {
 			vc.log.Error(err.Error())
-			return
+			return common.Hash{}, err
 		}
 		txBytes, _ := rlp.EncodeToBytes(signedTx)
 		vc.epochDb.WriteOwnTx(txType, txBytes)
@@ -324,4 +327,6 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) {
 	if err != nil {
 		vc.log.Error(err.Error())
 	}
+
+	return signedTx.Hash(), err
 }
