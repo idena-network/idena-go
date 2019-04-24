@@ -350,9 +350,10 @@ func (k FlipKey) Hash() common.Hash {
 type Answer byte
 
 const (
-	None  Answer = 0
-	Left  Answer = 1
-	Right Answer = 2
+	None          Answer = 0
+	Left          Answer = 1
+	Right         Answer = 2
+	Inappropriate Answer = 3
 )
 
 type Answers struct {
@@ -414,14 +415,15 @@ func (a *Answers) Bytes() []byte {
 	return a.Bits.Bytes()
 }
 
-func (a *Answers) Answer(flipIndex uint) (answer Answer, inappropriate bool, easy bool) {
+func (a *Answers) Answer(flipIndex uint) (answer Answer, easy bool) {
 	answer = None
 	if a.Bits.Bit(int(flipIndex)) == 1 {
 		answer = Left
 	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount)) == 1 {
 		answer = Right
+	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1 {
+		answer = Inappropriate
 	}
-	inappropriate = a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1
 	easy = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
 	return
 }

@@ -94,7 +94,8 @@ func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
 
 func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
 	vc.epochDb.WriteOwnShortAnswers(answers)
-	return vc.sendTx(types.SubmitAnswersHashTx, rlp.Hash(answers.Bytes())[:])
+	hash := rlp.Hash(answers.Bytes())
+	return vc.sendTx(types.SubmitAnswersHashTx, hash[:])
 }
 
 func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.Hash, error) {

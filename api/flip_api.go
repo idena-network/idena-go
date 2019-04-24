@@ -135,10 +135,9 @@ func (api *FlipApi) Flip(hash string) (FlipResponse, error) {
 }
 
 type FlipAnswer struct {
-	Hash          *hexutil.Bytes `json:"hex"`
-	Easy          bool           `json:"easy"`
-	Inappropriate bool           `json:"inappropriate"`
-	Answer        types.Answer   `json:"answer"`
+	Hash   *hexutil.Bytes `json:"hex"`
+	Easy   bool           `json:"easy"`
+	Answer types.Answer   `json:"answer"`
 }
 
 type SubmitAnswersArgs struct {
@@ -183,7 +182,7 @@ func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {
 		if item.Answer == types.Right {
 			result.Right(i)
 		}
-		if item.Inappropriate {
+		if item.Answer == types.Inappropriate {
 			result.Inappropriate(i)
 		}
 		if item.Easy {
