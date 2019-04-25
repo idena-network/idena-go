@@ -81,12 +81,14 @@ type Account struct {
 }
 
 type Identity struct {
-	Nickname *[64]byte `rlp:"nil"`
-	Stake    *big.Int
-	Invites  uint8
-	Age      uint16
-	State    IdentityState
-	PubKey   []byte `rlp:"nil"`
+	Nickname    *[64]byte `rlp:"nil"`
+	Stake       *big.Int
+	Invites     uint8
+	Age         uint16
+	State       IdentityState
+	FlipsSolved uint32
+	FlipsScore  uint32
+	PubKey      []byte `rlp:"nil"`
 }
 
 type ApprovedIdentity struct {
@@ -314,6 +316,24 @@ func (s *stateIdentity) SubInvite(i uint8) {
 func (s *stateIdentity) SetPubKey(pubKey []byte) {
 	s.data.PubKey = pubKey
 	s.touch()
+}
+
+func (s *stateIdentity) AddFlipsSolved(flipsSolved uint32) {
+	s.data.FlipsSolved += flipsSolved
+	s.touch()
+}
+
+func (s *stateIdentity) FlipsSolved() uint32 {
+	return s.data.FlipsSolved
+}
+
+func (s *stateIdentity) AddFlipsScore(flipsScore float32) {
+	s.data.FlipsScore += uint32(flipsScore * 2)
+	s.touch()
+}
+
+func (s *stateIdentity) FlipsScore() float32 {
+	return float32(s.data.FlipsScore) / 2
 }
 
 // EncodeRLP implements rlp.Encoder.

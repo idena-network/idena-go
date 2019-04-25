@@ -237,6 +237,14 @@ func (s *StateDB) SetPubKey(address common.Address, pubKey []byte) {
 	s.GetOrNewIdentityObject(address).SetPubKey(pubKey)
 }
 
+func (s *StateDB) AddFlipsSolved(address common.Address, flipsSolved uint32) {
+	s.GetOrNewIdentityObject(address).AddFlipsSolved(flipsSolved)
+}
+
+func (s *StateDB) AddFlipsScore(address common.Address, flipsScore float32) {
+	s.GetOrNewIdentityObject(address).AddFlipsScore(flipsScore)
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
@@ -594,6 +602,22 @@ func (s *StateDB) GetInvites(addr common.Address) uint8 {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
 		return stateObject.Invites()
+	}
+	return 0
+}
+
+func (s *StateDB) GetFlipsSolved(addr common.Address) uint32 {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.FlipsSolved()
+	}
+	return 0
+}
+
+func (s *StateDB) GetFlipsScore(addr common.Address) float32 {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.FlipsScore()
 	}
 	return 0
 }
