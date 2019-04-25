@@ -5,17 +5,19 @@ import (
 )
 
 type ValidationConfig struct {
-	ValidationInterval    time.Duration
-	TimeBeforeFlipLottery time.Duration
-	TimeBeforeValidation  time.Duration
-	TimeoutBeforeEnd      time.Duration
+	ValidationInterval       time.Duration
+	FlipLotteryDuration      time.Duration
+	ShortSessionDuration     time.Duration
+	LongSessionDuration      time.Duration
+	AfterLongSessionDuration time.Duration
 }
 
 func GetDefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
-		ValidationInterval:    time.Minute * 30,
-		TimeBeforeFlipLottery: time.Minute * 5,
-		TimeBeforeValidation:  time.Minute * 2,
-		TimeoutBeforeEnd:      time.Minute * 2,
+		ValidationInterval:       time.Hour * 1,
+		FlipLotteryDuration:      time.Minute * 5,
+		ShortSessionDuration:     time.Minute,
+		LongSessionDuration:      time.Minute * 5,
+		AfterLongSessionDuration: time.Minute * 2,
 	}
 }

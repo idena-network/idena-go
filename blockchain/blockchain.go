@@ -558,15 +558,30 @@ func (chain *Blockchain) calculateFlags(block *types.Block) types.BlockFlag {
 
 	appState := chain.appState.State
 
-	if appState.ValidationPeriod() == state.AfterLongSessionPeriod &&
-		chain.timing.isValidationFinished(appState.NextValidationTime(), block.Header.Time()) {
-		flags |= types.IdentityUpdate
-		flags |= types.ValidationFinished
+	if appState.ValidationPeriod() == state.NonePeriod &&
+		chain.timing.isFlipLotteryStarted(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.FlipLotteryStarted
 	}
 
-	if appState.ValidationPeriod() == state.NonePeriod &&
-		chain.timing.isValidationStarted(appState.NextValidationTime(), block.Header.Time()) {
-		flags |= types.FlipLotteryStarted
+	if appState.ValidationPeriod() == state.FlipLotteryPeriod &&
+		chain.timing.isShortSessionStarted(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.ShortSessionStarted
+	}
+
+	if appState.ValidationPeriod() == state.ShortSessionPeriod &&
+		chain.timing.isLongSessionStarted(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.LongSessionStarted
+	}
+
+	if appState.ValidationPeriod() == state.LongSessionPeriod &&
+		chain.timing.isAfterLongSessionStarted(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.AfterLongSessionStarted
+	}
+
+	if appState.ValidationPeriod() == state.AfterLongSessionPeriod &&
+		chain.timing.isValidationFinished(appState.NextValidationTime(), block.Header.Time()) {
+		flags |= types.ValidationFinished
+		flags |= types.IdentityUpdate
 	}
 
 	return flags
