@@ -37,7 +37,8 @@ const (
 const (
 	ProposerRole            uint8 = 0x1
 	EmptyBlockTimeIncrement       = time.Second * 20
-	MaxFutureBlockTime            = time.Minute * 2
+	MaxFutureBlockOffset          = time.Minute * 2
+	MinBlockDelay                 = time.Second * 5
 )
 
 var (
@@ -703,9 +704,16 @@ func (chain *Blockchain) validateBlockParentHash(block *types.Block) error {
 
 func (chain *Blockchain) validateBlockTimestamp(timestamp *big.Int) error {
 	blockTime := time.Unix(timestamp.Int64(), 0)
-	if blockTime.Sub(time.Now().UTC()) > MaxFutureBlockTime {
+
+	if blockTime.Sub(time.Now().UTC()) > MaxFutureBlockOffset {
 		return errors.New("block from future")
 	}
+	prevBlockTime := time.Unix(chain.Head.Time().Int64(), 0)
+
+	if blockTime.Sub(prevBlockTime) < MinBlockDelay {
+		return errors.New("block is too close to previous one")
+	}
+
 	return nil
 }
 
