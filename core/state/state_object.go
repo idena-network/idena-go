@@ -11,14 +11,15 @@ import (
 type IdentityState uint8
 
 const (
-	Undefined IdentityState = 0
-	Invite    IdentityState = 1
-	Candidate IdentityState = 2
-	Verified  IdentityState = 3
-	Suspended IdentityState = 4
-	Killed    IdentityState = 5
-
-	MaxInvitesAmount = math.MaxUint8
+	Undefined        IdentityState = 0
+	Invite           IdentityState = 1
+	Candidate        IdentityState = 2
+	Verified         IdentityState = 3
+	Suspended        IdentityState = 4
+	Killed           IdentityState = 5
+	Zombie           IdentityState = 6
+	Newbie           IdentityState = 7
+	MaxInvitesAmount               = math.MaxUint8
 )
 
 // stateAccount represents an Idena account which is being modified.
@@ -81,14 +82,14 @@ type Account struct {
 }
 
 type Identity struct {
-	Nickname    *[64]byte `rlp:"nil"`
-	Stake       *big.Int
-	Invites     uint8
-	Age         uint16
-	State       IdentityState
-	FlipsSolved uint32
-	FlipsScore  uint32
-	PubKey      []byte `rlp:"nil"`
+	Nickname        *[64]byte `rlp:"nil"`
+	Stake           *big.Int
+	Invites         uint8
+	Age             uint16
+	State           IdentityState
+	QualifiedFlips  uint32
+	ShortFlipPoints uint32
+	PubKey          []byte `rlp:"nil"`
 }
 
 type ApprovedIdentity struct {
@@ -318,22 +319,22 @@ func (s *stateIdentity) SetPubKey(pubKey []byte) {
 	s.touch()
 }
 
-func (s *stateIdentity) AddFlipsSolved(flipsSolved uint32) {
-	s.data.FlipsSolved += flipsSolved
+func (s *stateIdentity) AddQualifiedFlipsCount(qualifiedFlips uint32) {
+	s.data.QualifiedFlips += qualifiedFlips
 	s.touch()
 }
 
-func (s *stateIdentity) FlipsSolved() uint32 {
-	return s.data.FlipsSolved
+func (s *stateIdentity) QualifiedFlipsCount() uint32 {
+	return s.data.QualifiedFlips
 }
 
-func (s *stateIdentity) AddFlipsScore(flipsScore float32) {
-	s.data.FlipsScore += uint32(flipsScore * 2)
+func (s *stateIdentity) AddShortFlipPoints(flipPoints float32) {
+	s.data.ShortFlipPoints += uint32(flipPoints * 2)
 	s.touch()
 }
 
-func (s *stateIdentity) FlipsScore() float32 {
-	return float32(s.data.FlipsScore) / 2
+func (s *stateIdentity) ShortFlipPoints() float32 {
+	return float32(s.data.ShortFlipPoints) / 2
 }
 
 // EncodeRLP implements rlp.Encoder.

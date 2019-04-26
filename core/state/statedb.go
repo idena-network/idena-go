@@ -237,12 +237,12 @@ func (s *StateDB) SetPubKey(address common.Address, pubKey []byte) {
 	s.GetOrNewIdentityObject(address).SetPubKey(pubKey)
 }
 
-func (s *StateDB) AddFlipsSolved(address common.Address, flipsSolved uint32) {
-	s.GetOrNewIdentityObject(address).AddFlipsSolved(flipsSolved)
+func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {
+	s.GetOrNewIdentityObject(address).AddQualifiedFlipsCount(qualifiedFlips)
 }
 
-func (s *StateDB) AddFlipsScore(address common.Address, flipsScore float32) {
-	s.GetOrNewIdentityObject(address).AddFlipsScore(flipsScore)
+func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints float32) {
+	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
 }
 
 func (s *StateDB) IncEpoch() {
@@ -606,18 +606,18 @@ func (s *StateDB) GetInvites(addr common.Address) uint8 {
 	return 0
 }
 
-func (s *StateDB) GetFlipsSolved(addr common.Address) uint32 {
+func (s *StateDB) GetQualifiedFlipsCount(addr common.Address) uint32 {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
-		return stateObject.FlipsSolved()
+		return stateObject.QualifiedFlipsCount()
 	}
 	return 0
 }
 
-func (s *StateDB) GetFlipsScore(addr common.Address) float32 {
+func (s *StateDB) GetShortFlipPoints(addr common.Address) float32 {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
-		return stateObject.FlipsScore()
+		return stateObject.ShortFlipPoints()
 	}
 	return 0
 }

@@ -26,6 +26,12 @@ const (
 	FlipsPerAddress = 10
 )
 
+const (
+	MinTotalScore = 0.75
+	MinShortScore = 0.5
+	MinLongScore  = 0.75
+)
+
 type ValidationCeremony struct {
 	bus                EventBus.Bus
 	db                 dbm.DB
@@ -330,4 +336,50 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	}
 
 	return signedTx.Hash(), err
+}
+
+func determineNewIdentityState(prevState state.IdentityState, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {
+
+	switch prevState {
+	case state.Undefined:
+	case state.Invite:
+		return state.Undefined
+	case state.Candidate:
+		if shortScore < MinShortScore || longScore < MinLongScore {
+			return state.Killed
+		}
+		return state.Newbie
+	case state.Newbie:
+		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
+		if totalQualifiedFlips < 10 && shortScore >= MinShortScore && longScore >= 0.75 {
+			return state.Newbie
+		}
+		return state.Killed
+	case state.Verified:
+		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
+		if missed {
+			return state.Suspended
+		}
+		return state.Killed
+	case state.Suspended:
+		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
+		if missed {
+			return state.Zombie
+		}
+		return state.Killed
+	case state.Zombie:
+		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Verified
+		}
+		return state.Killed
+	case state.Killed:
+		return state.Killed
+	}
+	return state.Undefined
 }

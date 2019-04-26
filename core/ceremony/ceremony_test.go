@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	"github.com/stretchr/testify/require"
+	"idena-go/core/state"
 	"testing"
 )
 
@@ -62,4 +63,91 @@ func getParticipants(myKey []byte, myIndex int, length int) []*participant {
 		}
 	}
 	return participants
+}
+
+func Test_determineNewIdentityState(t *testing.T) {
+
+	type data struct {
+		prev                state.IdentityState
+		shortScore          float32
+		longScore           float32
+		totalScore          float32
+		totalQualifiedFlips uint32
+		missed              bool
+		expected            state.IdentityState
+	}
+
+	cases := []data{
+		{
+			state.Killed,
+			0, 0, 0, 0, true,
+			state.Killed,
+		},
+		{
+			state.Invite,
+			1, 1, 1, 110, false,
+			state.Undefined,
+		},
+		{
+			state.Candidate,
+			MinShortScore, MinLongScore, MinTotalScore, 11, false,
+			state.Newbie,
+		},
+		{
+			state.Newbie,
+			MinShortScore, MinLongScore, MinTotalScore, 11, false,
+			state.Verified,
+		},
+		{
+			state.Newbie,
+			0.4, 0.8, 1, 11, false,
+			state.Killed,
+		},
+		{
+			state.Newbie,
+			MinShortScore, MinLongScore, MinTotalScore, 8, false,
+			state.Newbie,
+		},
+		{
+			state.Verified,
+			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			state.Verified,
+		},
+		{
+			state.Verified,
+			0, 0, 0, 0, true,
+			state.Suspended,
+		},
+		{
+			state.Verified,
+			0, 0, 0, 0, false,
+			state.Killed,
+		},
+		{
+			state.Suspended,
+			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			state.Verified,
+		},
+		{
+			state.Suspended,
+			1, 0.8, 0, 10, true,
+			state.Zombie,
+		},
+		{
+			state.Zombie,
+			MinShortScore, 0, MinTotalScore, 10, false,
+			state.Verified,
+		},
+		{
+			state.Zombie,
+			1, 0, 0, 10, true,
+			state.Killed,
+		},
+	}
+
+	require := require.New(t)
+
+	for _, c := range cases {
+		require.Equal(c.expected, determineNewIdentityState(c.prev, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed))
+	}
 }
