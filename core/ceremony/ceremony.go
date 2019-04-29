@@ -338,6 +338,10 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
+func (vc *ValidationCeremony) applyNewEpoch(appState *appstate.AppState) {
+
+}
+
 func determineNewIdentityState(prevState state.IdentityState, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {
 
 	switch prevState {
@@ -383,3 +387,5 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 	}
 	return state.Undefined
 }
+
+

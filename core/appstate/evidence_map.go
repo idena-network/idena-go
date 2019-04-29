@@ -37,9 +37,31 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	}
 
 	//TODO : m.shortSessionTime == nil ?
-	if  m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) < ShortSessionDuration {
+	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) < ShortSessionDuration {
 		m.answersSet.Add(*tx.To)
 	}
+}
+
+func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, maps [][]byte) []common.Address {
+	score := make(map[uint32]int)
+	minScore := len(candidates)/2 + 1
+
+	for _, bm := range maps {
+		bitmap := common.NewBitmap(uint32(len(candidates)))
+		bitmap.Read(bm)
+
+		for _, v := range bitmap.ToArray() {
+			score[v] ++
+		}
+	}
+	var result []common.Address
+
+	for i, c := range candidates {
+		if score[uint32(i)] >= minScore {
+			result = append(result, c)
+		}
+	}
+	return result
 }
 
 func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) []byte {

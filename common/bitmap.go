@@ -65,3 +65,7 @@ func (m *Bitmap) Read(data []byte) {
 		}
 	}
 }
+
+func (m *Bitmap) ToArray() []uint32 {
+	return m.rmap.ToArray()
+}

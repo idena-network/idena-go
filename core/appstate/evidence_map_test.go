@@ -1,6 +1,7 @@
 package appstate
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/asaskevich/EventBus"
 	"github.com/google/tink/go/subtle/random"
@@ -61,4 +62,56 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 			require.False(rmap.Contains(uint32(i)))
 		}
 	}
+}
+
+func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
+	require := require.New(t)
+
+	bus := EventBus.New()
+	em := NewEvidenceMap(bus)
+
+	const candidatesCount = 3
+	var candidates []common.Address
+
+	for i := 0; i < candidatesCount; i++ {
+		addr := getRandAddr()
+		candidates = append(candidates, addr)
+	}
+	// first map
+	var maps [][]byte
+	m := common.NewBitmap(candidatesCount)
+	m.Add(0)
+	m.Add(1)
+	m.Add(2)
+
+	buf := new(bytes.Buffer)
+	m.WriteTo(buf)
+	maps = append(maps, buf.Bytes())
+
+	// second map
+	m = common.NewBitmap(candidatesCount)
+	m.Add(0)
+	m.Add(2)
+
+	buf = new(bytes.Buffer)
+	m.WriteTo(buf)
+	maps = append(maps, buf.Bytes())
+
+	// third map
+	m = common.NewBitmap(candidatesCount)
+	m.Add(0)
+
+	buf = new(bytes.Buffer)
+	m.WriteTo(buf)
+	maps = append(maps, buf.Bytes())
+
+	// act
+	appproved := em.CalculateApprovedCandidates(candidates, maps)
+
+	// assert
+	require.Len(appproved, 2)
+
+	require.Contains(appproved, candidates[0])
+	require.Contains(appproved, candidates[2])
+
 }
