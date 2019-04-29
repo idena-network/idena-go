@@ -139,6 +139,15 @@ func (edb *EpochDb) ReadAnswers() (short []dbAnswer, long []dbAnswer) {
 	return short, long
 }
 
+func (edb *EpochDb) ReadEvidenceMaps() [][]byte {
+	it := edb.db.Iterator(append(EvidencePrefix, common.MinAddr[:]...), append(EvidencePrefix, common.MaxAddr[:]...))
+	var result [][]byte
+	for ; it.Valid(); it.Next() {
+		result = append(result, it.Value())
+	}
+	return result
+}
+
 func (edb *EpochDb) WriteEvidenceMap(addr common.Address, bitmap []byte) {
 	edb.db.Set(append(EvidencePrefix, addr[:]...), bitmap)
 }

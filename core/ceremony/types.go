@@ -10,7 +10,7 @@ type dbAnswer struct {
 	Ans  []byte
 }
 
-type participant struct {
+type candidate struct {
 	PubKey    []byte
 	Candidate bool
 }

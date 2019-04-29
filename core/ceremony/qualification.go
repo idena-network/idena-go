@@ -59,7 +59,7 @@ func (q *qualification) restoreAnswers() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint, participants []*participant, flipsPerCandidate [][]int) []FlipQualification {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
 
 	data := make([]struct {
 		answer []types.Answer
@@ -67,9 +67,9 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint,
 	}, totalFlipsCount)
 
 	for i := 0; i < len(flipsPerCandidate); i++ {
-		participant := participants[i]
+		candidate := candidates[i]
 		flips := flipsPerCandidate[i]
-		addr, _ := crypto.PubKeyBytesToAddress(participant.PubKey)
+		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 		answerBytes := q.longAnswers[addr]
 
 		// candidate didn't send long answers
@@ -95,6 +95,10 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint,
 	}
 
 	return result
+}
+
+func (q *qualification) qualifyCandidate(flipQualificationMap map[int]*FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
+	return 0, 0
 }
 
 func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {
