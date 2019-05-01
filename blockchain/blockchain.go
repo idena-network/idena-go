@@ -23,7 +23,6 @@ import (
 	"idena-go/database"
 	"idena-go/ipfs"
 	"idena-go/log"
-	"idena-go/rlp"
 	"idena-go/secstore"
 	"math/big"
 	"time"
@@ -46,20 +45,21 @@ var (
 )
 
 type Blockchain struct {
-	repo            *database.Repo
-	secStore        *secstore.SecStore
-	Head            *types.Header
-	genesis         *types.Header
-	config          *config.Config
-	pubKey          []byte
-	coinBaseAddress common.Address
-	log             log.Logger
-	txpool          *mempool.TxPool
-	appState        *appstate.AppState
-	secretKey       *ecdsa.PrivateKey
-	ipfs            ipfs.Proxy
-	timing          *timing
-	bus             EventBus.Bus
+	repo              *database.Repo
+	secStore          *secstore.SecStore
+	Head              *types.Header
+	genesis           *types.Header
+	config            *config.Config
+	pubKey            []byte
+	coinBaseAddress   common.Address
+	log               log.Logger
+	txpool            *mempool.TxPool
+	appState          *appstate.AppState
+	secretKey         *ecdsa.PrivateKey
+	ipfs              ipfs.Proxy
+	timing            *timing
+	bus               EventBus.Bus
+	applyNewEpochFunc func(appState *appstate.AppState)
 }
 
 func init() {
@@ -84,6 +84,10 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		bus:      bus,
 		secStore: secStore,
 	}
+}
+
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState)) {
+	chain.applyNewEpochFunc = fn
 }
 
 func (chain *Blockchain) GetHead() *types.Header {
@@ -296,29 +300,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-
-	var verified []common.Address
-	appState.State.IterateIdentities(func(key []byte, value []byte) bool {
-		if key == nil {
-			return true
-		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
-
-		var data state.Identity
-		if err := rlp.DecodeBytes(value, &data); err != nil {
-			return false
-		}
-		if data.State == state.Candidate {
-			verified = append(verified, addr)
-		}
-		return false
-	})
-
-	for _, addr := range verified {
-		appState.State.SetState(addr, state.Verified)
-		appState.IdentityState.Add(addr)
-	}
+	chain.applyNewEpochFunc(appState)
 
 	appState.State.ClearFlips()
 	appState.State.IncEpoch()

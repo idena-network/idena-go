@@ -97,8 +97,40 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint,
 	return result
 }
 
-func (q *qualification) qualifyCandidate(flipQualificationMap map[int]*FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
-	return 0, 0
+func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]*FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
+	var answerBytes []byte
+	if shortSession {
+		answerBytes = q.shortAnswers[candidate]
+	} else {
+		answerBytes = q.longAnswers[candidate]
+	}
+
+	// candidate didn't send answers
+	if answerBytes == nil {
+		return 0, 0
+	}
+	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
+
+	for i, flipIdx := range flipsToSolve {
+		qual := flipQualificationMap[flipIdx]
+		answer, _ := answers.Answer(uint(i))
+		switch qual.status {
+		case Qualified:
+			if qual.answer == answer {
+				point += 1
+			}
+			qualifiedFlipsCount += 1
+		case WeaklyQualified:
+			if qual.answer == answer {
+				point += 1
+				qualifiedFlipsCount += 1
+			} else if qual.answer != types.Inappropriate {
+				point += 0.5
+				qualifiedFlipsCount += 1
+			}
+		}
+	}
+	return point, qualifiedFlipsCount
 }
 
 func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {

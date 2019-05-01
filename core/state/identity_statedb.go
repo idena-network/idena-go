@@ -198,3 +198,9 @@ func (s *IdentityStateDB) ResetTo(height uint64) error {
 	_, err := s.tree.LoadVersionForOverwriting(int64(height))
 	return err
 }
+
+func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
+	start := append(identityPrefix, common.MinAddr...)
+	end := append(identityPrefix, common.MaxAddr...)
+	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+}

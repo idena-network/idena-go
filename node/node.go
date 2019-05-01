@@ -160,6 +160,7 @@ func (node *Node) Start() {
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 
 	node.ceremony.Start(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
+	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 
 	node.consensusEngine.Start()
 	node.srv.Start()

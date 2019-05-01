@@ -342,7 +342,10 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func (vc *ValidationCeremony) applyNewEpoch(appState *appstate.AppState) {
+func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) {
+
+	clearIdentityState(appState)
+
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
@@ -360,9 +363,9 @@ func (vc *ValidationCeremony) applyNewEpoch(appState *appstate.AppState) {
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(flipQualificationMap, vc.shortFlipsPerCandidate[idx], true)
+		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true)
 
-		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(flipQualificationMap, vc.longFlipsPerCandidate[idx], false)
+		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
@@ -377,7 +380,29 @@ func (vc *ValidationCeremony) applyNewEpoch(appState *appstate.AppState) {
 		appState.State.SetState(addr, newIdentityState)
 		appState.State.AddQualifiedFlipsCount(addr, shortQualifiedFlipsCount)
 		appState.State.AddShortFlipPoints(addr, shortFlipPoint)
+
+		if newIdentityState == state.Newbie || newIdentityState == state.Verified {
+			appState.IdentityState.Add(addr)
+		}
 	}
+}
+
+func clearIdentityState(appState *appstate.AppState) {
+	var addrs []common.Address
+	appState.IdentityState.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+		addrs = append(addrs, addr)
+		return false
+	})
+
+	for _, addr := range addrs {
+		appState.IdentityState.Remove(addr)
+	}
+
 }
 
 func determineNewIdentityState(prevState state.IdentityState, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {
