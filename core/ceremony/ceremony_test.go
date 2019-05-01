@@ -52,13 +52,11 @@ func getParticipants(myKey []byte, myIndex int, length int) []*candidate {
 	for i := 0; i < length; i++ {
 		if i == myIndex {
 			participants = append(participants, &candidate{
-				PubKey:    myKey,
-				Candidate: true,
+				PubKey: myKey,
 			})
 		} else {
 			participants = append(participants, &candidate{
-				PubKey:    []byte{byte(i)},
-				Candidate: true,
+				PubKey: []byte{byte(i)},
 			})
 		}
 	}

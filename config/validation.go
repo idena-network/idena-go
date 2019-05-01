@@ -14,10 +14,10 @@ type ValidationConfig struct {
 
 func GetDefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
-		ValidationInterval:       time.Hour * 1,
-		FlipLotteryDuration:      time.Minute * 5,
-		ShortSessionDuration:     time.Minute,
-		LongSessionDuration:      time.Minute * 5,
-		AfterLongSessionDuration: time.Minute * 2,
+		ValidationInterval:       time.Minute * 10,
+		FlipLotteryDuration:      time.Minute * 1,
+		ShortSessionDuration:     time.Minute * 1,
+		LongSessionDuration:      time.Minute * 2,
+		AfterLongSessionDuration: time.Minute * 1,
 	}
 }

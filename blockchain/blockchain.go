@@ -35,7 +35,7 @@ const (
 
 const (
 	ProposerRole            uint8 = 0x1
-	EmptyBlockTimeIncrement       = time.Second * 20
+	EmptyBlockTimeIncrement       = time.Second * 10
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 5
 )
@@ -186,6 +186,8 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 		Body: &types.Body{},
 	}
 
+	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(block)
+
 	chain.applyGlobalParams(checkState, block)
 
 	checkState.Precommit()
@@ -213,7 +215,7 @@ func (chain *Blockchain) AddBlock(block *types.Block) error {
 		return err
 	}
 
-	chain.bus.Publish(constants.AddBlockEvent)
+	chain.bus.Publish(constants.AddBlockEvent, block)
 
 	return nil
 }
@@ -336,6 +338,10 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 
 	if flags.HasFlag(types.AfterLongSessionStarted) {
 		appState.State.SetValidationPeriod(state.AfterLongSessionPeriod)
+	}
+
+	if flags.HasFlag(types.ValidationFinished) {
+		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
 }
 
@@ -708,7 +714,7 @@ func (chain *Blockchain) validateBlockTimestamp(timestamp *big.Int) error {
 	prevBlockTime := time.Unix(chain.Head.Time().Int64(), 0)
 
 	if blockTime.Sub(prevBlockTime) < MinBlockDelay {
-		return errors.New("block is too close to previous one")
+		return errors.Errorf("block is too close to previous one, prev: %v, current: %v", prevBlockTime.Unix(), blockTime.Unix())
 	}
 
 	return nil
@@ -762,6 +768,7 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	if header.EmptyBlockHeader != nil {
 		return &types.Block{
 			Header: header,
+			Body:   &types.Body{},
 		}
 	}
 	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {

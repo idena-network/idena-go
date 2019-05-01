@@ -44,6 +44,7 @@ type EmptyBlockHeader struct {
 	IdentityRoot common.Hash
 	BlockSeed    Seed
 	Time         *big.Int
+	Flags        BlockFlag
 }
 
 type ProposedHeader struct {
@@ -226,7 +227,7 @@ func (h *Header) IpfsHash() []byte {
 
 func (h *Header) Flags() BlockFlag {
 	if h.EmptyBlockHeader != nil {
-		return 0
+		return h.EmptyBlockHeader.Flags
 	} else {
 		return h.ProposedHeader.Flags
 	}

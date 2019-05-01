@@ -215,7 +215,7 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
 	engine.log.Info("Wait for block proposal")
 	block, err := engine.proposals.GetProposedBlock(engine.chain.Round(), proposerPubKey, engine.config.WaitBlockDelay)
 	if err != nil {
-		engine.log.Error("Proposed block is not found", err, err.Error())
+		engine.log.Error("Proposed block is not found", "err", err.Error())
 		return nil
 	}
 	return block

@@ -127,12 +127,12 @@ func (edb *EpochDb) WriteAnswers(short []dbAnswer, long []dbAnswer) {
 func (edb *EpochDb) ReadAnswers() (short []dbAnswer, long []dbAnswer) {
 	shortRlp, longRlp := edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
 	if shortRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(shortRlp), short); err != nil {
+		if err := rlp.Decode(bytes.NewReader(shortRlp), &short); err != nil {
 			log.Error("invalid short answers rlp", "err", err)
 		}
 	}
 	if longRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(longRlp), long); err != nil {
+		if err := rlp.Decode(bytes.NewReader(longRlp), &long); err != nil {
 			log.Error("invalid long answers rlp", "err", err)
 		}
 	}

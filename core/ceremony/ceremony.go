@@ -50,7 +50,7 @@ type ValidationCeremony struct {
 	shortAnswersSent       bool
 	evidenceSent           bool
 	candidates             []*candidate
-	mutex                  *sync.Mutex
+	mutex                  sync.Mutex
 	epochDb                *EpochDb
 	qualification          *qualification
 	mempool                *mempool.TxPool
@@ -88,7 +88,10 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 
-	_ = vc.bus.Subscribe(constants.AddBlockEvent, func(block *types.Block) { vc.blocksChan <- block })
+	_ = vc.bus.Subscribe(constants.AddBlockEvent,
+		func(block *types.Block) {
+			vc.blocksChan <- block
+		})
 
 	vc.restoreState()
 	vc.handleBlock(currentBlock)
@@ -136,6 +139,18 @@ func (vc *ValidationCeremony) watchingLoop() {
 		case block := <-vc.blocksChan:
 			vc.handleBlock(block)
 			vc.qualification.persistAnswers()
+
+			// recreate all things
+			if block.Header.Flags().HasFlag(types.ValidationFinished) {
+				vc.shortFlipsPerCandidate = nil
+				vc.longFlipsPerCandidate = nil
+				vc.shortFlipCidsToSolve = nil
+				vc.longFlipCidsToSolve = nil
+				vc.keySent = false
+				vc.shortAnswersSent = false
+				vc.evidenceSent = false
+				vc.candidates = nil
+			}
 		}
 	}
 }
@@ -181,9 +196,9 @@ func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
 	vc.candidates = vc.getCandidates()
 	vc.mutex.Unlock()
 
-	shortFlipsPerCandidate, _ := SortFlips(len(vc.candidates), int(vc.ShortSessionFlipsCount()), block.Header.Seed().Bytes())
+	shortFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.ShortSessionFlipsCount()), block.Header.Seed().Bytes())
 
-	longFlipsPerCandidate, _ := SortFlips(len(vc.candidates), int(vc.LongSessionFlipsCount()), block.Header.Seed().Bytes())
+	longFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.LongSessionFlipsCount()), block.Header.Seed().Bytes())
 
 	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
 	vc.longFlipsPerCandidate = longFlipsPerCandidate

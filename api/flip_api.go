@@ -57,7 +57,9 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, err
 	}
 
-	tx, err := api.baseApi.getSignedTx(api.baseApi.getCurrentCoinbase(), common.Address{}, types.SubmitFlipTx, decimal.Zero, 0, 0, cid.Bytes(), nil)
+	addr := api.baseApi.getCurrentCoinbase()
+
+	tx, err := api.baseApi.getSignedTx(addr, addr, types.SubmitFlipTx, decimal.Zero, 0, 0, cid.Bytes(), nil)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err

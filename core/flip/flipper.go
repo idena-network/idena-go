@@ -15,6 +15,7 @@ import (
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
+	"idena-go/secstore"
 	"sync"
 )
 
@@ -23,17 +24,18 @@ type Flipper struct {
 	log       log.Logger
 	keyspool  *mempool.KeysPool
 	ipfsProxy ipfs.Proxy
-	pubKey    []byte
 	hasFlips  bool
-	mutex     *sync.Mutex
+	mutex     sync.Mutex
+	secStore  *secstore.SecStore
 }
 
-func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool) *Flipper {
+func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, secStore *secstore.SecStore) *Flipper {
 	return &Flipper{
 		repo:      database.NewRepo(db),
 		log:       log.New(),
 		ipfsProxy: ipfsProxy,
 		keyspool:  keyspool,
+		secStore:  secStore,
 	}
 }
 
@@ -84,7 +86,7 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 	ipf := IpfsFlip{
 		Data:   encrypted,
 		Epoch:  epoch,
-		PubKey: fp.pubKey,
+		PubKey: fp.secStore.GetPubKey(),
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)
@@ -111,7 +113,7 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 
 	// if flip is mine
 	var encryptionKey *ecies.PrivateKey
-	if bytes.Compare(ipf.PubKey, fp.pubKey) == 0 {
+	if bytes.Compare(ipf.PubKey, fp.secStore.GetPubKey()) == 0 {
 		encryptionKey = fp.GetFlipEncryptionKey(ipf.Epoch)
 		if encryptionKey == nil {
 			return nil, 0, errors.New("flip key is missing")
@@ -170,6 +172,6 @@ func (fp *Flipper) Pin(cids [][]byte) {
 	fp.hasFlips = true
 }
 
-func( fp *Flipper) HasFlips() bool{
+func (fp *Flipper) HasFlips() bool {
 	return fp.hasFlips
 }
