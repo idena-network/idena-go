@@ -88,8 +88,22 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	}, nil
 }
 
-func (api *FlipApi) FlipHashes() ([]hexutil.Bytes, error) {
-	flips := api.ceremony.GetFlipsToSolve()
+func (api *FlipApi) FlipShortHashes() ([]hexutil.Bytes, error) {
+	flips := api.ceremony.GetShortFlipsToSolve()
+	if flips == nil {
+		return nil, errors.New("ceremony is not started")
+	}
+
+	var result []hexutil.Bytes
+	for _, v := range flips {
+		result = append(result, hexutil.Bytes(v))
+	}
+
+	return result, nil
+}
+
+func (api *FlipApi) FlipLongHashes() ([]hexutil.Bytes, error) {
+	flips := api.ceremony.GetLongFlipsToSolve()
 	if flips == nil {
 		return nil, errors.New("ceremony is not started")
 	}

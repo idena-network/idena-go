@@ -96,8 +96,12 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	go vc.watchingLoop()
 }
 
-func (vc *ValidationCeremony) GetFlipsToSolve() [][]byte {
+func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {
 	return vc.shortFlipCidsToSolve
+}
+
+func (vc *ValidationCeremony) GetLongFlipsToSolve() [][]byte {
+	return vc.longFlipCidsToSolve
 }
 
 func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
