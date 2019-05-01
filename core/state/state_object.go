@@ -405,3 +405,9 @@ func (s *stateApprovedIdentity) touch() {
 func (s *stateApprovedIdentity) SetState(approved bool) {
 	s.data.Approved = approved
 }
+
+func IsCeremonyCandidate(state IdentityState) bool {
+	return state == Candidate || state == Newbie ||
+		state == Verified || state == Suspended ||
+		state == Zombie
+}

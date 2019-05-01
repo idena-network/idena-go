@@ -230,16 +230,9 @@ func (vc *ValidationCeremony) getCandidates() []*candidate {
 			return false
 		}
 
-		if data.State == state.Verified {
+		if state.IsCeremonyCandidate(data.State) {
 			m = append(m, &candidate{
-				PubKey:    data.PubKey,
-				Candidate: false,
-			})
-		}
-		if data.State == state.Candidate {
-			m = append(m, &candidate{
-				PubKey:    data.PubKey,
-				Candidate: true,
+				PubKey: data.PubKey,
 			})
 		}
 

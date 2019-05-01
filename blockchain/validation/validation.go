@@ -27,6 +27,7 @@ var (
 	InvalidPayload       = errors.New("invalid payload")
 	InvalidRecipient     = errors.New("invalid recipient")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
+	NotCandidate         = errors.New("user is not a candidate")
 	validators           map[types.TxType]validator
 )
 
@@ -118,7 +119,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 		return InvitationIsMissing
 	}
 
-	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
 
@@ -135,7 +136,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 	if appState.State.GetInvites(sender) == 0 {
 		return InsufficientInvites
 	}
-	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
 	return nil
@@ -152,7 +153,7 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 		return InvalidRecipient
 	}
 
-	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
 
@@ -175,6 +176,11 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 	if *tx.To != sender {
 		return InvalidRecipient
 	}
+
+	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+		return NotCandidate
+	}
+
 	return nil
 }
 
@@ -191,6 +197,10 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
+	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+		return NotCandidate
+	}
+
 	return nil
 }
 
@@ -201,6 +211,10 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 	sender, _ := types.Sender(tx)
 	if *tx.To != sender {
 		return InvalidRecipient
+	}
+
+	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+		return NotCandidate
 	}
 
 	return nil

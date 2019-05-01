@@ -11,8 +11,7 @@ type dbAnswer struct {
 }
 
 type candidate struct {
-	PubKey    []byte
-	Candidate bool
+	PubKey []byte
 }
 
 type FlipStatus byte
