@@ -178,11 +178,17 @@ func (api *DnaApi) Identities() []Identity {
 		case state.Candidate:
 			s = "Candidate"
 			break
+		case state.Newbie:
+			s = "Newbie"
+			break
 		case state.Verified:
 			s = "Verified"
 			break
 		case state.Suspended:
 			s = "Suspended"
+			break
+		case state.Zombie:
+			s = "Zombie"
 			break
 		case state.Killed:
 			s = "Killed"
@@ -213,15 +219,36 @@ func (api *DnaApi) Identities() []Identity {
 }
 
 type Epoch struct {
-	Epoch          uint16
-	NextValidation time.Time
+	Epoch          uint16    `json:"epoch"`
+	NextValidation time.Time `json:"nextValidation"`
+	CurrentPeriod  string    `json:"currentPeriod"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
 	s := api.baseApi.engine.GetAppState()
 
+	var res string
+	switch s.State.ValidationPeriod() {
+	case state.NonePeriod:
+		res = "None"
+		break
+	case state.FlipLotteryPeriod:
+		res = "FlipLottery"
+		break
+	case state.ShortSessionPeriod:
+		res = "ShortSession"
+		break
+	case state.LongSessionPeriod:
+		res = "LongSession"
+		break
+	case state.AfterLongSessionPeriod:
+		res = "AfterLongSession"
+		break
+	}
+
 	return Epoch{
 		Epoch:          s.State.Epoch(),
 		NextValidation: s.State.NextValidationTime(),
+		CurrentPeriod:  res,
 	}
 }

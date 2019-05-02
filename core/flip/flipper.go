@@ -172,6 +172,10 @@ func (fp *Flipper) Pin(cids [][]byte) {
 	fp.hasFlips = true
 }
 
+func (fp *Flipper) Reset() {
+	fp.hasFlips = false
+}
+
 func (fp *Flipper) HasFlips() bool {
 	return fp.hasFlips
 }

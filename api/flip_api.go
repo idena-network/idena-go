@@ -90,29 +90,27 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	}, nil
 }
 
-func (api *FlipApi) FlipShortHashes() ([]hexutil.Bytes, error) {
+func (api *FlipApi) FlipShortHashes() ([]string, error) {
 	flips := api.ceremony.GetShortFlipsToSolve()
-	if flips == nil {
-		return nil, errors.New("ceremony is not started")
-	}
 
-	var result []hexutil.Bytes
-	for _, v := range flips {
-		result = append(result, hexutil.Bytes(v))
-	}
-
-	return result, nil
+	return prepareHashes(flips)
 }
 
-func (api *FlipApi) FlipLongHashes() ([]hexutil.Bytes, error) {
+func (api *FlipApi) FlipLongHashes() ([]string, error) {
 	flips := api.ceremony.GetLongFlipsToSolve()
+
+	return prepareHashes(flips)
+}
+
+func prepareHashes(flips [][]byte) ([]string, error) {
 	if flips == nil {
 		return nil, errors.New("ceremony is not started")
 	}
 
-	var result []hexutil.Bytes
+	var result []string
 	for _, v := range flips {
-		result = append(result, hexutil.Bytes(v))
+		cid, _ := cid.Parse(v)
+		result = append(result, cid.String())
 	}
 
 	return result, nil
@@ -163,8 +161,8 @@ type SubmitAnswersArgs struct {
 }
 
 func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (common.Hash, error) {
-	flipsCount := api.ceremony.ShortSessionFlipsCount()
-	if flipsCount != uint(len(args.Answers)) {
+	flipsCount := len(api.ceremony.GetShortFlipsToSolve())
+	if flipsCount != len(args.Answers) {
 		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
@@ -174,8 +172,8 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (common.Hash, err
 }
 
 func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, error) {
-	flipsCount := api.ceremony.LongSessionFlipsCount()
-	if flipsCount != uint(len(args.Answers)) {
+	flipsCount := len(api.ceremony.GetLongFlipsToSolve())
+	if flipsCount != len(args.Answers) {
 		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
@@ -184,8 +182,8 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, erro
 	return api.ceremony.SubmitLongAnswers(answers)
 }
 
-func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {
-	result := types.NewAnswers(flipsCount)
+func parseAnswers(answers []FlipAnswer, flipsCount int) *types.Answers {
+	result := types.NewAnswers(uint(flipsCount))
 
 	for i := uint(0); i < uint(len(answers)); i++ {
 		item := answers[i]

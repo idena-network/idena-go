@@ -112,13 +112,22 @@ func convertToBlock(block *types.Block) *Block {
 
 	var flags []string
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
-		flags = append(flags, "Identity update")
+		flags = append(flags, "IdentityUpdate")
+	}
+	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
+		flags = append(flags, "FlipLotteryStarted")
 	}
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		flags = append(flags, "Validation started")
+		flags = append(flags, "ShortSessionStarted")
+	}
+	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
+		flags = append(flags, "LongSessionStarted")
+	}
+	if block.Header.Flags().HasFlag(types.AfterLongSessionStarted) {
+		flags = append(flags, "AfterLongSessionStarted")
 	}
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
-		flags = append(flags, "Validation finished")
+		flags = append(flags, "ValidationFinished")
 	}
 
 	return &Block{

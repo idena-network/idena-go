@@ -28,7 +28,7 @@ func SortFlips(candidatesLen int, flipsLen int, flipsPerAddr int, seed []byte) (
 		mCandidatesPerFlips[i] = mapset.NewSet()
 	}
 
-	if flipsLen == 0 {
+	if candidatesLen == 0 || flipsLen == 0 {
 		return flipsPerCandidate, candidatesPerFlips
 	}
 

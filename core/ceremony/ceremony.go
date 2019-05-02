@@ -140,19 +140,29 @@ func (vc *ValidationCeremony) watchingLoop() {
 			vc.handleBlock(block)
 			vc.qualification.persistAnswers()
 
-			// recreate all things
+			// reset if finished
 			if block.Header.Flags().HasFlag(types.ValidationFinished) {
-				vc.shortFlipsPerCandidate = nil
-				vc.longFlipsPerCandidate = nil
-				vc.shortFlipCidsToSolve = nil
-				vc.longFlipCidsToSolve = nil
-				vc.keySent = false
-				vc.shortAnswersSent = false
-				vc.evidenceSent = false
-				vc.candidates = nil
+				vc.reset()
 			}
 		}
 	}
+}
+
+func (vc *ValidationCeremony) reset() {
+	vc.epochDb.Clear()
+	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.qualification = NewQualification(vc.epochDb)
+	vc.flipper.Reset()
+	vc.appState.EvidenceMap.Clear()
+
+	vc.candidates = nil
+	vc.shortFlipsPerCandidate = nil
+	vc.longFlipsPerCandidate = nil
+	vc.shortFlipCidsToSolve = nil
+	vc.longFlipCidsToSolve = nil
+	vc.keySent = false
+	vc.shortAnswersSent = false
+	vc.evidenceSent = false
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -165,7 +175,6 @@ func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
-
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
@@ -185,16 +194,15 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
-
+	vc.processCeremonyTxs(block)
 }
 
 func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
-	vc.mutex.Lock()
 	if vc.candidates != nil {
 		return
 	}
+
 	vc.candidates = vc.getCandidates()
-	vc.mutex.Unlock()
 
 	shortFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.ShortSessionFlipsCount()), block.Header.Seed().Bytes())
 
@@ -374,9 +382,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) {
 	totalFlipsCount := len(appState.State.FlipCids())
 	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.LongSessionFlipsCount(), vc.candidates, vc.longFlipsPerCandidate)
 
-	flipQualificationMap := make(map[int]*FlipQualification)
+	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
-		flipQualificationMap[i] = &item
+		flipQualificationMap[i] = item
 	}
 
 	for idx, candidate := range vc.candidates {

@@ -51,7 +51,7 @@ func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, m
 		bitmap.Read(bm)
 
 		for _, v := range bitmap.ToArray() {
-			score[v] ++
+			score[v]++
 		}
 	}
 	var result []common.Address
@@ -96,4 +96,9 @@ func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time {
 
 func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
 	return m.shortSessionTime.Add(ShortSessionDuration)
+}
+
+func (m *EvidenceMap) Clear() {
+	m.shortSessionTime = nil
+	m.answersSet = mapset.NewSet()
 }

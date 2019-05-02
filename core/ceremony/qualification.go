@@ -8,20 +8,24 @@ import (
 )
 
 type qualification struct {
-	shortAnswers map[common.Address][]byte
-	longAnswers  map[common.Address][]byte
-	epochDb      *EpochDb
-	log          log.Logger
+	shortAnswers  map[common.Address][]byte
+	longAnswers   map[common.Address][]byte
+	epochDb       *EpochDb
+	log           log.Logger
+	hasNewAnswers bool
 }
 
 func NewQualification(epochDb *EpochDb) *qualification {
 	return &qualification{
-		epochDb: epochDb,
-		log:     log.New(),
+		epochDb:      epochDb,
+		log:          log.New(),
+		shortAnswers: make(map[common.Address][]byte),
+		longAnswers:  make(map[common.Address][]byte),
 	}
 }
 
 func (q *qualification) addAnswers(short bool, sender common.Address, txPayload []byte) {
+	q.hasNewAnswers = true
 	if short {
 		q.shortAnswers[sender] = txPayload
 	} else {
@@ -30,6 +34,10 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 }
 
 func (q *qualification) persistAnswers() {
+	if !q.hasNewAnswers {
+		return
+	}
+
 	var short, long []dbAnswer
 	for k, v := range q.shortAnswers {
 		short = append(short, dbAnswer{
@@ -45,6 +53,8 @@ func (q *qualification) persistAnswers() {
 	}
 
 	q.epochDb.WriteAnswers(short, long)
+
+	q.hasNewAnswers = false
 }
 
 func (q *qualification) restoreAnswers() {
@@ -97,7 +107,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint,
 	return result
 }
 
-func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]*FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
+func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
 	var answerBytes []byte
 	if shortSession {
 		answerBytes = q.shortAnswers[candidate]

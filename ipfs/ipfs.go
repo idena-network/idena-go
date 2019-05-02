@@ -115,7 +115,6 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	return p.get(iface.IpfsPath(c))
 }
 
-
 func (p ipfsProxy) get(path iface.Path) ([]byte, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

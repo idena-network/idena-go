@@ -40,7 +40,7 @@ func (edb *EpochDb) Clear() {
 	it := edb.db.Iterator(nil, nil)
 	var keys [][]byte
 
-	for it.Next(); it.Valid(); {
+	for ; it.Valid(); it.Next() {
 		keys = append(keys, it.Key())
 	}
 	for _, key := range keys {
