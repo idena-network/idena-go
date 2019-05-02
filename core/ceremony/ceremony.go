@@ -214,8 +214,8 @@ func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
 	vc.shortFlipCidsToSolve = getFlipsToSolve(vc.secStore.GetPubKey(), vc.candidates, vc.shortFlipsPerCandidate, vc.appState.State.FlipCids())
 	vc.longFlipCidsToSolve = getFlipsToSolve(vc.secStore.GetPubKey(), vc.candidates, vc.longFlipsPerCandidate, vc.appState.State.FlipCids())
 
-	go vc.flipper.Pin(vc.shortFlipCidsToSolve)
-	go vc.flipper.Pin(vc.longFlipCidsToSolve)
+	go vc.flipper.Load(vc.shortFlipCidsToSolve)
+	go vc.flipper.Load(vc.longFlipCidsToSolve)
 }
 
 func (vc *ValidationCeremony) broadcastFlipKey() {
