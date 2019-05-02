@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -32,12 +31,12 @@ func NewFlipApi(baseApi *BaseApi, fp *flip.Flipper, pm *protocol.ProtocolManager
 }
 
 type FlipSubmitResponse struct {
-	TxHash   common.Hash `json:"txHash"`
-	FlipHash string      `json:"flipHash"`
+	TxHash common.Hash `json:"txHash"`
+	Hash   string      `json:"hash"`
 }
 
 // SubmitFlip receives an image as hex
-func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
+func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 
 	if hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
@@ -85,101 +84,115 @@ func (api *FlipApi) SubmitFlip(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	}
 
 	return FlipSubmitResponse{
-		TxHash:   tx.Hash(),
-		FlipHash: cid.String(),
+		TxHash: tx.Hash(),
+		Hash:   cid.String(),
 	}, nil
 }
 
-func (api *FlipApi) FlipShortHashes() ([]string, error) {
+type FlipHashesResponse struct {
+	Hash  string
+	Ready bool
+}
+
+func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 	flips := api.ceremony.GetShortFlipsToSolve()
 
-	return prepareHashes(flips)
+	return prepareHashes(api.fp, flips)
 }
 
-func (api *FlipApi) FlipLongHashes() ([]string, error) {
+func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
 	flips := api.ceremony.GetLongFlipsToSolve()
 
-	return prepareHashes(flips)
+	return prepareHashes(api.fp, flips)
 }
 
-func prepareHashes(flips [][]byte) ([]string, error) {
+func prepareHashes(flipper *flip.Flipper, flips [][]byte) ([]FlipHashesResponse, error) {
 	if flips == nil {
 		return nil, errors.New("ceremony is not started")
 	}
 
-	var result []string
+	var result []FlipHashesResponse
 	for _, v := range flips {
 		cid, _ := cid.Parse(v)
-		result = append(result, cid.String())
+		result = append(result, FlipHashesResponse{
+			Hash:  cid.String(),
+			Ready: flipper.IsFlipReady(v),
+		})
 	}
 
 	return result, nil
 }
 
 type FlipResponse struct {
-	Hex   hexutil.Bytes `json:"hex"`
-	Epoch uint16        `json:"epoch"`
-	Mined bool          `json:"mined"`
+	Hex hexutil.Bytes `json:"hex"`
 }
 
-func (api *FlipApi) Flip(hash string) (FlipResponse, error) {
-	cids := api.baseApi.getAppState().State.FlipCids()
+func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	c, _ := cid.Decode(hash)
 	cidBytes := c.Bytes()
 
-	data, epoch, err := api.fp.GetFlip(cidBytes)
-
-	mined := false
-	for _, item := range cids {
-		if bytes.Compare(item, cidBytes) == 0 {
-			mined = true
-			break
-		}
-	}
+	data, _, err := api.fp.GetFlip(cidBytes)
 
 	if err != nil {
 		return FlipResponse{}, err
 	}
 
 	return FlipResponse{
-		Hex:   hexutil.Bytes(data),
-		Epoch: epoch,
-		Mined: mined,
+		Hex: hexutil.Bytes(data),
 	}, nil
 }
 
 type FlipAnswer struct {
-	Hash   *hexutil.Bytes `json:"hex"`
-	Easy   bool           `json:"easy"`
-	Answer types.Answer   `json:"answer"`
+	Easy   bool         `json:"easy"`
+	Answer types.Answer `json:"answer"`
 }
 
 type SubmitAnswersArgs struct {
-	Answers []FlipAnswer
-	Nonce   uint32 `json:"nonce"`
-	Epoch   uint16 `json:"epoch"`
+	Answers []FlipAnswer `json:"answers"`
+	Nonce   uint32       `json:"nonce"`
+	Epoch   uint16       `json:"epoch"`
 }
 
-func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (common.Hash, error) {
+type SubmitAnswersResponse struct {
+	TxHash common.Hash `json:"txHash"`
+}
+
+func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
 	flipsCount := len(api.ceremony.GetShortFlipsToSolve())
 	if flipsCount != len(args.Answers) {
-		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
+		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
 	answers := parseAnswers(args.Answers, flipsCount)
 
-	return api.ceremony.SubmitShortAnswers(answers)
+	hash, err := api.ceremony.SubmitShortAnswers(answers)
+
+	if err != nil {
+		return SubmitAnswersResponse{}, err
+	}
+
+	return SubmitAnswersResponse{
+		TxHash: hash,
+	}, nil
 }
 
-func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (common.Hash, error) {
+func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
 	flipsCount := len(api.ceremony.GetLongFlipsToSolve())
 	if flipsCount != len(args.Answers) {
-		return common.Hash{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
+		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
 	answers := parseAnswers(args.Answers, flipsCount)
 
-	return api.ceremony.SubmitLongAnswers(answers)
+	hash, err := api.ceremony.SubmitLongAnswers(answers)
+
+	if err != nil {
+		return SubmitAnswersResponse{}, err
+	}
+
+	return SubmitAnswersResponse{
+		TxHash: hash,
+	}, nil
 }
 
 func parseAnswers(answers []FlipAnswer, flipsCount int) *types.Answers {

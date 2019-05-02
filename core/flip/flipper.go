@@ -179,3 +179,7 @@ func (fp *Flipper) Reset() {
 func (fp *Flipper) HasFlips() bool {
 	return fp.hasFlips
 }
+
+func (fp *Flipper) IsFlipReady(cid []byte) bool {
+	return true
+}
