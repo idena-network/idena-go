@@ -46,21 +46,21 @@ var (
 )
 
 type Blockchain struct {
-	repo                 *database.Repo
-	secStore             *secstore.SecStore
-	Head                 *types.Header
-	genesis              *types.Header
-	config               *config.Config
-	pubKey               []byte
-	coinBaseAddress      common.Address
-	log                  log.Logger
-	txpool               *mempool.TxPool
-	appState             *appstate.AppState
-	secretKey            *ecdsa.PrivateKey
-	ipfs                 ipfs.Proxy
-	timing               *timing
-	bus                  EventBus.Bus
-	applyNewEpochFn      func(appState *appstate.AppState) int
+	repo            *database.Repo
+	secStore        *secstore.SecStore
+	Head            *types.Header
+	genesis         *types.Header
+	config          *config.Config
+	pubKey          []byte
+	coinBaseAddress common.Address
+	log             log.Logger
+	txpool          *mempool.TxPool
+	appState        *appstate.AppState
+	secretKey       *ecdsa.PrivateKey
+	ipfs            ipfs.Proxy
+	timing          *timing
+	bus             EventBus.Bus
+	applyNewEpochFn func(appState *appstate.AppState) int
 }
 
 func init() {
@@ -255,8 +255,8 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 		return
 	}
 
-	chain.applyBlockRewards(totalFee, appState, block)
 	chain.applyNewEpoch(appState, block)
+	chain.applyBlockRewards(totalFee, appState, block)
 	chain.applyGlobalParams(appState, block)
 
 	appState.Precommit()
@@ -295,7 +295,6 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 	// update state
 	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
-	appState.State.AddInvite(block.Header.ProposedHeader.Coinbase, 1)
 
 	chain.rewardFinalCommittee(appState.State, block)
 }
