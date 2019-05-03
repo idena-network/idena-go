@@ -36,7 +36,6 @@ const (
 type ValidationCeremony struct {
 	bus                    EventBus.Bus
 	db                     dbm.DB
-	blocksChan             chan *types.Block
 	appState               *appstate.AppState
 	flipper                *flip.Flipper
 	pm                     *protocol.ProtocolManager
@@ -74,7 +73,6 @@ func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flippe
 		flipper:             flipper,
 		appState:            appState,
 		bus:                 bus,
-		blocksChan:          make(chan *types.Block, 100),
 		pm:                  pm,
 		secStore:            secStore,
 		log:                 log.New(),
@@ -99,13 +97,17 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 
 	_ = vc.bus.Subscribe(constants.AddBlockEvent,
 		func(block *types.Block) {
-			vc.blocksChan <- block
+			vc.handleBlock(block)
+			vc.qualification.persistAnswers()
+
+			// reset if finished
+			if block.Header.Flags().HasFlag(types.ValidationFinished) {
+				vc.reset()
+			}
 		})
 
 	vc.restoreState()
 	vc.handleBlock(currentBlock)
-
-	go vc.watchingLoop()
 }
 
 func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {
@@ -140,21 +142,6 @@ func (vc *ValidationCeremony) restoreState() {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
 	}
 	vc.qualification.restoreAnswers()
-}
-
-func (vc *ValidationCeremony) watchingLoop() {
-	for {
-		select {
-		case block := <-vc.blocksChan:
-			vc.handleBlock(block)
-			vc.qualification.persistAnswers()
-
-			// reset if finished
-			if block.Header.Flags().HasFlag(types.ValidationFinished) {
-				vc.reset()
-			}
-		}
-	}
 }
 
 func (vc *ValidationCeremony) reset() {
@@ -386,7 +373,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		appState.State.AddQualifiedFlipsCount(addr, shortQualifiedFlipsCount)
 		appState.State.AddShortFlipPoints(addr, shortFlipPoint)
 		if s == state.Verified || s == state.Newbie {
-			identitiesCount ++
+			identitiesCount++
 		}
 	}
 
