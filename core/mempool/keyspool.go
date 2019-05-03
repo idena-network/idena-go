@@ -30,6 +30,7 @@ func NewKeysPool(appState *appstate.AppState, bus EventBus.Bus) *KeysPool {
 		mutex:     &sync.Mutex{},
 		knownKeys: mapset.NewSet(),
 		log:       log.New(),
+		flipKeys:  make(map[common.Address]*types.FlipKey),
 	}
 }
 
