@@ -58,7 +58,6 @@ func Test_ApplyBlockRewards(t *testing.T) {
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, intStake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
-	require.Equal(t, uint8(1), appState.State.GetInvites(chain.coinBaseAddress))
 }
 
 func Test_ApplyInviteTx(t *testing.T) {
@@ -148,13 +147,10 @@ func TestBlockchain_networkParams(t *testing.T) {
 	require.Equal(5, i)
 	require.Equal(1, f)
 
-
 	e, i, f = networkParams(1000)
 	require.Equal(10, e)
 	require.Equal(2, i)
 	require.Equal(3, f)
-
-
 
 	e, i, f = networkParams(50000)
 	require.Equal(36, e)
