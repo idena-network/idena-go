@@ -41,7 +41,7 @@ func (v *ValidatorsCache) GetActualValidators(seed types.Seed, round uint64, ste
 	return set
 }
 
-func (v *ValidatorsCache) GetCountOfValidNodes() int {
+func (v *ValidatorsCache) NetworkSize() int {
 	return len(v.validNodes)
 }
 
@@ -71,7 +71,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 			return false
 		}
 
-		if data.State == state.Verified {
+		if data.State == state.Verified || data.State == state.Newbie {
 			nodes = append(nodes, &addr)
 			v.nodesSet.Add(addr)
 		}

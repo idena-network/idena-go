@@ -218,6 +218,14 @@ func (s *StateDB) SetValidationPeriod(period ValidationPeriod) {
 	s.GetOrNewGlobalObject().SetValidationPeriod(period)
 }
 
+func (s *StateDB) SetGodAddress(godAddress common.Address) {
+	s.GetOrNewGlobalObject().SetGodAddress(godAddress)
+}
+
+func (s *StateDB) GodAddress() common.Address {
+	return s.GetOrNewGlobalObject().GodAddress()
+}
+
 func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
@@ -230,11 +238,27 @@ func (s *StateDB) AddInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).AddInvite(amount)
 }
 
+func (s *StateDB) SetInvites(address common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(address).SetInvites(amount)
+}
+
 func (s *StateDB) SubInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).SubInvite(amount)
 }
 func (s *StateDB) SetPubKey(address common.Address, pubKey []byte) {
 	s.GetOrNewIdentityObject(address).SetPubKey(pubKey)
+}
+
+func (s *StateDB) GetRequiredFlips(addr common.Address) uint8 {
+	return s.GetOrNewIdentityObject(addr).GetRequiredFlips()
+}
+
+func (s *StateDB) SetRequiredFlips(addr common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(addr).SetRequiredFlips(amount)
+}
+
+func (s *StateDB) SubRequiredFlips(addr common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(addr).SubRequiredFlips(amount)
 }
 
 func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {
@@ -633,4 +657,32 @@ func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 func (s *StateDB) ResetTo(height uint64) error {
 	_, err := s.tree.LoadVersionForOverwriting(int64(height))
 	return err
+}
+
+func (s *StateDB) GetIdentity(addr common.Address) Identity {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.data
+	}
+	return Identity{}
+}
+
+func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, identity Identity)) {
+	s.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+
+		if obj := s.stateIdentities[addr]; obj != nil {
+			callback(addr, obj.data)
+		}
+		var data Identity
+		if err := rlp.DecodeBytes(value, &data); err != nil {
+			return false
+		}
+		callback(addr, data)
+		return false
+	})
 }

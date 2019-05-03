@@ -24,6 +24,7 @@ import (
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/secstore"
+	math2 "math"
 	"math/big"
 	"time"
 )
@@ -45,21 +46,21 @@ var (
 )
 
 type Blockchain struct {
-	repo              *database.Repo
-	secStore          *secstore.SecStore
-	Head              *types.Header
-	genesis           *types.Header
-	config            *config.Config
-	pubKey            []byte
-	coinBaseAddress   common.Address
-	log               log.Logger
-	txpool            *mempool.TxPool
-	appState          *appstate.AppState
-	secretKey         *ecdsa.PrivateKey
-	ipfs              ipfs.Proxy
-	timing            *timing
-	bus               EventBus.Bus
-	applyNewEpochFunc func(appState *appstate.AppState)
+	repo                 *database.Repo
+	secStore             *secstore.SecStore
+	Head                 *types.Header
+	genesis              *types.Header
+	config               *config.Config
+	pubKey               []byte
+	coinBaseAddress      common.Address
+	log                  log.Logger
+	txpool               *mempool.TxPool
+	appState             *appstate.AppState
+	secretKey            *ecdsa.PrivateKey
+	ipfs                 ipfs.Proxy
+	timing               *timing
+	bus                  EventBus.Bus
+	applyNewEpochFn      func(appState *appstate.AppState) int
 }
 
 func init() {
@@ -86,8 +87,8 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState)) {
-	chain.applyNewEpochFunc = fn
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) int) {
+	chain.applyNewEpochFn = fn
 }
 
 func (chain *Blockchain) GetHead() *types.Header {
@@ -112,9 +113,9 @@ func (chain *Blockchain) InitializeChain() error {
 	} else {
 		chain.GenerateGenesis(chain.config.Network)
 	}
+
 	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
 	log.Info("Coinbase address", "addr", chain.coinBaseAddress.Hex())
-
 	return nil
 }
 
@@ -141,6 +142,8 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			chain.appState.IdentityState.Add(addr)
 		}
 	}
+
+	chain.appState.State.SetGodAddress(chain.config.GenesisConf.GodAddress)
 
 	if err := chain.appState.Commit(); err != nil {
 		return nil, err
@@ -302,13 +305,86 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	chain.applyNewEpochFunc(appState)
+
+	clearIdentityState(appState)
+
+	networkSize := chain.applyNewEpochFn(appState)
+
+	setNewIdentitiesAttributes(appState, networkSize)
 
 	appState.State.ClearFlips()
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(getNextValidationTime(chain.config.Validation.ValidationInterval, appState.State.NextValidationTime(), time.Now().UTC()))
 	appState.State.SetValidationPeriod(state.NonePeriod)
+}
+
+func networkParams(networkSize int) (epochDuration int, invites int, flips int) {
+
+	epochDurationF := math2.Round(math2.Pow(float64(networkSize), 0.33))
+
+	epochDuration = int(epochDurationF)
+	invitesCount := 20 / math2.Pow(math2.Log10(float64(networkSize)), 2)
+	if invitesCount < 1 {
+		flips = int(math2.Round((1 + invitesCount) * 5))
+	} else {
+		flips = int(math2.Round(epochDurationF * 2.0 / 7.0))
+	}
+	invites = int(math2.Round(invitesCount))
+	return
+}
+
+func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
+
+	_, invites, flips := networkParams(networkSize)
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+
+		s := identity.State
+
+		if identity.RequiredFlips > 0 {
+			switch identity.State {
+			case state.Verified:
+				s = state.Suspended
+			case state.Newbie:
+				s = state.Killed
+			default:
+				s = state.Killed
+			}
+		}
+
+		if identity.State == state.Invite {
+			s = state.Killed
+		}
+
+		switch s {
+		case state.Verified:
+			appState.State.SetInvites(addr, uint8(invites))
+			appState.State.SetRequiredFlips(addr, uint8(flips))
+			appState.IdentityState.Add(addr)
+		case state.Newbie:
+			appState.State.SetRequiredFlips(addr, uint8(flips))
+			appState.State.SetInvites(addr, 0)
+			appState.IdentityState.Add(addr)
+		default:
+			appState.State.SetInvites(addr, 0)
+			appState.State.SetRequiredFlips(addr, 0)
+		}
+
+		appState.State.SetState(addr, s)
+	})
+}
+
+func clearIdentityState(appState *appstate.AppState) {
+	appState.IdentityState.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+		appState.IdentityState.Remove(addr)
+		return false
+	})
 }
 
 func getNextValidationTime(interval time.Duration, prevValidation time.Time, now time.Time) time.Time {
@@ -439,8 +515,9 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(*tx.To, amount)
 		break
 	case types.InviteTx:
-
-		stateDB.SubInvite(sender, 1)
+		if sender != stateDB.GodAddress() {
+			stateDB.SubInvite(sender, 1)
+		}
 		stateDB.SubBalance(sender, totalCost)
 
 		stateDB.GetOrNewIdentityObject(*tx.To).SetState(state.Invite)
@@ -453,6 +530,9 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.SubmitFlipTx:
 		stateDB.AddFlip(tx.Payload)
 		stateDB.SubBalance(sender, totalCost)
+		if sender != stateDB.GodAddress() {
+			stateDB.SubRequiredFlips(sender, 1)
+		}
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -465,11 +545,11 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 }
 
 func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
-	return types.CalculateFee(chain.appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+	return types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
 }
 
 func (chain *Blockchain) getTxCost(tx *types.Transaction) *big.Int {
-	return types.CalculateCost(chain.appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+	return types.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), tx)
 }
 
 func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
@@ -482,7 +562,7 @@ func (chain *Blockchain) GetSeedData(proposalBlock *types.Block) []byte {
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
 	// only validated nodes can propose block
-	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress) && chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 {
+	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress) && chain.appState.ValidatorsCache.NetworkSize() > 0 {
 		return false, common.Hash{}, nil
 	}
 
@@ -662,7 +742,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
-	if chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 &&
+	if chain.appState.ValidatorsCache.NetworkSize() > 0 &&
 		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
 		return errors.New("proposer is not identity")
 	}
@@ -745,7 +825,7 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 	}
 
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)
-	if chain.appState.ValidatorsCache.GetCountOfValidNodes() > 0 &&
+	if chain.appState.ValidatorsCache.NetworkSize() > 0 &&
 		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
 		return errors.New("Proposer is not identity")
 	}
@@ -828,7 +908,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {
-	var cnt = chain.appState.ValidatorsCache.GetCountOfValidNodes()
+	var cnt = chain.appState.ValidatorsCache.NetworkSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
@@ -841,7 +921,7 @@ func (chain *Blockchain) GetCommitteSize(final bool) int {
 
 func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 
-	var cnt = chain.appState.ValidatorsCache.GetCountOfValidNodes()
+	var cnt = chain.appState.ValidatorsCache.NetworkSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent

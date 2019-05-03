@@ -71,6 +71,7 @@ type Global struct {
 	Flips              [][]byte
 	NextValidationTime *big.Int
 	ValidationPeriod   ValidationPeriod
+	GodAddress         common.Address
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -90,6 +91,7 @@ type Identity struct {
 	QualifiedFlips  uint32
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
+	RequiredFlips   uint8
 }
 
 type ApprovedIdentity struct {
@@ -337,6 +339,20 @@ func (s *stateIdentity) ShortFlipPoints() float32 {
 	return float32(s.data.ShortFlipPoints) / 2
 }
 
+func (s *stateIdentity) GetRequiredFlips() uint8 {
+	return s.data.RequiredFlips
+}
+
+func (s *stateIdentity) SetRequiredFlips(amount uint8) {
+	s.data.RequiredFlips = amount
+	s.touch()
+}
+
+func (s *stateIdentity) SubRequiredFlips(amount uint8) {
+	s.data.RequiredFlips -= amount
+	s.touch()
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateGlobal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)
@@ -381,6 +397,15 @@ func (s *stateGlobal) SetValidationPeriod(period ValidationPeriod) {
 	s.touch()
 }
 
+func (s *stateGlobal) SetGodAddress(godAddress common.Address) {
+	s.data.GodAddress = godAddress
+	s.touch()
+}
+
+func (s *stateGlobal) GodAddress() common.Address{
+	return s.data.GodAddress
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateApprovedIdentity) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)
@@ -404,10 +429,12 @@ func (s *stateApprovedIdentity) touch() {
 
 func (s *stateApprovedIdentity) SetState(approved bool) {
 	s.data.Approved = approved
+	s.touch()
 }
 
-func IsCeremonyCandidate(state IdentityState) bool {
-	return state == Candidate || state == Newbie ||
+func IsCeremonyCandidate(identity Identity) bool {
+	state := identity.State
+	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
-		state == Zombie
+		state == Zombie) && identity.RequiredFlips == 0
 }

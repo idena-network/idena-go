@@ -139,3 +139,31 @@ func Test_getNextValidationTime(t *testing.T) {
 
 	require.Equal(t1.Add(time.Second*59*6), getNextValidationTime(time.Second*59, t1, now))
 }
+
+func TestBlockchain_networkParams(t *testing.T) {
+	require := require.New(t)
+
+	e, i, f := networkParams(100)
+	require.Equal(5, e)
+	require.Equal(5, i)
+	require.Equal(1, f)
+
+
+	e, i, f = networkParams(1000)
+	require.Equal(10, e)
+	require.Equal(2, i)
+	require.Equal(3, f)
+
+
+
+	e, i, f = networkParams(50000)
+	require.Equal(36, e)
+	require.Equal(1, i)
+	require.Equal(10, f)
+
+	e, i, f = networkParams(10000000)
+	require.Equal(204, e)
+	require.Equal(0, i)
+	require.Equal(7, f)
+
+}

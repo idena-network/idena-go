@@ -11,6 +11,7 @@ import (
 
 const (
 	MaxPayloadSize = 1024
+	GodValidUntilNetworkSize = 10
 )
 
 var (
@@ -28,6 +29,7 @@ var (
 	InvalidRecipient     = errors.New("invalid recipient")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
 	NotCandidate         = errors.New("user is not a candidate")
+	InsufficientFlips    = errors.New("insufficient flips")
 	validators           map[types.TxType]validator
 )
 
@@ -85,7 +87,7 @@ func validateRegularTx(appState *appstate.AppState, tx *types.Transaction, mempo
 		return RecipientRequired
 	}
 
-	cost := types.CalculateCost(appState.ValidatorsCache.GetCountOfValidNodes(), tx)
+	cost := types.CalculateCost(appState.ValidatorsCache.NetworkSize(), tx)
 	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
 	}
@@ -133,7 +135,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 		return err
 	}
 
-	if appState.State.GetInvites(sender) == 0 {
+	if appState.State.GetInvites(sender) == 0 && sender != appState.State.GodAddress() {
 		return InsufficientInvites
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
@@ -157,7 +159,11 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 		return LateTx
 	}
 
-	//TODO: you cannot submit more than one flip in current epoch
+	god := appState.State.GodAddress()
+
+	if appState.State.GetRequiredFlips(sender) == 0 && sender != god || god == sender && appState.ValidatorsCache.NetworkSize() > GodValidUntilNetworkSize {
+		return InsufficientFlips
+	}
 
 	return nil
 }
@@ -177,7 +183,7 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
 
@@ -197,7 +203,7 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
 
@@ -213,7 +219,7 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 		return InvalidRecipient
 	}
 
-	if !state.IsCeremonyCandidate(appState.State.GetIdentityState(sender)) {
+	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
 

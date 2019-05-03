@@ -34,7 +34,7 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 		return false
 	}
 
-	if votes.state.ValidatorsCache.GetCountOfValidNodes() > 0 && !votes.state.ValidatorsCache.Contains(vote.VoterAddr()) {
+	if votes.state.ValidatorsCache.NetworkSize() > 0 && !votes.state.ValidatorsCache.Contains(vote.VoterAddr()) {
 		return false
 	}
 

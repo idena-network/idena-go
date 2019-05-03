@@ -6,12 +6,13 @@ import (
 	"math/big"
 )
 
-type GenesisAllocation struct{
+type GenesisAllocation struct {
 	Balance *big.Int
-	Stake *big.Int
-	State state.IdentityState
+	Stake   *big.Int
+	State   state.IdentityState
 }
 
-type GenesisConf struct{
-	Alloc map[common.Address]GenesisAllocation
+type GenesisConf struct {
+	Alloc      map[common.Address]GenesisAllocation
+	GodAddress common.Address
 }
