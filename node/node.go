@@ -146,6 +146,8 @@ func (node *Node) Start() {
 			Length:  35,
 		},
 	}
+	//TODO: replace with secStore
+	config.PrivateKey = node.config.NodeKey()
 	node.srv = &p2p.Server{
 		Config: *config,
 	}
