@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"idena-go/common"
 	"idena-go/crypto"
 	"idena-go/ipfs"
 	"idena-go/log"
@@ -93,7 +94,7 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int, noDiscovery bool) *Config {
+func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int, noDiscovery bool, godAddress string) *Config {
 	var nodes []*enode.Node
 	if bootstrap != "" {
 		p, err := enode.ParseV4(bootstrap)
@@ -113,11 +114,13 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 			BootstrapNodes: nodes,
 			NoDiscovery:    noDiscovery,
 		},
-		Consensus:   GetDefaultConsensusConfig(automine),
-		RPC:         rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
-		GenesisConf: &GenesisConf{},
-		IpfsConf:    ipfs.GetDefaultIpfsConfig(datadir, ipfsPort, ipfsBootstrap),
-		Validation:  GetDefaultValidationConfig(),
+		Consensus: GetDefaultConsensusConfig(automine),
+		RPC:       rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
+		GenesisConf: &GenesisConf{
+			GodAddress: common.HexToAddress(godAddress),
+		},
+		IpfsConf:   ipfs.GetDefaultIpfsConfig(datadir, ipfsPort, ipfsBootstrap),
+		Validation: GetDefaultValidationConfig(),
 	}
 
 	return &c

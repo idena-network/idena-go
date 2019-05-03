@@ -69,6 +69,10 @@ func main() {
 			Usage: "Log verbosity",
 			Value: 3,
 		},
+		cli.StringFlag{
+			Name:  "godaddress",
+			Usage: "Idena god address",
+		},
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -89,7 +93,8 @@ func main() {
 			context.String("bootnode"),
 			context.String("ipfsbootnode"),
 			context.Int("ipfsport"),
-			context.Bool("nodiscovery"))
+			context.Bool("nodiscovery"),
+			context.String("godaddress"))
 
 		n, _ := node.NewNode(c)
 		n.Start()

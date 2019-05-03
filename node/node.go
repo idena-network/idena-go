@@ -67,7 +67,8 @@ func StartDefaultNode(path string) string {
 		config.DefaultBootnode,
 		"",
 		config.DefaultIpfsPort,
-		config.DefaultNoDiscovery)
+		config.DefaultNoDiscovery,
+		"")
 
 	n, err := NewNode(c)
 
