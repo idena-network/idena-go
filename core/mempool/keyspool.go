@@ -17,7 +17,7 @@ type KeysPool struct {
 	appState  *appstate.AppState
 	flipKeys  map[common.Address]*types.FlipKey
 	knownKeys mapset.Set
-	mutex     *sync.Mutex
+	mutex     sync.Mutex
 	bus       EventBus.Bus
 	head      *types.Header
 	log       log.Logger
@@ -27,7 +27,6 @@ func NewKeysPool(appState *appstate.AppState, bus EventBus.Bus) *KeysPool {
 	return &KeysPool{
 		appState:  appState,
 		bus:       bus,
-		mutex:     &sync.Mutex{},
 		knownKeys: mapset.NewSet(),
 		log:       log.New(),
 		flipKeys:  make(map[common.Address]*types.FlipKey),
@@ -83,4 +82,12 @@ func (p *KeysPool) GetFlipKeys() []*types.FlipKey {
 
 func (p *KeysPool) GetFlipKey(address common.Address) *types.FlipKey {
 	return p.flipKeys[address]
+}
+
+func (p *KeysPool) Clear() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.knownKeys = mapset.NewSet()
+	p.flipKeys = make(map[common.Address]*types.FlipKey)
 }

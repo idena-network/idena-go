@@ -38,7 +38,7 @@ const (
 	ProposerRole            uint8 = 0x1
 	EmptyBlockTimeIncrement       = time.Second * 10
 	MaxFutureBlockOffset          = time.Minute * 2
-	MinBlockDelay                 = time.Second * 5
+	MinBlockDelay                 = time.Second * 10
 )
 
 var (
@@ -144,6 +144,14 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	}
 
 	chain.appState.State.SetGodAddress(chain.config.GenesisConf.GodAddress)
+
+	nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
+	if nextValidationTimestamp == 0 {
+		nextValidationTimestamp = time.Now().UTC().Unix()
+	}
+	chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
+
+	log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 
 	if err := chain.appState.Commit(); err != nil {
 		return nil, err
@@ -314,7 +322,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.ClearFlips()
 	appState.State.IncEpoch()
 
-	appState.State.SetNextValidationTime(getNextValidationTime(chain.config.Validation.ValidationInterval, appState.State.NextValidationTime(), time.Now().UTC()))
+	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.ValidationInterval))
 	appState.State.SetValidationPeriod(state.NonePeriod)
 }
 
@@ -384,16 +392,6 @@ func clearIdentityState(appState *appstate.AppState) {
 		appState.IdentityState.Remove(addr)
 		return false
 	})
-}
-
-func getNextValidationTime(interval time.Duration, prevValidation time.Time, now time.Time) time.Time {
-	timeToAdd := interval
-	prevValidationStarted := prevValidation
-
-	countIntervals := now.Sub(prevValidationStarted).Nanoseconds() / interval.Nanoseconds()
-	timeToAdd = time.Duration((countIntervals + 1) * interval.Nanoseconds())
-
-	return prevValidation.Add(timeToAdd)
 }
 
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
@@ -581,10 +579,17 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	var cid cid2.Cid
 	cid, _ = chain.ipfs.Cid(body.Bytes())
 
+	prevBlockTime := time.Unix(chain.Head.Time().Int64(), 0)
+	prevBlockTime.Add(MinBlockDelay)
+	newBlockTime := prevBlockTime.Unix()
+	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
+		newBlockTime = localTime
+	}
+
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
-		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
+		Time:           new(big.Int).SetInt64(newBlockTime),
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,

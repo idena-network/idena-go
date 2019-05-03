@@ -94,7 +94,9 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string, ipfsBootstrap string, ipfsPort int, noDiscovery bool, godAddress string) *Config {
+func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string,
+	ipfsBootstrap string, ipfsPort int, noDiscovery bool, godAddress string, ceremonyTime int64) *Config {
+
 	var nodes []*enode.Node
 	if bootstrap != "" {
 		p, err := enode.ParseV4(bootstrap)
@@ -117,7 +119,8 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 		Consensus: GetDefaultConsensusConfig(automine),
 		RPC:       rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
 		GenesisConf: &GenesisConf{
-			GodAddress: common.HexToAddress(godAddress),
+			GodAddress:        common.HexToAddress(godAddress),
+			FirstCeremonyTime: ceremonyTime,
 		},
 		IpfsConf:   ipfs.GetDefaultIpfsConfig(datadir, ipfsPort, ipfsBootstrap),
 		Validation: GetDefaultValidationConfig(),

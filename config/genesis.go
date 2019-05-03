@@ -13,6 +13,7 @@ type GenesisAllocation struct {
 }
 
 type GenesisConf struct {
-	Alloc      map[common.Address]GenesisAllocation
-	GodAddress common.Address
+	Alloc             map[common.Address]GenesisAllocation
+	GodAddress        common.Address
+	FirstCeremonyTime int64
 }

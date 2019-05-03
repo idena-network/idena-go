@@ -73,6 +73,10 @@ func main() {
 			Name:  "godaddress",
 			Usage: "Idena god address",
 		},
+		cli.Int64Flag{
+			Name:  "ceremonytime",
+			Usage: "First ceremony time (unix)",
+		},
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -94,7 +98,8 @@ func main() {
 			context.String("ipfsbootnode"),
 			context.Int("ipfsport"),
 			context.Bool("nodiscovery"),
-			context.String("godaddress"))
+			context.String("godaddress"),
+			context.Int64("ceremony"))
 
 		n, _ := node.NewNode(c)
 		n.Start()

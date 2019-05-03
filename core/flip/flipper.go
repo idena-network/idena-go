@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
+	"idena-go/common"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
 	"idena-go/crypto/ecies"
@@ -27,7 +28,7 @@ type Flipper struct {
 	hasFlips  bool
 	mutex     sync.Mutex
 	secStore  *secstore.SecStore
-	flips     map[[32]byte]*IpfsFlip
+	flips     map[common.Hash]*IpfsFlip
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, secStore *secstore.SecStore) *Flipper {
@@ -37,6 +38,7 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, sec
 		ipfsProxy: ipfsProxy,
 		keyspool:  keyspool,
 		secStore:  secStore,
+		flips:     make(map[common.Hash]*IpfsFlip),
 	}
 }
 
@@ -103,7 +105,7 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 
 func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 
-	ipfsFlip := fp.flips[rlp.Hash(key)]
+	ipfsFlip := fp.flips[common.Hash(rlp.Hash(key))]
 
 	if ipfsFlip == nil {
 		data, err := fp.ipfsProxy.Get(key)
@@ -181,7 +183,7 @@ func (fp *Flipper) Load(cids [][]byte) {
 			continue
 		}
 
-		fp.flips[rlp.Hash(key)] = ipfsFlip
+		fp.flips[common.Hash(rlp.Hash(key))] = ipfsFlip
 	}
 	fp.log.Info("All flips were loaded")
 	fp.hasFlips = true
@@ -189,6 +191,8 @@ func (fp *Flipper) Load(cids [][]byte) {
 
 func (fp *Flipper) Reset() {
 	fp.hasFlips = false
+	fp.flips = make(map[common.Hash]*IpfsFlip)
+	fp.keyspool.Clear()
 }
 
 func (fp *Flipper) HasFlips() bool {
@@ -196,7 +200,7 @@ func (fp *Flipper) HasFlips() bool {
 }
 
 func (fp *Flipper) IsFlipReady(cid []byte) bool {
-	flip := fp.flips[rlp.Hash(cid)]
+	flip := fp.flips[common.Hash(rlp.Hash(cid))]
 	if flip == nil {
 		return false
 	}
