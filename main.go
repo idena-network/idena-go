@@ -99,7 +99,7 @@ func main() {
 			context.Int("ipfsport"),
 			context.Bool("nodiscovery"),
 			context.String("godaddress"),
-			context.Int64("ceremony"))
+			context.Int64("ceremonytime"))
 
 		n, _ := node.NewNode(c)
 		n.Start()
