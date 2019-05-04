@@ -128,7 +128,10 @@ type FlipResponse struct {
 }
 
 func (api *FlipApi) Get(hash string) (FlipResponse, error) {
-	c, _ := cid.Decode(hash)
+	c, err := cid.Decode(hash)
+	if err != nil {
+		return FlipResponse{}, err
+	}
 	cidBytes := c.Bytes()
 
 	data, _, err := api.fp.GetFlip(cidBytes)

@@ -580,8 +580,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	cid, _ = chain.ipfs.Cid(body.Bytes())
 
 	prevBlockTime := time.Unix(chain.Head.Time().Int64(), 0)
-	prevBlockTime.Add(MinBlockDelay)
-	newBlockTime := prevBlockTime.Unix()
+	newBlockTime := prevBlockTime.Add(MinBlockDelay).Unix()
 	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
 		newBlockTime = localTime
 	}
@@ -724,7 +723,7 @@ func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
 	if err := chain.validateBlockParentHash(block); err != nil {
 		return err
 	}
-	if err := chain.validateBlockTimestamp(block.Header.Time()); err != nil {
+	if err := chain.validateBlockTimestamp(block); err != nil {
 		return err
 	}
 	var seedData = chain.GetSeedData(block)
@@ -789,8 +788,8 @@ func (chain *Blockchain) validateBlockParentHash(block *types.Block) error {
 	return nil
 }
 
-func (chain *Blockchain) validateBlockTimestamp(timestamp *big.Int) error {
-	blockTime := time.Unix(timestamp.Int64(), 0)
+func (chain *Blockchain) validateBlockTimestamp(block *types.Block) error {
+	blockTime := time.Unix(block.Header.Time().Int64(), 0)
 
 	if blockTime.Sub(time.Now().UTC()) > MaxFutureBlockOffset {
 		return errors.New("block from future")
