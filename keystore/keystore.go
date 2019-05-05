@@ -36,7 +36,6 @@ import (
 	"idena-go/common"
 
 	"idena-go/crypto"
-	"idena-go/event"
 )
 
 var (
@@ -61,9 +60,7 @@ type KeyStore struct {
 	changes  chan struct{}                // Channel receiving change notifications from the cache
 	unlocked map[common.Address]*unlocked // Currently unlocked account (decrypted private keys)
 
-	updateFeed  event.Feed              // Event feed to notify wallet additions/removals
-	updateScope event.SubscriptionScope // Subscription scope tracking current live listeners
-	updating    bool                    // Whether the event notification loop is running
+	updating bool // Whether the event notification loop is running
 
 	mu sync.RWMutex
 }

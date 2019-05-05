@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"idena-go/common/mclock"
-	"idena-go/event"
 	"idena-go/log"
 	"idena-go/p2p/enode"
 	"idena-go/p2p/enr"
@@ -110,9 +109,6 @@ type Peer struct {
 	protoErr chan error
 	closed   chan struct{}
 	disc     chan DiscReason
-
-	// events receives message send / receive events if set
-	events *event.Feed
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -357,9 +353,6 @@ func (p *Peer) startProtocols(writeStart <-chan struct{}, writeErr chan<- error)
 		proto.wstart = writeStart
 		proto.werr = writeErr
 		var rw MsgReadWriter = proto
-		if p.events != nil {
-			rw = newMsgEventer(rw, p.events, p.ID(), proto.Name)
-		}
 		p.log.Trace(fmt.Sprintf("Starting protocol %s/%d", proto.Name, proto.Version))
 		go func() {
 			err := proto.Run(p, rw)

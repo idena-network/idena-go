@@ -31,7 +31,6 @@ import (
 	"idena-go/common"
 	"idena-go/common/mclock"
 	"idena-go/crypto"
-	"idena-go/event"
 	"idena-go/log"
 	"idena-go/p2p/discover"
 	"idena-go/p2p/discv5"
@@ -142,10 +141,6 @@ type Config struct {
 	// If NoDial is true, the server will not dial any peers.
 	NoDial bool `toml:",omitempty"`
 
-	// If EnableMsgEvents is set then the server will emit PeerEvents
-	// whenever a message is sent to or received from a peer
-	EnableMsgEvents bool
-
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
 }
@@ -184,7 +179,6 @@ type Server struct {
 	addpeer       chan *conn
 	delpeer       chan peerDrop
 	loopWG        sync.WaitGroup // loop, listenLoop
-	peerFeed      event.Feed
 	log           log.Logger
 }
 
@@ -342,11 +336,6 @@ func (srv *Server) RemoveTrustedPeer(node *enode.Node) {
 	case srv.removetrusted <- node:
 	case <-srv.quit:
 	}
-}
-
-// SubscribePeers subscribes the given channel to peer events
-func (srv *Server) SubscribeEvents(ch chan *PeerEvent) event.Subscription {
-	return srv.peerFeed.Subscribe(ch)
 }
 
 // Self returns the local node's endpoint information.
@@ -724,11 +713,6 @@ running:
 			if err == nil {
 				// The handshakes are done and it passed all checks.
 				p := newPeer(c, srv.Protocols)
-				// If message events are enabled, pass the peerFeed
-				// to the peer
-				if srv.EnableMsgEvents {
-					p.events = &srv.peerFeed
-				}
 				name := truncateName(c.name)
 				srv.log.Debug("Adding p2p peer", "name", name, "addr", c.fd.RemoteAddr(), "peers", len(peers)+1)
 				go srv.runPeer(p)
@@ -985,21 +969,8 @@ func (srv *Server) runPeer(p *Peer) {
 		srv.newPeerHook(p)
 	}
 
-	// broadcast peer add
-	srv.peerFeed.Send(&PeerEvent{
-		Type: PeerEventTypeAdd,
-		Peer: p.ID(),
-	})
-
 	// run the protocol
 	remoteRequested, err := p.run()
-
-	// broadcast peer drop
-	srv.peerFeed.Send(&PeerEvent{
-		Type:  PeerEventTypeDrop,
-		Peer:  p.ID(),
-		Error: err.Error(),
-	})
 
 	srv.log.Info("peerFeed event sent", "remoteRequested", remoteRequested, "err", err)
 

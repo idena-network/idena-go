@@ -25,8 +25,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"idena-go/event"
-	"idena-go/p2p/enode"
 	"idena-go/rlp"
 )
 
@@ -243,70 +241,6 @@ func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	}
 	if !bytes.Equal(actualContent, contentEnc) {
 		return fmt.Errorf("message payload mismatch:\ngot:  %x\nwant: %x", actualContent, contentEnc)
-	}
-	return nil
-}
-
-// msgEventer wraps a MsgReadWriter and sends events whenever a message is sent
-// or received
-type msgEventer struct {
-	MsgReadWriter
-
-	feed     *event.Feed
-	peerID   enode.ID
-	Protocol string
-}
-
-// newMsgEventer returns a msgEventer which sends message events to the given
-// feed
-func newMsgEventer(rw MsgReadWriter, feed *event.Feed, peerID enode.ID, proto string) *msgEventer {
-	return &msgEventer{
-		MsgReadWriter: rw,
-		feed:          feed,
-		peerID:        peerID,
-		Protocol:      proto,
-	}
-}
-
-// ReadMsg reads a message from the underlying MsgReadWriter and emits a
-// "message received" event
-func (ev *msgEventer) ReadMsg() (Msg, error) {
-	msg, err := ev.MsgReadWriter.ReadMsg()
-	if err != nil {
-		return msg, err
-	}
-	ev.feed.Send(&PeerEvent{
-		Type:     PeerEventTypeMsgRecv,
-		Peer:     ev.peerID,
-		Protocol: ev.Protocol,
-		MsgCode:  &msg.Code,
-		MsgSize:  &msg.Size,
-	})
-	return msg, nil
-}
-
-// WriteMsg writes a message to the underlying MsgReadWriter and emits a
-// "message sent" event
-func (ev *msgEventer) WriteMsg(msg Msg) error {
-	err := ev.MsgReadWriter.WriteMsg(msg)
-	if err != nil {
-		return err
-	}
-	ev.feed.Send(&PeerEvent{
-		Type:     PeerEventTypeMsgSend,
-		Peer:     ev.peerID,
-		Protocol: ev.Protocol,
-		MsgCode:  &msg.Code,
-		MsgSize:  &msg.Size,
-	})
-	return nil
-}
-
-// Close closes the underlying MsgReadWriter if it implements the io.Closer
-// interface
-func (ev *msgEventer) Close() error {
-	if v, ok := ev.MsgReadWriter.(io.Closer); ok {
-		return v.Close()
 	}
 	return nil
 }
