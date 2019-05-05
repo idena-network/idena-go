@@ -21,14 +21,15 @@ import (
 )
 
 type Flipper struct {
-	repo      *database.Repo
-	log       log.Logger
-	keyspool  *mempool.KeysPool
-	ipfsProxy ipfs.Proxy
-	hasFlips  bool
-	mutex     sync.Mutex
-	secStore  *secstore.SecStore
-	flips     map[common.Hash]*IpfsFlip
+	repo       *database.Repo
+	log        log.Logger
+	keyspool   *mempool.KeysPool
+	ipfsProxy  ipfs.Proxy
+	hasFlips   bool
+	mutex      sync.Mutex
+	flipsMutex sync.Mutex
+	secStore   *secstore.SecStore
+	flips      map[common.Hash]*IpfsFlip
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, secStore *secstore.SecStore) *Flipper {
@@ -105,7 +106,9 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 
 func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 
+	fp.flipsMutex.Lock()
 	ipfsFlip := fp.flips[common.Hash(rlp.Hash(key))]
+	fp.flipsMutex.Unlock()
 
 	if ipfsFlip == nil {
 		data, err := fp.ipfsProxy.Get(key)
@@ -182,8 +185,9 @@ func (fp *Flipper) Load(cids [][]byte) {
 			fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
 			continue
 		}
-
+		fp.flipsMutex.Lock()
 		fp.flips[common.Hash(rlp.Hash(key))] = ipfsFlip
+		fp.flipsMutex.Unlock()
 	}
 	fp.log.Info("All flips were loaded")
 	fp.hasFlips = true
@@ -200,7 +204,9 @@ func (fp *Flipper) HasFlips() bool {
 }
 
 func (fp *Flipper) IsFlipReady(cid []byte) bool {
+	fp.flipsMutex.Lock()
 	flip := fp.flips[common.Hash(rlp.Hash(cid))]
+	fp.flipsMutex.Unlock()
 	if flip == nil {
 		return false
 	}

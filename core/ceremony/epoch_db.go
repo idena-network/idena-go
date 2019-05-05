@@ -19,6 +19,7 @@ var (
 	LongShortAnswersKey = []byte("answers-long")
 	TxOwnPrefix         = []byte("tx")
 	EvidencePrefix      = []byte("evi")
+	LotterySeedKey      = []byte("ls")
 )
 
 type EpochDb struct {
@@ -160,4 +161,12 @@ func (edb *EpochDb) WriteOwnTx(txType uint16, tx []byte) {
 func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
 	return edb.db.Get(key)
+}
+
+func (edb *EpochDb) WriteLotterySeed(seed []byte ){
+	edb.db.Set(LotterySeedKey, seed)
+}
+
+func (edb *EpochDb) ReadLotterySeed() []byte{
+	return edb.db.Get(LotterySeedKey)
 }

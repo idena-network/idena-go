@@ -147,6 +147,7 @@ func (vc *ValidationCeremony) restoreState() {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
 	}
 	vc.qualification.restoreAnswers()
+	vc.calculateFlipCandidates()
 }
 
 func (vc *ValidationCeremony) reset() {
@@ -172,8 +173,11 @@ func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
-	vc.calculateFlipCandidates(block)
-	vc.broadcastFlipKey()
+	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
+		vc.epochDb.WriteLotterySeed(block.Seed().Bytes())
+		vc.calculateFlipCandidates()
+		vc.broadcastFlipKey()
+	}
 }
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
@@ -199,16 +203,21 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 	vc.processCeremonyTxs(block)
 }
 
-func (vc *ValidationCeremony) calculateFlipCandidates(block *types.Block) {
+func (vc *ValidationCeremony) calculateFlipCandidates() {
 	if vc.candidates != nil {
+		return
+	}
+
+	seed := vc.epochDb.ReadLotterySeed()
+	if seed == nil{
 		return
 	}
 
 	vc.candidates = vc.getCandidates()
 
-	shortFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.ShortSessionFlipsCount()), block.Header.Seed().Bytes())
+	shortFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.ShortSessionFlipsCount()), seed)
 
-	longFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.LongSessionFlipsCount()), block.Header.Seed().Bytes())
+	longFlipsPerCandidate, _ := SortFlips(len(vc.candidates), len(vc.appState.State.FlipCids()), int(vc.LongSessionFlipsCount()), seed)
 
 	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
 	vc.longFlipsPerCandidate = longFlipsPerCandidate
