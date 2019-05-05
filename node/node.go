@@ -2,9 +2,9 @@ package node
 
 import (
 	"fmt"
-	"github.com/asaskevich/EventBus"
 	"idena-go/api"
 	"idena-go/blockchain"
+	"idena-go/common/eventbus"
 	"idena-go/config"
 	"idena-go/consensus"
 	"idena-go/core/appstate"
@@ -50,7 +50,7 @@ type Node struct {
 	keyStore        *keystore.KeyStore
 	fp              *flip.Flipper
 	ipfsProxy       ipfs.Proxy
-	bus             EventBus.Bus
+	bus             eventbus.Bus
 	ceremony        *ceremony.ValidationCeremony
 }
 
@@ -100,7 +100,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		return nil, err
 	}
 
-	bus := EventBus.New()
+	bus := eventbus.New()
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()

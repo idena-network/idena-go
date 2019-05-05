@@ -129,9 +129,5 @@
   version = "0.15.0"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/asaskevich/EventBus"
-
-[[constraint]]
   name = "github.com/RoaringBitmap/roaring"
   version = "0.4.17"

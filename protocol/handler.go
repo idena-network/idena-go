@@ -2,14 +2,14 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/asaskevich/EventBus"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/constants"
+	"idena-go/common/eventbus"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
+	"idena-go/events"
 	"idena-go/p2p"
 	"idena-go/pengings"
 	"sync"
@@ -58,7 +58,7 @@ type ProtocolManager struct {
 	flipKeyChan   chan *types.FlipKey
 	incomeBatches map[string]map[uint32]*batch
 	batchedLock   sync.Mutex
-	bus           EventBus.Bus
+	bus           eventbus.Bus
 }
 
 type getBlockBodyRequest struct {
@@ -89,7 +89,7 @@ type handshakeData struct {
 	GenesisBlock common.Hash
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus EventBus.Bus,
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus,
 	flipKeyPool *mempool.KeysPool) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
@@ -109,8 +109,14 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 }
 
 func (pm *ProtocolManager) Start() {
-	_ = pm.bus.Subscribe(constants.NewTxEvent, func(tx *types.Transaction) { pm.txChan <- tx })
-	_ = pm.bus.Subscribe(constants.NewFlipKey, func(key *types.FlipKey) { pm.flipKeyChan <- key })
+	_ = pm.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
+		newTxEvent := e.(*events.NewTxEvent)
+		pm.txChan <- newTxEvent.Tx
+	})
+	_ = pm.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
+		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
+		pm.flipKeyChan <- newFlipKeyEvent.Key
+	})
 
 	go pm.broadcastLoop()
 }

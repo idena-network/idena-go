@@ -2,19 +2,19 @@ package ceremony
 
 import (
 	"bytes"
-	"github.com/asaskevich/EventBus"
 	"github.com/deckarep/golang-set"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/constants"
+	"idena-go/common/eventbus"
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
+	"idena-go/events"
 	"idena-go/log"
 	"idena-go/protocol"
 	"idena-go/rlp"
@@ -34,7 +34,7 @@ const (
 )
 
 type ValidationCeremony struct {
-	bus                    EventBus.Bus
+	bus                    eventbus.Bus
 	db                     dbm.DB
 	appState               *appstate.AppState
 	flipper                *flip.Flipper
@@ -67,7 +67,7 @@ type cacheValue struct {
 
 type blockHandler func(block *types.Block)
 
-func NewValidationCeremony(appState *appstate.AppState, bus EventBus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool) *ValidationCeremony {
+func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:             flipper,
@@ -95,19 +95,24 @@ func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
 	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 
-	_ = vc.bus.Subscribe(constants.AddBlockEvent,
-		func(block *types.Block) {
-			vc.handleBlock(block)
-			vc.qualification.persistAnswers()
-
-			// reset if finished
-			if block.Header.Flags().HasFlag(types.ValidationFinished) {
-				vc.reset()
-			}
+	_ = vc.bus.Subscribe(events.AddBlockEventID,
+		func(e eventbus.Event) {
+			newBlockEvent := e.(*events.NewBlockEvent)
+			vc.addBlock(newBlockEvent.Block)
 		})
 
 	vc.restoreState()
 	vc.handleBlock(currentBlock)
+}
+
+func (vc *ValidationCeremony) addBlock(block *types.Block) {
+	vc.handleBlock(block)
+	vc.qualification.persistAnswers()
+
+	// reset if finished
+	if block.Header.Flags().HasFlag(types.ValidationFinished) {
+		vc.reset()
+	}
 }
 
 func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {

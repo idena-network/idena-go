@@ -2,13 +2,13 @@ package mempool
 
 import (
 	"errors"
-	"github.com/asaskevich/EventBus"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
-	"idena-go/constants"
+	"idena-go/common/eventbus"
 	"idena-go/core/appstate"
+	"idena-go/events"
 	"idena-go/log"
 	"sync"
 )
@@ -18,12 +18,12 @@ type KeysPool struct {
 	flipKeys  map[common.Address]*types.FlipKey
 	knownKeys mapset.Set
 	mutex     sync.Mutex
-	bus       EventBus.Bus
+	bus       eventbus.Bus
 	head      *types.Header
 	log       log.Logger
 }
 
-func NewKeysPool(appState *appstate.AppState, bus EventBus.Bus) *KeysPool {
+func NewKeysPool(appState *appstate.AppState, bus eventbus.Bus) *KeysPool {
 	return &KeysPool{
 		appState:  appState,
 		bus:       bus,
@@ -63,7 +63,9 @@ func (p *KeysPool) Add(key *types.FlipKey) error {
 	p.knownKeys.Add(hash)
 	p.flipKeys[sender] = key
 
-	p.bus.Publish(constants.NewFlipKey, key)
+	p.bus.Publish(&events.NewFlipKeyEvent{
+		Key: key,
+	})
 
 	return nil
 }

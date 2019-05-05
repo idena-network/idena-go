@@ -2,11 +2,11 @@ package appstate
 
 import (
 	"bytes"
-	"github.com/asaskevich/EventBus"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/constants"
+	"idena-go/common/eventbus"
+	"idena-go/events"
 	"sync"
 	"time"
 )
@@ -17,17 +17,20 @@ var (
 
 type EvidenceMap struct {
 	answersSet       mapset.Set
-	bus              EventBus.Bus
+	bus              eventbus.Bus
 	shortSessionTime *time.Time
 	mutex            *sync.Mutex
 }
 
-func NewEvidenceMap(bus EventBus.Bus) *EvidenceMap {
+func NewEvidenceMap(bus eventbus.Bus) *EvidenceMap {
 	m := &EvidenceMap{
 		bus:        bus,
 		answersSet: mapset.NewSet(),
 	}
-	bus.Subscribe(constants.NewTxEvent, m.newTx)
+	bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
+		newTxEvent := e.(*events.NewTxEvent)
+		m.newTx(newTxEvent.Tx)
+	})
 	return m
 }
 

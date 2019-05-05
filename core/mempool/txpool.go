@@ -2,13 +2,13 @@ package mempool
 
 import (
 	"errors"
-	"github.com/asaskevich/EventBus"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
-	"idena-go/constants"
+	"idena-go/common/eventbus"
 	"idena-go/core/appstate"
 	"idena-go/core/state"
+	"idena-go/events"
 	"idena-go/log"
 	"sort"
 	"sync"
@@ -25,10 +25,10 @@ type TxPool struct {
 	appState       *appstate.AppState
 	log            log.Logger
 	head           *types.Header
-	bus            EventBus.Bus
+	bus            eventbus.Bus
 }
 
-func NewTxPool(appState *appstate.AppState, bus EventBus.Bus) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus) *TxPool {
 	return &TxPool{
 		pending:  make(map[common.Hash]*types.Transaction),
 		mutex:    &sync.Mutex{},
@@ -49,7 +49,6 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	hash := tx.Hash()
 
-
 	if _, ok := txpool.pending[hash]; ok {
 		return errors.New("tx with same hash already exists")
 	}
@@ -68,7 +67,9 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		appState.NonceCache.SetNonce(sender, tx.AccountNonce)
 	}
 
-	txpool.bus.Publish(constants.NewTxEvent, tx)
+	txpool.bus.Publish(&events.NewTxEvent{
+		Tx: tx,
+	})
 
 	return nil
 }
