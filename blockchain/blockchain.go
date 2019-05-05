@@ -199,6 +199,7 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(block)
 
+	chain.applyNewEpoch(checkState, block)
 	chain.applyGlobalParams(checkState, block)
 
 	checkState.Precommit()
@@ -275,6 +276,8 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 }
 
 func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash) {
+
+	chain.applyNewEpoch(appState, block)
 	chain.applyGlobalParams(appState, block)
 
 	appState.Precommit()
@@ -325,14 +328,17 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.ValidationInterval))
-	appState.State.SetValidationPeriod(state.NonePeriod)
 }
 
 func networkParams(networkSize int) (epochDuration int, invites int, flips int) {
 
 	epochDurationF := math2.Round(math2.Pow(float64(networkSize), 0.33))
-
 	epochDuration = int(epochDurationF)
+
+	if networkSize <= 1 {
+		return epochDuration, 0, 0
+	}
+
 	invitesCount := 20 / math2.Pow(math2.Log10(float64(networkSize)), 2)
 	if invitesCount < 1 {
 		flips = int(math2.Round((1 + invitesCount) * 5))

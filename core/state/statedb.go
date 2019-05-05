@@ -677,6 +677,7 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 
 		if obj := s.stateIdentities[addr]; obj != nil {
 			callback(addr, obj.data)
+			return false
 		}
 		var data Identity
 		if err := rlp.DecodeBytes(value, &data); err != nil {

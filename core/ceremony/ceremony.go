@@ -421,13 +421,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
+		missed := !approvedCandidatesSet.Contains(addr)
 
-		shortScore := shortFlipPoint / float32(shortQualifiedFlipsCount)
-		longScore := longFlipPoint / float32(longQualifiedFlipsCount)
-		totalScore := (shortFlipPoint + totalFlipPoints) / float32(shortQualifiedFlipsCount+totalQualifiedFlipsCount)
+		var shortScore, longScore, totalScore float32
+
+		if shortQualifiedFlipsCount > 0 {
+			shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
+		} else {
+			missed = true
+		}
+		if longQualifiedFlipsCount > 0 {
+			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
+		} else {
+			missed = true
+		}
+		newTotalQualifiedFlipsCount := shortQualifiedFlipsCount + totalQualifiedFlipsCount
+		if newTotalQualifiedFlipsCount > 0 {
+			totalScore = (shortFlipPoint + totalFlipPoints) / float32(newTotalQualifiedFlipsCount)
+		}
 
 		newIdentityState := determineNewIdentityState(appState.State.GetIdentityState(addr), shortScore, longScore, totalScore,
-			shortQualifiedFlipsCount+totalQualifiedFlipsCount, !approvedCandidatesSet.Contains(addr))
+			newTotalQualifiedFlipsCount, missed)
 
 		value := cacheValue{
 			state:                    newIdentityState,
