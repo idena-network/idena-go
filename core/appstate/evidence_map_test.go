@@ -3,11 +3,11 @@ package appstate
 import (
 	"bytes"
 	"fmt"
-	"github.com/asaskevich/EventBus"
 	"github.com/google/tink/go/subtle/random"
 	"github.com/stretchr/testify/require"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/common/eventbus"
 	"testing"
 )
 
@@ -20,7 +20,7 @@ func getRandAddr() common.Address {
 func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	require := require.New(t)
 
-	bus := EventBus.New()
+	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
 
 	const candidatesCount = 10000
@@ -67,7 +67,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
 	require := require.New(t)
 
-	bus := EventBus.New()
+	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
 
 	const candidatesCount = 3

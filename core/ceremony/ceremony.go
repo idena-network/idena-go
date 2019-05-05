@@ -91,7 +91,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 	return vc
 }
 
-func (vc *ValidationCeremony) Start(currentBlock *types.Block) {
+func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 
@@ -209,7 +209,7 @@ func (vc *ValidationCeremony) calculateFlipCandidates() {
 	}
 
 	seed := vc.epochDb.ReadLotterySeed()
-	if seed == nil{
+	if seed == nil {
 		return
 	}
 

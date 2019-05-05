@@ -163,7 +163,7 @@ func (node *Node) Start() {
 	node.txpool.Initialize(node.blockchain.Head)
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 
-	node.ceremony.Start(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
+	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 
 	node.consensusEngine.Start()

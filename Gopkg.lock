@@ -1001,7 +1001,6 @@
   input-imports = [
     "github.com/RoaringBitmap/roaring",
     "github.com/aristanetworks/goarista/monotime",
-    "github.com/asaskevich/EventBus",
     "github.com/awnumar/memguard",
     "github.com/cespare/cp",
     "github.com/davecgh/go-spew/spew",
