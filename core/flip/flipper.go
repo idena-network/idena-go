@@ -213,5 +213,5 @@ func (fp *Flipper) IsFlipReady(cid []byte) bool {
 
 	addr, _ := crypto.PubKeyBytesToAddress(flip.PubKey)
 
-	return fp.keyspool.GetFlipKey(addr) != nil
+	return fp.keyspool.GetFlipKey(addr) != nil || addr == fp.secStore.GetAddress()
 }

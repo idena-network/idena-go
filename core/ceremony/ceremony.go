@@ -87,7 +87,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
 		state.NonePeriod:             func(block *types.Block) {},
-		state.FlipLotteryPeriod:      vc.handleFlipLotterPeriod,
+		state.FlipLotteryPeriod:      vc.handleFlipLotteryPeriod,
 		state.ShortSessionPeriod:     vc.handleShortSessionPeriod,
 		state.LongSessionPeriod:      vc.handleLongSessionPeriod,
 		state.AfterLongSessionPeriod: vc.handleAfterLongSessionPeriod,
@@ -176,7 +176,7 @@ func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 	vc.blockHandlers[vc.appState.State.ValidationPeriod()](block)
 }
 
-func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
+func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
 
 		seedHeight := math.Max(block.Height()-LotterySeedLag, 2)
