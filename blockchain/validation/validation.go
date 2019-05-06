@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MaxPayloadSize = 1024
+	MaxPayloadSize           = 1024
 	GodValidUntilNetworkSize = 10
 )
 
@@ -27,6 +27,7 @@ var (
 	InvalidEpochTx       = errors.New("invalid epoch tx")
 	InvalidPayload       = errors.New("invalid payload")
 	InvalidRecipient     = errors.New("invalid recipient")
+	EarlyTx              = errors.New("tx can't be accepted due to wrong period")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
 	NotCandidate         = errors.New("user is not a candidate")
 	InsufficientFlips    = errors.New("insufficient flips")
@@ -183,6 +184,10 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod {
+		return EarlyTx
+	}
+
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -203,6 +208,10 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod {
+		return EarlyTx
+	}
+
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -217,6 +226,10 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 	sender, _ := types.Sender(tx)
 	if *tx.To != sender {
 		return InvalidRecipient
+	}
+
+	if appState.State.ValidationPeriod() < state.LongSessionPeriod {
+		return EarlyTx
 	}
 
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
