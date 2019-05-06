@@ -9,7 +9,6 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
-	"idena-go/common/math"
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
@@ -179,7 +178,10 @@ func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
 
-		seedHeight := math.Max(block.Height()-LotterySeedLag, 2)
+		seedHeight := uint64(2)
+		if block.Height() + seedHeight > LotterySeedLag{
+			seedHeight =  block.Height() + seedHeight - LotterySeedLag
+		}
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
