@@ -9,6 +9,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
+	"idena-go/common/math"
 	"idena-go/core/appstate"
 	"idena-go/core/flip"
 	"idena-go/core/mempool"
@@ -25,6 +26,7 @@ import (
 
 const (
 	FlipsPerAddress = 10
+	LotterySeedLag  = 100
 )
 
 const (
@@ -53,8 +55,8 @@ type ValidationCeremony struct {
 	epochDb                *EpochDb
 	qualification          *qualification
 	mempool                *mempool.TxPool
-
-	blockHandlers map[state.ValidationPeriod]blockHandler
+	chain                  *blockchain.Blockchain
+	blockHandlers          map[state.ValidationPeriod]blockHandler
 
 	epochApplyingResult map[common.Address]cacheValue
 }
@@ -67,7 +69,8 @@ type cacheValue struct {
 
 type blockHandler func(block *types.Block)
 
-func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool) *ValidationCeremony {
+func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
+	chain *blockchain.Blockchain) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:             flipper,
@@ -79,6 +82,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		db:                  db,
 		mempool:             mempool,
 		epochApplyingResult: make(map[common.Address]cacheValue),
+		chain:               chain,
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -174,7 +178,11 @@ func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 
 func (vc *ValidationCeremony) handleFlipLotterPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
-		vc.epochDb.WriteLotterySeed(block.Seed().Bytes())
+
+		seedHeight := math.Max(block.Height()-LotterySeedLag, 2)
+		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
+
+		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
 		vc.calculateFlipCandidates()
 		vc.broadcastFlipKey()
 	}

@@ -115,7 +115,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, secStore)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
-	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore, db, txpool)
+	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore, db, txpool, chain)
 
 	return &Node{
 		config:          config,
