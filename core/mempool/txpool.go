@@ -63,9 +63,8 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	txpool.pending[hash] = tx
 
 	sender, _ := types.Sender(tx)
-	if appState.State.Epoch() == tx.Epoch {
-		appState.NonceCache.SetNonce(sender, tx.AccountNonce)
-	}
+
+	appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 
 	txpool.bus.Publish(&events.NewTxEvent{
 		Tx: tx,
@@ -164,9 +163,6 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 			continue
 		}
 		sender, _ := types.Sender(tx)
-		currentCache := txpool.appState.NonceCache.GetNonce(sender)
-		if tx.AccountNonce >= currentCache {
-			txpool.appState.NonceCache.SetNonce(sender, tx.AccountNonce)
-		}
+		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
 }

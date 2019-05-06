@@ -27,13 +27,8 @@ func BuildTx(appState *appstate.AppState, from common.Address, to common.Address
 		tx.Epoch = state.Epoch()
 	}
 
-	if tx.AccountNonce == 0 && tx.Epoch == state.Epoch() {
-		currentNonce := appState.NonceCache.GetNonce(from)
-		// if epoch was increased, we should reset nonce to 1
-		if state.GetEpoch(from) < state.Epoch() {
-			//TODO: should not be zero if we switched to new epoch
-			currentNonce = 0
-		}
+	if tx.AccountNonce == 0 {
+		currentNonce := appState.NonceCache.GetNonce(from, tx.Epoch)
 		tx.AccountNonce = currentNonce + 1
 	}
 
