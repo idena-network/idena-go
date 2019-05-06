@@ -252,3 +252,23 @@ func (api *DnaApi) Epoch() Epoch {
 		CurrentPeriod:  res,
 	}
 }
+
+type CeremonyIntervals struct {
+	ValidationInterval       float64
+	FlipLotteryDuration      float64
+	ShortSessionDuration     float64
+	LongSessionDuration      float64
+	AfterLongSessionDuration float64
+}
+
+func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
+	cfg := api.bc.Config()
+
+	return CeremonyIntervals{
+		ValidationInterval:       cfg.Validation.ValidationInterval.Seconds(),
+		FlipLotteryDuration:      cfg.Validation.FlipLotteryDuration.Seconds(),
+		ShortSessionDuration:     cfg.Validation.ShortSessionDuration.Seconds(),
+		LongSessionDuration:      cfg.Validation.LongSessionDuration.Seconds(),
+		AfterLongSessionDuration: cfg.Validation.AfterLongSessionDuration.Seconds(),
+	}
+}

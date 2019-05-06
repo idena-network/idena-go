@@ -115,6 +115,7 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 		if err != nil {
 			return nil, 0, err
 		}
+		ipfsFlip = new(IpfsFlip)
 		if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
 			return nil, 0, err
 		}

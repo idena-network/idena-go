@@ -100,6 +100,10 @@ func (chain *Blockchain) Network() types.Network {
 	return chain.config.Network
 }
 
+func (chain *Blockchain) Config() config.Config {
+	return *chain.config
+}
+
 func (chain *Blockchain) InitializeChain() error {
 
 	chain.coinBaseAddress = chain.secStore.GetAddress()
