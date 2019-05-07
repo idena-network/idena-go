@@ -91,8 +91,8 @@ func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 }
 
 type FlipHashesResponse struct {
-	Hash  string
-	Ready bool
+	Hash  string `json:"hash"`
+	Ready bool   `json:"ready"`
 }
 
 func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
