@@ -118,6 +118,11 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	}
 }
 
+func (vc *ValidationCeremony) IsCandidate() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return state.IsCeremonyCandidate(identity)
+}
+
 func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {
 	return vc.shortFlipCidsToSolve
 }
@@ -179,8 +184,8 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
 
 		seedHeight := uint64(2)
-		if block.Height() + seedHeight > LotterySeedLag{
-			seedHeight =  block.Height() + seedHeight - LotterySeedLag
+		if block.Height()+seedHeight > LotterySeedLag {
+			seedHeight = block.Height() + seedHeight - LotterySeedLag
 		}
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 

@@ -9,6 +9,7 @@ import (
 	"idena-go/common/hexutil"
 	"idena-go/core/ceremony"
 	"idena-go/core/flip"
+	"idena-go/core/state"
 	"idena-go/ipfs"
 	"idena-go/protocol"
 )
@@ -95,12 +96,32 @@ type FlipHashesResponse struct {
 }
 
 func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
+	period := api.baseApi.getAppState().State.ValidationPeriod()
+
+	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
+		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
+	}
+
+	if !api.ceremony.IsCandidate() {
+		return nil, errors.New("coinbase address is not a ceremony candidate")
+	}
+
 	flips := api.ceremony.GetShortFlipsToSolve()
 
 	return prepareHashes(api.fp, flips)
 }
 
 func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
+	period := api.baseApi.getAppState().State.ValidationPeriod()
+
+	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
+		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
+	}
+
+	if !api.ceremony.IsCandidate() {
+		return nil, errors.New("coinbase address is not a ceremony candidate")
+	}
+
 	flips := api.ceremony.GetLongFlipsToSolve()
 
 	return prepareHashes(api.fp, flips)
@@ -108,7 +129,7 @@ func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
 
 func prepareHashes(flipper *flip.Flipper, flips [][]byte) ([]FlipHashesResponse, error) {
 	if flips == nil {
-		return nil, errors.New("ceremony is not started")
+		return nil, errors.New("no flips to solve")
 	}
 
 	var result []FlipHashesResponse
@@ -161,6 +182,10 @@ type SubmitAnswersResponse struct {
 }
 
 func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
+	if !api.ceremony.IsCandidate() {
+		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
+	}
+
 	flipsCount := len(api.ceremony.GetShortFlipsToSolve())
 	if flipsCount != len(args.Answers) {
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
@@ -180,6 +205,10 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 }
 
 func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
+	if !api.ceremony.IsCandidate() {
+		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
+	}
+
 	flipsCount := len(api.ceremony.GetLongFlipsToSolve())
 	if flipsCount != len(args.Answers) {
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
