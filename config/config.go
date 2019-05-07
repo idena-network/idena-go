@@ -20,12 +20,14 @@ const (
 )
 
 var (
-	DefaultBootnode    = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
-	DefaultPort        = 40404
-	DefaultRpcHost     = "localhost"
-	DefaultRpcPort     = 9009
-	DefaultIpfsPort    = 4002
-	DefaultNoDiscovery = false
+	DefaultBootnode     = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
+	DefaultPort         = 40404
+	DefaultRpcHost      = "localhost"
+	DefaultRpcPort      = 9009
+	DefaultIpfsPort     = 4002
+	DefaultNoDiscovery  = false
+	DefaultGodAddress   = "0xf228fa1e9236343c7d44283b5ffcf9ba50df37e8"
+	DefaultCeremonyTime = int64(1557226800)
 )
 
 type Config struct {

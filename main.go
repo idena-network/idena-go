@@ -72,10 +72,12 @@ func main() {
 		cli.StringFlag{
 			Name:  "godaddress",
 			Usage: "Idena god address",
+			Value: config.DefaultGodAddress,
 		},
 		cli.Int64Flag{
 			Name:  "ceremonytime",
 			Usage: "First ceremony time (unix)",
+			Value: config.DefaultCeremonyTime,
 		},
 	}
 
