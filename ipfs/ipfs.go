@@ -17,20 +17,31 @@ import (
 	"time"
 )
 
-var (
+const (
 	DefaultBufSize = 1048576
-	EmptyCid       cid.Cid
+	CidLength      = 34
+)
+
+var (
+	EmptyCid cid.Cid
+	MinCid   [CidLength]byte
+	MaxCid   [CidLength]byte
 )
 
 func init() {
 	e, _ := cid.Decode("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
 	EmptyCid = e
+
+	for i := range MaxCid {
+		MaxCid[i] = 0xFF
+	}
 }
 
 type Proxy interface {
 	Add(data []byte) (cid.Cid, error)
 	Get(key []byte) ([]byte, error)
 	Pin(key []byte) error
+	Unpin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
 }
 
@@ -90,7 +101,7 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	defer cancel()
 
 	file := files.NewBytesFile(data)
-	path, err := api.Unixfs().Add(ctx, file)
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs")
@@ -168,6 +179,29 @@ func (p ipfsProxy) Pin(key []byte) error {
 	return err
 }
 
+func (p ipfsProxy) Unpin(key []byte) error {
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	c, err := cid.Cast(key)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	err = api.Pin().Rm(ctx, iface.IpfsPath(c))
+
+	select {
+	case <-ctx.Done():
+		err = errors.Errorf("timeout while unpin data from ipfs, key: %v", c.String())
+	default:
+		break
+	}
+
+	return err
+}
+
 func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 
 	if len(data) == 0 {
@@ -221,6 +255,10 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i memoryIpfs) Unpin(key []byte) error {
+	return nil
 }
 
 func (i memoryIpfs) Add(data []byte) (cid.Cid, error) {

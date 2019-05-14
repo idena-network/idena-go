@@ -9,6 +9,7 @@ import (
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
 	"idena-go/crypto/ecies"
@@ -22,6 +23,8 @@ import (
 
 type Flipper struct {
 	repo       *database.Repo
+	epochDb    *database.EpochDb
+	db         dbm.DB
 	log        log.Logger
 	keyspool   *mempool.KeysPool
 	ipfsProxy  ipfs.Proxy
@@ -30,23 +33,33 @@ type Flipper struct {
 	flipsMutex sync.Mutex
 	secStore   *secstore.SecStore
 	flips      map[common.Hash]*IpfsFlip
+	appState   *appstate.AppState
+	txpool     *mempool.TxPool
 }
-
-func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, secStore *secstore.SecStore) *Flipper {
-	return &Flipper{
-		repo:      database.NewRepo(db),
-		log:       log.New(),
-		ipfsProxy: ipfsProxy,
-		keyspool:  keyspool,
-		secStore:  secStore,
-		flips:     make(map[common.Hash]*IpfsFlip),
-	}
-}
-
 type IpfsFlip struct {
 	Data   []byte
 	Epoch  uint16
 	PubKey []byte
+}
+
+func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
+	fp := &Flipper{
+		repo:      database.NewRepo(db),
+		db:        db,
+		log:       log.New(),
+		ipfsProxy: ipfsProxy,
+		keyspool:  keyspool,
+		txpool:    txpool,
+		secStore:  secStore,
+		flips:     make(map[common.Hash]*IpfsFlip),
+		appState:  appState,
+	}
+
+	return fp
+}
+
+func (fp *Flipper) Initialize() {
+	fp.epochDb = database.NewEpochDb(fp.db, fp.appState.State.Epoch())
 }
 
 func (fp *Flipper) AddNewFlip(flip types.Flip) error {
@@ -72,7 +85,14 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
+	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
+		log.Warn("Flip Tx is not valid", "hash", flip.Tx.Hash().Hex(), "err", err)
+		return err
+	}
+
 	_, err = fp.ipfsProxy.Add(data)
+
+	fp.epochDb.WriteFlipCid(c.Bytes())
 
 	return err
 }
@@ -198,6 +218,7 @@ func (fp *Flipper) Reset() {
 	fp.hasFlips = false
 	fp.flips = make(map[common.Hash]*IpfsFlip)
 	fp.keyspool.Clear()
+	fp.Initialize()
 }
 
 func (fp *Flipper) HasFlips() bool {
@@ -215,4 +236,8 @@ func (fp *Flipper) IsFlipReady(cid []byte) bool {
 	addr, _ := crypto.PubKeyBytesToAddress(flip.PubKey)
 
 	return fp.keyspool.GetFlipKey(addr) != nil || addr == fp.secStore.GetAddress()
+}
+
+func (fp *Flipper) UnpinFlip(flipCid []byte) {
+	fp.ipfsProxy.Unpin(flipCid)
 }

@@ -1,4 +1,4 @@
-package ceremony
+package database
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
+	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/rlp"
 	"time"
@@ -20,6 +21,7 @@ var (
 	TxOwnPrefix         = []byte("tx")
 	EvidencePrefix      = []byte("evi")
 	LotterySeedKey      = []byte("ls")
+	FlipCidPrefix       = []byte("cid")
 )
 
 type EpochDb struct {
@@ -29,6 +31,11 @@ type EpochDb struct {
 type shortAnswerDb struct {
 	Hash      common.Hash
 	Timestamp uint64
+}
+
+type DbAnswer struct {
+	Addr common.Address
+	Ans  []byte
 }
 
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
@@ -116,7 +123,7 @@ func (edb *EpochDb) ReadShortSessionTime() *time.Time {
 	return &t
 }
 
-func (edb *EpochDb) WriteAnswers(short []dbAnswer, long []dbAnswer) {
+func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
 
 	shortRlp, _ := rlp.EncodeToBytes(short)
 	longRlp, _ := rlp.EncodeToBytes(long)
@@ -125,7 +132,7 @@ func (edb *EpochDb) WriteAnswers(short []dbAnswer, long []dbAnswer) {
 	edb.db.Set(LongShortAnswersKey, longRlp)
 }
 
-func (edb *EpochDb) ReadAnswers() (short []dbAnswer, long []dbAnswer) {
+func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
 	shortRlp, longRlp := edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
 	if shortRlp != nil {
 		if err := rlp.Decode(bytes.NewReader(shortRlp), &short); err != nil {
@@ -163,10 +170,21 @@ func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	return edb.db.Get(key)
 }
 
-func (edb *EpochDb) WriteLotterySeed(seed []byte ){
+func (edb *EpochDb) WriteLotterySeed(seed []byte) {
 	edb.db.Set(LotterySeedKey, seed)
 }
 
-func (edb *EpochDb) ReadLotterySeed() []byte{
+func (edb *EpochDb) ReadLotterySeed() []byte {
 	return edb.db.Get(LotterySeedKey)
+}
+
+func (edb *EpochDb) WriteFlipCid(cid []byte) {
+	edb.db.Set(append(FlipCidPrefix, cid...), nil)
+}
+
+func (edb *EpochDb) IterateOverFlipCids(callback func(cid [] byte)) {
+	it := edb.db.Iterator(append(FlipCidPrefix, ipfs.MinCid[:]...), append(FlipCidPrefix, ipfs.MaxCid[:]...))
+	for ; it.Valid(); it.Next() {
+		callback(it.Key()[len(FlipCidPrefix):])
+	}
 }

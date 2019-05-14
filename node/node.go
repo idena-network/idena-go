@@ -112,7 +112,7 @@ func NewNode(config *config.Config) (*Node, error) {
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
 	proposals := pengings.NewProposals(chain)
-	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, secStore)
+	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore, db, txpool, chain)
@@ -162,7 +162,7 @@ func (node *Node) Start() {
 	node.appState.Initialize(node.blockchain.Head.Height())
 	node.txpool.Initialize(node.blockchain.Head)
 	node.flipKeyPool.Initialize(node.blockchain.Head)
-
+	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 

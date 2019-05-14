@@ -14,6 +14,7 @@ import (
 	"idena-go/core/mempool"
 	"idena-go/core/state"
 	"idena-go/crypto"
+	"idena-go/database"
 	"idena-go/events"
 	"idena-go/log"
 	"idena-go/protocol"
@@ -51,7 +52,7 @@ type ValidationCeremony struct {
 	evidenceSent           bool
 	candidates             []*candidate
 	mutex                  sync.Mutex
-	epochDb                *EpochDb
+	epochDb                *database.EpochDb
 	qualification          *qualification
 	mempool                *mempool.TxPool
 	chain                  *blockchain.Blockchain
@@ -95,7 +96,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 }
 
 func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
-	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 
 	_ = vc.bus.Subscribe(events.AddBlockEventID,
@@ -112,9 +113,9 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	vc.handleBlock(block)
 	vc.qualification.persistAnswers()
 
-	// reset if finished
+	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
-		vc.reset()
+		vc.completeEpoch()
 	}
 }
 
@@ -158,9 +159,14 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.calculateFlipCandidates()
 }
 
-func (vc *ValidationCeremony) reset() {
-	vc.epochDb.Clear()
-	vc.epochDb = NewEpochDb(vc.db, vc.appState.State.Epoch())
+func (vc *ValidationCeremony) completeEpoch() {
+	edb := vc.epochDb
+	go func() {
+		vc.dropFlips(edb)
+		edb.Clear()
+	}()
+
+	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Reset()
 	vc.appState.EvidenceMap.Clear()
@@ -469,6 +475,12 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		applyOnState(addr, newIdentityState, shortQualifiedFlipsCount, shortFlipPoint)
 	}
 	return identitiesCount
+}
+
+func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
+	db.IterateOverFlipCids(func(cid []byte) {
+		vc.flipper.UnpinFlip(cid)
+	})
 }
 
 func determineNewIdentityState(prevState state.IdentityState, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {

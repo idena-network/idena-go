@@ -4,18 +4,19 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/crypto"
+	"idena-go/database"
 	"idena-go/log"
 )
 
 type qualification struct {
 	shortAnswers  map[common.Address][]byte
 	longAnswers   map[common.Address][]byte
-	epochDb       *EpochDb
+	epochDb       *database.EpochDb
 	log           log.Logger
 	hasNewAnswers bool
 }
 
-func NewQualification(epochDb *EpochDb) *qualification {
+func NewQualification(epochDb *database.EpochDb) *qualification {
 	return &qualification{
 		epochDb:      epochDb,
 		log:          log.New(),
@@ -38,15 +39,15 @@ func (q *qualification) persistAnswers() {
 		return
 	}
 
-	var short, long []dbAnswer
+	var short, long []database.DbAnswer
 	for k, v := range q.shortAnswers {
-		short = append(short, dbAnswer{
+		short = append(short, database.DbAnswer{
 			Addr: k,
 			Ans:  v,
 		})
 	}
 	for k, v := range q.longAnswers {
-		long = append(long, dbAnswer{
+		long = append(long, database.DbAnswer{
 			Addr: k,
 			Ans:  v,
 		})

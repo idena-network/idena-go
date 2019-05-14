@@ -2,13 +2,7 @@ package ceremony
 
 import (
 	"idena-go/blockchain/types"
-	"idena-go/common"
 )
-
-type dbAnswer struct {
-	Addr common.Address
-	Ans  []byte
-}
 
 type candidate struct {
 	PubKey []byte

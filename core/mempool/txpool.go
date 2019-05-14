@@ -18,6 +18,10 @@ const (
 	BlockBodySize = 1024 * 1024
 )
 
+var(
+	DuplicateTxError = errors.New("tx with same hash already exists")
+)
+
 type TxPool struct {
 	pending        map[common.Hash]*types.Transaction
 	txSubscription chan *types.Transaction
@@ -50,7 +54,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	hash := tx.Hash()
 
 	if _, ok := txpool.pending[hash]; ok {
-		return errors.New("tx with same hash already exists")
+		return DuplicateTxError
 	}
 
 	appState := txpool.appState.ForCheck(txpool.head.Height())

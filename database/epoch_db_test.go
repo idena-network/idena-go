@@ -1,4 +1,4 @@
-package ceremony
+package database
 
 import (
 	"github.com/google/tink/go/subtle/random"
@@ -54,4 +54,31 @@ func TestEpochDb_GetConfirmedRespondents(t *testing.T) {
 	require.Contains(respondents, addr1)
 	require.Contains(respondents, addr2)
 	require.NotContains(respondents, addr3)
+}
+
+func TestEpochDb_IterateOverFlipCids(t *testing.T) {
+	require := require.New(t)
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+
+	edb.WriteFlipCid([]byte{0x1})
+	edb.WriteFlipCid([]byte{0x2})
+
+	//write trash
+	edb.WriteLotterySeed([]byte{0x3})
+	edb.WriteOwnTx(1, []byte{0x1})
+	edb.WriteShortSessionTime(time.Now())
+
+	cids := make([][1]byte, 0)
+	edb.IterateOverFlipCids(func(cid []byte) {
+		var arr [1]byte
+
+		copy(arr[:], cid)
+		cids = append(cids, arr)
+	})
+
+	require.Contains(cids, [1]byte{0x1})
+	require.Contains(cids, [1]byte{0x2})
+	require.Len(cids, 2)
 }
