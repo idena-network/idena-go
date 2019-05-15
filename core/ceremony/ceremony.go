@@ -56,6 +56,7 @@ type ValidationCeremony struct {
 	qualification          *qualification
 	mempool                *mempool.TxPool
 	chain                  *blockchain.Blockchain
+	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
 
 	epochApplyingResult map[common.Address]cacheValue
@@ -70,7 +71,7 @@ type cacheValue struct {
 type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
-	chain *blockchain.Blockchain) *ValidationCeremony {
+	chain *blockchain.Blockchain, syncer protocol.Syncer) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:             flipper,
@@ -83,6 +84,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		mempool:             mempool,
 		epochApplyingResult: make(map[common.Address]cacheValue),
 		chain:               chain,
+		syncer:              syncer,
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -246,12 +248,32 @@ func (vc *ValidationCeremony) calculateFlipCandidates() {
 	vc.shortFlipCidsToSolve = getFlipsToSolve(vc.secStore.GetPubKey(), vc.candidates, vc.shortFlipsPerCandidate, vc.appState.State.FlipCids())
 	vc.longFlipCidsToSolve = getFlipsToSolve(vc.secStore.GetPubKey(), vc.candidates, vc.longFlipsPerCandidate, vc.appState.State.FlipCids())
 
-	go vc.flipper.Load(vc.shortFlipCidsToSolve)
-	go vc.flipper.Load(vc.longFlipCidsToSolve)
+	if vc.shouldInteractWithNetwork() {
+		go vc.flipper.Load(vc.shortFlipCidsToSolve)
+		go vc.flipper.Load(vc.longFlipCidsToSolve)
+	}
+}
+
+func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
+
+	if !vc.syncer.IsSyncing() {
+		return true
+	}
+
+	conf := vc.chain.Config().Validation
+	ceremonyDuration := conf.FlipLotteryDuration +
+		conf.ShortSessionDuration +
+		conf.LongSessionDuration +
+		conf.AfterLongSessionDuration +
+		time.Minute*5 // added extra minutes to prevent time lags
+	headTime := common.TimestampToTime(vc.chain.Head.Time())
+
+	// if head's timestamp is close to now() we should interact with network
+	return time.Now().UTC().Sub(headTime) < ceremonyDuration
 }
 
 func (vc *ValidationCeremony) broadcastFlipKey() {
-	if vc.keySent {
+	if vc.keySent || !vc.shouldInteractWithNetwork() {
 		return
 	}
 
@@ -351,7 +373,7 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
-	if vc.shortAnswersSent {
+	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() {
 		return
 	}
 	answers := vc.epochDb.ReadOwnShortAnswersBits()
@@ -364,7 +386,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 }
 
 func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
-	if vc.evidenceSent {
+	if vc.evidenceSent || !vc.shouldInteractWithNetwork() {
 		return
 	}
 	additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())

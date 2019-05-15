@@ -45,7 +45,7 @@ type Engine struct {
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
-	txpool *mempool.TxPool, ipfs ipfs.Proxy, secStore *secstore.SecStore) *Engine {
+	txpool *mempool.TxPool, ipfs ipfs.Proxy, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
 	return &Engine{
 		chain:      chain,
 		pm:         pm,
@@ -55,7 +55,7 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		appState:   appState,
 		votes:      votes,
 		txpool:     txpool,
-		downloader: protocol.NewDownloader(pm, chain, ipfs),
+		downloader: downloader,
 		secStore:   secStore,
 	}
 }

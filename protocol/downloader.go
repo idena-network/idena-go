@@ -15,12 +15,21 @@ const (
 	BatchSize = 200
 )
 
+type Syncer interface {
+	IsSyncing() bool
+}
+
 type Downloader struct {
-	pm      *ProtocolManager
-	log     log.Logger
-	chain   *blockchain.Blockchain
-	batches chan *batch
-	ipfs    ipfs.Proxy
+	pm        *ProtocolManager
+	log       log.Logger
+	chain     *blockchain.Blockchain
+	batches   chan *batch
+	ipfs      ipfs.Proxy
+	isSyncing bool
+}
+
+func (d *Downloader) IsSyncing() bool {
+	return d.isSyncing
 }
 
 func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy) *Downloader {
@@ -43,6 +52,8 @@ func getTopHeight(heights map[string]uint64) uint64 {
 }
 
 func (d *Downloader) SyncBlockchain() {
+	d.isSyncing = true
+	defer func() { d.isSyncing = false }()
 	for {
 		knownHeights := d.pm.GetKnownHeights()
 		if knownHeights == nil {
