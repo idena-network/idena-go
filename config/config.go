@@ -27,7 +27,7 @@ var (
 	DefaultIpfsPort     = 4002
 	DefaultNoDiscovery  = false
 	DefaultGodAddress   = "0xf228fa1e9236343c7d44283b5ffcf9ba50df37e8"
-	DefaultCeremonyTime = int64(1557226800)
+	DefaultCeremonyTime = int64(1557939600)
 )
 
 type Config struct {

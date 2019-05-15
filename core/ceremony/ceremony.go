@@ -145,7 +145,7 @@ func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.
 }
 
 func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
-	return FlipsPerAddress
+	return FlipsPerAddress / 2
 }
 
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
