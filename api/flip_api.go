@@ -74,10 +74,6 @@ func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, err
 	}
 
-	if _, err := api.baseApi.sendInternalTx(tx); err != nil {
-		return FlipSubmitResponse{}, err
-	}
-
 	api.pm.BroadcastFlip(&flip)
 
 	if err != nil {
