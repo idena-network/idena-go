@@ -349,7 +349,8 @@ func networkParams(networkSize int) (epochDuration int, invites int, flips int) 
 	} else {
 		flips = int(math2.Round(epochDurationF * 2.0 / 7.0))
 	}
-	invites = int(math2.Round(invitesCount))
+	//invites = int(math2.Round(invitesCount))
+	invites = 3
 	return
 }
 
