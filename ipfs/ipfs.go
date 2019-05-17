@@ -43,11 +43,15 @@ type Proxy interface {
 	Pin(key []byte) error
 	Unpin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
+	Port() int
+	PeerId() string
 }
 
 type ipfsProxy struct {
-	node *core.IpfsNode
-	log  log.Logger
+	node   *core.IpfsNode
+	log    log.Logger
+	port   int
+	peerId string
 }
 
 func NewIpfsProxy(config *IpfsConfig) (Proxy, error) {
@@ -65,11 +69,14 @@ func NewIpfsProxy(config *IpfsConfig) (Proxy, error) {
 		return nil, err
 	}
 	node.Repo.SetConfig(config.cfg)
-	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().Pretty())
+	peerId := node.PeerHost.ID().Pretty()
+	logger.Info("Ipfs initialized", "peerId", peerId)
 	go watchPeers(node)
 	return &ipfsProxy{
-		node: node,
-		log:  logger,
+		node:   node,
+		log:    logger,
+		peerId: peerId,
+		port:   config.ipfsPort,
 	}, nil
 }
 
@@ -202,6 +209,14 @@ func (p ipfsProxy) Unpin(key []byte) error {
 	return err
 }
 
+func (p ipfsProxy) Port() int {
+	return p.port
+}
+
+func (p ipfsProxy) PeerId() string {
+	return p.peerId
+}
+
 func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 
 	if len(data) == 0 {
@@ -280,6 +295,14 @@ func (i memoryIpfs) Get(key []byte) ([]byte, error) {
 
 func (memoryIpfs) Pin(key []byte) error {
 	return nil
+}
+
+func (memoryIpfs) PeerId() string {
+	return ""
+}
+
+func (memoryIpfs) Port() int {
+	return 0
 }
 
 func (memoryIpfs) Cid(data []byte) (cid.Cid, error) {

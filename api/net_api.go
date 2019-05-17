@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"idena-go/ipfs"
 	"idena-go/p2p"
 	"idena-go/p2p/enode"
 	"idena-go/protocol"
@@ -8,13 +10,14 @@ import (
 
 // NetApi offers helper utils
 type NetApi struct {
-	pm  *protocol.ProtocolManager
-	srv *p2p.Server
+	pm        *protocol.ProtocolManager
+	srv       *p2p.Server
+	ipfsProxy ipfs.Proxy
 }
 
 // NewNetApi creates a new NetApi instance
-func NewNetApi(pm *protocol.ProtocolManager, srv *p2p.Server) *NetApi {
-	return &NetApi{pm, srv}
+func NewNetApi(pm *protocol.ProtocolManager, srv *p2p.Server, ipfsProxy ipfs.Proxy) *NetApi {
+	return &NetApi{pm, srv, ipfsProxy}
 }
 
 func (api *NetApi) PeersCount() int {
@@ -54,4 +57,8 @@ func (api *NetApi) AddPeer(url string) error {
 
 func (api *NetApi) Enode() string {
 	return api.srv.NodeInfo().Enode
+}
+
+func (api *NetApi) IpfsAddress() string {
+	return fmt.Sprintf("/ip4/%s/tcp/%d/ipfs/%s", api.srv.NodeInfo().IP, api.ipfsProxy.Port(), api.ipfsProxy.PeerId())
 }

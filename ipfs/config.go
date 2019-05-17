@@ -21,6 +21,7 @@ type IpfsConfig struct {
 	cfg       *config.Config
 	datadir   string
 	bootnodes []config.BootstrapPeer
+	ipfsPort  int
 }
 
 func GetDefaultIpfsConfig(datadir string, ipfsPort int, bootstrap string) *IpfsConfig {
@@ -50,6 +51,7 @@ func GetDefaultIpfsConfig(datadir string, ipfsPort int, bootstrap string) *IpfsC
 		cfg:       ipfsConfig,
 		datadir:   filepath.Join(datadir, "ipfs"),
 		bootnodes: bps,
+		ipfsPort:  ipfsPort,
 	}
 }
 

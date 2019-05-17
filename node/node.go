@@ -247,7 +247,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "net",
 			Version:   "1.0",
-			Service:   api.NewNetApi(node.pm, node.srv),
+			Service:   api.NewNetApi(node.pm, node.srv, node.ipfsProxy),
 			Public:    true,
 		},
 		{
