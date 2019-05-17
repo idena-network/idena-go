@@ -92,6 +92,7 @@ type Identity struct {
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
+	MadeFlips       uint8
 }
 
 type ApprovedIdentity struct {
@@ -348,8 +349,17 @@ func (s *stateIdentity) SetRequiredFlips(amount uint8) {
 	s.touch()
 }
 
-func (s *stateIdentity) SubRequiredFlips(amount uint8) {
-	s.data.RequiredFlips -= amount
+func (s *stateIdentity) GetMadeFlips() uint8 {
+	return s.data.MadeFlips
+}
+
+func (s *stateIdentity) SetMadeFlips(amount uint8) {
+	s.data.MadeFlips = amount
+	s.touch()
+}
+
+func (s *stateIdentity) AddMadeFlips(amount uint8) {
+	s.data.MadeFlips += amount
 	s.touch()
 }
 
@@ -402,7 +412,7 @@ func (s *stateGlobal) SetGodAddress(godAddress common.Address) {
 	s.touch()
 }
 
-func (s *stateGlobal) GodAddress() common.Address{
+func (s *stateGlobal) GodAddress() common.Address {
 	return s.data.GodAddress
 }
 
@@ -436,5 +446,5 @@ func IsCeremonyCandidate(identity Identity) bool {
 	state := identity.State
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
-		state == Zombie) && identity.RequiredFlips == 0
+		state == Zombie) && identity.RequiredFlips == identity.MadeFlips
 }

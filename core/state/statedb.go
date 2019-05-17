@@ -257,8 +257,16 @@ func (s *StateDB) SetRequiredFlips(addr common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(addr).SetRequiredFlips(amount)
 }
 
-func (s *StateDB) SubRequiredFlips(addr common.Address, amount uint8) {
-	s.GetOrNewIdentityObject(addr).SubRequiredFlips(amount)
+func (s *StateDB) GetMadeFlips(addr common.Address) uint8 {
+	return s.GetOrNewIdentityObject(addr).GetMadeFlips()
+}
+
+func (s *StateDB) SetMadeFlips(addr common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(addr).SetMadeFlips(amount)
+}
+
+func (s *StateDB) AddMadeFlips(addr common.Address, amount uint8) {
+	s.GetOrNewIdentityObject(addr).AddMadeFlips(amount)
 }
 
 func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {

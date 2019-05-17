@@ -328,8 +328,7 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	if stepValidators == nil {
 		return
 	}
-	if stepValidators.Contains(engine.addr) ||
-		committeeSize == 0 {
+	if stepValidators.Contains(engine.addr) {
 		vote := types.Vote{
 			Header: &types.VoteHeader{
 				Round:      round,
@@ -380,7 +379,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
-					if !validators.Contains(vote.VoterAddr()) && validators.Cardinality() > 0 {
+					if !validators.Contains(vote.VoterAddr()){
 						return true
 					}
 					if vote.Header.Step != step {

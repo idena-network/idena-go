@@ -349,8 +349,12 @@ func networkParams(networkSize int) (epochDuration int, invites int, flips int) 
 	} else {
 		flips = int(math2.Round(epochDurationF * 2.0 / 7.0))
 	}
-	//invites = int(math2.Round(invitesCount))
-	invites = 3
+	// TODO: for test puprose
+	if networkSize < 10 {
+		flips = 3
+	}
+
+	invites = int(math2.Round(invitesCount))
 	return
 }
 
@@ -390,6 +394,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 			appState.State.SetInvites(addr, 0)
 			appState.State.SetRequiredFlips(addr, 0)
 		}
+
+		appState.State.SetMadeFlips(addr, 0)
 
 		appState.State.SetState(addr, s)
 	})
@@ -541,7 +547,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddFlip(tx.Payload)
 		stateDB.SubBalance(sender, totalCost)
 		if sender != stateDB.GodAddress() {
-			stateDB.SubRequiredFlips(sender, 1)
+			stateDB.AddMadeFlips(sender, 1)
 		}
 	}
 
@@ -944,7 +950,7 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 	}
 
 	switch cnt {
-	case 1:
+	case 0, 1:
 		return 1
 	case 2, 3:
 		return 2

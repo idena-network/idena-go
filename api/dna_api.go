@@ -147,13 +147,15 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 type Identity struct {
-	Address  common.Address  `json:"address"`
-	Nickname string          `json:"nickname"`
-	Stake    decimal.Decimal `json:"stake"`
-	Invites  uint8           `json:"invites"`
-	Age      uint16          `json:"age"`
-	State    string          `json:"state"`
-	PubKey   string          `json:"pubkey"`
+	Address       common.Address  `json:"address"`
+	Nickname      string          `json:"nickname"`
+	Stake         decimal.Decimal `json:"stake"`
+	Invites       uint8           `json:"invites"`
+	Age           uint16          `json:"age"`
+	State         string          `json:"state"`
+	PubKey        string          `json:"pubkey"`
+	RequiredFlips uint8           `json:"requiredFlips"`
+	MadeFlips     uint8           `json:"madeFlips"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -169,53 +171,63 @@ func (api *DnaApi) Identities() []Identity {
 		if err := rlp.DecodeBytes(value, &data); err != nil {
 			return false
 		}
-
-		var s string
-		switch data.State {
-		case state.Invite:
-			s = "Invite"
-			break
-		case state.Candidate:
-			s = "Candidate"
-			break
-		case state.Newbie:
-			s = "Newbie"
-			break
-		case state.Verified:
-			s = "Verified"
-			break
-		case state.Suspended:
-			s = "Suspended"
-			break
-		case state.Zombie:
-			s = "Zombie"
-			break
-		case state.Killed:
-			s = "Killed"
-			break
-		default:
-			s = "Undefined"
-			break
-		}
-
-		var nickname string
-		if data.Nickname != nil {
-			nickname = string(data.Nickname[:])
-		}
-
-		identities = append(identities, Identity{
-			Address:  addr,
-			State:    s,
-			Stake:    blockchain.ConvertToFloat(data.Stake),
-			Age:      data.Age,
-			Invites:  data.Invites,
-			Nickname: nickname,
-		})
+		identities = append(identities, convertIdentity(addr, data))
 
 		return false
 	})
 
 	return identities
+}
+
+func (api *DnaApi) Identity(address common.Address) Identity {
+	return convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address))
+}
+
+func convertIdentity(address common.Address, data state.Identity) Identity {
+	var s string
+	switch data.State {
+	case state.Invite:
+		s = "Invite"
+		break
+	case state.Candidate:
+		s = "Candidate"
+		break
+	case state.Newbie:
+		s = "Newbie"
+		break
+	case state.Verified:
+		s = "Verified"
+		break
+	case state.Suspended:
+		s = "Suspended"
+		break
+	case state.Zombie:
+		s = "Zombie"
+		break
+	case state.Killed:
+		s = "Killed"
+		break
+	default:
+		s = "Undefined"
+		break
+	}
+
+	var nickname string
+	if data.Nickname != nil {
+		nickname = string(data.Nickname[:])
+	}
+
+	return Identity{
+		Address:       address,
+		State:         s,
+		Stake:         blockchain.ConvertToFloat(data.Stake),
+		Age:           data.Age,
+		Invites:       data.Invites,
+		Nickname:      nickname,
+		PubKey:        fmt.Sprintf("%x", data.PubKey),
+		RequiredFlips: data.RequiredFlips,
+		MadeFlips:     data.MadeFlips,
+	}
 }
 
 type Epoch struct {

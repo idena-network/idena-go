@@ -158,7 +158,7 @@ func (vc *ValidationCeremony) restoreState() {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
 	}
 	vc.qualification.restoreAnswers()
-	vc.calculateFlipCandidates()
+	vc.calculateCeremonyCandidates()
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
@@ -198,7 +198,7 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
-		vc.calculateFlipCandidates()
+		vc.calculateCeremonyCandidates()
 		vc.broadcastFlipKey()
 	}
 }
@@ -226,7 +226,7 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 	vc.processCeremonyTxs(block)
 }
 
-func (vc *ValidationCeremony) calculateFlipCandidates() {
+func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	if vc.candidates != nil {
 		return
 	}
@@ -252,6 +252,8 @@ func (vc *ValidationCeremony) calculateFlipCandidates() {
 		go vc.flipper.Load(vc.shortFlipCidsToSolve)
 		go vc.flipper.Load(vc.longFlipCidsToSolve)
 	}
+
+	vc.log.Info("Ceremony candidates", "cnt", len(vc.candidates))
 }
 
 func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
@@ -454,6 +456,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	for i, item := range flipQualification {
 		flipQualificationMap[i] = item
 	}
+
+	vc.log.Info("Approved candidates", "cnt", len(approvedCandidates))
 
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)

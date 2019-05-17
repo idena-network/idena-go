@@ -6,6 +6,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/core/state"
+	"idena-go/log"
 	"idena-go/rlp"
 	"math/big"
 	"sort"
@@ -15,22 +16,30 @@ type ValidatorsCache struct {
 	s          *state.StateDB
 	validNodes []*common.Address
 	nodesSet   mapset.Set
+	log        log.Logger
+	god        common.Address
 }
 
 func NewValidatorsCache(sdb *state.StateDB) *ValidatorsCache {
 	return &ValidatorsCache{
 		s:        sdb,
 		nodesSet: mapset.NewSet(),
+		log:      log.New(),
 	}
 }
 
 func (v *ValidatorsCache) Load() {
 	v.nodesSet.Clear()
-	v.loadValidNodes()
+	v.RefreshIfUpdated(true)
+	v.god = v.s.GodAddress()
 }
 
 func (v *ValidatorsCache) GetActualValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
 	set := mapset.NewSet()
+	if v.NetworkSize() == 0 {
+		set.Add(v.god)
+		return set
+	}
 	cnt := new(big.Int).SetInt64(int64(len(v.validNodes)))
 	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {
 		set.Add(*v.validNodes[indexGenerator(seed, round, step, i, cnt)])
@@ -52,6 +61,7 @@ func (v *ValidatorsCache) Contains(addr common.Address) bool {
 func (v *ValidatorsCache) RefreshIfUpdated(shouldRefresh bool) {
 	if shouldRefresh {
 		v.loadValidNodes()
+		v.log.Info("Validators updated", "cnt", v.NetworkSize())
 	}
 }
 

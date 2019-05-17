@@ -162,7 +162,8 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 
 	god := appState.State.GodAddress()
 
-	if appState.State.GetRequiredFlips(sender) == 0 && sender != god || god == sender && appState.ValidatorsCache.NetworkSize() > GodValidUntilNetworkSize {
+	if appState.State.GetRequiredFlips(sender) == appState.State.GetMadeFlips(sender) && sender != god ||
+		god == sender && appState.ValidatorsCache.NetworkSize() > GodValidUntilNetworkSize {
 		return InsufficientFlips
 	}
 
