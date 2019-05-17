@@ -546,9 +546,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.SubmitFlipTx:
 		stateDB.AddFlip(tx.Payload)
 		stateDB.SubBalance(sender, totalCost)
-		if sender != stateDB.GodAddress() {
-			stateDB.AddMadeFlips(sender, 1)
-		}
+		stateDB.AddMadeFlips(sender, 1)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)

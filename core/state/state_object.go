@@ -359,8 +359,11 @@ func (s *stateIdentity) SetMadeFlips(amount uint8) {
 }
 
 func (s *stateIdentity) AddMadeFlips(amount uint8) {
-	s.data.MadeFlips += amount
-	s.touch()
+	sum := s.data.MadeFlips + amount
+	if (sum > s.data.MadeFlips) == (amount > 0) {
+		s.data.MadeFlips = sum
+		s.touch()
+	}
 }
 
 // EncodeRLP implements rlp.Encoder.
@@ -446,5 +449,5 @@ func IsCeremonyCandidate(identity Identity) bool {
 	state := identity.State
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
-		state == Zombie) && identity.RequiredFlips == identity.MadeFlips
+		state == Zombie) && identity.MadeFlips >= identity.RequiredFlips
 }
