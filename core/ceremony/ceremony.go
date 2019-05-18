@@ -199,6 +199,7 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
 		vc.calculateCeremonyCandidates()
+		vc.broadcastFlipKey()
 	}
 }
 
@@ -211,7 +212,7 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 		vc.epochDb.WriteShortSessionTime(t)
 		vc.appState.EvidenceMap.SetShortSessionTime(&t)
 	}
-	vc.broadcastFlipKey()
+
 	vc.processCeremonyTxs(block)
 }
 

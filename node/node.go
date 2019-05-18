@@ -69,7 +69,7 @@ func StartDefaultNode(path string) string {
 		config.DefaultIpfsPort,
 		config.DefaultNoDiscovery,
 		"",
-		0)
+		0, 0)
 
 	n, err := NewNode(c)
 
@@ -113,7 +113,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
 	downloader := protocol.NewDownloader(pm, chain, ipfsProxy, appState)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore, downloader)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore, db, txpool, chain, downloader)

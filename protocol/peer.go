@@ -7,6 +7,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/p2p"
+	"math/rand"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type peer struct {
 	*p2p.Peer
 	rw                p2p.MsgReadWriter
 	id                string
+	maxDelayMs        int
 	knownHeight       uint64
 	knownTxs          mapset.Set // Set of transaction hashes known to be known by this peer
 	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
@@ -49,7 +51,7 @@ type request struct {
 	data    interface{}
 }
 
-func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
+func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayMs int) *peer {
 	return &peer{
 		rw:                rw,
 		Peer:              p,
@@ -70,6 +72,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		queuedProofs:      make(chan *proposeProof, 10),
 		term:              make(chan struct{}),
 		finished:          make(chan struct{}),
+		maxDelayMs:        maxDelayMs,
 	}
 }
 
@@ -122,6 +125,10 @@ func (p *peer) broadcast() {
 	defer p.Log().Info("Peer exited from broadcast loop")
 	defer close(p.finished)
 	for {
+		if p.maxDelayMs > 0 {
+			delay := time.Duration(rand.Int31n(int32(p.maxDelayMs)))
+			time.Sleep(delay * time.Millisecond)
+		}
 		select {
 		case blockRange := <-p.queuedBlockRanges:
 			if err := p2p.Send(p.rw, BlocksRange, blockRange); err != nil {

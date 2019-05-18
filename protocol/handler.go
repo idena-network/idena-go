@@ -59,6 +59,7 @@ type ProtocolManager struct {
 	incomeBatches map[string]map[uint32]*batch
 	batchedLock   sync.Mutex
 	bus           eventbus.Bus
+	config        *p2p.Config
 }
 
 type getBlockBodyRequest struct {
@@ -90,7 +91,7 @@ type handshakeData struct {
 }
 
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus,
-	flipKeyPool *mempool.KeysPool) *ProtocolManager {
+	flipKeyPool *mempool.KeysPool, config *p2p.Config) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
 		peers:         newPeerSet(),
@@ -105,6 +106,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		flipper:       fp,
 		bus:           bus,
 		flipKeyPool:   flipKeyPool,
+		config:        config,
 	}
 }
 
@@ -252,7 +254,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-	peer := pm.makePeer(p, rw)
+	peer := pm.makePeer(p, rw, pm.config.MaxDelay)
 	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis()); err != nil {
 		p.Log().Info("Idena handshake failed", "err", err)
 		return err

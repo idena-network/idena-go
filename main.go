@@ -79,6 +79,11 @@ func main() {
 			Usage: "First ceremony time (unix)",
 			Value: config.DefaultCeremonyTime,
 		},
+		cli.IntFlag{
+			Name:  "maxnetdelay",
+			Usage: "Max network delay for broadcasting",
+			Value: 0,
+		},
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -101,7 +106,8 @@ func main() {
 			context.Int("ipfsport"),
 			context.Bool("nodiscovery"),
 			context.String("godaddress"),
-			context.Int64("ceremonytime"))
+			context.Int64("ceremonytime"),
+			context.Int("maxnetdelay"))
 
 		n, _ := node.NewNode(c)
 		n.Start()

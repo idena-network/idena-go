@@ -97,7 +97,7 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 }
 
 func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, rpcport int, bootstrap string,
-	ipfsBootstrap string, ipfsPort int, noDiscovery bool, godAddress string, ceremonyTime int64) *Config {
+	ipfsBootstrap string, ipfsPort int, noDiscovery bool, godAddress string, ceremonyTime int64, maxNetworkDelay int) *Config {
 
 	var nodes []*enode.Node
 	if bootstrap != "" {
@@ -117,6 +117,7 @@ func GetDefaultConfig(datadir string, port int, automine bool, rpcaddr string, r
 			NAT:            nat.Any(),
 			BootstrapNodes: nodes,
 			NoDiscovery:    noDiscovery,
+			MaxDelay:       maxNetworkDelay,
 		},
 		Consensus: GetDefaultConsensusConfig(automine),
 		RPC:       rpc.GetDefaultRPCConfig(rpcaddr, rpcport),
