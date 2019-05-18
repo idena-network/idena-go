@@ -6,6 +6,7 @@ import (
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
 	"idena-go/common/math"
+	"idena-go/core/appstate"
 	"idena-go/ipfs"
 	"idena-go/log"
 	"time"
@@ -26,18 +27,20 @@ type Downloader struct {
 	batches   chan *batch
 	ipfs      ipfs.Proxy
 	isSyncing bool
+	appState  *appstate.AppState
 }
 
 func (d *Downloader) IsSyncing() bool {
 	return d.isSyncing
 }
 
-func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy) *Downloader {
+func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState) *Downloader {
 	return &Downloader{
-		pm:    pm,
-		chain: chain,
-		log:   log.New("component", "downloader"),
-		ipfs:  ipfs,
+		pm:       pm,
+		chain:    chain,
+		log:      log.New("component", "downloader"),
+		ipfs:     ipfs,
+		appState: appState,
 	}
 }
 
@@ -167,6 +170,7 @@ func (d *Downloader) processBatch(batch *batch) error {
 			} else {
 				if err := d.chain.AddBlock(block); err != nil {
 					d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
+					d.appState.ResetTo(d.chain.Head.Height())
 					time.Sleep(time.Second)
 					// TODO: ban bad peer
 					return reload()

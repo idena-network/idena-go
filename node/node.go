@@ -114,7 +114,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool)
-	downloader := protocol.NewDownloader(pm, chain, ipfsProxy)
+	downloader := protocol.NewDownloader(pm, chain, ipfsProxy, appState)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, ipfsProxy, secStore, downloader)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, pm, secStore, db, txpool, chain, downloader)
 
