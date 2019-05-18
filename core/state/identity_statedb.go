@@ -195,6 +195,7 @@ func (s *IdentityStateDB) IsApproved(addr common.Address) bool {
 }
 
 func (s *IdentityStateDB) ResetTo(height uint64) error {
+	s.Clear()
 	_, err := s.tree.LoadVersionForOverwriting(int64(height))
 	return err
 }

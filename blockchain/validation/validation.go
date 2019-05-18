@@ -126,6 +126,11 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 		return LateTx
 	}
 
+	recipientState := appState.State.GetIdentityState(*tx.To)
+	if recipientState != state.Invite && recipientState != state.Undefined {
+		return InvalidRecipient
+	}
+
 	return nil
 }
 
@@ -142,6 +147,10 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
+	if appState.State.GetIdentityState(*tx.To) != state.Undefined {
+		return InvalidRecipient
+	}
+
 	return nil
 }
 

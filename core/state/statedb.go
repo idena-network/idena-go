@@ -663,6 +663,7 @@ func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 }
 
 func (s *StateDB) ResetTo(height uint64) error {
+	s.Clear()
 	_, err := s.tree.LoadVersionForOverwriting(int64(height))
 	return err
 }
