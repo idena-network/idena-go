@@ -18,7 +18,7 @@ const (
 	BlockBodySize = 1024 * 1024
 )
 
-var(
+var (
 	DuplicateTxError = errors.New("tx with same hash already exists")
 )
 
@@ -87,6 +87,18 @@ func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 		list = append(list, tx)
 	}
 	return list
+}
+
+func (txpool *TxPool) GetTx(hash common.Hash) *types.Transaction {
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
+	for _, tx := range txpool.pending {
+		if tx.Hash() == hash {
+			return tx
+		}
+	}
+	return nil
 }
 
 func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {

@@ -271,7 +271,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "bcn",
 			Version:   "1.0",
-			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy),
+			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool),
 			Public:    true,
 		},
 	}

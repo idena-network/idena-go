@@ -7,6 +7,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
+	"idena-go/core/mempool"
 	"idena-go/ipfs"
 	"math/big"
 )
@@ -25,10 +26,11 @@ type BlockchainApi struct {
 	bc      *blockchain.Blockchain
 	baseApi *BaseApi
 	ipfs    ipfs.Proxy
+	pool    *mempool.TxPool
 }
 
-func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs}
+func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool) *BlockchainApi {
+	return &BlockchainApi{bc, baseApi, ipfs, pool}
 }
 
 type Block struct {
@@ -52,7 +54,7 @@ type Transaction struct {
 	Nonce     uint32          `json:"nonce"`
 	Epoch     uint16          `json:"epoch"`
 	Payload   hexutil.Bytes   `json:"payload"`
-	BlockHash common.Hash
+	BlockHash common.Hash     `json:"blockHash"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -74,10 +76,17 @@ func (api *BlockchainApi) Block(hash common.Hash) *Block {
 func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 	tx, idx := api.bc.GetTx(hash)
 	if tx == nil {
-		return nil
+		tx = api.pool.GetTx(hash)
+		if tx == nil {
+			return nil
+		}
 	}
 	sender, _ := types.Sender(tx)
 
+	var blockHash common.Hash
+	if idx != nil {
+		blockHash = idx.BlockHash
+	}
 	return &Transaction{
 		Epoch:     tx.Epoch,
 		Payload:   hexutil.Bytes(tx.Payload),
@@ -86,8 +95,19 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 		Nonce:     tx.AccountNonce,
 		To:        tx.To,
 		Type:      txTypeMap[tx.Type],
-		BlockHash: idx.BlockHash,
+		BlockHash: blockHash,
 	}
+}
+
+func (api *BlockchainApi) Mempool() []common.Hash {
+	pending := api.pool.GetPendingTransaction()
+
+	var txs []common.Hash
+	for _, tx := range pending {
+		txs = append(txs, tx.Hash())
+	}
+
+	return txs
 }
 
 func convertToBlock(block *types.Block) *Block {
