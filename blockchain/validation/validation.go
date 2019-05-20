@@ -38,13 +38,14 @@ type validator func(appState *appstate.AppState, tx *types.Transaction, mempoolT
 
 func init() {
 	validators = map[types.TxType]validator{
-		types.RegularTx:           validateRegularTx,
-		types.ActivationTx:        validateActivationTx,
-		types.InviteTx:            validateSendInviteTx,
-		types.SubmitFlipTx:        validateSubmitFlipTx,
-		types.SubmitAnswersHashTx: validateSubmitAnswersHashTx,
-		types.SubmitLongAnswersTx: validateSubmitLongAnswersTx,
-		types.EvidenceTx:          validateEvidenceTx,
+		types.RegularTx:            validateRegularTx,
+		types.ActivationTx:         validateActivationTx,
+		types.InviteTx:             validateSendInviteTx,
+		types.SubmitFlipTx:         validateSubmitFlipTx,
+		types.SubmitAnswersHashTx:  validateSubmitAnswersHashTx,
+		types.SubmitShortAnswersTx: validateSubmitShortAnswersTx,
+		types.SubmitLongAnswersTx:  validateSubmitLongAnswersTx,
+		types.EvidenceTx:           validateEvidenceTx,
 	}
 }
 
@@ -194,7 +195,7 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	if appState.State.ValidationPeriod() < state.ShortSessionPeriod {
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
 
@@ -202,6 +203,29 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 		return NotCandidate
 	}
 
+	return nil
+}
+
+func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
+		return LateTx
+	}
+
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if *tx.To != sender {
+		return InvalidRecipient
+	}
+
+	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
+		return EarlyTx
+	}
+
+	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
+		return NotCandidate
+	}
 	return nil
 }
 
@@ -218,7 +242,7 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	if appState.State.ValidationPeriod() < state.ShortSessionPeriod {
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
 
@@ -238,7 +262,7 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 		return InvalidRecipient
 	}
 
-	if appState.State.ValidationPeriod() < state.LongSessionPeriod {
+	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
 

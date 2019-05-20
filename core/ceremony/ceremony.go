@@ -200,6 +200,7 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
 		vc.calculateCeremonyCandidates()
 		vc.broadcastFlipKey()
+		vc.log.Info("Flip lottery started")
 	}
 }
 
@@ -211,12 +212,16 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 		t := time.Now()
 		vc.epochDb.WriteShortSessionTime(t)
 		vc.appState.EvidenceMap.SetShortSessionTime(&t)
+		vc.log.Info("Short session started", "at", t.String())
 	}
 
 	vc.processCeremonyTxs(block)
 }
 
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
+	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
+		vc.log.Info("Long session started")
+	}
 	vc.broadcastShortAnswersTx()
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
@@ -254,6 +259,17 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	}
 
 	vc.log.Info("Ceremony candidates", "cnt", len(vc.candidates))
+
+	if len(vc.candidates) < 100 {
+		var addrs []string
+		for _, c := range vc.getParticipantsAddrs() {
+			addrs = append(addrs, c.Hex())
+		}
+		vc.log.Info("Ceremony candidates", "addresses", addrs)
+	}
+
+	vc.log.Info("Should solve flips in short session", "cnt", len(vc.shortFlipCidsToSolve))
+	vc.log.Info("Should solve flips in long session", "cnt", len(vc.longFlipCidsToSolve))
 }
 
 func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
@@ -392,8 +408,35 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 		return
 	}
 	additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())
-	bitmap := vc.appState.EvidenceMap.CalculateBitmap(vc.getParticipantsAddrs(), additional)
-	vc.sendTx(types.EvidenceTx, bitmap)
+
+	candidates := vc.getParticipantsAddrs()
+
+	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional)
+
+	if len(candidates) < 100 {
+		var inMemory string
+		var final string
+		for i, c := range candidates {
+			if vc.appState.EvidenceMap.Contains(c) {
+				inMemory += "1"
+			} else {
+				inMemory += "0"
+			}
+			if bitmap.Contains(uint32(i)) {
+				final += "1"
+			} else {
+				final += "0"
+			}
+		}
+		log.Info("In memory evidence map", "map", inMemory)
+		log.Info("Final evidence map", "map", final)
+	}
+
+	buf := new(bytes.Buffer)
+
+	bitmap.WriteTo(buf)
+
+	vc.sendTx(types.EvidenceTx, buf.Bytes())
 	vc.evidenceSent = true
 }
 
@@ -421,6 +464,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	if err != nil {
 		vc.log.Error(err.Error())
 	}
+	vc.log.Info("Broadcast ceremony tx", "type", txType, "hash", signedTx.Hash().Hex())
 
 	return signedTx.Hash(), err
 }

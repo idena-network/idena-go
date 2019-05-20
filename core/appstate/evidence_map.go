@@ -1,7 +1,6 @@
 package appstate
 
 import (
-	"bytes"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
@@ -67,7 +66,7 @@ func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, m
 	return result
 }
 
-func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) []byte {
+func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) *common.Bitmap {
 	additionalSet := mapset.NewSet()
 
 	for _, add := range additional {
@@ -83,10 +82,11 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []
 			rmap.Add(uint32(i))
 		}
 	}
+	return rmap
+}
 
-	buf := new(bytes.Buffer)
-	rmap.WriteTo(buf)
-	return buf.Bytes()
+func (m *EvidenceMap) Contains(candidate common.Address) bool {
+	return m.answersSet.Contains(candidate)
 }
 
 func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
