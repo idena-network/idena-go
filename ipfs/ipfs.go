@@ -92,7 +92,7 @@ func watchPeers(node *core.IpfsNode) {
 			logger.Info("peers info", "err", err)
 		}
 		for index, i := range info {
-			logger.Debug(strconv.Itoa(index), "id", i.ID().String(), "addr", i.Address().String())
+			logger.Trace(strconv.Itoa(index), "id", i.ID().String(), "addr", i.Address().String())
 		}
 		time.Sleep(time.Second * 10)
 	}

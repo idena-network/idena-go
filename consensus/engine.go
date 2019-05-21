@@ -27,19 +27,20 @@ const (
 )
 
 type Engine struct {
-	chain      *blockchain.Blockchain
-	pm         *protocol.ProtocolManager
-	log        log.Logger
-	process    string
-	pubKey     []byte
-	config     *config.ConsensusConf
-	proposals  *pengings.Proposals
-	votes      *pengings.Votes
-	txpool     *mempool.TxPool
-	addr       common.Address
-	appState   *appstate.AppState
-	downloader *protocol.Downloader
-	secStore   *secstore.SecStore
+	chain         *blockchain.Blockchain
+	pm            *protocol.ProtocolManager
+	log           log.Logger
+	process       string
+	pubKey        []byte
+	config        *config.ConsensusConf
+	proposals     *pengings.Proposals
+	votes         *pengings.Votes
+	txpool        *mempool.TxPool
+	addr          common.Address
+	appState      *appstate.AppState
+	downloader    *protocol.Downloader
+	secStore      *secstore.SecStore
+	peekingBlocks chan *types.Block
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -267,7 +268,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 		if err != nil {
 			hash = blockHash
 		} else if hash != emptyBlockHash {
-			for i := uint16(1); i <= 3; i++ {
+			for i := uint16(1); i <= 2; i++ {
 				engine.vote(round, step+i, hash)
 			}
 			if step == 1 {
@@ -286,7 +287,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 		if err != nil {
 			hash = emptyBlockHash
 		} else if hash == emptyBlockHash {
-			for i := uint16(1); i <= 3; i++ {
+			for i := uint16(1); i <= 2; i++ {
 				engine.vote(round, step+i, hash)
 			}
 			return hash, nil
@@ -294,25 +295,50 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		step++
 
-		engine.process = fmt.Sprintf("BA step %v", step)
-
-		engine.vote(round, step, hash)
-
-		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
-		if err != nil {
-			if engine.commonCoin(step) {
-				hash = blockHash
-			} else {
-				hash = emptyBlockHash
+		if pastStep, ok := engine.votes.ConsensusInThePast(round, engine.chain.GetCommitteeVotesTreshold(false), emptyBlockHash); ok {
+			if hash, _, err = engine.countVotes(round, pastStep, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay); err == nil {
+				return hash, nil
 			}
 		}
-		step++
 
-		if engine.votes.FutureBlockExist(round, engine.chain.GetCommitteeVotesTreshold(false)) {
+		if engine.futureBlockExist(round, emptyBlockHash) {
 			return common.Hash{}, errors.New("Detected future block")
 		}
 	}
 	return common.Hash{}, errors.New("No consensus")
+}
+
+func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash) bool {
+	if engine.peekingBlocks == nil {
+		forwardPeers := engine.pm.PotentialForwardPeers(round)
+		if len(forwardPeers) > 0 {
+			engine.peekingBlocks = engine.downloader.TryPeekBlock(round, forwardPeers)
+		} else {
+			return false
+		}
+	}
+
+	timeout := time.After(time.Second * 2)
+	select {
+	case block, ok := <-engine.peekingBlocks:
+		if !ok {
+			engine.peekingBlocks = nil
+			return false
+		}
+
+		if block.IsEmpty() {
+			if block.Hash() == emptyBlockHash {
+				return true
+			}
+		} else {
+			if err := engine.chain.ValidateProposedBlock(block); err == nil {
+				return true
+			}
+		}
+	case <-timeout:
+		return false
+	}
+	return false
 }
 
 func (engine *Engine) commonCoin(step uint16) bool {
@@ -379,7 +405,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
-					if !validators.Contains(vote.VoterAddr()){
+					if !validators.Contains(vote.VoterAddr()) {
 						return true
 					}
 					if vote.Header.Step != step {

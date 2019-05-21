@@ -28,6 +28,7 @@ type peer struct {
 	id                string
 	maxDelayMs        int
 	knownHeight       uint64
+	potentialHeight   uint64
 	knownTxs          mapset.Set // Set of transaction hashes known to be known by this peer
 	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
 	knownVotes        mapset.Set // Set of hashes of votes known to be known by this peer
@@ -323,5 +324,12 @@ func (p *peer) markFlipKey(flipKey *types.FlipKey) {
 func (p *peer) setHeight(newHeight uint64) {
 	if newHeight > p.knownHeight {
 		p.knownHeight = newHeight
+	}
+	p.setPotentialHeight(newHeight)
+}
+
+func (p *peer) setPotentialHeight(newHeight uint64) {
+	if newHeight > p.potentialHeight {
+		p.potentialHeight = newHeight
 	}
 }

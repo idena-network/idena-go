@@ -206,3 +206,37 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 		}, nil
 	}
 }
+
+func (d *Downloader) TryPeekBlock(height uint64, peers []string) chan *types.Block {
+	var batches []*batch
+	blocks := make(chan *types.Block, len(peers))
+
+	for _, peerId := range peers {
+		if err, batch := d.pm.GetBlocksRange(peerId, height, height); err != nil {
+			continue
+		} else {
+			batches = append(batches, batch)
+		}
+	}
+
+	go func() {
+		for _, batch := range batches {
+			timeout := time.After(time.Second * 10)
+			select {
+			case header := <-batch.headers:
+				if block, err := d.GetBlock(header); err != nil {
+					d.log.Warn("fail to retrieve block while peeking", "err", err)
+					continue
+				} else {
+					blocks <- block
+				}
+			case <-timeout:
+				d.log.Warn("timeout was reached while peeking block")
+				continue
+			}
+		}
+		close(blocks)
+	}()
+
+	return blocks
+}
