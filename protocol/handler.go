@@ -187,6 +187,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.markVote(&vote)
+		p.setPotentialHeight(vote.Header.Round - 1)
 		if pm.votes.AddVote(&vote) {
 			pm.SendVote(&vote)
 		}
@@ -432,4 +433,13 @@ func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {
 	for _, key := range keys {
 		p.SendKeyPackageAsync(key)
 	}
+}
+func (pm *ProtocolManager) PotentialForwardPeers(round uint64) []string {
+	var result []string
+	for _, p := range pm.peers.Peers() {
+		if p.potentialHeight >= round {
+			result = append(result, p.id)
+		}
+	}
+	return result
 }
