@@ -187,7 +187,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
-	answers := parseAnswers(args.Answers, flipsCount)
+	answers := parseAnswers(args.Answers, api.ceremony.ShortSessionFlipsCount())
 
 	hash, err := api.ceremony.SubmitShortAnswers(answers)
 
@@ -210,7 +210,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
-	answers := parseAnswers(args.Answers, flipsCount)
+	answers := parseAnswers(args.Answers, api.ceremony.LongSessionFlipsCount())
 
 	hash, err := api.ceremony.SubmitLongAnswers(answers)
 
@@ -223,8 +223,8 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 	}, nil
 }
 
-func parseAnswers(answers []FlipAnswer, flipsCount int) *types.Answers {
-	result := types.NewAnswers(uint(flipsCount))
+func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {
+	result := types.NewAnswers(flipsCount)
 
 	for i := uint(0); i < uint(len(answers)); i++ {
 		item := answers[i]
