@@ -99,6 +99,10 @@ func (i *Identity) GetShortFlipPoints() float32 {
 	return float32(i.ShortFlipPoints) / 2
 }
 
+func (i *Identity) HasDoneAllRequiredFlips() bool {
+	return uint8(len(i.Flips)) >= i.RequiredFlips
+}
+
 type ApprovedIdentity struct {
 	Approved bool
 }
@@ -442,5 +446,5 @@ func IsCeremonyCandidate(identity Identity) bool {
 	state := identity.State
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
-		state == Zombie) && uint8(len(identity.Flips)) >= identity.RequiredFlips
+		state == Zombie) && identity.HasDoneAllRequiredFlips()
 }

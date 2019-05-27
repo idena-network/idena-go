@@ -365,7 +365,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 
 		s := identity.State
 
-		if identity.RequiredFlips > uint8(len(identity.Flips)) {
+		if !identity.HasDoneAllRequiredFlips() {
 			switch identity.State {
 			case state.Verified:
 				s = state.Suspended
