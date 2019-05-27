@@ -2,7 +2,7 @@ package ceremony
 
 import (
 	"encoding/binary"
-	"fmt"
+	"github.com/google/tink/go/subtle/random"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -11,54 +11,35 @@ func TestSortFlips(t *testing.T) {
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, 500)
 
-	flipsPerCandidate, candidatesPerFlips := SortFlips(7, 6, 3, b)
+	flipsPerAuthor, flips := makeFlips(7, 3)
 
-	flipsPerCandidateResult := [][]int{{1, 3, 4}, {1, 2, 4}, {1, 3, 5}, {0, 2, 4}, {0, 2, 5}, {0, 3, 4}, {0, 2, 5}}
-	candidatesPerFlipsResult := [][]int{{3, 4, 5, 6}, {0, 1, 2}, {1, 3, 4, 6}, {0, 2, 5}, {0, 1, 3, 5}, {2, 4, 6}}
+	flipsPerCandidateShort := SortFlips(flipsPerAuthor, 7, flips, 3, b, false, nil)
 
-	require.Equal(t, flipsPerCandidateResult, flipsPerCandidate)
-	require.Equal(t, candidatesPerFlipsResult, candidatesPerFlips)
-}
-
-func TestSortFlips_Big(t *testing.T) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 500)
-
-	const flipPerAddress = 15
-
-	flipsPerCandidate, _ := SortFlips(10000, 20, flipPerAddress, b)
-
-	for i := 0; i < len(flipsPerCandidate); i++ {
-		require.True(t, len(flipsPerCandidate[i]) <= flipPerAddress)
+	chosenFlips := make(map[int]bool)
+	for _, a := range flipsPerCandidateShort {
+		for _, f := range a {
+			chosenFlips[f] = true
+		}
 	}
+
+	flipsPerCandidateLong := SortFlips(flipsPerAuthor, 7, flips, 10, b, true, chosenFlips)
+
+	flipsPerCandidateShortResult := [][]int{{7, 11, 13}, {8, 9, 18}, {4, 12, 16}, {1, 19, 20}, {0, 2, 10}, {3, 5}, {6, 14, 17}}
+	flipsPerCandidateLongResult := [][]int{{3, 4, 5, 8, 12, 14, 16, 18, 19, 20}, {1, 8, 9, 12, 14, 16, 17, 18, 19, 20}, {0, 2, 3, 5, 9, 10, 11, 13, 14, 17}, {0, 1, 3, 4, 8, 12, 16, 18, 19, 20}, {0, 2, 5, 6, 7, 9, 10, 11, 17, 18}, {2, 3, 5, 6, 7, 8, 10, 11, 12, 13}, {0, 2, 6, 7, 9, 10, 11, 13, 14, 17}}
+
+	require.Equal(t, flipsPerCandidateShortResult, flipsPerCandidateShort)
+	require.Equal(t, flipsPerCandidateLongResult, flipsPerCandidateLong)
 }
 
-func TestSortFlips_Small(t *testing.T) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 123123123)
-
-	flipsPerCandidate, candidatesPerFlips := SortFlips(5, 4, 2, b)
-
-	fmt.Println(flipsPerCandidate)
-	fmt.Println(candidatesPerFlips)
-	flipsPerCandidateResult := [][]int{{0, 3}, {1, 2}, {0, 2}, {1, 3}, {0, 2}}
-	candidatesPerFlipsResult := [][]int{{0, 2, 4}, {1, 3}, {1, 2, 4}, {0, 3}}
-
-	require.Equal(t, flipsPerCandidateResult, flipsPerCandidate)
-	require.Equal(t, candidatesPerFlipsResult, candidatesPerFlips)
-}
-
-func TestSortFlips_Small2(t *testing.T) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 123123123)
-
-	flipsPerCandidate, candidatesPerFlips := SortFlips(1, 6, 10, b)
-
-	fmt.Println(flipsPerCandidate)
-	fmt.Println(candidatesPerFlips)
-	flipsPerCandidateResult := [][]int{{0, 1, 2, 3, 4, 5}}
-	candidatesPerFlipsResult := [][]int{{0}, {0}, {0}, {0}, {0}, {0}}
-
-	require.Equal(t, flipsPerCandidateResult, flipsPerCandidate)
-	require.Equal(t, candidatesPerFlipsResult, candidatesPerFlips)
+func makeFlips(authors int, flipNum int) (flipsPerAuthor map[int][][]byte, flips [][]byte) {
+	flipsPerAuthor = make(map[int][][]byte)
+	flips = make([][]byte, 0)
+	for i := 0; i < authors; i++ {
+		for j := 0; j < flipNum; j++ {
+			flip := random.GetRandomBytes(5)
+			flipsPerAuthor[i] = append(flipsPerAuthor[i], flip)
+			flips = append(flips, flip)
+		}
+	}
+	return flipsPerAuthor, flips
 }

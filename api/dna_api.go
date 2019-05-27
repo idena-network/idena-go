@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
+	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
@@ -147,15 +148,18 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 type Identity struct {
-	Address       common.Address  `json:"address"`
-	Nickname      string          `json:"nickname"`
-	Stake         decimal.Decimal `json:"stake"`
-	Invites       uint8           `json:"invites"`
-	Age           uint16          `json:"age"`
-	State         string          `json:"state"`
-	PubKey        string          `json:"pubkey"`
-	RequiredFlips uint8           `json:"requiredFlips"`
-	MadeFlips     uint8           `json:"madeFlips"`
+	Address         common.Address  `json:"address"`
+	Nickname        string          `json:"nickname"`
+	Stake           decimal.Decimal `json:"stake"`
+	Invites         uint8           `json:"invites"`
+	Age             uint16          `json:"age"`
+	State           string          `json:"state"`
+	PubKey          string          `json:"pubkey"`
+	RequiredFlips   uint8           `json:"requiredFlips"`
+	MadeFlips       uint8           `json:"madeFlips"`
+	QualifiedFlips  uint32          `json:"totalQualifiedFlips"`
+	ShortFlipPoints float32         `json:"totalShortFlipPoints"`
+	Flips           []string        `json:"flips"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -217,16 +221,25 @@ func convertIdentity(address common.Address, data state.Identity) Identity {
 		nickname = string(data.Nickname[:])
 	}
 
+	var result []string
+	for _, v := range data.Flips {
+		c, _ := cid.Parse(v)
+		result = append(result, c.String())
+	}
+
 	return Identity{
-		Address:       address,
-		State:         s,
-		Stake:         blockchain.ConvertToFloat(data.Stake),
-		Age:           data.Age,
-		Invites:       data.Invites,
-		Nickname:      nickname,
-		PubKey:        fmt.Sprintf("%x", data.PubKey),
-		RequiredFlips: data.RequiredFlips,
-		MadeFlips:     data.MadeFlips,
+		Address:         address,
+		State:           s,
+		Stake:           blockchain.ConvertToFloat(data.Stake),
+		Age:             data.Age,
+		Invites:         data.Invites,
+		Nickname:        nickname,
+		PubKey:          fmt.Sprintf("%x", data.PubKey),
+		RequiredFlips:   data.RequiredFlips,
+		MadeFlips:       uint8(len(data.Flips)),
+		QualifiedFlips:  data.QualifiedFlips,
+		ShortFlipPoints: data.GetShortFlipPoints(),
+		Flips:           result,
 	}
 }
 

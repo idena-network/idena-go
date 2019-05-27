@@ -164,11 +164,6 @@ func (s *StateDB) NextValidationTime() time.Time {
 	return time.Unix(stateObject.data.NextValidationTime.Int64(), 0)
 }
 
-func (s *StateDB) FlipCids() [][]byte {
-	stateObject := s.GetOrNewGlobalObject()
-	return stateObject.data.Flips
-}
-
 /*
  * SETTERS
  */
@@ -261,12 +256,12 @@ func (s *StateDB) GetMadeFlips(addr common.Address) uint8 {
 	return s.GetOrNewIdentityObject(addr).GetMadeFlips()
 }
 
-func (s *StateDB) SetMadeFlips(addr common.Address, amount uint8) {
-	s.GetOrNewIdentityObject(addr).SetMadeFlips(amount)
+func (s *StateDB) AddFlip(addr common.Address, cid []byte) {
+	s.GetOrNewIdentityObject(addr).AddFlip(cid)
 }
 
-func (s *StateDB) AddMadeFlips(addr common.Address, amount uint8) {
-	s.GetOrNewIdentityObject(addr).AddMadeFlips(amount)
+func (s *StateDB) ClearFlips(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
 func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {
@@ -279,14 +274,6 @@ func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints flo
 
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
-}
-
-func (s *StateDB) AddFlip(flipCid []byte) {
-	s.GetOrNewGlobalObject().AddFlipCid(flipCid)
-}
-
-func (s *StateDB) ClearFlips() {
-	s.GetOrNewGlobalObject().ClearFlipCids()
 }
 
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
