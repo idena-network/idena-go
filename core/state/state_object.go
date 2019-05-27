@@ -68,7 +68,6 @@ const (
 
 type Global struct {
 	Epoch              uint16
-	Flips              [][]byte
 	NextValidationTime *big.Int
 	ValidationPeriod   ValidationPeriod
 	GodAddress         common.Address
@@ -83,16 +82,25 @@ type Account struct {
 }
 
 type Identity struct {
-	Nickname        *[64]byte `rlp:"nil"`
-	Stake           *big.Int
-	Invites         uint8
-	Age             uint16
-	State           IdentityState
-	QualifiedFlips  uint32
+	Nickname       *[64]byte `rlp:"nil"`
+	Stake          *big.Int
+	Invites        uint8
+	Age            uint16
+	State          IdentityState
+	QualifiedFlips uint32
+	// should use GetShortFlipPoints instead of reading directly
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
-	MadeFlips       uint8
+	Flips           [][]byte `rlp:"nil"`
+}
+
+func (i *Identity) GetShortFlipPoints() float32 {
+	return float32(i.ShortFlipPoints) / 2
+}
+
+func (i *Identity) HasDoneAllRequiredFlips() bool {
+	return uint8(len(i.Flips)) >= i.RequiredFlips
 }
 
 type ApprovedIdentity struct {
@@ -337,7 +345,7 @@ func (s *stateIdentity) AddShortFlipPoints(flipPoints float32) {
 }
 
 func (s *stateIdentity) ShortFlipPoints() float32 {
-	return float32(s.data.ShortFlipPoints) / 2
+	return s.data.GetShortFlipPoints()
 }
 
 func (s *stateIdentity) GetRequiredFlips() uint8 {
@@ -350,20 +358,19 @@ func (s *stateIdentity) SetRequiredFlips(amount uint8) {
 }
 
 func (s *stateIdentity) GetMadeFlips() uint8 {
-	return s.data.MadeFlips
+	return uint8(len(s.data.Flips))
 }
 
-func (s *stateIdentity) SetMadeFlips(amount uint8) {
-	s.data.MadeFlips = amount
-	s.touch()
-}
-
-func (s *stateIdentity) AddMadeFlips(amount uint8) {
-	sum := s.data.MadeFlips + amount
-	if (sum > s.data.MadeFlips) == (amount > 0) {
-		s.data.MadeFlips = sum
+func (s *stateIdentity) AddFlip(cid []byte) {
+	if len(s.data.Flips) < math.MaxUint8 {
+		s.data.Flips = append(s.data.Flips, cid)
 		s.touch()
 	}
+}
+
+func (s *stateIdentity) ClearFlips() {
+	s.data.Flips = nil
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.
@@ -377,16 +384,6 @@ func (s *stateGlobal) Epoch() uint16 {
 
 func (s *stateGlobal) IncEpoch() {
 	s.data.Epoch++
-	s.touch()
-}
-
-func (s *stateGlobal) AddFlipCid(flipCid []byte) {
-	s.data.Flips = append(s.data.Flips, flipCid)
-	s.touch()
-}
-
-func (s *stateGlobal) ClearFlipCids() {
-	s.data.Flips = [][]byte{}
 	s.touch()
 }
 
@@ -449,5 +446,5 @@ func IsCeremonyCandidate(identity Identity) bool {
 	state := identity.State
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
-		state == Zombie) && identity.MadeFlips >= identity.RequiredFlips
+		state == Zombie) && identity.HasDoneAllRequiredFlips()
 }

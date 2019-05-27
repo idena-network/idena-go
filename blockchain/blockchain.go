@@ -328,7 +328,6 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	setNewIdentitiesAttributes(appState, networkSize)
 
-	appState.State.ClearFlips()
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.ValidationInterval))
@@ -366,7 +365,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 
 		s := identity.State
 
-		if identity.RequiredFlips > identity.MadeFlips {
+		if !identity.HasDoneAllRequiredFlips() {
 			switch identity.State {
 			case state.Verified:
 				s = state.Suspended
@@ -395,7 +394,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 			appState.State.SetRequiredFlips(addr, 0)
 		}
 
-		appState.State.SetMadeFlips(addr, 0)
+		appState.State.ClearFlips(addr)
 
 		appState.State.SetState(addr, s)
 	})
@@ -544,9 +543,8 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(sender)
 		break
 	case types.SubmitFlipTx:
-		stateDB.AddFlip(tx.Payload)
 		stateDB.SubBalance(sender, totalCost)
-		stateDB.AddMadeFlips(sender, 1)
+		stateDB.AddFlip(sender, tx.Payload)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)

@@ -14,11 +14,15 @@ import (
 
 var (
 	txTypeMap = map[types.TxType]string{
-		types.RegularTx:    "regular",
-		types.ActivationTx: "activation",
-		types.InviteTx:     "invite",
-		types.KillTx:       "kill",
-		types.SubmitFlipTx: "flipSubmit",
+		types.RegularTx:            "regular",
+		types.ActivationTx:         "activation",
+		types.InviteTx:             "invite",
+		types.KillTx:               "kill",
+		types.SubmitFlipTx:         "submitFlip",
+		types.SubmitAnswersHashTx:  "submitAnswersHash",
+		types.SubmitShortAnswersTx: "submitShortAnswers",
+		types.SubmitLongAnswersTx:  "submitLongAnswers",
+		types.EvidenceTx:           "evidence",
 	}
 )
 

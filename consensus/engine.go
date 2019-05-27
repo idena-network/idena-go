@@ -436,7 +436,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 				return bestHash, &cert, nil
 			}
 		}
-		time.Sleep(200)
+		time.Sleep(100 * time.Millisecond)
 	}
 	return common.Hash{}, nil, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
 }
@@ -453,7 +453,7 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 		if err == nil {
 			return block, nil
 		} else {
-			time.Sleep(200)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
