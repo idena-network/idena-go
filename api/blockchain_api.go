@@ -9,6 +9,7 @@ import (
 	"idena-go/common/hexutil"
 	"idena-go/core/mempool"
 	"idena-go/ipfs"
+	"idena-go/protocol"
 	"math/big"
 )
 
@@ -31,10 +32,12 @@ type BlockchainApi struct {
 	baseApi *BaseApi
 	ipfs    ipfs.Proxy
 	pool    *mempool.TxPool
+	d       *protocol.Downloader
+	pm      *protocol.ProtocolManager
 }
 
-func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs, pool}
+func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.ProtocolManager) *BlockchainApi {
+	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm}
 }
 
 type Block struct {
@@ -112,6 +115,26 @@ func (api *BlockchainApi) Mempool() []common.Hash {
 	}
 
 	return txs
+}
+
+type Syncing struct {
+	Syncing      bool   `json:"syncing"`
+	CurrentBlock uint64 `json:"currentBlock"`
+	HighestBlock uint64 `json:"highestBlock"`
+}
+
+func (api *BlockchainApi) Syncing() Syncing {
+	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers()
+	current, highest := api.d.SyncProgress()
+	if !isSyncing {
+		highest = current
+	}
+
+	return Syncing{
+		Syncing:      isSyncing,
+		CurrentBlock: current,
+		HighestBlock: highest,
+	}
 }
 
 func convertToBlock(block *types.Block) *Block {

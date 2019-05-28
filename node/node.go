@@ -52,6 +52,7 @@ type Node struct {
 	ipfsProxy       ipfs.Proxy
 	bus             eventbus.Bus
 	ceremony        *ceremony.ValidationCeremony
+	downloader      *protocol.Downloader
 }
 
 func StartDefaultNode(path string) string {
@@ -134,6 +135,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		bus:             bus,
 		flipKeyPool:     flipKeyPool,
 		ceremony:        ceremony,
+		downloader:      downloader,
 	}, nil
 }
 
@@ -271,7 +273,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "bcn",
 			Version:   "1.0",
-			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool),
+			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool, node.downloader, node.pm),
 			Public:    true,
 		},
 	}

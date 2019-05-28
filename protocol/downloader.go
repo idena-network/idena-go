@@ -28,19 +28,25 @@ type Downloader struct {
 	ipfs      ipfs.Proxy
 	isSyncing bool
 	appState  *appstate.AppState
+	top       uint64
 }
 
 func (d *Downloader) IsSyncing() bool {
 	return d.isSyncing
 }
 
+func (d *Downloader) SyncProgress() (head uint64, top uint64) {
+	return d.chain.Head.Height(), d.top
+}
+
 func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState) *Downloader {
 	return &Downloader{
-		pm:       pm,
-		chain:    chain,
-		log:      log.New("component", "downloader"),
-		ipfs:     ipfs,
-		appState: appState,
+		pm:        pm,
+		chain:     chain,
+		log:       log.New("component", "downloader"),
+		ipfs:      ipfs,
+		appState:  appState,
+		isSyncing: true,
 	}
 }
 
@@ -56,7 +62,10 @@ func getTopHeight(heights map[string]uint64) uint64 {
 
 func (d *Downloader) SyncBlockchain() {
 	d.isSyncing = true
-	defer func() { d.isSyncing = false }()
+	defer func() {
+		d.isSyncing = false
+		d.top = 0
+	}()
 	for {
 		knownHeights := d.pm.GetKnownHeights()
 		if knownHeights == nil {
@@ -64,8 +73,8 @@ func (d *Downloader) SyncBlockchain() {
 			break
 		}
 		head := d.chain.Head
-		top := getTopHeight(knownHeights)
-		if head.Height() >= top {
+		d.top = getTopHeight(knownHeights)
+		if head.Height() >= d.top {
 			d.log.Info(fmt.Sprintf("Node is synchronized"))
 			return
 		}
@@ -76,7 +85,7 @@ func (d *Downloader) SyncBlockchain() {
 
 		from := head.Height() + 1
 	loop:
-		for ; from <= top; {
+		for from <= d.top {
 			for peer, height := range knownHeights {
 				if height < from {
 					continue
