@@ -70,7 +70,7 @@ func (q *qualification) restoreAnswers() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
 
 	data := make([]struct {
 		answer []types.Answer
@@ -88,7 +88,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, flipsPerAddress uint,
 			continue
 		}
 
-		answers := types.NewAnswersFromBits(flipsPerAddress, answerBytes)
+		answers := types.NewAnswersFromBits(uint(len(flips)), answerBytes)
 
 		for j := uint(0); j < uint(len(flips)); j++ {
 			answer, easy := answers.Answer(j)

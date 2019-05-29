@@ -187,7 +187,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
-	answers := parseAnswers(args.Answers, api.ceremony.ShortSessionFlipsCount())
+	answers := parseAnswers(args.Answers, uint(flipsCount))
 
 	hash, err := api.ceremony.SubmitShortAnswers(answers)
 
@@ -210,7 +210,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
 	}
 
-	answers := parseAnswers(args.Answers, api.ceremony.LongSessionFlipsCount())
+	answers := parseAnswers(args.Answers, uint(flipsCount))
 
 	hash, err := api.ceremony.SubmitLongAnswers(answers)
 
