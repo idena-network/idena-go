@@ -513,7 +513,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	}
 
 	totalFlipsCount := len(vc.flips)
-	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.LongSessionFlipsCount(), vc.candidates, vc.longFlipsPerCandidate)
+	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate)
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
