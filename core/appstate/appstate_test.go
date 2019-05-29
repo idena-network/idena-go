@@ -1,8 +1,8 @@
 package appstate
 
 import (
+	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tendermint/libs/db"
-	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
 	"idena-go/common"
 	"idena-go/common/eventbus"
 	"testing"
@@ -28,7 +28,6 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	appState.IdentityState.Add(addr2)
 
 	appState.Commit()
-
 
 	stateHash := appState.State.Root()
 	identityHash := appState.IdentityState.Root()

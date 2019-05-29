@@ -1,8 +1,8 @@
 package database
 
 import (
+	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"gx/ipfs/QmPVkJMTeRC6iBByPWdrRkD3BE5UXsj5HPzb4kPqL186mS/testify/require"
 	"testing"
 )
 
@@ -103,7 +103,6 @@ func TestBackedMemDb_NewBatch(t *testing.T) {
 	db.permanent.Set([]byte{0x1}, []byte{0x1})
 	db.permanent.Set([]byte{0x2}, []byte{0x2})
 	db.permanent.Set([]byte{0x3}, []byte{0x3})
-
 
 	batch := db.NewBatch()
 	batch.Set([]byte{0x1}, []byte{0x2})
