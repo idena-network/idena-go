@@ -178,7 +178,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markHeader(block.Header)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
-		if pm.proposals.AddProposedBlock(&block) {
+		if pm.proposals.AddProposedBlock(&block, p.id) {
 			pm.ProposeBlock(&block)
 		}
 	case Vote:
@@ -237,7 +237,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 }
 
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
-	var result []*types.Header
+	result := make([]*types.Header, 0)
 	for i := from; i <= to; i++ {
 		block := pm.bcn.GetBlockHeaderByHeight(i)
 		if block != nil {

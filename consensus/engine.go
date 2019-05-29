@@ -12,7 +12,6 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
-	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/pengings"
 	"idena-go/protocol"
@@ -24,6 +23,10 @@ const (
 	ReductionOne = 998
 	ReductionTwo = 999
 	Final        = 1000
+)
+
+var (
+	ForkDetected = errors.New("fork is detected")
 )
 
 type Engine struct {
@@ -41,23 +44,25 @@ type Engine struct {
 	downloader    *protocol.Downloader
 	secStore      *secstore.SecStore
 	peekingBlocks chan *types.Block
+	forkResolver  *ForkResolver
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
-	txpool *mempool.TxPool, ipfs ipfs.Proxy, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
+	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
 	return &Engine{
-		chain:      chain,
-		pm:         pm,
-		log:        log.New(),
-		config:     config,
-		proposals:  proposals,
-		appState:   appState,
-		votes:      votes,
-		txpool:     txpool,
-		downloader: downloader,
-		secStore:   secStore,
+		chain:        chain,
+		pm:           pm,
+		log:          log.New(),
+		config:       config,
+		proposals:    proposals,
+		appState:     appState,
+		votes:        votes,
+		txpool:       txpool,
+		downloader:   downloader,
+		secStore:     secStore,
+		forkResolver: NewForkResolver(proposals, downloader, chain),
 	}
 }
 
@@ -65,6 +70,7 @@ func (engine *Engine) Start() {
 	engine.pubKey = engine.secStore.GetPubKey()
 	engine.addr = engine.secStore.GetAddress()
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
+	engine.forkResolver.Start()
 	go engine.loop()
 }
 
@@ -132,6 +138,11 @@ func (engine *Engine) loop() {
 		blockHash, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
+
+			if err == ForkDetected {
+				engine.applyFork()
+			}
+
 			continue
 		}
 		engine.process = "Count final votes"
@@ -203,7 +214,7 @@ func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block 
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
 	engine.pm.ProposeBlock(block)
 
-	engine.proposals.AddProposedBlock(block)
+	engine.proposals.AddProposedBlock(block, "")
 	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, block.Height())
 
 	return block
@@ -252,7 +263,12 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	return hash
 }
 
+func (engine *Engine) completeBA() {
+	engine.peekingBlocks = nil
+}
+
 func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
+	defer engine.completeBA()
 	engine.log.Info("binaryBa started", "block", blockHash.Hex())
 	emptyBlock := engine.chain.GenerateEmptyBlock()
 
@@ -297,14 +313,11 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		step++
 
-		if pastStep, ok := engine.votes.ConsensusInThePast(round, engine.chain.GetCommitteeVotesTreshold(false), emptyBlockHash); ok {
-			if hash, _, err = engine.countVotes(round, pastStep, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay); err == nil {
-				return hash, nil
-			}
-		}
-
 		if engine.futureBlockExist(round, emptyBlockHash) {
 			return common.Hash{}, errors.New("Detected future block")
+		}
+		if engine.hasApplicableFork() {
+			return common.Hash{}, ForkDetected
 		}
 	}
 	return common.Hash{}, errors.New("No consensus")
@@ -314,7 +327,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 	if engine.peekingBlocks == nil {
 		forwardPeers := engine.pm.PotentialForwardPeers(round)
 		if len(forwardPeers) > 0 {
-			engine.peekingBlocks = engine.downloader.TryPeekBlock(round, forwardPeers)
+			engine.peekingBlocks = engine.downloader.PeekBlocks(round, round, forwardPeers)
 		} else {
 			return false
 		}
@@ -330,10 +343,12 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 
 		if block.IsEmpty() {
 			if block.Hash() == emptyBlockHash {
+				engine.peekingBlocks = nil
 				return true
 			}
 		} else {
 			if err := engine.chain.ValidateProposedBlock(block); err == nil {
+				engine.peekingBlocks = nil
 				return true
 			}
 		}
@@ -341,13 +356,6 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 		return false
 	}
 	return false
-}
-
-func (engine *Engine) commonCoin(step uint16) bool {
-	data := append(engine.chain.Head.Seed().Bytes(), common.ToBytes(step)...)
-
-	h := crypto.Keccak256Hash(data)
-	return h[31]%2 == 0
 }
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
@@ -472,4 +480,36 @@ func (engine *Engine) ensureIntegrity() error {
 		engine.log.Warn("blockchain was reseted", "new head", engine.chain.Head.Height())
 	}
 	return nil
+}
+
+func (engine *Engine) hasApplicableFork() bool {
+
+
+
+
+
+	if !engine.proposals.HasFork() {
+		return false
+	}
+
+	if engine.forkResolver == nil {
+		engine.forkResolver = NewForkResolver(engine.proposals, engine.downloader, engine.chain)
+		go engine.forkResolver.loadAndVerifyFork()
+	}
+
+	if engine.forkResolver.IsLoaded() {
+		if engine.forkResolver.HasApplicableFork() {
+			return true
+		} else {
+			engine.forkResolver = nil
+		}
+	}
+	return false
+}
+
+func (engine *Engine) applyFork() {
+	if !engine.forkResolver.HasApplicableFork() {
+		panic("fork is not found")
+	}
+	engine.forkResolver.ApplyFork()
 }

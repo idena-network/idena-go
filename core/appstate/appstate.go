@@ -34,6 +34,18 @@ func (s *AppState) ForCheck(height uint64) *AppState {
 	}
 }
 
+func (s *AppState) ForCheckWithReload(height uint64) *AppState {
+
+	state := &AppState{
+		State:         s.State.ForCheck(height),
+		IdentityState: s.IdentityState.ForCheckIdentityState(height),
+		NonceCache:    s.NonceCache,
+	}
+	state.ValidatorsCache = validators.NewValidatorsCache(state.State)
+	state.ValidatorsCache.Load()
+	return state
+}
+
 func (s *AppState) Initialize(height uint64) {
 	s.State.Load(height)
 	s.IdentityState.Load(height)

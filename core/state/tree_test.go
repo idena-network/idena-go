@@ -4,7 +4,9 @@ import (
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
+	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestMutableTree_Hash(t *testing.T) {
@@ -68,4 +70,39 @@ func TestImmutableTree_LoadVersionForOverwriting(t *testing.T) {
 	require.Equal(t, []byte{0x3}, v)
 
 	require.True(t, tree.ExistVersion(2))
+}
+
+func TestMutableTree_LoadVersion(t *testing.T) {
+	db := dbm.NewMemDB()
+	tree := NewMutableTree(db)
+	const assertVersion = 6
+	var hash common.Hash
+
+	var repeat [][]byte
+	rnd := rand.New(rand.NewSource(time.Now().Unix()))
+	for i := 1; i < 70; i++ {
+
+		for _, key := range repeat {
+			value := common.ToBytes(rnd.Uint64())
+			tree.Set(key, value)
+		}
+		repeat = make([][]byte, 0)
+
+		for j := 0; j < 100; j++ {
+			key := common.ToBytes(rnd.Int31n(10000000))
+			value := common.ToBytes(rnd.Uint64())
+			tree.Set(key, value)
+
+			if j > 90 {
+				repeat = append(repeat, key)
+			}
+		}
+		tree.SaveVersion()
+		if i == assertVersion {
+			hash = tree.WorkingHash()
+		}
+	}
+	tree.LoadVersion(assertVersion)
+
+	require.Equal(t, hash, tree.WorkingHash())
 }

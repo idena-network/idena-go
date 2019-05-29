@@ -2,6 +2,7 @@ package pengings
 
 import (
 	"bytes"
+	"github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
@@ -33,23 +34,31 @@ type Proposals struct {
 	blocksByRound *sync.Map
 
 	// blocks for future rounds
-	pendingBlocks []*types.Block
+	pendingBlocks []*blockPeer
 
 	// lock for pendingProofs
 	pMutex *sync.Mutex
 
 	// lock for pendingBlocks
 	bMutex *sync.Mutex
+
+	potentialForkedPeers mapset.Set
+}
+
+type blockPeer struct {
+	block  *types.Block
+	peerId string
 }
 
 func NewProposals(chain *blockchain.Blockchain) *Proposals {
 	return &Proposals{
-		chain:         chain,
-		log:           log.New(),
-		proofsByRound: &sync.Map{},
-		blocksByRound: &sync.Map{},
-		bMutex:        &sync.Mutex{},
-		pMutex:        &sync.Mutex{},
+		chain:                chain,
+		log:                  log.New(),
+		proofsByRound:        &sync.Map{},
+		blocksByRound:        &sync.Map{},
+		bMutex:               &sync.Mutex{},
+		pMutex:               &sync.Mutex{},
+		potentialForkedPeers: mapset.NewSet(),
 	}
 }
 
@@ -118,7 +127,6 @@ func (proposals *Proposals) CompleteRound(height uint64) {
 		return true
 	})
 
-
 	proposals.blocksByRound.Range(func(key, value interface{}) bool {
 		if key.(uint64) <= height {
 			proposals.blocksByRound.Delete(key)
@@ -148,23 +156,27 @@ func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
 	proposals.bMutex.Lock()
 	var result []*types.Block
 	pendings := proposals.pendingBlocks
-	proposals.pendingBlocks = []*types.Block{}
+	proposals.pendingBlocks = []*blockPeer{}
 
 	proposals.bMutex.Unlock()
 
-	for _, block := range pendings {
-		if proposals.AddProposedBlock(block) {
-			result = append(result, block)
+	for _, pending := range pendings {
+		if proposals.AddProposedBlock(pending.block, pending.peerId) {
+			result = append(result, pending.block)
 		}
 	}
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(block *types.Block) bool {
+func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) bool {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
 		if err := proposals.chain.ValidateProposedBlock(block); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
+			// it might be a signal about a fork
+			if err == blockchain.ParentHashIsInvalid && peerId != "" {
+				proposals.potentialForkedPeers.Add(peerId)
+			}
 			return false
 		}
 		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
@@ -178,7 +190,9 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block) bool {
 		defer proposals.bMutex.Unlock()
 
 		// TODO: maybe there exists better structure for this
-		proposals.pendingBlocks = append(proposals.pendingBlocks, block)
+		proposals.pendingBlocks = append(proposals.pendingBlocks, &blockPeer{
+			block: block, peerId: peerId,
+		})
 		return false
 	}
 	return false
@@ -215,4 +229,16 @@ func (proposals *Proposals) GetBlockByHash(round uint64, hash common.Hash) (*typ
 		}
 	}
 	return nil, errors.New("Block is not found in proposals")
+}
+
+func (proposals *Proposals) HasFork() bool {
+	return proposals.potentialForkedPeers.Cardinality() > 0
+}
+
+func (proposals *Proposals) GetForkedPeers() mapset.Set {
+	return proposals.potentialForkedPeers
+}
+
+func (proposals *Proposals) ClearPotentialForks() {
+	proposals.potentialForkedPeers.Clear()
 }

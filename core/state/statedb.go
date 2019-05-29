@@ -70,10 +70,11 @@ func NewLazy(db dbm.DB) *StateDB {
 }
 
 func (s *StateDB) ForCheck(height uint64) *StateDB {
-	tree := NewMutableTree(s.db)
+	db := database.NewBackedMemDb(s.db)
+	tree := NewMutableTree(db)
 	tree.LoadVersion(int64(height))
 	return &StateDB{
-		db:                   s.db,
+		db:                   db,
 		tree:                 tree,
 		stateAccounts:        make(map[common.Address]*stateAccount),
 		stateAccountsDirty:   make(map[common.Address]struct{}),
@@ -512,9 +513,9 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, e
 
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
-	if version > 10 {
-		if s.tree.ExistVersion(version - 10) {
-			err = s.tree.DeleteVersion(version - 10)
+	if version > 100 {
+		if s.tree.ExistVersion(version - 100) {
+			err = s.tree.DeleteVersion(version - 100)
 
 			if err != nil {
 				panic(err)

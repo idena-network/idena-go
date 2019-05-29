@@ -216,12 +216,12 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 	}
 }
 
-func (d *Downloader) TryPeekBlock(height uint64, peers []string) chan *types.Block {
+func (d *Downloader) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.Block {
 	var batches []*batch
 	blocks := make(chan *types.Block, len(peers))
 
 	for _, peerId := range peers {
-		if err, batch := d.pm.GetBlocksRange(peerId, height, height); err != nil {
+		if err, batch := d.pm.GetBlocksRange(peerId, fromBlock, toBlock); err != nil {
 			continue
 		} else {
 			batches = append(batches, batch)

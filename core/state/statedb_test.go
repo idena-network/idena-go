@@ -12,7 +12,7 @@ import (
 
 func TestStateDB_Version(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	addr := common.Address{}
@@ -26,7 +26,7 @@ func TestStateDB_Version(t *testing.T) {
 
 func TestStateDB_IterateIdentities(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	const accountsCount = 10001
@@ -106,7 +106,7 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 
 func TestStateGlobal_IncEpoch(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 
 	require.Equal(t, uint16(0), stateDb.Epoch())
 
