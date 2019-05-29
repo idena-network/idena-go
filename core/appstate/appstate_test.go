@@ -37,7 +37,8 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	forCheck.State.SetNonce(addr2, 3)
 	forCheck.IdentityState.Remove(addr)
 
-	forCheck.Commit()
+	err := forCheck.Commit()
+	require.Nil(t, err)
 
 	appState = NewAppState(db, bus)
 

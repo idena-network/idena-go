@@ -91,17 +91,24 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 		stateDb2.Commit(true)
 	}
 
-	forCheck := stateDb2.ForCheck(50)
+	originalHash := stateDb2.Root()
 
+	forCheck := stateDb2.ForCheck(50)
 	for i := 0; i < len(saved); i++ {
 
 		acc := forCheck.GetOrNewAccountObject(saved[i].address)
 		acc.SetBalance(saved[i].balance)
 
-		forCheck.Commit(true)
+		_, _, err := forCheck.Commit(true)
+		require.Nil(err)
 	}
 
 	require.Equal(stateDb.Root(), forCheck.Root())
+
+	stateDb2 = NewLazy(db2)
+	stateDb2.Load(100)
+	require.Equal(originalHash, stateDb2.Root())
+
 }
 
 func TestStateDB_IterateIdentities(t *testing.T) {

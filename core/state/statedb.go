@@ -72,7 +72,7 @@ func NewLazy(db dbm.DB) *StateDB {
 func (s *StateDB) ForCheck(height uint64) *StateDB {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
-	tree.LoadVersion(int64(height))
+	tree.LoadVersionForOverwriting(int64(height))
 	return &StateDB{
 		db:                   db,
 		tree:                 tree,
