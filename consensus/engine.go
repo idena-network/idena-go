@@ -62,7 +62,7 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		txpool:       txpool,
 		downloader:   downloader,
 		secStore:     secStore,
-		forkResolver: NewForkResolver(proposals, downloader, chain),
+		forkResolver: NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
 	}
 }
 
@@ -84,13 +84,16 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 
 func (engine *Engine) loop() {
 	for {
-		if err := engine.ensureIntegrity(); err != nil {
-			engine.log.Error("Failed to recover stateDb", "err", err)
+		if err := engine.chain.EnsureIntegrity(); err != nil {
+			engine.log.Error("Failed to recover blockchain", "err", err)
 			time.Sleep(time.Second * 30)
 			continue
 		}
-		engine.downloader.SyncBlockchain()
-
+		engine.downloader.SyncBlockchain(engine.forkResolver)
+		if engine.forkResolver.HasLoadedFork() {
+			engine.forkResolver.ApplyFork()
+			continue
+		}
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
@@ -140,9 +143,10 @@ func (engine *Engine) loop() {
 			engine.log.Info("Binary Ba is failed", "err", err)
 
 			if err == ForkDetected {
-				engine.applyFork()
+				if err = engine.forkResolver.ApplyFork(); err != nil {
+					engine.log.Error("error occurred during applying of fork", "err", err)
+				}
 			}
-
 			continue
 		}
 		engine.process = "Count final votes"
@@ -316,7 +320,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 		if engine.futureBlockExist(round, emptyBlockHash) {
 			return common.Hash{}, errors.New("Detected future block")
 		}
-		if engine.hasApplicableFork() {
+		if engine.forkResolver.HasLoadedFork() {
 			return common.Hash{}, ForkDetected
 		}
 	}
@@ -468,48 +472,4 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	}
 
 	return nil, errors.New("Block is not found")
-}
-
-func (engine *Engine) ensureIntegrity() error {
-	for engine.chain.Head.Root() != engine.appState.State.Root() ||
-		engine.chain.Head.IdentityRoot() != engine.appState.IdentityState.Root() {
-		if err := engine.appState.ResetTo(engine.chain.Head.Height() - 1); err != nil {
-			return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
-		}
-		engine.chain.SetHead(engine.chain.Head.Height() - 1)
-		engine.log.Warn("blockchain was reseted", "new head", engine.chain.Head.Height())
-	}
-	return nil
-}
-
-func (engine *Engine) hasApplicableFork() bool {
-
-
-
-
-
-	if !engine.proposals.HasFork() {
-		return false
-	}
-
-	if engine.forkResolver == nil {
-		engine.forkResolver = NewForkResolver(engine.proposals, engine.downloader, engine.chain)
-		go engine.forkResolver.loadAndVerifyFork()
-	}
-
-	if engine.forkResolver.IsLoaded() {
-		if engine.forkResolver.HasApplicableFork() {
-			return true
-		} else {
-			engine.forkResolver = nil
-		}
-	}
-	return false
-}
-
-func (engine *Engine) applyFork() {
-	if !engine.forkResolver.HasApplicableFork() {
-		panic("fork is not found")
-	}
-	engine.forkResolver.ApplyFork()
 }

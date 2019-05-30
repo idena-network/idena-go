@@ -231,7 +231,7 @@ func (proposals *Proposals) GetBlockByHash(round uint64, hash common.Hash) (*typ
 	return nil, errors.New("Block is not found in proposals")
 }
 
-func (proposals *Proposals) HasFork() bool {
+func (proposals *Proposals) HasPotentialFork() bool {
 	return proposals.potentialForkedPeers.Cardinality() > 0
 }
 

@@ -26,24 +26,35 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 }
 
 func (s *AppState) ForCheck(height uint64) *AppState {
+	state, _ := s.State.ForCheck(height)
+	identityState, _ := s.IdentityState.ForCheckIdentityState(height)
 	return &AppState{
-		State:           s.State.ForCheck(height),
-		IdentityState:   s.IdentityState.ForCheckIdentityState(height),
+		State:           state,
+		IdentityState:   identityState,
 		ValidatorsCache: s.ValidatorsCache,
 		NonceCache:      s.NonceCache,
 	}
 }
 
-func (s *AppState) ForCheckWithReload(height uint64) *AppState {
+func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
 
-	state := &AppState{
-		State:         s.State.ForCheck(height),
-		IdentityState: s.IdentityState.ForCheckIdentityState(height),
+	state, err := s.State.ForCheck(height)
+	if err != nil {
+		return nil, err
+	}
+	identityState, err := s.IdentityState.ForCheckIdentityState(height)
+	if err != nil {
+		return nil, err
+	}
+
+	appState := &AppState{
+		State:         state,
+		IdentityState: identityState,
 		NonceCache:    s.NonceCache,
 	}
-	state.ValidatorsCache = validators.NewValidatorsCache(state.State)
-	state.ValidatorsCache.Load()
-	return state
+	appState.ValidatorsCache = validators.NewValidatorsCache(appState.State)
+	appState.ValidatorsCache.Load()
+	return appState, nil
 }
 
 func (s *AppState) Initialize(height uint64) {

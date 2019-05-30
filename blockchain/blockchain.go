@@ -128,7 +128,7 @@ func (chain *Blockchain) SetCurrentHead(head *types.Header) {
 	chain.Head = head
 }
 
-func (chain *Blockchain) SetHead(height uint64) {
+func (chain *Blockchain) setHead(height uint64) {
 	chain.repo.SetHead(height)
 	chain.SetCurrentHead(chain.GetHead())
 }
@@ -974,17 +974,39 @@ func (chain *Blockchain) Genesis() common.Hash {
 	return chain.genesis.Hash()
 }
 
-func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Block) bool {
-	checkState := chain.appState.ForCheckWithReload(startHeight)
+func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Block) error {
+	checkState, err := chain.appState.ForCheckWithNewCache(startHeight)
+	if err != nil {
+		return err
+	}
 	prevBlock := chain.GetBlockHeaderByHeight(startHeight)
 
 	for _, b := range blocks {
 		if err := chain.validateBlock(checkState, b, prevBlock); err != nil {
-			return false
+			return err
 		}
 		checkState.Commit()
 		prevBlock = b.Header
 	}
 
-	return true
+	return nil
+}
+
+func (chain *Blockchain) ResetTo(height uint64) error {
+	if err := chain.appState.ResetTo(height); err != nil {
+		return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
+	}
+	chain.setHead(height)
+	return nil
+}
+
+func (chain *Blockchain) EnsureIntegrity() error {
+	for chain.Head.Root() != chain.appState.State.Root() ||
+		chain.Head.IdentityRoot() != chain.appState.IdentityState.Root() {
+		if err := chain.ResetTo(chain.Head.Height() - 1); err != nil {
+			return err
+		}
+		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+	}
+	return nil
 }

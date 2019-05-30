@@ -69,10 +69,12 @@ func NewLazy(db dbm.DB) *StateDB {
 	}
 }
 
-func (s *StateDB) ForCheck(height uint64) *StateDB {
+func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
-	tree.LoadVersionForOverwriting(int64(height))
+	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
+		return nil, err
+	}
 	return &StateDB{
 		db:                   db,
 		tree:                 tree,
@@ -81,7 +83,7 @@ func (s *StateDB) ForCheck(height uint64) *StateDB {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *StateDB) MemoryState() *StateDB {

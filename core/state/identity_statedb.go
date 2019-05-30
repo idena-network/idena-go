@@ -34,17 +34,20 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	}
 }
 
-func (s *IdentityStateDB) ForCheckIdentityState(height uint64) *IdentityStateDB {
+func (s *IdentityStateDB) ForCheckIdentityState(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
-	tree.LoadVersionForOverwriting(int64(height))
+	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
+		return nil, err
+	}
+
 	return &IdentityStateDB{
 		db:                   db,
 		tree:                 tree,
 		stateIdentities:      make(map[common.Address]*stateApprovedIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *IdentityStateDB) Load(height uint64) error {

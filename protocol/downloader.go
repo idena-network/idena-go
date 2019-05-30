@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 	"idena-go/blockchain"
 	"idena-go/blockchain/types"
@@ -13,22 +14,28 @@ import (
 )
 
 const (
-	BatchSize = 200
+	BatchSize                = 200
+	MaxAttemptsCountPerBatch = 10
 )
 
 type Syncer interface {
 	IsSyncing() bool
 }
 
+type ForkResolver interface {
+	HasLoadedFork() bool
+}
+
 type Downloader struct {
-	pm        *ProtocolManager
-	log       log.Logger
-	chain     *blockchain.Blockchain
-	batches   chan *batch
-	ipfs      ipfs.Proxy
-	isSyncing bool
-	appState  *appstate.AppState
-	top       uint64
+	pm                   *ProtocolManager
+	log                  log.Logger
+	chain                *blockchain.Blockchain
+	batches              chan *batch
+	ipfs                 ipfs.Proxy
+	isSyncing            bool
+	appState             *appstate.AppState
+	top                  uint64
+	potentialForkedPeers mapset.Set
 }
 
 func (d *Downloader) IsSyncing() bool {
@@ -41,12 +48,13 @@ func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 
 func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState) *Downloader {
 	return &Downloader{
-		pm:        pm,
-		chain:     chain,
-		log:       log.New("component", "downloader"),
-		ipfs:      ipfs,
-		appState:  appState,
-		isSyncing: true,
+		pm:                   pm,
+		chain:                chain,
+		log:                  log.New("component", "downloader"),
+		ipfs:                 ipfs,
+		appState:             appState,
+		isSyncing:            true,
+		potentialForkedPeers: mapset.NewSet(),
 	}
 }
 
@@ -60,13 +68,16 @@ func getTopHeight(heights map[string]uint64) uint64 {
 	return max
 }
 
-func (d *Downloader) SyncBlockchain() {
+func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
 	d.isSyncing = true
 	defer func() {
 		d.isSyncing = false
 		d.top = 0
 	}()
 	for {
+		if forkResolver.HasLoadedFork() {
+			return
+		}
 		knownHeights := d.pm.GetKnownHeights()
 		if knownHeights == nil {
 			d.log.Info(fmt.Sprintf("Peers are not found. Assume node is synchronized"))
@@ -106,7 +117,6 @@ func (d *Downloader) SyncBlockchain() {
 		d.log.Info(fmt.Sprintf("All blocks was requested. Wait applying of blocks"))
 		close(completed)
 		<-term
-
 		//TODO : we may have downloaded unprocessed batches which can be useful
 	}
 }
@@ -118,7 +128,7 @@ func (d *Downloader) consumeBlocks(term chan interface{}, completed chan interfa
 
 		select {
 		case batch := <-d.batches:
-			if err := d.processBatch(batch); err != nil {
+			if err := d.processBatch(batch, 1); err != nil {
 				d.log.Warn("failed to process batch", "err", err)
 				return
 			}
@@ -128,7 +138,7 @@ func (d *Downloader) consumeBlocks(term chan interface{}, completed chan interfa
 
 		select {
 		case batch := <-d.batches:
-			if err := d.processBatch(batch); err != nil {
+			if err := d.processBatch(batch, 1); err != nil {
 				d.log.Warn("failed to process batch", "err", err)
 				return
 			}
@@ -141,7 +151,7 @@ func (d *Downloader) consumeBlocks(term chan interface{}, completed chan interfa
 	}
 }
 
-func (d *Downloader) downloadBatch(from, to uint64, ignoredPeer string) *batch {
+func (d *Downloader) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	knownHeights := d.pm.GetKnownHeights()
 	if knownHeights == nil {
 		return nil
@@ -158,17 +168,20 @@ func (d *Downloader) downloadBatch(from, to uint64, ignoredPeer string) *batch {
 	return nil
 }
 
-func (d *Downloader) processBatch(batch *batch) error {
+func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 	d.log.Info("Start process batch", "from", batch.from, "to", batch.to)
+	if attemptNum > MaxAttemptsCountPerBatch {
+		return errors.New("number of attempts exceeded limit")
+	}
 	for i := batch.from; i <= batch.to; i++ {
 		timeout := time.After(time.Second * 10)
 
 		reload := func() error {
-			b := d.downloadBatch(i, batch.to, batch.p.id)
+			b := d.requestBatch(i, batch.to, batch.p.id)
 			if b == nil {
 				return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", i, batch.to))
 			}
-			return d.processBatch(b)
+			return d.processBatch(b, attemptNum+1)
 		}
 
 		select {
@@ -178,8 +191,12 @@ func (d *Downloader) processBatch(batch *batch) error {
 				return reload()
 			} else {
 				if err := d.chain.AddBlock(block); err != nil {
-					d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
 					d.appState.ResetTo(d.chain.Head.Height())
+
+					if err == blockchain.ParentHashIsInvalid {
+						d.potentialForkedPeers.Add(batch.p.id)
+					}
+					d.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
 					time.Sleep(time.Second)
 					// TODO: ban bad peer
 					return reload()
@@ -248,4 +265,16 @@ func (d *Downloader) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan 
 	}()
 
 	return blocks
+}
+
+func (d *Downloader) HasPotentialFork() bool {
+	return d.potentialForkedPeers.Cardinality() > 0
+}
+
+func (d *Downloader) GetForkedPeers() mapset.Set {
+	return d.potentialForkedPeers
+}
+
+func (d *Downloader) ClearPotentialForks() {
+	d.potentialForkedPeers.Clear()
 }

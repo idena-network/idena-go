@@ -7,48 +7,52 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common/math"
 	"idena-go/log"
-	"idena-go/pengings"
 	"idena-go/protocol"
 	"sort"
 	"time"
 )
 
 type ForkResolver struct {
-	proposals  *pengings.Proposals
-	downloader *protocol.Downloader
-	chain      *blockchain.Blockchain
-	isLoading  bool
-	log        log.Logger
-	triedPeers mapset.Set
+	forkDetectors  []ForkDetector
+	downloader     *protocol.Downloader
+	chain          *blockchain.Blockchain
+	log            log.Logger
+	triedPeers     mapset.Set
+	applicableFork *applicableFork
 }
 
-func NewForkResolver(proposals *pengings.Proposals, downloader *protocol.Downloader, chain *blockchain.Blockchain) *ForkResolver {
+type applicableFork struct {
+	commonHeight uint64
+	blocks       []*types.Block
+}
+
+func NewForkResolver(forkDetectors []ForkDetector, downloader *protocol.Downloader, chain *blockchain.Blockchain) *ForkResolver {
 	return &ForkResolver{
-		proposals:  proposals,
-		downloader: downloader,
-		chain:      chain,
-		log:        log.New(),
-		triedPeers: mapset.NewSet(),
+		forkDetectors: forkDetectors,
+		downloader:    downloader,
+		chain:         chain,
+		log:           log.New(),
+		triedPeers:    mapset.NewSet(),
 	}
 }
 
 func (resolver *ForkResolver) loadAndVerifyFork() {
 
-	peers := resolver.proposals.GetForkedPeers().Difference(resolver.triedPeers)
-	if peers.Cardinality() == 0 {
+	var peerId string
+	for _, d := range resolver.forkDetectors {
+		if d.HasPotentialFork() {
+			peers := d.GetForkedPeers().Difference(resolver.triedPeers)
+			if peers.Cardinality() > 0 {
+				peerId = peers.Pop().(string)
+				break
+			}
+		}
+	}
+	if peerId == "" {
 		return
 	}
-
-	peerId := peers.Pop().(string)
 	resolver.triedPeers.Add(peerId)
-
 	batchSize := uint64(5)
-
-	resolver.isLoading = true
-
-	defer func() {
-		resolver.isLoading = false
-	}()
 
 	to := resolver.chain.Head.Height() + 2
 	from := to - batchSize
@@ -63,6 +67,7 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 		for {
 			block, ok := <-blocks
 			if !ok {
+				// all requested blocks have been consumed or a timeout has been reached
 				break
 			}
 			existingBlock := resolver.chain.GetBlockByHeight(block.Height())
@@ -76,19 +81,28 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 		}
 		to = from - 1
 		if to < oldestBlock {
+			//no common block has been found
 			break
 		}
 		from = math.Max(oldestBlock, to-batchSize)
 
 		if commonHeight == 1 && uint64(len(batchBlocks)) < to-from+1 {
+			// peer didn't provide all requested blocks, ignore this one
 			break
 		}
 		forkBlocks = append(forkBlocks, batchBlocks...)
 	}
 	if commonHeight > 1 {
 		sortBlocks(forkBlocks)
-		if resolver.isForkBigger(forkBlocks) && resolver.chain.ValidateSubChain(commonHeight, forkBlocks) {
-
+		if resolver.isForkBigger(forkBlocks) {
+			if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
+				resolver.log.Warn("unacceptable fork", "peerId", peerId, "err", err)
+			} else {
+				resolver.applicableFork = &applicableFork{
+					commonHeight: commonHeight,
+					blocks:       forkBlocks,
+				}
+			}
 		}
 	}
 }
@@ -130,30 +144,48 @@ func (resolver *ForkResolver) isForkBigger(fork []*types.Block) bool {
 	return bytes.Compare(fork[0].Seed().Bytes(), resolver.chain.GetBlockByHeight(firstForkBlockHeight).Seed().Bytes()) > 0
 }
 
-func (resolver *ForkResolver) HasApplicableFork() bool {
-	panic("not implemeted")
+func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []*types.Block) error {
+
+	defer func() {
+		resolver.applicableFork = nil
+		resolver.triedPeers.Clear()
+
+		for _, d := range resolver.forkDetectors {
+			d.ClearPotentialForks()
+		}
+	}()
+
+	if err := resolver.chain.ResetTo(commonHeight); err != nil {
+		return err
+	}
+	for _, block := range fork {
+		if err := resolver.chain.AddBlock(block); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (resolver *ForkResolver) IsLoaded() bool {
-	panic("not implemeted")
-}
-
-func (resolver *ForkResolver) ApplyFork() {
-	panic("not implemeted")
+func (resolver *ForkResolver) ApplyFork() error {
+	if !resolver.HasLoadedFork() {
+		panic("resolver hasn't applicable fork")
+	}
+	return resolver.applyFork(resolver.applicableFork.commonHeight, resolver.applicableFork.blocks)
 }
 
 func (resolver *ForkResolver) Start() {
 	go func() {
 		for {
 			time.Sleep(time.Minute * 1)
-			if resolver.isLoading {
-				continue
-			}
-			if !resolver.proposals.HasFork() {
+			if resolver.HasLoadedFork() {
 				continue
 			}
 			resolver.loadAndVerifyFork()
 		}
-
 	}()
+}
+
+func (resolver *ForkResolver) HasLoadedFork() bool {
+	return resolver.applicableFork != nil
 }
