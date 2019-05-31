@@ -6,28 +6,44 @@ import (
 	"idena-go/common"
 	"idena-go/core/state"
 	"idena-go/crypto"
+	"math/rand"
 	"testing"
 )
 
 func TestValidatorsCache_Contains(t *testing.T) {
+	require := require.New(t)
 	database := db.NewMemDB()
-	stateDb := state.NewLazy(database)
+	identityStateDB := state.NewLazyIdentityState(database)
 
-	var arr []common.Address
+	m := make(map[common.Address]bool)
 
-	for j := 0; j < 10; j++ {
+	countOnline, countAll := 0, 100
+
+	for j := 0; j < countAll; j++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		arr = append(arr, addr)
-		obj := stateDb.GetOrNewIdentityObject(addr)
-		obj.SetState(state.Verified)
-	}
-	stateDb.Commit(false)
 
-	vCache := NewValidatorsCache(stateDb)
+		obj := identityStateDB.GetOrNewIdentityObject(addr)
+		obj.SetState(true)
+
+		isOnline := rand.Int31()%2 == 0
+		m[addr] = isOnline
+
+		if isOnline {
+			obj.SetOnline(true)
+			countOnline++
+		}
+	}
+	identityStateDB.Commit(false)
+
+	vCache := NewValidatorsCache(identityStateDB, common.Address{})
 	vCache.Load()
 
-	for i := 0; i < len(arr); i++ {
-		require.True(t, vCache.Contains(arr[i]))
+	for addr, online := range m {
+		require.Equal(online, vCache.IsOnlineIdentity(addr))
+		require.True(vCache.Contains(addr))
 	}
+
+	require.Equal(countOnline, vCache.OnlineSize())
+	require.Equal(countAll, vCache.NetworkSize())
 }

@@ -330,6 +330,14 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, [][]byte, m
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
+	godAddress := vc.appState.State.GodAddress()
+
+	addFlips := func(candidateFlips [][]byte) {
+		for _, f := range candidateFlips {
+			flips = append(flips, f)
+			flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f)
+		}
+	}
 
 	vc.appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
@@ -344,14 +352,13 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, [][]byte, m
 		}
 
 		if state.IsCeremonyCandidate(data) {
-			for _, f := range data.Flips {
-				flips = append(flips, f)
-				flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f)
-			}
+			addFlips(data.Flips)
 
 			m = append(m, &candidate{
 				PubKey: data.PubKey,
 			})
+		} else if addr == godAddress {
+			addFlips(data.Flips)
 		}
 
 		return false

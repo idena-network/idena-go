@@ -20,6 +20,11 @@ type BaseApi struct {
 	secStore *secstore.SecStore
 }
 
+type BaseTxArgs struct {
+	Nonce uint32 `json:"nonce"`
+	Epoch uint16 `json:"epoch"`
+}
+
 func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore, secStore *secstore.SecStore) *BaseApi {
 	return &BaseApi{engine, txpool, ks, secStore}
 }

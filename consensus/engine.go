@@ -91,7 +91,7 @@ func (engine *Engine) loop() {
 		}
 		head := engine.chain.Head
 		round := head.Height() + 1
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "valid-nodes", engine.appState.ValidatorsCache.NetworkSize())
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers", engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize())
 
 		engine.process = "Check if I'm proposer"
 
@@ -350,7 +350,7 @@ func (engine *Engine) commonCoin(step uint16) bool {
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 	committeeSize := engine.chain.GetCommitteSize(step == Final)
-	stepValidators := engine.appState.ValidatorsCache.GetActualValidators(engine.chain.Head.Seed(), round, step, committeeSize)
+	stepValidators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
 	}
@@ -380,7 +380,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Debug("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.appState.ValidatorsCache.GetActualValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(step == Final))
+	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(step == Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}

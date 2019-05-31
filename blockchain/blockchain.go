@@ -260,7 +260,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (err error) {
 	}
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 	chain.txpool.ResetTo(block)
-	chain.appState.ValidatorsCache.RefreshIfUpdated(block.Header.Flags().HasFlag(types.IdentityUpdate))
+	chain.appState.ValidatorsCache.RefreshIfUpdated(block)
 	return nil
 }
 
@@ -440,7 +440,7 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 	if block.IsEmpty() {
 		return
 	}
-	identities := chain.appState.ValidatorsCache.GetActualValidators(chain.Head.Seed(), chain.Head.Height(), 1000, chain.GetCommitteSize(true))
+	identities := chain.appState.ValidatorsCache.GetOnlineValidators(chain.Head.Seed(), chain.Head.Height(), 1000, chain.GetCommitteSize(true))
 	if identities == nil || identities.Cardinality() == 0 {
 		return
 	}
@@ -545,6 +545,9 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddFlip(sender, tx.Payload)
+	case types.OnlineStatusTx:
+		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
+		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -926,7 +929,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 }
 
 func (chain *Blockchain) GetCommitteSize(final bool) int {
-	var cnt = chain.appState.ValidatorsCache.NetworkSize()
+	var cnt = chain.appState.ValidatorsCache.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
@@ -939,7 +942,7 @@ func (chain *Blockchain) GetCommitteSize(final bool) int {
 
 func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
 
-	var cnt = chain.appState.ValidatorsCache.NetworkSize()
+	var cnt = chain.appState.ValidatorsCache.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent

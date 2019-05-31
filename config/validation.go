@@ -17,7 +17,7 @@ func GetDefaultValidationConfig() *ValidationConfig {
 		ValidationInterval:       time.Minute * 35,
 		FlipLotteryDuration:      time.Minute * 1,
 		ShortSessionDuration:     time.Minute * 3,
-		LongSessionDuration:      time.Minute * 4,
+		LongSessionDuration:      time.Minute * 2,
 		AfterLongSessionDuration: time.Second * 30,
 	}
 }

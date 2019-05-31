@@ -59,23 +59,20 @@ type SendTxArgs struct {
 	From    common.Address  `json:"from"`
 	To      common.Address  `json:"to"`
 	Amount  decimal.Decimal `json:"amount"`
-	Nonce   uint32          `json:"nonce"`
-	Epoch   uint16          `json:"epoch"`
 	Payload *hexutil.Bytes  `json:"payload"`
+	BaseTxArgs
 }
 
 // SendInviteArgs represents the arguments to send invite
 type SendInviteArgs struct {
 	To     common.Address  `json:"to"`
 	Amount decimal.Decimal `json:"amount"`
-	Nonce  uint32          `json:"nonce"`
-	Epoch  uint16          `json:"epoch"`
+	BaseTxArgs
 }
 
 type ActivateInviteArgs struct {
-	Key   string `json:"key"`
-	Nonce uint32 `json:"nonce"`
-	Epoch uint16 `json:"epoch"`
+	Key string `json:"key"`
+	BaseTxArgs
 }
 
 type Invite struct {
@@ -137,6 +134,28 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 	return hash, nil
 }
 
+func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(from, from, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, []byte{0x1}, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
+func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(from, from, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
 func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 
 	var payload []byte
@@ -160,6 +179,7 @@ type Identity struct {
 	QualifiedFlips  uint32          `json:"totalQualifiedFlips"`
 	ShortFlipPoints float32         `json:"totalShortFlipPoints"`
 	Flips           []string        `json:"flips"`
+	Online          bool            `json:"online"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -180,11 +200,17 @@ func (api *DnaApi) Identities() []Identity {
 		return false
 	})
 
+	for _, identity := range identities {
+		identity.Online = api.baseApi.getAppState().IdentityState.IsOnline(identity.Address)
+	}
+
 	return identities
 }
 
 func (api *DnaApi) Identity(address common.Address) Identity {
-	return convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address))
+	converted := convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address))
+	converted.Online = api.baseApi.getAppState().IdentityState.IsOnline(address)
+	return converted
 }
 
 func convertIdentity(address common.Address, data state.Identity) Identity {

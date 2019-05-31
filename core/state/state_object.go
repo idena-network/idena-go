@@ -105,6 +105,7 @@ func (i *Identity) HasDoneAllRequiredFlips() bool {
 
 type ApprovedIdentity struct {
 	Approved bool
+	Online   bool
 }
 
 // newAccountObject creates a state object.
@@ -425,6 +426,10 @@ func (s *stateApprovedIdentity) Address() common.Address {
 	return s.address
 }
 
+func (s *stateApprovedIdentity) Online() bool {
+	return s.data.Online
+}
+
 // empty returns whether the account is considered empty.
 func (s *stateApprovedIdentity) empty() bool {
 	return !s.data.Approved
@@ -439,6 +444,11 @@ func (s *stateApprovedIdentity) touch() {
 
 func (s *stateApprovedIdentity) SetState(approved bool) {
 	s.data.Approved = approved
+	s.touch()
+}
+
+func (s *stateApprovedIdentity) SetOnline(online bool) {
+	s.data.Online = online
 	s.touch()
 }
 
