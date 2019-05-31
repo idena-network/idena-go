@@ -546,6 +546,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddFlip(sender, tx.Payload)
 	case types.OnlineStatusTx:
+		stateDB.SubBalance(sender, totalCost)
 		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
 		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
 	}

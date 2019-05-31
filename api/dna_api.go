@@ -201,7 +201,7 @@ func (api *DnaApi) Identities() []Identity {
 	})
 
 	for _, identity := range identities {
-		identity.Online = api.baseApi.getAppState().IdentityState.IsOnline(identity.Address)
+		identity.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(identity.Address)
 	}
 
 	return identities
@@ -209,7 +209,7 @@ func (api *DnaApi) Identities() []Identity {
 
 func (api *DnaApi) Identity(address common.Address) Identity {
 	converted := convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address))
-	converted.Online = api.baseApi.getAppState().IdentityState.IsOnline(address)
+	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(address)
 	return converted
 }
 
