@@ -186,12 +186,25 @@ func (s *IdentityStateDB) deleteStateIdentityObject(stateObject *stateApprovedId
 func (s *IdentityStateDB) Root() common.Hash {
 	return s.tree.WorkingHash()
 }
+
 func (s *IdentityStateDB) IsApproved(addr common.Address) bool {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
 		return stateObject.data.Approved
 	}
 	return false
+}
+
+func (s *IdentityStateDB) IsOnline(addr common.Address) bool {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.data.Online
+	}
+	return false
+}
+
+func (s *IdentityStateDB) SetOnline(addr common.Address, online bool) {
+	s.GetOrNewIdentityObject(addr).SetOnline(online)
 }
 
 func (s *IdentityStateDB) ResetTo(height uint64) error {

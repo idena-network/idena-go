@@ -30,7 +30,10 @@ var (
 	EarlyTx              = errors.New("tx can't be accepted due to wrong period")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
 	NotCandidate         = errors.New("user is not a candidate")
+	NotIdentity          = errors.New("user is not identity")
 	InsufficientFlips    = errors.New("insufficient flips")
+	IsAlreadyOnline      = errors.New("identity is already online")
+	IsAlreadyOffline     = errors.New("identity is already offline")
 	validators           map[types.TxType]validator
 )
 
@@ -46,6 +49,7 @@ func init() {
 		types.SubmitShortAnswersTx: validateSubmitShortAnswersTx,
 		types.SubmitLongAnswersTx:  validateSubmitLongAnswersTx,
 		types.EvidenceTx:           validateEvidenceTx,
+		types.OnlineStatusTx:       validateOnlineStatusTx,
 	}
 }
 
@@ -268,6 +272,28 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
+	}
+
+	return nil
+}
+
+func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if *tx.To != sender || !appState.ValidatorsCache.Contains(sender) {
+		return InvalidRecipient
+	}
+
+	shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
+
+	if shouldBecomeOnline && appState.ValidatorsCache.IsOnlineIdentity(sender) {
+		return IsAlreadyOnline
+	}
+
+	if !shouldBecomeOnline && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
+		return IsAlreadyOffline
 	}
 
 	return nil

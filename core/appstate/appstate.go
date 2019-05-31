@@ -37,7 +37,7 @@ func (s *AppState) ForCheck(height uint64) *AppState {
 func (s *AppState) Initialize(height uint64) {
 	s.State.Load(height)
 	s.IdentityState.Load(height)
-	s.ValidatorsCache = validators.NewValidatorsCache(s.State)
+	s.ValidatorsCache = validators.NewValidatorsCache(s.IdentityState, s.State.GodAddress())
 	s.ValidatorsCache.Load()
 	s.NonceCache = state.NewNonceCache(s.State)
 }

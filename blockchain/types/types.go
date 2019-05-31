@@ -18,6 +18,7 @@ const (
 	SubmitShortAnswersTx uint16 = 0x6
 	SubmitLongAnswersTx  uint16 = 0x7
 	EvidenceTx           uint16 = 0x8
+	OnlineStatusTx       uint16 = 0x9
 )
 
 type BlockFlag uint32
