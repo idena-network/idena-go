@@ -93,7 +93,7 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 
 	originalHash := stateDb2.Root()
 
-	forCheck := stateDb2.ForCheck(50)
+	forCheck, _ := stateDb2.ForCheck(50)
 	for i := 0; i < len(saved); i++ {
 
 		acc := forCheck.GetOrNewAccountObject(saved[i].address)

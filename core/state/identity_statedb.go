@@ -70,9 +70,9 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
-	if version > 100 {
-		if s.tree.ExistVersion(version - 100) {
-			err = s.tree.DeleteVersion(version - 100)
+	if version > MaxSavedStatesCount {
+		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
+			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
 
 			if err != nil {
 				panic(err)

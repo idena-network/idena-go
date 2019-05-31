@@ -51,6 +51,9 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	if peerId == "" {
 		return
 	}
+
+	resolver.log.Info("Start loading fork", "peerId", peerId)
+
 	resolver.triedPeers.Add(peerId)
 	batchSize := uint64(5)
 
@@ -71,47 +74,57 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 				break
 			}
 			existingBlock := resolver.chain.GetBlockByHeight(block.Height())
-			if existingBlock.Hash() != block.Hash() {
+			if existingBlock == nil || existingBlock.Hash() != block.Hash() {
 				batchBlocks = append(batchBlocks, block)
 			} else {
 				commonHeight = block.Height()
-				break
 			}
-
 		}
+		forkBlocks = append(forkBlocks, batchBlocks...)
+
 		to = from - 1
 		if to < oldestBlock {
 			//no common block has been found
 			break
 		}
 		from = math.Max(oldestBlock, to-batchSize)
-
 		if commonHeight == 1 && uint64(len(batchBlocks)) < to-from+1 {
 			// peer didn't provide all requested blocks, ignore this one
 			break
 		}
-		forkBlocks = append(forkBlocks, batchBlocks...)
+
 	}
 	if commonHeight > 1 {
-		sortBlocks(forkBlocks)
+		forkBlocks = sortAndFilterBlocks(forkBlocks, commonHeight)
 		if resolver.isForkBigger(forkBlocks) {
 			if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
 				resolver.log.Warn("unacceptable fork", "peerId", peerId, "err", err)
 			} else {
+				resolver.log.Info("applicable fork is detected", "peerId", peerId, "commonHeight", commonHeight)
 				resolver.applicableFork = &applicableFork{
 					commonHeight: commonHeight,
 					blocks:       forkBlocks,
 				}
 			}
 		}
+	} else {
+		resolver.log.Warn("Common height is not found", "peerId", peerId)
 	}
 }
 
-func sortBlocks(blocks []*types.Block) {
+func sortAndFilterBlocks(blocks []*types.Block, minHeight uint64) []*types.Block {
 
 	sort.SliceStable(blocks, func(i, j int) bool {
 		return blocks[i].Height() < blocks[j].Height()
 	})
+
+	result := make([]*types.Block, 0)
+	for _, b := range blocks {
+		if b.Height() > minHeight {
+			result = append(result, b)
+		}
+	}
+	return result
 }
 
 func (resolver *ForkResolver) isForkBigger(fork []*types.Block) bool {
@@ -182,6 +195,12 @@ func (resolver *ForkResolver) Start() {
 				continue
 			}
 			resolver.loadAndVerifyFork()
+		}
+	}()
+	go func() {
+		for {
+			time.Sleep(time.Minute * 10)
+			resolver.triedPeers.Clear()
 		}
 	}()
 }

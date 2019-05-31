@@ -52,8 +52,8 @@ func (db *BackedMemDb) Delete(key []byte) {
 }
 
 func (db *BackedMemDb) DeleteSync(key []byte) {
-	db.touched.Add(string(key))
 	db.inner.DeleteSync(key)
+	db.touch(key)
 }
 
 func (db *BackedMemDb) Iterator(start, end []byte) db.Iterator {

@@ -52,7 +52,7 @@ func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
 		IdentityState: identityState,
 		NonceCache:    s.NonceCache,
 	}
-	appState.ValidatorsCache = validators.NewValidatorsCache(appState.State)
+	appState.ValidatorsCache = validators.NewValidatorsCache(appState.IdentityState, appState.State.GodAddress())
 	appState.ValidatorsCache.Load()
 	return appState, nil
 }

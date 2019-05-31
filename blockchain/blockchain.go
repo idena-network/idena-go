@@ -985,7 +985,9 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Bl
 		if err := chain.validateBlock(checkState, b, prevBlock); err != nil {
 			return err
 		}
-		checkState.Commit()
+		if err := checkState.Commit(); err != nil {
+			return err
+		}
 		prevBlock = b.Header
 	}
 

@@ -247,18 +247,20 @@ func (d *Downloader) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan 
 
 	go func() {
 		for _, batch := range batches {
-			timeout := time.After(time.Second * 10)
-			select {
-			case header := <-batch.headers:
-				if block, err := d.GetBlock(header); err != nil {
-					d.log.Warn("fail to retrieve block while peeking", "err", err)
+			for i := batch.from; i <= batch.to; i++ {
+				timeout := time.After(time.Second * 10)
+				select {
+				case header := <-batch.headers:
+					if block, err := d.GetBlock(header); err != nil {
+						d.log.Warn("fail to retrieve block while peeking", "err", err)
+						continue
+					} else {
+						blocks <- block
+					}
+				case <-timeout:
+					d.log.Warn("timeout was reached while peeking block")
 					continue
-				} else {
-					blocks <- block
 				}
-			case <-timeout:
-				d.log.Warn("timeout was reached while peeking block")
-				continue
 			}
 		}
 		close(blocks)
