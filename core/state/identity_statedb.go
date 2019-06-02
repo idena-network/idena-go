@@ -34,7 +34,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	}
 }
 
-func (s *IdentityStateDB) ForCheckIdentityState(height uint64) (*IdentityStateDB, error) {
+func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {

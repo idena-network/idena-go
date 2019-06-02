@@ -27,7 +27,7 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 
 func (s *AppState) ForCheck(height uint64) *AppState {
 	state, _ := s.State.ForCheck(height)
-	identityState, _ := s.IdentityState.ForCheckIdentityState(height)
+	identityState, _ := s.IdentityState.ForCheck(height)
 	return &AppState{
 		State:           state,
 		IdentityState:   identityState,
@@ -42,7 +42,7 @@ func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
 	if err != nil {
 		return nil, err
 	}
-	identityState, err := s.IdentityState.ForCheckIdentityState(height)
+	identityState, err := s.IdentityState.ForCheck(height)
 	if err != nil {
 		return nil, err
 	}

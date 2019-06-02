@@ -84,17 +84,17 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 
 		to = from - 1
 		if to < oldestBlock {
-			//no common block has been found
+			resolver.log.Warn("no common block has been found", "peerId", peerId)
 			break
 		}
 		from = math.Max(oldestBlock, to-batchSize)
 		if commonHeight == 1 && uint64(len(batchBlocks)) < to-from+1 {
-			// peer didn't provide all requested blocks, ignore this one
+			resolver.log.Warn("peer didn't provide all requested blocks, ignore this one", "peerId", peerId)
 			break
 		}
-
 	}
 	if commonHeight > 1 {
+		resolver.log.Info("common block is found", "peerId", peerId)
 		forkBlocks = sortAndFilterBlocks(forkBlocks, commonHeight)
 		if resolver.isForkBigger(forkBlocks) {
 			if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
@@ -106,6 +106,8 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 					blocks:       forkBlocks,
 				}
 			}
+		} else {
+			resolver.log.Warn("fork is smaller", "peerId", peerId)
 		}
 	} else {
 		resolver.log.Warn("Common height is not found", "peerId", peerId)
@@ -190,7 +192,7 @@ func (resolver *ForkResolver) ApplyFork() error {
 func (resolver *ForkResolver) Start() {
 	go func() {
 		for {
-			time.Sleep(time.Second  * 5)
+			time.Sleep(time.Second * 30)
 			if resolver.HasLoadedFork() {
 				continue
 			}
@@ -201,6 +203,7 @@ func (resolver *ForkResolver) Start() {
 		for {
 			time.Sleep(time.Minute * 10)
 			resolver.triedPeers.Clear()
+			resolver.log.Debug("Tried peers has been cleared")
 		}
 	}()
 }

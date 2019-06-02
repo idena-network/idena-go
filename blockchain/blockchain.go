@@ -1007,7 +1007,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		if err := chain.ResetTo(chain.Head.Height() - 1); err != nil {
 			return err
 		}
-		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
 	}
+	chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
 	return nil
 }
