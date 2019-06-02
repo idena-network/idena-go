@@ -17,6 +17,7 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/core/state"
+	"idena-go/core/validators"
 	"idena-go/crypto"
 	"idena-go/crypto/vrf/p256"
 	"idena-go/database"
@@ -199,10 +200,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block)
 
-	chain.applyNewEpoch(checkState, block)
-	chain.applyGlobalParams(checkState, block)
-
-	checkState.Precommit()
+	chain.applyEmptyBlockOnState(checkState, block)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
 	block.Header.EmptyBlockHeader.IdentityRoot = checkState.IdentityState.Root()
@@ -244,7 +242,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (err error) {
 	if block.IsEmpty() {
 		root, identityRoot = chain.applyEmptyBlockOnState(chain.appState, block)
 	} else {
-		if root, identityRoot, err = chain.applyBlockOnState(chain.appState, block); err != nil {
+		if root, identityRoot, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
 			chain.appState.Reset()
 			return err
 		}
@@ -264,14 +262,14 @@ func (chain *Blockchain) processBlock(block *types.Block) (err error) {
 	return nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, err error) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, err error) {
 	var totalFee *big.Int
 	if totalFee, err = chain.processTxs(appState, block); err != nil {
 		return
 	}
 
 	chain.applyNewEpoch(appState, block)
-	chain.applyBlockRewards(totalFee, appState, block)
+	chain.applyBlockRewards(totalFee, appState, block, prevBlock)
 	chain.applyGlobalParams(appState, block)
 
 	appState.Precommit()
@@ -289,7 +287,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, blo
 	return appState.State.Root(), appState.IdentityState.Root()
 }
 
-func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate.AppState, block *types.Block) {
+func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
 
 	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
@@ -313,7 +311,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
 	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
 
-	chain.rewardFinalCommittee(appState.State, block)
+	chain.rewardFinalCommittee(appState, block, prevBlock)
 }
 
 func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types.Block) {
@@ -436,11 +434,11 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	}
 }
 
-func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types.Block) {
+func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
 	if block.IsEmpty() {
 		return
 	}
-	identities := chain.appState.ValidatorsCache.GetOnlineValidators(chain.Head.Seed(), chain.Head.Height(), 1000, chain.GetCommitteSize(true))
+	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), prevBlock.Height(), 1000, chain.GetCommitteSize(appState.ValidatorsCache, true))
 	if identities == nil || identities.Cardinality() == 0 {
 		return
 	}
@@ -456,8 +454,8 @@ func (chain *Blockchain) rewardFinalCommittee(state *state.StateDB, block *types
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
-		state.AddBalance(addr, reward)
-		state.AddStake(addr, intStake)
+		appState.State.AddBalance(addr, reward)
+		appState.State.AddStake(addr, intStake)
 	}
 }
 
@@ -623,7 +621,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	header.Flags = chain.calculateFlags(checkState, block)
 
 	chain.applyNewEpoch(checkState, block)
-	chain.applyBlockRewards(totalFee, checkState, block)
+	chain.applyBlockRewards(totalFee, checkState, block, chain.Head)
 	chain.applyGlobalParams(checkState, block)
 
 	checkState.Precommit()
@@ -783,7 +781,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("flags are invalid")
 	}
 
-	if root, identityRoot, err := chain.applyBlockOnState(checkState, block); err != nil {
+	if root, identityRoot, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
 		return err
 	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("Invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
@@ -935,8 +933,8 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 	return tx, idx
 }
 
-func (chain *Blockchain) GetCommitteSize(final bool) int {
-	var cnt = chain.appState.ValidatorsCache.OnlineSize()
+func (chain *Blockchain) GetCommitteSize(vc *validators.ValidatorsCache, final bool) int {
+	var cnt = vc.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
@@ -947,9 +945,9 @@ func (chain *Blockchain) GetCommitteSize(final bool) int {
 	return int(float64(cnt) * percent)
 }
 
-func (chain *Blockchain) GetCommitteeVotesTreshold(final bool) int {
+func (chain *Blockchain) GetCommitteeVotesTreshold(vc *validators.ValidatorsCache, final bool) int {
 
-	var cnt = chain.appState.ValidatorsCache.OnlineSize()
+	var cnt = vc.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
@@ -988,6 +986,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Bl
 		if err := checkState.Commit(); err != nil {
 			return err
 		}
+		checkState.ValidatorsCache.RefreshIfUpdated(b)
 		prevBlock = b.Header
 	}
 

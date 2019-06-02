@@ -190,7 +190,7 @@ func (resolver *ForkResolver) ApplyFork() error {
 func (resolver *ForkResolver) Start() {
 	go func() {
 		for {
-			time.Sleep(time.Minute * 1)
+			time.Sleep(time.Second  * 5)
 			if resolver.HasLoadedFork() {
 				continue
 			}

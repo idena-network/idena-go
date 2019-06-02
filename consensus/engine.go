@@ -153,7 +153,7 @@ func (engine *Engine) loop() {
 		var hash common.Hash
 		var cert *types.BlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
+			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock); err != nil {
@@ -246,7 +246,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
 
-	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -257,7 +257,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionTwo, hash)
 
 	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
-	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
 
 	if err != nil {
@@ -286,7 +286,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 		if err != nil {
 			hash = blockHash
 		} else if hash != emptyBlockHash {
@@ -304,7 +304,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 
 		if err != nil {
 			hash = emptyBlockHash
@@ -363,7 +363,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 }
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
-	committeeSize := engine.chain.GetCommitteSize(step == Final)
+	committeeSize := engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final)
 	stepValidators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
@@ -394,7 +394,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Debug("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(step == Final))
+	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
