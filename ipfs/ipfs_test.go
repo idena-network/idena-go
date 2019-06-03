@@ -2,6 +2,7 @@ package ipfs
 
 import (
 	"github.com/stretchr/testify/require"
+	"idena-go/config"
 	"testing"
 )
 
@@ -22,7 +23,11 @@ func TestIpfsProxy_Get(t *testing.T) {
 
 	require := require.New(t)
 
-	proxy, _ := NewIpfsProxy(GetDefaultIpfsConfig(".", 4002, ""))
+	proxy, _ := NewIpfsProxy(&config.IpfsConfig{
+		BootNodes: []string{},
+		IpfsPort:  4002,
+		DataDir:   ".",
+	})
 
 	data := []byte{0x1, 0x2, 0x3}
 

@@ -29,11 +29,11 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	alloc := make(map[common.Address]config.GenesisAllocation)
 	alloc[addr1] = config.GenesisAllocation{
 		Balance: balance,
-		State:   state.Candidate,
+		State:   uint8(state.Candidate),
 	}
 	alloc[addr2] = config.GenesisAllocation{
 		Balance: balance,
-		State:   state.Invite,
+		State:   uint8(state.Invite),
 	}
 
 	conf := blockchain.GetDefaultConsensusConfig(false)

@@ -22,68 +22,20 @@ func main() {
 	}
 
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "datadir",
-			Value: "datadir",
-			Usage: "datadir for blockchain",
-		},
-		cli.IntFlag{
-			Name:  "port",
-			Usage: "Network listening port",
-			Value: config.DefaultPort,
-		},
-		cli.StringFlag{
-			Name:  "rpcaddr",
-			Usage: "RPC listening address",
-			Value: config.DefaultRpcHost,
-		},
-		cli.IntFlag{
-			Name:  "rpcport",
-			Usage: "RPC listening port",
-			Value: config.DefaultRpcPort,
-		},
-		cli.StringFlag{
-			Name:  "bootnode",
-			Usage: "Bootstrap node url",
-			Value: config.DefaultBootnode,
-		},
-		cli.BoolFlag{
-			Name:  "automine",
-			Usage: "Mine blocks alone without peers",
-		},
-		cli.StringFlag{
-			Name:  "ipfsbootnode",
-			Usage: "Ipfs bootstrap node (overrides existing)",
-		},
-		cli.IntFlag{
-			Name:  "ipfsport",
-			Usage: "Ipfs port",
-			Value: config.DefaultIpfsPort,
-		},
-		cli.BoolFlag{
-			Name:  "nodiscovery",
-			Usage: "NoDiscovery can be used to disable the peer discovery mechanism.",
-		},
-		cli.IntFlag{
-			Name:  "verbosity",
-			Usage: "Log verbosity",
-			Value: 3,
-		},
-		cli.StringFlag{
-			Name:  "godaddress",
-			Usage: "Idena god address",
-			Value: config.DefaultGodAddress,
-		},
-		cli.Int64Flag{
-			Name:  "ceremonytime",
-			Usage: "First ceremony time (unix)",
-			Value: config.DefaultCeremonyTime,
-		},
-		cli.IntFlag{
-			Name:  "maxnetdelay",
-			Usage: "Max network delay for broadcasting",
-			Value: 0,
-		},
+		config.ConfigFileFlag,
+		config.DataDirFlag,
+		config.TcpPortFlag,
+		config.RpcHostFlag,
+		config.RpcPortFlag,
+		config.BootNodeFlag,
+		config.AutomineFlag,
+		config.IpfsBootNodeFlag,
+		config.IpfsPortFlag,
+		config.NoDiscoveryFlag,
+		config.VerbosityFlag,
+		config.GodAddressFlag,
+		config.CeremonyTimeFlag,
+		config.MaxNetworkDelayFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -95,21 +47,9 @@ func main() {
 			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 		}
 
-		c := config.GetDefaultConfig(
-			context.String("datadir"),
-			context.Int("port"),
-			context.Bool("automine"),
-			context.String("rpcaddr"),
-			context.Int("rpcport"),
-			context.String("bootnode"),
-			context.String("ipfsbootnode"),
-			context.Int("ipfsport"),
-			context.Bool("nodiscovery"),
-			context.String("godaddress"),
-			context.Int64("ceremonytime"),
-			context.Int("maxnetdelay"))
+		cfg := config.MakeConfig(context)
 
-		n, _ := node.NewNode(c)
+		n, _ := node.NewNode(cfg)
 		n.Start()
 		n.WaitForStop()
 		return nil
