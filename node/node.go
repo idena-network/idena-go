@@ -55,22 +55,11 @@ type Node struct {
 	downloader      *protocol.Downloader
 }
 
-func StartDefaultNode(path string) string {
+func StartMobileNode(path string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
-	c := config.GetDefaultConfig(
-		path,
-		config.DefaultPort,
-		false,
-		config.DefaultRpcHost,
-		config.DefaultRpcPort,
-		config.DefaultBootnode,
-		"",
-		config.DefaultIpfsPort,
-		config.DefaultNoDiscovery,
-		"",
-		0, 0)
+	c := config.MakeMobileConfig()
 
 	n, err := NewNode(c)
 

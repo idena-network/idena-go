@@ -57,7 +57,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	if withIdentity {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		cfg.GenesisConf.Alloc[addr] = config.GenesisAllocation{
-			State: state.Verified,
+			State: uint8(state.Verified),
 		}
 	}
 

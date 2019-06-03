@@ -2,14 +2,13 @@ package config
 
 import (
 	"idena-go/common"
-	"idena-go/core/state"
 	"math/big"
 )
 
 type GenesisAllocation struct {
 	Balance *big.Int
 	Stake   *big.Int
-	State   state.IdentityState
+	State   uint8
 }
 
 type GenesisConf struct {

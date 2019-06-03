@@ -22,7 +22,7 @@ type ConsensusConf struct {
 	FeeBurnRate                    float32
 }
 
-func GetDefaultConsensusConfig(automine bool) *ConsensusConf {
+func GetDefaultConsensusConfig() *ConsensusConf {
 	return &ConsensusConf{
 		MaxSteps:                       150,
 		CommitteePercent:               0.3,  // 30% of valid nodes will be committee members
@@ -33,7 +33,6 @@ func GetDefaultConsensusConfig(automine bool) *ConsensusConf {
 		WaitSortitionProofDelay:        time.Second * 5,
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
-		Automine:                       automine,
 		BlockReward:                    big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
 		StakeRewardRate:                0.2,
 		FeeBurnRate:                    0.9,

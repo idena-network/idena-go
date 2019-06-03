@@ -143,8 +143,8 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		if alloc.Stake != nil {
 			chain.appState.State.AddStake(addr, alloc.Stake)
 		}
-		chain.appState.State.SetState(addr, alloc.State)
-		if alloc.State == state.Verified {
+		chain.appState.State.SetState(addr, state.IdentityState(alloc.State))
+		if state.IdentityState(alloc.State) == state.Verified {
 			chain.appState.IdentityState.Add(addr)
 		}
 	}

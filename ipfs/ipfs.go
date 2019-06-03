@@ -3,15 +3,21 @@ package ipfs
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/ipsn/go-ipfs/core"
 	"github.com/ipsn/go-ipfs/core/coreapi"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	ipfsConf "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-ipfs-config"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-ipfs-files"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipsn/go-ipfs/plugin/loader"
+	"github.com/ipsn/go-ipfs/repo/fsrepo"
 	"github.com/pkg/errors"
+	"idena-go/config"
 	"idena-go/log"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -54,21 +60,22 @@ type ipfsProxy struct {
 	peerId string
 }
 
-func NewIpfsProxy(config *IpfsConfig) (Proxy, error) {
+func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 
-	loadPlugins(config.datadir)
+	loadPlugins(cfg.DataDir)
 
-	if err := config.Initialize(); err != nil {
+	ipfsConfig, err := configureIpfs(cfg)
+	if err != nil {
 		return nil, err
 	}
 
 	logger := log.New()
 
-	node, err := core.NewNode(context.Background(), GetNodeConfig(config.datadir))
+	node, err := core.NewNode(context.Background(), getNodeConfig(cfg.DataDir))
 	if err != nil {
 		return nil, err
 	}
-	node.Repo.SetConfig(config.cfg)
+	node.Repo.SetConfig(ipfsConfig)
 	peerId := node.PeerHost.ID().Pretty()
 	logger.Info("Ipfs initialized", "peerId", peerId)
 	go watchPeers(node)
@@ -76,7 +83,7 @@ func NewIpfsProxy(config *IpfsConfig) (Proxy, error) {
 		node:   node,
 		log:    logger,
 		peerId: peerId,
-		port:   config.ipfsPort,
+		port:   cfg.IpfsPort,
 	}, nil
 }
 
@@ -239,6 +246,66 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	}
 
 	return path.Cid(), err
+}
+
+func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
+	updateIpfsConfig := func(ipfsConfig *ipfsConf.Config) {
+		ipfsConfig.Addresses.Swarm = []string{
+			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.IpfsPort),
+			fmt.Sprintf("/ip6/::/tcp/%d", cfg.IpfsPort),
+		}
+
+		bps, _ := ipfsConf.ParseBootstrapPeers(cfg.BootNodes)
+		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
+	}
+
+	var ipfsConfig *ipfsConf.Config
+	if !fsrepo.IsInitialized(cfg.DataDir) {
+		ipfsConfig, _ = ipfsConf.Init(os.Stdout, 2048)
+
+		ipfsConfig.Swarm.EnableAutoNATService = true
+		ipfsConfig.Swarm.EnableAutoRelay = true
+		ipfsConfig.Swarm.EnableRelayHop = true
+
+		updateIpfsConfig(ipfsConfig)
+
+		if err := fsrepo.Init(cfg.DataDir, ipfsConfig); err != nil {
+			return nil, err
+		}
+
+		writeSwarmKey(cfg.DataDir, cfg.SwarmKey)
+	} else {
+		ipfsConfig, _ = fsrepo.ConfigAt(cfg.DataDir)
+
+		updateIpfsConfig(ipfsConfig)
+	}
+	return ipfsConfig, nil
+}
+
+func writeSwarmKey(dataDir string, swarmKey string) {
+	swarmPath := filepath.Join(dataDir, "swarm.key")
+	if _, err := os.Stat(swarmPath); os.IsNotExist(err) {
+		err = ioutil.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0644)
+		if err != nil {
+			log.Error(fmt.Sprintf("Failed to persist swarm file: %v", err))
+		}
+	}
+}
+
+func getNodeConfig(dataDir string) *core.BuildCfg {
+	repo, _ := fsrepo.Open(dataDir)
+
+	return &core.BuildCfg{
+		Repo:                        repo,
+		Permanent:                   true,
+		Online:                      true,
+		DisableEncryptedConnections: false,
+		ExtraOpts: map[string]bool{
+			"pubsub": false,
+			"ipnsps": false,
+			"mplex":  false,
+		},
+	}
 }
 
 func loadPlugins(ipfsPath string) (*loader.PluginLoader, error) {
