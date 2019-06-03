@@ -34,16 +34,20 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	}
 }
 
-func (s *IdentityStateDB) ForCheckIdentityState(height uint64) *IdentityStateDB {
-	tree := NewMutableTree(s.db)
-	tree.LoadVersion(int64(height))
+func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
+	db := database.NewBackedMemDb(s.db)
+	tree := NewMutableTree(db)
+	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
+		return nil, err
+	}
+
 	return &IdentityStateDB{
-		db:                   s.db,
+		db:                   db,
 		tree:                 tree,
 		stateIdentities:      make(map[common.Address]*stateApprovedIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *IdentityStateDB) Load(height uint64) error {
@@ -66,9 +70,9 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
-	if version > 10 {
-		if s.tree.ExistVersion(version - 10) {
-			err = s.tree.DeleteVersion(version - 10)
+	if version > MaxSavedStatesCount {
+		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
+			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
 
 			if err != nil {
 				panic(err)

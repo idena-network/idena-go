@@ -46,8 +46,12 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 			additional = append(additional, addrs[i])
 		}
 	}
-	bytesArray := em.CalculateBitmap(addrs, additional)
+	m := em.CalculateBitmap(addrs, additional)
 
+	buf := new(bytes.Buffer)
+
+	m.WriteTo(buf)
+	bytesArray := buf.Bytes()
 	fmt.Printf("size of bitmap for %v candidates is %v bytes\n", candidatesCount, len(bytesArray))
 
 	rmap := common.NewBitmap(candidatesCount)

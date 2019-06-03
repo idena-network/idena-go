@@ -4,7 +4,6 @@ import (
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
-	"idena-go/common/math"
 	"idena-go/core/appstate"
 	"sync"
 )
@@ -120,46 +119,4 @@ func (votes *Votes) FutureBlockExist(round uint64, neccessaryVotes int) bool {
 		return true
 	})
 	return maxRound > round
-}
-
-func (votes *Votes) ConsensusInThePast(round uint64, neccessaryVotes int, emptyHash common.Hash) (uint16, bool) {
-
-	byRound := votes.GetVotesOfRound(round)
-	if byRound == nil {
-		return 0, false
-	}
-	votesCount := make(map[common.Hash]map[uint16]int)
-
-	byRound.Range(func(key, v interface{}) bool {
-		vote := v.(*types.Vote)
-		var ok bool
-		var byHash map[uint16]int
-		byHash, ok = votesCount[vote.Header.VotedHash]
-		if !ok {
-			byHash = make(map[uint16]int)
-			votesCount[vote.Header.VotedHash] = byHash
-		}
-		if _, ok := byHash[vote.Header.Step]; ok {
-			byHash[vote.Header.Step]++
-		} else {
-			byHash[vote.Header.Step] = 1
-		}
-		return true
-	})
-
-	minStep := uint16(math.MaxUint16)
-
-	for blockHash, byHash := range votesCount {
-		for step, cnt := range byHash {
-			if cnt-1 >= neccessaryVotes {
-				if step%2 == 1 && blockHash != emptyHash && step < minStep {
-					minStep = step
-				}
-				if step%2 == 0 && blockHash == emptyHash && step < minStep {
-					minStep = step
-				}
-			}
-		}
-	}
-	return minStep, minStep < math.MaxUint16
 }

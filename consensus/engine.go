@@ -12,7 +12,6 @@ import (
 	"idena-go/core/appstate"
 	"idena-go/core/mempool"
 	"idena-go/crypto"
-	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/pengings"
 	"idena-go/protocol"
@@ -24,6 +23,10 @@ const (
 	ReductionOne = 998
 	ReductionTwo = 999
 	Final        = 1000
+)
+
+var (
+	ForkDetected = errors.New("fork is detected")
 )
 
 type Engine struct {
@@ -41,23 +44,25 @@ type Engine struct {
 	downloader    *protocol.Downloader
 	secStore      *secstore.SecStore
 	peekingBlocks chan *types.Block
+	forkResolver  *ForkResolver
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
-	txpool *mempool.TxPool, ipfs ipfs.Proxy, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
+	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
 	return &Engine{
-		chain:      chain,
-		pm:         pm,
-		log:        log.New(),
-		config:     config,
-		proposals:  proposals,
-		appState:   appState,
-		votes:      votes,
-		txpool:     txpool,
-		downloader: downloader,
-		secStore:   secStore,
+		chain:        chain,
+		pm:           pm,
+		log:          log.New(),
+		config:       config,
+		proposals:    proposals,
+		appState:     appState,
+		votes:        votes,
+		txpool:       txpool,
+		downloader:   downloader,
+		secStore:     secStore,
+		forkResolver: NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
 	}
 }
 
@@ -65,6 +70,7 @@ func (engine *Engine) Start() {
 	engine.pubKey = engine.secStore.GetPubKey()
 	engine.addr = engine.secStore.GetAddress()
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
+	engine.forkResolver.Start()
 	go engine.loop()
 }
 
@@ -78,13 +84,16 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 
 func (engine *Engine) loop() {
 	for {
-		if err := engine.ensureIntegrity(); err != nil {
-			engine.log.Error("Failed to recover stateDb", "err", err)
+		if err := engine.chain.EnsureIntegrity(); err != nil {
+			engine.log.Error("Failed to recover blockchain", "err", err)
 			time.Sleep(time.Second * 30)
 			continue
 		}
-		engine.downloader.SyncBlockchain()
-
+		engine.downloader.SyncBlockchain(engine.forkResolver)
+		if engine.forkResolver.HasLoadedFork() {
+			engine.forkResolver.ApplyFork()
+			continue
+		}
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
@@ -132,13 +141,19 @@ func (engine *Engine) loop() {
 		blockHash, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
+
+			if err == ForkDetected {
+				if err = engine.forkResolver.ApplyFork(); err != nil {
+					engine.log.Error("error occurred during applying of fork", "err", err)
+				}
+			}
 			continue
 		}
 		engine.process = "Count final votes"
 		var hash common.Hash
 		var cert *types.BlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(true), engine.config.WaitForStepDelay)
+			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock); err != nil {
@@ -203,7 +218,7 @@ func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block 
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
 	engine.pm.ProposeBlock(block)
 
-	engine.proposals.AddProposedBlock(block)
+	engine.proposals.AddProposedBlock(block, "")
 	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, block.Height())
 
 	return block
@@ -231,7 +246,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
 
-	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -242,7 +257,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, ReductionTwo, hash)
 
 	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
-	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
 
 	if err != nil {
@@ -252,7 +267,12 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	return hash
 }
 
+func (engine *Engine) completeBA() {
+	engine.peekingBlocks = nil
+}
+
 func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
+	defer engine.completeBA()
 	engine.log.Info("binaryBa started", "block", blockHash.Hex())
 	emptyBlock := engine.chain.GenerateEmptyBlock()
 
@@ -266,7 +286,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 		if err != nil {
 			hash = blockHash
 		} else if hash != emptyBlockHash {
@@ -284,7 +304,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay)
+		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 
 		if err != nil {
 			hash = emptyBlockHash
@@ -297,14 +317,11 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		step++
 
-		if pastStep, ok := engine.votes.ConsensusInThePast(round, engine.chain.GetCommitteeVotesTreshold(false), emptyBlockHash); ok {
-			if hash, _, err = engine.countVotes(round, pastStep, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(false), engine.config.WaitForStepDelay); err == nil {
-				return hash, nil
-			}
-		}
-
 		if engine.futureBlockExist(round, emptyBlockHash) {
 			return common.Hash{}, errors.New("Detected future block")
+		}
+		if engine.forkResolver.HasLoadedFork() {
+			return common.Hash{}, ForkDetected
 		}
 	}
 	return common.Hash{}, errors.New("No consensus")
@@ -314,7 +331,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 	if engine.peekingBlocks == nil {
 		forwardPeers := engine.pm.PotentialForwardPeers(round)
 		if len(forwardPeers) > 0 {
-			engine.peekingBlocks = engine.downloader.TryPeekBlock(round, forwardPeers)
+			engine.peekingBlocks = engine.downloader.PeekBlocks(round, round, forwardPeers)
 		} else {
 			return false
 		}
@@ -330,10 +347,12 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 
 		if block.IsEmpty() {
 			if block.Hash() == emptyBlockHash {
+				engine.peekingBlocks = nil
 				return true
 			}
 		} else {
 			if err := engine.chain.ValidateProposedBlock(block); err == nil {
+				engine.peekingBlocks = nil
 				return true
 			}
 		}
@@ -343,15 +362,8 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 	return false
 }
 
-func (engine *Engine) commonCoin(step uint16) bool {
-	data := append(engine.chain.Head.Seed().Bytes(), common.ToBytes(step)...)
-
-	h := crypto.Keccak256Hash(data)
-	return h[31]%2 == 0
-}
-
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
-	committeeSize := engine.chain.GetCommitteSize(step == Final)
+	committeeSize := engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final)
 	stepValidators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
@@ -382,7 +394,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Debug("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(step == Final))
+	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
@@ -460,16 +472,4 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	}
 
 	return nil, errors.New("Block is not found")
-}
-
-func (engine *Engine) ensureIntegrity() error {
-	for engine.chain.Head.Root() != engine.appState.State.Root() ||
-		engine.chain.Head.IdentityRoot() != engine.appState.IdentityState.Root() {
-		if err := engine.appState.ResetTo(engine.chain.Head.Height() - 1); err != nil {
-			return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
-		}
-		engine.chain.SetHead(engine.chain.Head.Height() - 1)
-		engine.log.Warn("blockchain was reseted", "new head", engine.chain.Head.Height())
-	}
-	return nil
 }

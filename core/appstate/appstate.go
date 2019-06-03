@@ -26,12 +26,35 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 }
 
 func (s *AppState) ForCheck(height uint64) *AppState {
+	state, _ := s.State.ForCheck(height)
+	identityState, _ := s.IdentityState.ForCheck(height)
 	return &AppState{
-		State:           s.State.ForCheck(height),
-		IdentityState:   s.IdentityState.ForCheckIdentityState(height),
+		State:           state,
+		IdentityState:   identityState,
 		ValidatorsCache: s.ValidatorsCache,
 		NonceCache:      s.NonceCache,
 	}
+}
+
+func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
+
+	state, err := s.State.ForCheck(height)
+	if err != nil {
+		return nil, err
+	}
+	identityState, err := s.IdentityState.ForCheck(height)
+	if err != nil {
+		return nil, err
+	}
+
+	appState := &AppState{
+		State:         state,
+		IdentityState: identityState,
+		NonceCache:    s.NonceCache,
+	}
+	appState.ValidatorsCache = validators.NewValidatorsCache(appState.IdentityState, appState.State.GodAddress())
+	appState.ValidatorsCache.Load()
+	return appState, nil
 }
 
 func (s *AppState) Initialize(height uint64) {

@@ -5,14 +5,20 @@ import (
 	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
 	"idena-go/crypto"
+	"idena-go/database"
 	"math/big"
 	"testing"
 	"time"
 )
 
+func createDb(name string) *database.BackedMemDb {
+	db, _ := db.NewGoLevelDB(name, "datadir")
+	return database.NewBackedMemDb(db)
+}
+
 func TestStateDB_Version(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	addr := common.Address{}
@@ -24,9 +30,90 @@ func TestStateDB_Version(t *testing.T) {
 	require.Equal(t, int64(1), stateDb.Version())
 }
 
+func TestStateDB_CheckForkValidation(t *testing.T) {
+
+	require := require.New(t)
+	db := createDb("CheckForkValidation")
+	db2 := createDb("CheckForkValidation2")
+
+	stateDb := NewLazy(db)
+	stateDb2 := NewLazy(db2)
+
+	for i := 0; i < 50; i++ {
+		key, _ := crypto.GenerateKey()
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+
+		balance := new(big.Int).SetInt64(int64(100))
+
+		acc := stateDb.GetOrNewAccountObject(addr)
+		acc2 := stateDb2.GetOrNewAccountObject(addr)
+
+		acc.SetBalance(balance)
+		acc2.SetBalance(balance)
+
+		stateDb.Commit(true)
+		stateDb2.Commit(true)
+	}
+
+	var saved []struct {
+		address common.Address
+		balance *big.Int
+	}
+
+	require.Equal(stateDb.Root(), stateDb2.Root())
+
+	for i := 0; i < 50; i++ {
+		key, _ := crypto.GenerateKey()
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+
+		b := new(big.Int).SetInt64(int64(100))
+
+		acc := stateDb.GetOrNewAccountObject(addr)
+		acc.SetBalance(b)
+
+		saved = append(saved, struct {
+			address common.Address
+			balance *big.Int
+		}{
+			address: addr,
+			balance: b,
+		})
+
+		stateDb.Commit(true)
+
+		key2, _ := crypto.GenerateKey()
+		addr2 := crypto.PubkeyToAddress(key2.PublicKey)
+
+		b2 := new(big.Int).SetInt64(int64(100))
+		acc2 := stateDb2.GetOrNewAccountObject(addr2)
+		acc2.SetBalance(b2)
+
+		stateDb2.Commit(true)
+	}
+
+	originalHash := stateDb2.Root()
+
+	forCheck, _ := stateDb2.ForCheck(50)
+	for i := 0; i < len(saved); i++ {
+
+		acc := forCheck.GetOrNewAccountObject(saved[i].address)
+		acc.SetBalance(saved[i].balance)
+
+		_, _, err := forCheck.Commit(true)
+		require.Nil(err)
+	}
+
+	require.Equal(stateDb.Root(), forCheck.Root())
+
+	stateDb2 = NewLazy(db2)
+	stateDb2.Load(100)
+	require.Equal(originalHash, stateDb2.Root())
+
+}
+
 func TestStateDB_IterateIdentities(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	const accountsCount = 10001
@@ -106,7 +193,7 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 
 func TestStateGlobal_IncEpoch(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb:= NewLazy(database)
+	stateDb := NewLazy(database)
 
 	require.Equal(t, uint16(0), stateDb.Epoch())
 
