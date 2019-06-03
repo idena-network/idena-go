@@ -11,11 +11,13 @@ import (
 )
 
 var (
-	ShortSessionDuration = time.Minute * 5
+	ShortSessionDuration        = time.Minute * 5
+	ShortSessionFlipKeyDeadline = time.Second * 30
 )
 
 type EvidenceMap struct {
 	answersSet       mapset.Set
+	keysSet          mapset.Set
 	bus              eventbus.Bus
 	shortSessionTime *time.Time
 	mutex            *sync.Mutex
@@ -25,6 +27,7 @@ func NewEvidenceMap(bus eventbus.Bus) *EvidenceMap {
 	m := &EvidenceMap{
 		bus:        bus,
 		answersSet: mapset.NewSet(),
+		keysSet:    mapset.NewSet(),
 	}
 	bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
@@ -41,6 +44,12 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	//TODO : m.shortSessionTime == nil ?
 	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) < ShortSessionDuration {
 		m.answersSet.Add(*tx.To)
+	}
+}
+
+func (m *EvidenceMap) NewFlipsKey(author common.Address) {
+	if m.shortSessionTime == nil || time.Now().Sub(*m.shortSessionTime) < ShortSessionFlipKeyDeadline {
+		m.keysSet.Add(author)
 	}
 }
 
@@ -66,7 +75,7 @@ func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, m
 	return result
 }
 
-func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address) *common.Bitmap {
+func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []common.Address, reqFlips func(common.Address) uint8) *common.Bitmap {
 	additionalSet := mapset.NewSet()
 
 	for _, add := range additional {
@@ -74,6 +83,9 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []
 	}
 	rmap := common.NewBitmap(uint32(len(candidates)))
 	for i, candidate := range candidates {
+		if !m.keysSet.Contains(candidate) && reqFlips(candidate) > 0 {
+			continue
+		}
 		if additionalSet.Contains(candidate) {
 			rmap.Add(uint32(i))
 			continue
@@ -85,8 +97,12 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []
 	return rmap
 }
 
-func (m *EvidenceMap) Contains(candidate common.Address) bool {
+func (m *EvidenceMap) ContainsAnswer(candidate common.Address) bool {
 	return m.answersSet.Contains(candidate)
+}
+
+func (m *EvidenceMap) ContainsKey(candidate common.Address) bool {
+	return m.keysSet.Contains(candidate)
 }
 
 func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
@@ -101,7 +117,12 @@ func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
 	return m.shortSessionTime.Add(ShortSessionDuration)
 }
 
+func (m *EvidenceMap) GetFlipKeyDeadline() time.Time {
+	return m.shortSessionTime.Add(ShortSessionFlipKeyDeadline)
+}
+
 func (m *EvidenceMap) Clear() {
 	m.shortSessionTime = nil
 	m.answersSet = mapset.NewSet()
+	m.keysSet = mapset.NewSet()
 }

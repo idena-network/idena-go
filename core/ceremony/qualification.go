@@ -1,6 +1,7 @@
 package ceremony
 
 import (
+	mapset "github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/crypto"
@@ -14,6 +15,10 @@ type qualification struct {
 	epochDb       *database.EpochDb
 	log           log.Logger
 	hasNewAnswers bool
+}
+
+type delayedKeyFlip struct {
+	shortRespondents mapset.Set // indexes of candidates which solved (not None) the flip
 }
 
 func NewQualification(epochDb *database.EpochDb) *qualification {
@@ -70,7 +75,7 @@ func (q *qualification) restoreAnswers() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int, delayedKeyFlips map[int]*delayedKeyFlip) []FlipQualification {
 
 	data := make([]struct {
 		answer []types.Answer
@@ -93,6 +98,11 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		for j := uint(0); j < uint(len(flips)); j++ {
 			answer, easy := answers.Answer(j)
 			flipIdx := flips[j]
+
+			dkf := delayedKeyFlips[flipIdx]
+			if dkf != nil && !dkf.shortRespondents.Contains(i) {
+				continue
+			}
 
 			data[flipIdx].answer = append(data[flipIdx].answer, answer)
 			data[flipIdx].easy = append(data[flipIdx].easy, easy)

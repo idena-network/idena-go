@@ -9,6 +9,7 @@ import (
 	"idena-go/common"
 	"idena-go/common/eventbus"
 	"testing"
+	"time"
 )
 
 func getRandAddr() common.Address {
@@ -22,9 +23,12 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 
 	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
+	now := time.Now().Add(-29 * time.Second)
+	em.shortSessionTime = &now
 
 	const candidatesCount = 10000
 	const txCandidate = 1
+	const delayedKeyAuthor = 10
 	var addrs []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
@@ -46,7 +50,17 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 			additional = append(additional, addrs[i])
 		}
 	}
-	m := em.CalculateBitmap(addrs, additional)
+
+	em.NewFlipsKey(addrs[txCandidate])
+	time.Sleep(2 * time.Second)
+	em.NewFlipsKey(addrs[delayedKeyAuthor])
+
+	m := em.CalculateBitmap(addrs, additional, func(a common.Address) uint8 {
+		if a == addrs[delayedKeyAuthor] || a == addrs[txCandidate] {
+			return 1
+		}
+		return 0
+	})
 
 	buf := new(bytes.Buffer)
 
@@ -58,9 +72,10 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	rmap.Read(bytesArray)
 
 	require.True(rmap.Contains(txCandidate))
+	require.False(rmap.Contains(delayedKeyAuthor))
 
 	for i := 0; i < candidatesCount; i++ {
-		if i%2 == 0 {
+		if i%2 == 0 && i != delayedKeyAuthor {
 			require.True(rmap.Contains(uint32(i)))
 		} else if i != txCandidate {
 			require.False(rmap.Contains(uint32(i)))

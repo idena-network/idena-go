@@ -437,13 +437,13 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	candidates := vc.getParticipantsAddrs()
 
-	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional)
+	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional, vc.appState.State.GetRequiredFlips)
 
 	if len(candidates) < 100 {
 		var inMemory string
 		var final string
 		for i, c := range candidates {
-			if vc.appState.EvidenceMap.Contains(c) {
+			if vc.appState.EvidenceMap.ContainsAnswer(c) && (vc.appState.EvidenceMap.ContainsKey(c) || vc.appState.State.GetRequiredFlips(c) <= 0) {
 				inMemory += "1"
 			} else {
 				inMemory += "0"
@@ -520,7 +520,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	}
 
 	totalFlipsCount := len(vc.flips)
-	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate)
+
+	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate, vc.getDelayedKeyFlips())
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
@@ -573,6 +574,73 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	return identitiesCount
 }
 
+func (vc *ValidationCeremony) getDelayedKeyFlips() map[int]*delayedKeyFlip {
+	var delayedKeyAddrs []common.Address
+	for _, c := range vc.candidates {
+		addr, _ := crypto.PubKeyBytesToAddress(c.PubKey)
+		if !vc.appState.EvidenceMap.ContainsKey(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
+			delayedKeyAddrs = append(delayedKeyAddrs, addr)
+		}
+	}
+	delayedKeyFlips := make(map[int]*delayedKeyFlip)
+	for _, addr := range delayedKeyAddrs {
+		addrIdx := addrPos(vc.candidates, addr)
+		for _, f := range vc.flipsPerAuthor[addrIdx] {
+			flipIdx := flipPos(vc.flips, f)
+			delayedKeyFlips[flipIdx] = &delayedKeyFlip{
+				shortRespondents: getRespondents(vc.shortFlipsPerCandidate, vc.candidates, vc.qualification.shortAnswers, flipIdx),
+			}
+		}
+	}
+	return delayedKeyFlips
+}
+
+func addrPos(candidates []*candidate, addr common.Address) int {
+	for i, c := range candidates {
+		curAddr, err := crypto.PubKeyBytesToAddress(c.PubKey)
+		if err == nil && curAddr == addr {
+			return i
+		}
+	}
+	return -1
+}
+
+func flipPos(flips [][]byte, flip []byte) int {
+	for i, curFlip := range flips {
+		if bytes.Compare(curFlip, flip) == 0 {
+			return i
+		}
+	}
+	return -1
+}
+
+func getRespondents(flipsPerCandidate [][]int, candidates []*candidate, answers map[common.Address][]byte, flipIdx int) mapset.Set {
+	shortRespondents := mapset.NewSet()
+	for candidateIdx, flipIdxs := range flipsPerCandidate {
+		idx := pos(flipIdxs, flipIdx)
+		if idx == -1 {
+			continue
+		}
+		addr, _ := crypto.PubKeyBytesToAddress(candidates[candidateIdx].PubKey)
+		answerBytes := answers[addr]
+		answers := types.NewAnswersFromBits(uint(len(flipsPerCandidate[candidateIdx])), answerBytes)
+		answer, _ := answers.Answer(uint(idx))
+		if answer != types.None {
+			shortRespondents.Add(candidateIdx)
+		}
+	}
+	return shortRespondents
+}
+
+func pos(nums []int, num int) int {
+	for i, n := range nums {
+		if n == num {
+			return i
+		}
+	}
+	return -1
+}
+
 func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
 	db.IterateOverFlipCids(func(cid []byte) {
 		vc.flipper.UnpinFlip(cid)
@@ -592,11 +660,14 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 	case state.Invite:
 		return state.Undefined
 	case state.Candidate:
-		if shortScore < MinShortScore || longScore < MinLongScore {
+		if missed || shortScore < MinShortScore || longScore < MinLongScore {
 			return state.Killed
 		}
 		return state.Newbie
 	case state.Newbie:
+		if missed {
+			return state.Killed
+		}
 		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
@@ -605,22 +676,25 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		}
 		return state.Killed
 	case state.Verified:
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
-			return state.Verified
-		}
 		if missed {
 			return state.Suspended
 		}
-		return state.Killed
-	case state.Suspended:
-		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
+		return state.Killed
+	case state.Suspended:
 		if missed {
 			return state.Zombie
 		}
+		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
 		return state.Killed
 	case state.Zombie:
+		if missed {
+			return state.Killed
+		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Verified
 		}

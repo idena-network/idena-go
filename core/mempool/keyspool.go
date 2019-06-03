@@ -63,6 +63,8 @@ func (p *KeysPool) Add(key *types.FlipKey) error {
 	p.knownKeys.Add(hash)
 	p.flipKeys[sender] = key
 
+	p.appState.EvidenceMap.NewFlipsKey(sender)
+
 	p.bus.Publish(&events.NewFlipKeyEvent{
 		Key: key,
 	})
