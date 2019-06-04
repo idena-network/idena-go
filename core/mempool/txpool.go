@@ -24,6 +24,9 @@ var (
 
 type TxPool struct {
 	pending        map[common.Hash]*types.Transaction
+	pendingPerAddr map[common.Address]map[common.Hash]*types.Transaction
+	totalTxLimit   int
+	addrTxLimit    int
 	txSubscription chan *types.Transaction
 	mutex          *sync.Mutex
 	appState       *appstate.AppState
@@ -32,13 +35,16 @@ type TxPool struct {
 	bus            eventbus.Bus
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
 	return &TxPool{
-		pending:  make(map[common.Hash]*types.Transaction),
-		mutex:    &sync.Mutex{},
-		appState: appState,
-		log:      log.New(),
-		bus:      bus,
+		pending:        make(map[common.Hash]*types.Transaction),
+		pendingPerAddr: make(map[common.Address]map[common.Hash]*types.Transaction),
+		totalTxLimit:   totalTxLimit,
+		addrTxLimit:    addrTxLimit,
+		mutex:          &sync.Mutex{},
+		appState:       appState,
+		log:            log.New(),
+		bus:            bus,
 	}
 }
 
@@ -50,6 +56,16 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
+
+	if err := txpool.checkTotalTxLimit(); err != nil {
+		return err
+	}
+
+	sender, _ := types.Sender(tx)
+
+	if err := txpool.checkAddrTxLimit(sender); err != nil {
+		return err
+	}
 
 	hash := tx.Hash()
 
@@ -65,8 +81,12 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	}
 
 	txpool.pending[hash] = tx
-
-	sender, _ := types.Sender(tx)
+	senderPending := txpool.pendingPerAddr[sender]
+	if senderPending == nil {
+		senderPending = make(map[common.Hash]*types.Transaction)
+		txpool.pendingPerAddr[sender] = senderPending
+	}
+	senderPending[hash] = tx
 
 	appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 
@@ -93,10 +113,9 @@ func (txpool *TxPool) GetTx(hash common.Hash) *types.Transaction {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
 
-	for _, tx := range txpool.pending {
-		if tx.Hash() == hash {
-			return tx
-		}
+	tx, ok := txpool.pending[hash]
+	if ok {
+		return tx
 	}
 	return nil
 }
@@ -156,6 +175,13 @@ func (txpool *TxPool) Remove(transaction *types.Transaction) {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
 	delete(txpool.pending, transaction.Hash())
+
+	sender, _ := types.Sender(transaction)
+	senderPending := txpool.pendingPerAddr[sender]
+	delete(senderPending, transaction.Hash())
+	if len(senderPending) == 0 {
+		delete(txpool.pendingPerAddr, sender)
+	}
 }
 
 func (txpool *TxPool) ResetTo(block *types.Block) {
@@ -181,4 +207,18 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		sender, _ := types.Sender(tx)
 		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
+}
+
+func (txpool *TxPool) checkTotalTxLimit() error {
+	if txpool.totalTxLimit > 0 && len(txpool.pending) >= txpool.totalTxLimit {
+		return errors.New("tx queue max size reached")
+	}
+	return nil
+}
+
+func (txpool *TxPool) checkAddrTxLimit(sender common.Address) error {
+	if txpool.addrTxLimit > 0 && len(txpool.pendingPerAddr[sender]) >= txpool.addrTxLimit {
+		return errors.New("address tx queue max size reached")
+	}
+	return nil
 }

@@ -34,7 +34,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
@@ -62,7 +62,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	bus := eventbus.New()
-	txPool := mempool.NewTxPool(appState, bus)
+	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus)
 
@@ -74,5 +74,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc)
+	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc, -1, -1)
+}
+
+func NewTestBlockchainWithTxLimits(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc, totalTxLimit, addrTxLimit)
 }
