@@ -59,6 +59,48 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	require.Equal(t, uint32(1), result[0].AccountNonce)
 }
 
+func TestTxPool_TxLimits(t *testing.T) {
+	key1, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[crypto.PubkeyToAddress(key1.PublicKey)] = config.GenesisAllocation{
+		Balance: balance,
+	}
+	alloc[crypto.PubkeyToAddress(key2.PublicKey)] = config.GenesisAllocation{
+		Balance: balance,
+	}
+
+	_, _, pool := blockchain.NewTestBlockchainWithTxLimits(true, alloc, 3, 2)
+
+	tx := getTx(1, 0, key1)
+	err := pool.Add(tx)
+	require.Nil(t, err)
+
+	err = pool.Add(getTx(2, 1, key1))
+	require.Nil(t, err)
+
+	err = pool.Add(getTx(3, 2, key1))
+	require.NotNil(t, err)
+
+	err = pool.Add(getTx(4, 3, key2))
+	require.Nil(t, err)
+
+	// total limit
+	err = pool.Add(getTx(5, 4, key2))
+	require.NotNil(t, err)
+
+	// remove unknown tx
+	pool.Remove(getTx(1, 2, key2))
+	err = pool.Add(getTx(6, 5, key2))
+	require.NotNil(t, err)
+
+	pool.Remove(tx)
+	err = pool.Add(getTx(7, 5, key2))
+	require.Nil(t, err)
+}
+
 func TestTxPool_InvalidEpoch(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 

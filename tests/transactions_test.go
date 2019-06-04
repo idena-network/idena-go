@@ -41,7 +41,7 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	valConf := config.GetDefaultValidationConfig()
 	valConf.ValidationInterval = time.Minute * 1
 
-	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, valConf, alloc)
+	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, valConf, alloc, -1, -1)
 
 	tx1 := generateTx(getAmount(12), addr2, 1, 0, key1)
 	tx2 := generateTx(getAmount(88), addr1, 1, 0, key2)

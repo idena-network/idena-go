@@ -30,6 +30,12 @@ import (
 	"github.com/tendermint/tendermint/libs/db"
 )
 
+const (
+	// todo set real values
+	totalTxLimit = 100000
+	addrTxLimit  = 1000
+)
+
 type Node struct {
 	config          *config.Config
 	blockchain      *blockchain.Blockchain
@@ -97,7 +103,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	appState := appstate.NewAppState(db, bus)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState, bus)
+	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
