@@ -73,7 +73,7 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 func (ctx *buildingContext) addTxsToBlock() {
 	txs := ctx.sortedTxs
 	for _, tx := range txs {
-		if ctx.blockSize > BlockBodySize {
+		if ctx.blockSize+tx.Size() > BlockBodySize {
 			return
 		}
 		sender, _ := types.Sender(tx)
