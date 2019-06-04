@@ -7,6 +7,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/config"
+	"idena-go/core/state"
 	"idena-go/crypto"
 	"math/big"
 	"testing"
@@ -128,13 +129,140 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+	alloc := make(map[common.Address]config.GenesisAllocation)
+
+	var keys []*ecdsa.PrivateKey
+
+	var addresses []common.Address
+
+	for i := 0; i < 8; i++ {
+		key, _ := crypto.GenerateKey()
+		keys = append(keys, key)
+		address := crypto.PubkeyToAddress(key.PublicKey)
+		addresses = append(addresses, address)
+
+		alloc[crypto.PubkeyToAddress(key.PublicKey)] = config.GenesisAllocation{
+			Balance: balance,
+			State:   uint8(state.Verified),
+		}
+	}
+
+	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
+
+	// Current epoch = 1
+	app.State.IncEpoch()
+	app.Commit()
+
+	addressIndex := 0
+	// Prev epoch
+	app.State.SetEpoch(addresses[addressIndex], 0)
+	pool.Add(getTypedTx(1, 0, keys[addressIndex], types.RegularTx))
+
+	// Current epoch and wrong start nonce
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	app.State.SetNonce(addresses[addressIndex], 1)
+	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
+
+	// Priority tx after size limit
+	addressIndex++
+	for i := 0; i < 10815; i++ {
+		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.RegularTx))
+	}
+	pool.Add(getTypedTx(10816, 1, keys[addressIndex], types.EvidenceTx))
+
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	app.State.SetNonce(addresses[addressIndex], 3)
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
+
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	app.State.SetNonce(addresses[addressIndex], 4)
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(7, 1, keys[addressIndex], types.RegularTx))
+
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	app.State.SetNonce(addresses[addressIndex], 2)
+	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.EvidenceTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx))
+	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(8, 1, keys[addressIndex], types.RegularTx))
+
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	app.State.SetNonce(addresses[addressIndex], 1)
+	pool.Add(getTypedTx(2, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx))
+
+	addressIndex++
+	app.State.SetEpoch(addresses[addressIndex], 1)
+	pool.Add(getTypedTx(1, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx))
+
+	// when
+	result := pool.BuildBlockTransactions()
+
+	// then
+	require.Equal(t, 10815, len(result))
+	sender, _ := types.Sender(result[0])
+	require.Equal(t, addresses[5], sender)
+	require.Equal(t, uint32(3), result[0].AccountNonce)
+
+	sender, _ = types.Sender(result[1])
+	require.Equal(t, addresses[6], sender)
+	require.Equal(t, uint32(2), result[1].AccountNonce)
+	sender, _ = types.Sender(result[2])
+	require.Equal(t, addresses[6], sender)
+	require.Equal(t, uint32(3), result[2].AccountNonce)
+	sender, _ = types.Sender(result[3])
+	require.Equal(t, addresses[6], sender)
+	require.Equal(t, uint32(4), result[3].AccountNonce)
+
+	sender, _ = types.Sender(result[4])
+	require.Equal(t, addresses[5], sender)
+	require.Equal(t, uint32(4), result[4].AccountNonce)
+	sender, _ = types.Sender(result[5])
+	require.Equal(t, addresses[5], sender)
+	require.Equal(t, uint32(5), result[5].AccountNonce)
+
+	require.Equal(t, uint32(1), result[6].AccountNonce)
+	require.Equal(t, uint32(1), result[7].AccountNonce)
+	require.Equal(t, uint32(2), result[8].AccountNonce)
+	require.Equal(t, uint32(3), result[9].AccountNonce)
+	require.Equal(t, uint32(4), result[10].AccountNonce)
+	require.Equal(t, uint32(4), result[11].AccountNonce)
+	require.Equal(t, uint32(5), result[12].AccountNonce)
+	require.Equal(t, uint32(5), result[13].AccountNonce)
+	require.Equal(t, uint32(5), result[14].AccountNonce)
+	require.Equal(t, uint32(6), result[15].AccountNonce)
+	require.Equal(t, uint32(6), result[16].AccountNonce)
+
+	for i := 17; i < len(result); i++ {
+		// Start with nonce=6
+		require.Equal(t, uint32(i-10), result[i].AccountNonce)
+	}
+}
+
 func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
+	return getTypedTx(nonce, epoch, key, types.RegularTx)
+}
+
+func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
 	tx := types.Transaction{
 		AccountNonce: nonce,
-		Type:         types.RegularTx,
+		Type:         txType,
 		To:           &addr,
 		Amount:       new(big.Int),
 		Epoch:        epoch,
