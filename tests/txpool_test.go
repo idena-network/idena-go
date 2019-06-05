@@ -170,10 +170,10 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 
 	// Priority tx after size limit
 	addressIndex++
-	for i := 0; i < 10815; i++ {
+	for i := 0; i < 10814; i++ {
 		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.RegularTx))
 	}
-	pool.Add(getTypedTx(10816, 1, keys[addressIndex], types.EvidenceTx))
+	pool.Add(getTypedTx(10815, 1, keys[addressIndex], types.EvidenceTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
@@ -212,7 +212,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	result := pool.BuildBlockTransactions()
 
 	// then
-	require.Equal(t, 10815, len(result))
+	require.Equal(t, 10814, len(result))
 	sender, _ := types.Sender(result[0])
 	require.Equal(t, addresses[5], sender)
 	require.Equal(t, uint32(3), result[0].AccountNonce)

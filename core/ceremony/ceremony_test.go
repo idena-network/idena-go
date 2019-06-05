@@ -1,6 +1,7 @@
 package ceremony
 
 import (
+	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/require"
 	"idena-go/blockchain"
 	"idena-go/common"
@@ -164,7 +165,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 	}
 }
 
-func Test_getDelayedKeyFlips(t *testing.T) {
+func Test_getNotApprovedFlips(t *testing.T) {
 	// given
 	vc := ValidationCeremony{}
 	_, app, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
@@ -193,71 +194,28 @@ func Test_getDelayedKeyFlips(t *testing.T) {
 	flipsPerAuthor[2] = [][]byte{
 		flips[4],
 	}
-	shortFlipsPerCandidate := [][]int{
-		{3, 4},
-		{0, 1, 2, 4},
-		{0, 1, 2, 3},
-	}
-	shortAnswers := make(map[common.Address][]byte)
 	addr, _ := crypto.PubKeyBytesToAddress(candidates[0].PubKey)
 	app.State.SetRequiredFlips(addr, 3)
-	addr, _ = crypto.PubKeyBytesToAddress(candidates[1].PubKey)
-	shortAnswers[addr] = []byte{8} // binary 1000
-	addr, _ = crypto.PubKeyBytesToAddress(candidates[2].PubKey)
-	shortAnswers[addr] = []byte{15} // binary 1111
+	approvedAddr, _ := crypto.PubKeyBytesToAddress(candidates[1].PubKey)
+	app.State.SetRequiredFlips(approvedAddr, 3)
 
 	vc.candidates = candidates
 	vc.flips = flips
 	vc.flipsPerAuthor = flipsPerAuthor
-	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
-	vc.qualification = &qualification{
-		shortAnswers: shortAnswers,
-	}
-
 	vc.appState = app
 
+	approvedCandidates := mapset.NewSet()
+	approvedCandidates.Add(approvedAddr)
+
 	// when
-	result := vc.getDelayedKeyFlips()
+	result := vc.getNotApprovedFlips(approvedCandidates)
 
 	// then
 	r := require.New(t)
-	r.Equal(3, len(result))
-	r.NotNil(result[0])
-	r.Equal(1, result[0].shortRespondents.Cardinality())
-	r.True(result[0].shortRespondents.Contains(2))
-	r.NotNil(result[1])
-	r.Equal(1, result[1].shortRespondents.Cardinality())
-	r.True(result[1].shortRespondents.Contains(2))
-	r.NotNil(result[2])
-	r.Equal(1, result[2].shortRespondents.Cardinality())
-	r.True(result[2].shortRespondents.Contains(2))
-}
-
-func Test_addrPos(t *testing.T) {
-	const count = 100
-	// given
-	var candidates [count]*candidate
-	var addrs [count]common.Address
-	for i := 0; i < count; i++ {
-		key, _ := crypto.GenerateKey()
-		addr := crypto.PubkeyToAddress(key.PublicKey)
-		addrs[i] = addr
-		candidates[i] = &candidate{
-			PubKey: crypto.FromECDSAPub(&key.PublicKey),
-		}
-	}
-
-	// when
-	var pos [count]int
-	for i := 0; i < count; i++ {
-		pos[i] = addrPos(candidates[:], addrs[i])
-	}
-
-	// then
-	r := require.New(t)
-	for i := 0; i < count; i++ {
-		r.Equal(i, pos[i])
-	}
+	r.Equal(3, result.Cardinality())
+	r.True(result.Contains(0))
+	r.True(result.Contains(1))
+	r.True(result.Contains(2))
 }
 
 func Test_flipPos(t *testing.T) {
@@ -271,37 +229,6 @@ func Test_flipPos(t *testing.T) {
 	r.Equal(0, flipPos(flips, []byte{1, 2, 3}))
 	r.Equal(1, flipPos(flips, []byte{1, 2, 3, 4}))
 	r.Equal(2, flipPos(flips, []byte{2, 3, 4}))
-}
-
-func Test_getRespondents(t *testing.T) {
-	// given
-	flipsPerCandidate := [][]int{
-		{0, 3},
-		{0, 2, 3},
-		{0, 2, 3},
-	}
-	var candidates []*candidate
-	for i := 0; i < 3; i++ {
-		key, _ := crypto.GenerateKey()
-		c := candidate{
-			PubKey: crypto.FromECDSAPub(&key.PublicKey),
-		}
-		candidates = append(candidates, &c)
-	}
-	answers := make(map[common.Address][]byte)
-	addr, _ := crypto.PubKeyBytesToAddress(candidates[1].PubKey)
-	answers[addr] = []byte{5} // binary 101 - answer None for flip 2
-
-	addr, _ = crypto.PubKeyBytesToAddress(candidates[2].PubKey)
-	answers[addr] = []byte{6} // binary 110 - answer Left for flip 2
-
-	// when
-	shortRespondents := getRespondents(flipsPerCandidate, candidates, answers, 2)
-
-	// then
-	r := require.New(t)
-	r.Equal(1, shortRespondents.Cardinality())
-	r.True(shortRespondents.Contains(2))
 }
 
 func Test_pos(t *testing.T) {

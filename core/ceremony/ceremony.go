@@ -521,7 +521,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 	totalFlipsCount := len(vc.flips)
 
-	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate, vc.getDelayedKeyFlips())
+	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate)
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
@@ -530,12 +530,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
 
+	notApprovedFlips := vc.getNotApprovedFlips(approvedCandidatesSet)
+
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true)
+		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true, notApprovedFlips)
 
-		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false)
+		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
@@ -574,35 +576,18 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	return identitiesCount
 }
 
-func (vc *ValidationCeremony) getDelayedKeyFlips() map[int]*delayedKeyFlip {
-	var delayedKeyAddrs []common.Address
-	for _, c := range vc.candidates {
+func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set) mapset.Set {
+	result := mapset.NewSet()
+	for i, c := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(c.PubKey)
-		if !vc.appState.EvidenceMap.ContainsKey(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
-			delayedKeyAddrs = append(delayedKeyAddrs, addr)
-		}
-	}
-	delayedKeyFlips := make(map[int]*delayedKeyFlip)
-	for _, addr := range delayedKeyAddrs {
-		addrIdx := addrPos(vc.candidates, addr)
-		for _, f := range vc.flipsPerAuthor[addrIdx] {
-			flipIdx := flipPos(vc.flips, f)
-			delayedKeyFlips[flipIdx] = &delayedKeyFlip{
-				shortRespondents: getRespondents(vc.shortFlipsPerCandidate, vc.candidates, vc.qualification.shortAnswers, flipIdx),
+		if !approvedCandidates.Contains(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
+			for _, f := range vc.flipsPerAuthor[i] {
+				flipIdx := flipPos(vc.flips, f)
+				result.Add(flipIdx)
 			}
 		}
 	}
-	return delayedKeyFlips
-}
-
-func addrPos(candidates []*candidate, addr common.Address) int {
-	for i, c := range candidates {
-		curAddr, err := crypto.PubKeyBytesToAddress(c.PubKey)
-		if err == nil && curAddr == addr {
-			return i
-		}
-	}
-	return -1
+	return result
 }
 
 func flipPos(flips [][]byte, flip []byte) int {
@@ -612,24 +597,6 @@ func flipPos(flips [][]byte, flip []byte) int {
 		}
 	}
 	return -1
-}
-
-func getRespondents(flipsPerCandidate [][]int, candidates []*candidate, answers map[common.Address][]byte, flipIdx int) mapset.Set {
-	shortRespondents := mapset.NewSet()
-	for candidateIdx, flipIdxs := range flipsPerCandidate {
-		idx := pos(flipIdxs, flipIdx)
-		if idx == -1 {
-			continue
-		}
-		addr, _ := crypto.PubKeyBytesToAddress(candidates[candidateIdx].PubKey)
-		answerBytes := answers[addr]
-		answers := types.NewAnswersFromBits(uint(len(flipsPerCandidate[candidateIdx])), answerBytes)
-		answer, _ := answers.Answer(uint(idx))
-		if answer != types.None {
-			shortRespondents.Add(candidateIdx)
-		}
-	}
-	return shortRespondents
 }
 
 func pos(nums []int, num int) int {

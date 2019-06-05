@@ -17,10 +17,6 @@ type qualification struct {
 	hasNewAnswers bool
 }
 
-type delayedKeyFlip struct {
-	shortRespondents mapset.Set // indexes of candidates which solved (not None) the flip
-}
-
 func NewQualification(epochDb *database.EpochDb) *qualification {
 	return &qualification{
 		epochDb:      epochDb,
@@ -75,7 +71,7 @@ func (q *qualification) restoreAnswers() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int, delayedKeyFlips map[int]*delayedKeyFlip) []FlipQualification {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
 
 	data := make([]struct {
 		answer []types.Answer
@@ -99,11 +95,6 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 			answer, easy := answers.Answer(j)
 			flipIdx := flips[j]
 
-			dkf := delayedKeyFlips[flipIdx]
-			if dkf != nil && !dkf.shortRespondents.Contains(i) {
-				continue
-			}
-
 			data[flipIdx].answer = append(data[flipIdx].answer, answer)
 			data[flipIdx].easy = append(data[flipIdx].easy, easy)
 		}
@@ -118,7 +109,9 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	return result
 }
 
-func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
+func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32) {
+
 	var answerBytes []byte
 	if shortSession {
 		answerBytes = q.shortAnswers[candidate]
@@ -131,11 +124,21 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		return 0, 0
 	}
 	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
+	var shortAnswers *types.Answers
+	if shortSession {
+		shortAnswers = answers
+	} else {
+		shortAnswerBytes := q.shortAnswers[candidate]
+		if shortAnswerBytes != nil {
+			shortAnswers = types.NewAnswersFromBits(uint(len(flipsToSolve)), shortAnswerBytes)
+		}
+	}
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
+		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, shortAnswers)
 		answer, _ := answers.Answer(uint(i))
-		switch qual.status {
+		switch status {
 		case Qualified:
 			if qual.answer == answer {
 				point += 1
@@ -152,6 +155,20 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 	}
 	return point, qualifiedFlipsCount
+}
+
+func getFlipStatusForCandidate(flipIdx int, flipAnswerIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set, shortAnswers *types.Answers) FlipStatus {
+	if baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) {
+		return baseStatus
+	}
+	if shortAnswers == nil {
+		return NotQualified
+	}
+	shortAnswer, _ := shortAnswers.Answer(uint(flipAnswerIdx))
+	if shortAnswer == types.None {
+		return NotQualified
+	}
+	return baseStatus
 }
 
 func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {
