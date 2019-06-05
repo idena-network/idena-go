@@ -230,13 +230,3 @@ func Test_flipPos(t *testing.T) {
 	r.Equal(1, flipPos(flips, []byte{1, 2, 3, 4}))
 	r.Equal(2, flipPos(flips, []byte{2, 3, 4}))
 }
-
-func Test_pos(t *testing.T) {
-	nums := []int{1, 3, 5}
-	r := require.New(t)
-	r.Equal(-1, pos(nums, 0))
-	r.Equal(0, pos(nums, 1))
-	r.Equal(1, pos(nums, 3))
-	r.Equal(2, pos(nums, 5))
-	r.Equal(-1, pos(nums, 6))
-}

@@ -599,15 +599,6 @@ func flipPos(flips [][]byte, flip []byte) int {
 	return -1
 }
 
-func pos(nums []int, num int) int {
-	for i, n := range nums {
-		if n == num {
-			return i
-		}
-	}
-	return -1
-}
-
 func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
 	db.IterateOverFlipCids(func(cid []byte) {
 		vc.flipper.UnpinFlip(cid)
