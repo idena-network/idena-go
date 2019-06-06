@@ -171,7 +171,7 @@ func getFlipStatusForCandidate(flipIdx int, baseStatus FlipStatus, notApprovedFl
 	}
 	shortFlipToSolveIdx := pos(shortFlipsToSolve, flipIdx)
 	if shortFlipToSolveIdx == -1 {
-		return NotQualified
+		return baseStatus
 	}
 	shortAnswer, _ := shortAnswers.Answer(uint(shortFlipToSolveIdx))
 	if shortAnswer == types.None {
