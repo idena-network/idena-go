@@ -8,15 +8,10 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
+	"idena-go/tests"
 	"testing"
 	"time"
 )
-
-func getRandAddr() common.Address {
-	addr := common.Address{}
-	addr.SetBytes(random.GetRandomBytes(20))
-	return addr
-}
 
 func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	require := require.New(t)
@@ -32,7 +27,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	var addrs []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
-		addr := getRandAddr()
+		addr := tests.GetRandAddr()
 		addrs = append(addrs, addr)
 		if i == txCandidate {
 			em.newTx(&types.Transaction{
@@ -93,7 +88,7 @@ func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
 	var candidates []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
-		addr := getRandAddr()
+		addr := tests.GetRandAddr()
 		candidates = append(candidates, addr)
 	}
 	// first map

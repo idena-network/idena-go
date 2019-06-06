@@ -535,9 +535,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true, notApprovedFlips)
+		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], vc.longFlipsPerCandidate[idx], true, notApprovedFlips)
 
-		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
+		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)

@@ -1,19 +1,13 @@
 package database
 
 import (
-	"github.com/google/tink/go/subtle/random"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/common"
+	"idena-go/tests"
 	"testing"
 	"time"
 )
-
-func getRandAddr() common.Address {
-	addr := common.Address{}
-	addr.SetBytes(random.GetRandomBytes(20))
-	return addr
-}
 
 func TestEpochDb_Write_Read_ShortSessionTime(t *testing.T) {
 	mdb := db.NewMemDB()
@@ -39,9 +33,9 @@ func TestEpochDb_GetConfirmedRespondents(t *testing.T) {
 
 	timestamp := time.Now()
 
-	addr1 := getRandAddr()
-	addr2 := getRandAddr()
-	addr3 := getRandAddr()
+	addr1 := tests.GetRandAddr()
+	addr2 := tests.GetRandAddr()
+	addr3 := tests.GetRandAddr()
 
 	edb.WriteAnswerHash(addr1, common.Hash{}, timestamp.Add(time.Second))
 	edb.WriteAnswerHash(addr2, common.Hash{}, timestamp.Add(time.Second*2))

@@ -110,13 +110,17 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
-	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32) {
+	shortFlipsToSolve []int, longFlipsToSolve []int,
+	shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32) {
 
 	var answerBytes []byte
+	var flipsToSolve []int
 	if shortSession {
 		answerBytes = q.shortAnswers[candidate]
+		flipsToSolve = shortFlipsToSolve
 	} else {
 		answerBytes = q.longAnswers[candidate]
+		flipsToSolve = longFlipsToSolve
 	}
 
 	// candidate didn't send answers
@@ -130,13 +134,13 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	} else {
 		shortAnswerBytes := q.shortAnswers[candidate]
 		if shortAnswerBytes != nil {
-			shortAnswers = types.NewAnswersFromBits(uint(len(flipsToSolve)), shortAnswerBytes)
+			shortAnswers = types.NewAnswersFromBits(uint(len(shortFlipsToSolve)), shortAnswerBytes)
 		}
 	}
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
-		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, shortAnswers)
+		status := getFlipStatusForCandidate(flipIdx, qual.status, notApprovedFlips, shortFlipsToSolve, shortAnswers)
 		answer, _ := answers.Answer(uint(i))
 		switch status {
 		case Qualified:
@@ -157,18 +161,32 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	return point, qualifiedFlipsCount
 }
 
-func getFlipStatusForCandidate(flipIdx int, flipAnswerIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set, shortAnswers *types.Answers) FlipStatus {
+func getFlipStatusForCandidate(flipIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
+	shortFlipsToSolve []int, shortAnswers *types.Answers) FlipStatus {
 	if baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) {
 		return baseStatus
 	}
 	if shortAnswers == nil {
 		return NotQualified
 	}
-	shortAnswer, _ := shortAnswers.Answer(uint(flipAnswerIdx))
+	shortFlipToSolveIdx := pos(shortFlipsToSolve, flipIdx)
+	if shortFlipToSolveIdx == -1 {
+		return NotQualified
+	}
+	shortAnswer, _ := shortAnswers.Answer(uint(shortFlipToSolveIdx))
 	if shortAnswer == types.None {
 		return NotQualified
 	}
 	return baseStatus
+}
+
+func pos(nums []int, num int) int {
+	for i, n := range nums {
+		if n == num {
+			return i
+		}
+	}
+	return -1
 }
 
 func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {
