@@ -117,10 +117,6 @@ func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
 	return m.shortSessionTime.Add(ShortSessionDuration)
 }
 
-func (m *EvidenceMap) GetFlipKeyDeadline() time.Time {
-	return m.shortSessionTime.Add(ShortSessionFlipKeyDeadline)
-}
-
 func (m *EvidenceMap) Clear() {
 	m.shortSessionTime = nil
 	m.answersSet = mapset.NewSet()
