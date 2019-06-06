@@ -1,8 +1,13 @@
 package ceremony
 
 import (
+	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/require"
+	"idena-go/blockchain"
+	"idena-go/common"
+	"idena-go/config"
 	"idena-go/core/state"
+	"idena-go/crypto"
 	"testing"
 )
 
@@ -92,9 +97,19 @@ func Test_determineNewIdentityState(t *testing.T) {
 			state.Newbie,
 		},
 		{
+			state.Candidate,
+			MinShortScore, MinLongScore, MinTotalScore, 11, true,
+			state.Killed,
+		},
+		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
 			state.Verified,
+		},
+		{
+			state.Newbie,
+			MinShortScore, MinLongScore, MinTotalScore, 11, true,
+			state.Killed,
 		},
 		{
 			state.Newbie,
@@ -148,4 +163,70 @@ func Test_determineNewIdentityState(t *testing.T) {
 	for _, c := range cases {
 		require.Equal(c.expected, determineNewIdentityState(c.prev, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed))
 	}
+}
+
+func Test_getNotApprovedFlips(t *testing.T) {
+	// given
+	vc := ValidationCeremony{}
+	_, app, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
+	var candidates []*candidate
+	var flipsPerAuthor map[int][][]byte
+	var flips [][]byte
+	for i := 0; i < 3; i++ {
+		key, _ := crypto.GenerateKey()
+		c := candidate{
+			PubKey: crypto.FromECDSAPub(&key.PublicKey),
+		}
+		candidates = append(candidates, &c)
+	}
+	for i := 0; i < 5; i++ {
+		flips = append(flips, []byte{byte(i)})
+	}
+	flipsPerAuthor = make(map[int][][]byte)
+	flipsPerAuthor[0] = [][]byte{
+		flips[0],
+		flips[1],
+		flips[2],
+	}
+	flipsPerAuthor[1] = [][]byte{
+		flips[3],
+	}
+	flipsPerAuthor[2] = [][]byte{
+		flips[4],
+	}
+	addr, _ := crypto.PubKeyBytesToAddress(candidates[0].PubKey)
+	app.State.SetRequiredFlips(addr, 3)
+	approvedAddr, _ := crypto.PubKeyBytesToAddress(candidates[1].PubKey)
+	app.State.SetRequiredFlips(approvedAddr, 3)
+
+	vc.candidates = candidates
+	vc.flips = flips
+	vc.flipsPerAuthor = flipsPerAuthor
+	vc.appState = app
+
+	approvedCandidates := mapset.NewSet()
+	approvedCandidates.Add(approvedAddr)
+
+	// when
+	result := vc.getNotApprovedFlips(approvedCandidates)
+
+	// then
+	r := require.New(t)
+	r.Equal(3, result.Cardinality())
+	r.True(result.Contains(0))
+	r.True(result.Contains(1))
+	r.True(result.Contains(2))
+}
+
+func Test_flipPos(t *testing.T) {
+	flips := [][]byte{
+		{1, 2, 3},
+		{1, 2, 3, 4},
+		{2, 3, 4},
+	}
+	r := require.New(t)
+	r.Equal(-1, flipPos(flips, []byte{1, 2, 3, 4, 5}))
+	r.Equal(0, flipPos(flips, []byte{1, 2, 3}))
+	r.Equal(1, flipPos(flips, []byte{1, 2, 3, 4}))
+	r.Equal(2, flipPos(flips, []byte{2, 3, 4}))
 }

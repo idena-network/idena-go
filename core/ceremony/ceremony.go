@@ -437,13 +437,13 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	candidates := vc.getParticipantsAddrs()
 
-	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional)
+	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional, vc.appState.State.GetRequiredFlips)
 
 	if len(candidates) < 100 {
 		var inMemory string
 		var final string
 		for i, c := range candidates {
-			if vc.appState.EvidenceMap.Contains(c) {
+			if vc.appState.EvidenceMap.ContainsAnswer(c) && (vc.appState.EvidenceMap.ContainsKey(c) || vc.appState.State.GetRequiredFlips(c) <= 0) {
 				inMemory += "1"
 			} else {
 				inMemory += "0"
@@ -520,6 +520,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	}
 
 	totalFlipsCount := len(vc.flips)
+
 	flipQualification := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate)
 
 	flipQualificationMap := make(map[int]FlipQualification)
@@ -529,12 +530,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
 
+	notApprovedFlips := vc.getNotApprovedFlips(approvedCandidatesSet)
+
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true)
+		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true, notApprovedFlips)
 
-		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false)
+		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
@@ -573,6 +576,29 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	return identitiesCount
 }
 
+func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set) mapset.Set {
+	result := mapset.NewSet()
+	for i, c := range vc.candidates {
+		addr, _ := crypto.PubKeyBytesToAddress(c.PubKey)
+		if !approvedCandidates.Contains(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
+			for _, f := range vc.flipsPerAuthor[i] {
+				flipIdx := flipPos(vc.flips, f)
+				result.Add(flipIdx)
+			}
+		}
+	}
+	return result
+}
+
+func flipPos(flips [][]byte, flip []byte) int {
+	for i, curFlip := range flips {
+		if bytes.Compare(curFlip, flip) == 0 {
+			return i
+		}
+	}
+	return -1
+}
+
 func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
 	db.IterateOverFlipCids(func(cid []byte) {
 		vc.flipper.UnpinFlip(cid)
@@ -592,11 +618,14 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 	case state.Invite:
 		return state.Undefined
 	case state.Candidate:
-		if shortScore < MinShortScore || longScore < MinLongScore {
+		if missed || shortScore < MinShortScore || longScore < MinLongScore {
 			return state.Killed
 		}
 		return state.Newbie
 	case state.Newbie:
+		if missed {
+			return state.Killed
+		}
 		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
@@ -605,22 +634,25 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		}
 		return state.Killed
 	case state.Verified:
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
-			return state.Verified
-		}
 		if missed {
 			return state.Suspended
 		}
-		return state.Killed
-	case state.Suspended:
-		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
+		return state.Killed
+	case state.Suspended:
 		if missed {
 			return state.Zombie
 		}
+		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
 		return state.Killed
 	case state.Zombie:
+		if missed {
+			return state.Killed
+		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Verified
 		}

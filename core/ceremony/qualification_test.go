@@ -1,8 +1,11 @@
 package ceremony
 
 import (
+	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/require"
 	"idena-go/blockchain/types"
+	"idena-go/common"
+	"idena-go/tests"
 	"math/rand"
 	"testing"
 )
@@ -56,6 +59,97 @@ func Test_qualifyOneFlip(t *testing.T) {
 	q = qualifyOneFlip(ans)
 	require.Equal(NotQualified, q.status)
 	require.Equal(types.None, q.answer)
+}
+
+func Test_getFlipStatusForCandidate(t *testing.T) {
+	shortAnswers := types.NewAnswers(3)
+	shortAnswers.Right(0)
+	shortAnswers.Left(2)
+
+	notApprovedFlips := mapset.NewSet()
+	notApprovedFlips.Add(5)
+	notApprovedFlips.Add(7)
+
+	r := require.New(t)
+	r.Equal(NotQualified, getFlipStatusForCandidate(6, 0, NotQualified, notApprovedFlips, shortAnswers, true))
+	r.Equal(Qualified, getFlipStatusForCandidate(6, 0, Qualified, notApprovedFlips, shortAnswers, true))
+
+	r.Equal(NotQualified, getFlipStatusForCandidate(5, 0, NotQualified, notApprovedFlips, shortAnswers, true))
+	r.Equal(NotQualified, getFlipStatusForCandidate(5, 1, NotQualified, notApprovedFlips, shortAnswers, true))
+	r.Equal(NotQualified, getFlipStatusForCandidate(5, 2, NotQualified, notApprovedFlips, shortAnswers, true))
+
+	r.Equal(Qualified, getFlipStatusForCandidate(5, 0, Qualified, notApprovedFlips, shortAnswers, true))
+	r.Equal(NotQualified, getFlipStatusForCandidate(5, 1, Qualified, notApprovedFlips, shortAnswers, true))
+	r.Equal(Qualified, getFlipStatusForCandidate(5, 2, Qualified, notApprovedFlips, shortAnswers, true))
+
+	r.Equal(Qualified, getFlipStatusForCandidate(5, 1, Qualified, notApprovedFlips, shortAnswers, false))
+}
+
+func Test_qualifyCandidate(t *testing.T) {
+	// given
+	flipsToSolve := []int{10, 11, 12, 13, 20, 21, 22, 23, 24}
+
+	flipQualificationMap := make(map[int]FlipQualification)
+	flipQualificationMap[10] = FlipQualification{
+		status: Qualified,
+		answer: types.Left,
+	}
+	flipQualificationMap[11] = FlipQualification{
+		status: Qualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[12] = FlipQualification{
+		status: Qualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[13] = FlipQualification{
+		status: NotQualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[20] = FlipQualification{
+		status: WeaklyQualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[21] = FlipQualification{
+		status: WeaklyQualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[22] = FlipQualification{
+		status: WeaklyQualified,
+		answer: types.Inappropriate,
+	}
+	flipQualificationMap[23] = FlipQualification{
+		status: Qualified,
+		answer: types.Right,
+	}
+	flipQualificationMap[24] = FlipQualification{
+		status: Qualified,
+		answer: types.Right,
+	}
+
+	notApprovedFlips := mapset.NewSet()
+	notApprovedFlips.Add(23)
+	notApprovedFlips.Add(24)
+
+	candidate := tests.GetRandAddr()
+	q := qualification{
+		shortAnswers: map[common.Address][]byte{
+			candidate: {57, 99}, // 11100101100011
+		},
+		longAnswers: map[common.Address][]byte{
+			candidate: {57, 99}, // 11100101100011
+		},
+	}
+
+	// when
+	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, true, notApprovedFlips)
+	longPoint, longQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, false, notApprovedFlips)
+
+	// then
+	require.Equal(t, float32(3.5), shortPoint)
+	require.Equal(t, uint32(6), shortQualifiedFlipsCount)
+	require.Equal(t, float32(3.5), longPoint)
+	require.Equal(t, uint32(7), longQualifiedFlipsCount)
 }
 
 func fillArray(left int, right int, inapp int, none int) []types.Answer {

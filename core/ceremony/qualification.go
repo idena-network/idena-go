@@ -1,6 +1,7 @@
 package ceremony
 
 import (
+	mapset "github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/crypto"
@@ -108,7 +109,9 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	return result
 }
 
-func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification, flipsToSolve []int, shortSession bool) (point float32, qualifiedFlipsCount uint32) {
+func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32) {
+
 	var answerBytes []byte
 	if shortSession {
 		answerBytes = q.shortAnswers[candidate]
@@ -124,8 +127,9 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
+		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, answers, shortSession)
 		answer, _ := answers.Answer(uint(i))
-		switch qual.status {
+		switch status {
 		case Qualified:
 			if qual.answer == answer {
 				point += 1
@@ -142,6 +146,19 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 	}
 	return point, qualifiedFlipsCount
+}
+
+func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
+	answers *types.Answers, shortSession bool) FlipStatus {
+
+	if !shortSession || baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) {
+		return baseStatus
+	}
+	shortAnswer, _ := answers.Answer(uint(flipsToSolveIdx))
+	if shortAnswer == types.None {
+		return NotQualified
+	}
+	return baseStatus
 }
 
 func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {

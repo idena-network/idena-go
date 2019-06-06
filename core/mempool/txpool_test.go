@@ -1,13 +1,13 @@
 package mempool
 
 import (
-	"github.com/google/tink/go/subtle/random"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
 	"idena-go/core/appstate"
+	"idena-go/tests"
 	"testing"
 )
 
@@ -40,7 +40,7 @@ func TestTxPool_checkAddrTxLimit(t *testing.T) {
 
 	r := require.New(t)
 
-	address := getRandAddr()
+	address := tests.GetRandAddr()
 	r.Nil(pool.checkAddrTxLimit(address))
 
 	pool.addrTxLimit = 1
@@ -50,12 +50,6 @@ func TestTxPool_checkAddrTxLimit(t *testing.T) {
 	tr := &types.Transaction{}
 	pool.pendingPerAddr[address][tr.Hash()] = tr
 	r.Error(pool.checkAddrTxLimit(address))
-}
-
-func getRandAddr() common.Address {
-	addr := common.Address{}
-	addr.SetBytes(random.GetRandomBytes(20))
-	return addr
 }
 
 func getPool() *TxPool {

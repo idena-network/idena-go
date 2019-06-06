@@ -8,27 +8,26 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
+	"idena-go/tests"
 	"testing"
+	"time"
 )
-
-func getRandAddr() common.Address {
-	addr := common.Address{}
-	addr.SetBytes(random.GetRandomBytes(20))
-	return addr
-}
 
 func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	require := require.New(t)
 
 	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
+	now := time.Now().Add(-29 * time.Second)
+	em.shortSessionTime = &now
 
 	const candidatesCount = 10000
 	const txCandidate = 1
+	const delayedKeyAuthor = 10
 	var addrs []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
-		addr := getRandAddr()
+		addr := tests.GetRandAddr()
 		addrs = append(addrs, addr)
 		if i == txCandidate {
 			em.newTx(&types.Transaction{
@@ -46,7 +45,17 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 			additional = append(additional, addrs[i])
 		}
 	}
-	m := em.CalculateBitmap(addrs, additional)
+
+	em.NewFlipsKey(addrs[txCandidate])
+	time.Sleep(2 * time.Second)
+	em.NewFlipsKey(addrs[delayedKeyAuthor])
+
+	m := em.CalculateBitmap(addrs, additional, func(a common.Address) uint8 {
+		if a == addrs[delayedKeyAuthor] || a == addrs[txCandidate] {
+			return 1
+		}
+		return 0
+	})
 
 	buf := new(bytes.Buffer)
 
@@ -58,9 +67,10 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	rmap.Read(bytesArray)
 
 	require.True(rmap.Contains(txCandidate))
+	require.False(rmap.Contains(delayedKeyAuthor))
 
 	for i := 0; i < candidatesCount; i++ {
-		if i%2 == 0 {
+		if i%2 == 0 && i != delayedKeyAuthor {
 			require.True(rmap.Contains(uint32(i)))
 		} else if i != txCandidate {
 			require.False(rmap.Contains(uint32(i)))
@@ -78,7 +88,7 @@ func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
 	var candidates []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
-		addr := getRandAddr()
+		addr := tests.GetRandAddr()
 		candidates = append(candidates, addr)
 	}
 	// first map
