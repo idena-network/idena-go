@@ -125,28 +125,3 @@ func Test_ApplyActivateTx(t *testing.T) {
 	require.Equal(t, state.Candidate, appState.State.GetIdentityState(receiver))
 	require.Equal(t, -1, big.NewInt(0).Cmp(appState.State.GetBalance(receiver)))
 }
-
-func TestBlockchain_networkParams(t *testing.T) {
-	require := require.New(t)
-
-	e, i, f := networkParams(100)
-	require.Equal(5, e)
-	require.Equal(5, i)
-	require.Equal(1, f)
-
-	e, i, f = networkParams(1000)
-	require.Equal(10, e)
-	require.Equal(2, i)
-	require.Equal(3, f)
-
-	e, i, f = networkParams(50000)
-	require.Equal(36, e)
-	require.Equal(1, i)
-	require.Equal(10, f)
-
-	e, i, f = networkParams(10000000)
-	require.Equal(204, e)
-	require.Equal(0, i)
-	require.Equal(7, f)
-
-}

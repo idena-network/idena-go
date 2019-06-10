@@ -74,9 +74,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc, -1, -1)
+	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, -1, -1)
 }
 
 func NewTestBlockchainWithTxLimits(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), config.GetDefaultValidationConfig(), alloc, totalTxLimit, addrTxLimit)
+	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
 }

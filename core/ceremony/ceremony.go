@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	FlipsPerAddress = 10
-	LotterySeedLag  = 100
+	LotterySeedLag = 100
 )
 
 const (
@@ -146,11 +145,12 @@ func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.
 }
 
 func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
-	return FlipsPerAddress / 2
+	return common.ShortSessionFlipsCount()
 }
 
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
-	return FlipsPerAddress
+	networkSize := vc.appState.ValidatorsCache.NetworkSize()
+	return common.LongSessionFlipsCount(networkSize)
 }
 
 func (vc *ValidationCeremony) restoreState() {
@@ -291,10 +291,10 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 	}
 
 	conf := vc.chain.Config().Validation
-	ceremonyDuration := conf.FlipLotteryDuration +
-		conf.ShortSessionDuration +
-		conf.LongSessionDuration +
-		conf.AfterLongSessionDuration +
+	ceremonyDuration := conf.GetFlipLotteryDuration() +
+		conf.GetShortSessionDuration() +
+		conf.GetLongSessionDuration(vc.appState.ValidatorsCache.NetworkSize()) +
+		conf.GetAfterLongSessionDuration() +
 		time.Minute*5 // added extra minutes to prevent time lags
 	headTime := common.TimestampToTime(vc.chain.Head.Time())
 

@@ -25,7 +25,6 @@ import (
 	"idena-go/ipfs"
 	"idena-go/log"
 	"idena-go/secstore"
-	math2 "math"
 	"math/big"
 	"time"
 )
@@ -83,7 +82,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		txpool:   txpool,
 		appState: appState,
 		ipfs:     ipfs,
-		timing:   NewTiming(config.Validation),
+		timing:   NewTiming(config.Validation, appState.ValidatorsCache),
 		bus:      bus,
 		secStore: secStore,
 	}
@@ -328,37 +327,11 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	appState.State.IncEpoch()
 
-	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.ValidationInterval))
-}
-
-func networkParams(networkSize int) (epochDuration int, invites int, flips int) {
-
-	epochDurationF := math2.Round(math2.Pow(float64(networkSize), 0.33))
-	epochDuration = int(epochDurationF)
-
-	if networkSize <= 1 {
-		return epochDuration, 0, 0
-	}
-
-	invitesCount := 20 / math2.Pow(math2.Log10(float64(networkSize)), 2)
-	if invitesCount < 1 {
-		flips = int(math2.Round((1 + invitesCount) * 5))
-	} else {
-		flips = int(math2.Round(epochDurationF * 2.0 / 7.0))
-	}
-	// TODO: for test puprose
-	if networkSize < 10 {
-		flips = 3
-	}
-
-	invites = int(math2.Round(invitesCount))
-	return
+	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.GetEpochDuration(networkSize)))
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
-
-	_, invites, flips := networkParams(networkSize)
-
+	_, invites, flips := common.NetworkParams(networkSize)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 
 		s := identity.State
