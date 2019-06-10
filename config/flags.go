@@ -4,20 +4,20 @@ import "gopkg.in/urfave/cli.v1"
 
 const (
 	DefaultDataDir      = "datadir"
-	DefaultBootNode     = "enode://45df5a0a220198ca95e2ee70dea500569e6578eafa603322c028e1e0ba9ca9e40e5810fa3308728d8d8fda565de8e66a4aa5536950128af8ad93de5ac65e8131@127.0.0.1:40404"
+	DefaultBootNode     = "enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404"
 	DefaultPort         = 40404
 	DefaultRpcHost      = "localhost"
 	DefaultRpcPort      = 9009
 	DefaultIpfsDataDir  = "ipfs"
 	DefaultIpfsPort     = 4002
-	DefaultGodAddress   = "0xf228fa1e9236343c7d44283b5ffcf9ba50df37e8"
-	DefaultCeremonyTime = int64(1559225400)
+	DefaultGodAddress   = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
+	DefaultCeremonyTime = int64(1560160800)
 	DefaultSwarmKey     = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
 )
 
 var (
 	DefaultIpfsBootstrapNodes = []string{
-		"/ip4/127.0.0.1/tcp/4002/ipfs/QmcGxQehQ8YG65FNghjEhjPTc4p6MbYT5REJJ48rC4amoC",
+		"/ip4/111.90.140.21/tcp/4002/ipfs/QmZV7cwSgVTSnMUE2zTK3f5nepCuT5yYnTyMpRgGhxJoTG",
 	}
 
 	ConfigFileFlag = cli.StringFlag{
