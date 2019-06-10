@@ -82,7 +82,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		txpool:   txpool,
 		appState: appState,
 		ipfs:     ipfs,
-		timing:   NewTiming(config.Validation, appState.ValidatorsCache),
+		timing:   NewTiming(config.Validation),
 		bus:      bus,
 		secStore: secStore,
 	}
@@ -632,12 +632,12 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if stateDb.ValidationPeriod() == state.LongSessionPeriod &&
-		chain.timing.isAfterLongSessionStarted(stateDb.NextValidationTime(), block.Header.Time()) {
+		chain.timing.isAfterLongSessionStarted(stateDb.NextValidationTime(), block.Header.Time(), appState.ValidatorsCache.NetworkSize()) {
 		flags |= types.AfterLongSessionStarted
 	}
 
 	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod &&
-		chain.timing.isValidationFinished(stateDb.NextValidationTime(), block.Header.Time()) {
+		chain.timing.isValidationFinished(stateDb.NextValidationTime(), block.Header.Time(), appState.ValidatorsCache.NetworkSize()) {
 		flags |= types.ValidationFinished
 		flags |= types.IdentityUpdate
 	}
