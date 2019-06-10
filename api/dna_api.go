@@ -314,12 +314,13 @@ type CeremonyIntervals struct {
 
 func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	cfg := api.bc.Config()
+	networkSize := api.baseApi.getAppState().ValidatorsCache.NetworkSize()
 
 	return CeremonyIntervals{
-		ValidationInterval:       cfg.Validation.ValidationInterval.Seconds(),
-		FlipLotteryDuration:      cfg.Validation.FlipLotteryDuration.Seconds(),
-		ShortSessionDuration:     cfg.Validation.ShortSessionDuration.Seconds(),
-		LongSessionDuration:      cfg.Validation.LongSessionDuration.Seconds(),
-		AfterLongSessionDuration: cfg.Validation.AfterLongSessionDuration.Seconds(),
+		ValidationInterval:       cfg.Validation.GetEpochDuration(networkSize).Seconds(),
+		FlipLotteryDuration:      cfg.Validation.GetFlipLotteryDuration().Seconds(),
+		ShortSessionDuration:     cfg.Validation.GetShortSessionDuration().Seconds(),
+		LongSessionDuration:      cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
+		AfterLongSessionDuration: cfg.Validation.GetAfterLongSessionDuration().Seconds(),
 	}
 }

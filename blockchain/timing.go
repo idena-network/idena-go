@@ -18,34 +18,34 @@ func NewTiming(conf *config.ValidationConfig) *timing {
 }
 
 func (t *timing) isFlipLotteryStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	if current := common.TimestampToTime(timestamp); nextValidation.Sub(current) < t.conf.FlipLotteryDuration {
+	if current := common.TimestampToTime(timestamp); nextValidation.Sub(current) < t.conf.GetFlipLotteryDuration() {
 		return true
 	}
 	return false
 }
 
 func (t *timing) isShortSessionStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	return ! common.TimestampToTime(timestamp).Before(nextValidation)
+	return !common.TimestampToTime(timestamp).Before(nextValidation)
 }
 
 func (t *timing) isLongSessionStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	if current :=  common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.ShortSessionDuration {
+	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.GetShortSessionDuration() {
 		return true
 	}
 	return false
 }
 
-func (t *timing) isAfterLongSessionStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	if current :=  common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.ShortSessionDuration+t.conf.LongSessionDuration {
+func (t *timing) isAfterLongSessionStarted(nextValidation time.Time, timestamp *big.Int, networkSize int) bool {
+	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize) {
 		return true
 	}
 	return false
 }
 
-func (t *timing) isValidationFinished(nextValidation time.Time, timestamp *big.Int) bool {
-	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.ShortSessionDuration+t.conf.LongSessionDuration+t.conf.AfterLongSessionDuration {
+func (t *timing) isValidationFinished(nextValidation time.Time, timestamp *big.Int, networkSize int) bool {
+	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) >
+		t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize)+t.conf.GetAfterLongSessionDuration() {
 		return true
 	}
 	return false
 }
-

@@ -98,7 +98,7 @@ func SafeMul(x, y uint64) (uint64, bool) {
 	return x * y, y > MaxUint64/x
 }
 
-func Min(x, y uint64) (uint64) {
+func Min(x, y uint64) uint64 {
 	if x < y {
 		return x
 	}

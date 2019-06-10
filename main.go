@@ -10,16 +10,13 @@ import (
 )
 
 var (
-	gitCommit = ""
+	version = "0.0.1"
 )
 
 func main() {
 
 	app := cli.NewApp()
-	app.Version = "0.0.1"
-	if len(gitCommit) > 0 {
-		app.Version = app.Version + "-" + gitCommit
-	}
+	app.Version = version
 
 	app.Flags = []cli.Flag{
 		config.ConfigFileFlag,

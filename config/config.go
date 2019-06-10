@@ -118,7 +118,7 @@ func getDefaultConfig() *Config {
 			BootNodes: DefaultIpfsBootstrapNodes,
 			SwarmKey:  DefaultSwarmKey,
 		},
-		Validation: GetDefaultValidationConfig(),
+		Validation: &ValidationConfig{},
 	}
 }
 
