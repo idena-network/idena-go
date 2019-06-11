@@ -236,6 +236,14 @@ func (s *StateDB) SetState(address common.Address, state IdentityState) {
 	s.GetOrNewIdentityObject(address).SetState(state)
 }
 
+func (s *StateDB) SetGeneticCode(address common.Address, generation uint32, code []byte) {
+	s.GetOrNewIdentityObject(address).SetGeneticCode(generation, code)
+}
+
+func (s *StateDB) GeneticCode(address common.Address) (generation uint32, code []byte) {
+	return s.GetOrNewIdentityObject(address).GeneticCode()
+}
+
 func (s *StateDB) AddInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).AddInvite(amount)
 }

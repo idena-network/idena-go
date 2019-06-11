@@ -39,6 +39,7 @@ const (
 	EmptyBlockTimeIncrement       = time.Second * 10
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
+	GeneticCodeSize               = 12
 )
 
 var (
@@ -480,20 +481,20 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 
 	switch tx.Type {
 	case types.ActivationTx:
-		senderIdentity := stateDB.GetOrNewIdentityObject(sender)
-
 		balance := stateDB.GetBalance(sender)
+		generation, code := stateDB.GeneticCode(sender)
 		change := new(big.Int).Sub(balance, totalCost)
 
 		// zero balance and kill temp identity
 		stateDB.SetBalance(sender, big.NewInt(0))
-		senderIdentity.SetState(state.Killed)
+		stateDB.SetState(sender, state.Killed)
 
 		// verify identity and add transfer all available funds from temp account
 		recipient := *tx.To
-		stateDB.GetOrNewIdentityObject(recipient).SetState(state.Candidate)
+		stateDB.SetState(recipient, state.Candidate)
 		stateDB.AddBalance(recipient, change)
 		stateDB.SetPubKey(recipient, tx.Payload)
+		stateDB.SetGeneticCode(recipient, generation, code)
 		break
 	case types.RegularTx:
 		amount := tx.AmountOrZero()
@@ -506,11 +507,23 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		}
 		stateDB.SubBalance(sender, totalCost)
 
-		stateDB.GetOrNewIdentityObject(*tx.To).SetState(state.Invite)
+		generation, code := stateDB.GeneticCode(sender)
+
+		if sender == stateDB.GodAddress() {
+			code = sender[:GeneticCodeSize]
+		}
+		if generation >= math.MaxUint32 {
+			generation = 0
+		} else {
+			generation += 1
+		}
+
+		stateDB.SetState(*tx.To, state.Invite)
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
+		stateDB.SetGeneticCode(*tx.To, generation, append(code[1:], sender[0]))
 		break
 	case types.KillTx:
-		stateDB.GetOrNewIdentityObject(sender).SetState(state.Killed)
+		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
 		break
 	case types.SubmitFlipTx:

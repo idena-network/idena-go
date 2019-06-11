@@ -180,6 +180,8 @@ type Identity struct {
 	ShortFlipPoints float32         `json:"totalShortFlipPoints"`
 	Flips           []string        `json:"flips"`
 	Online          bool            `json:"online"`
+	Generation      uint32          `json:"generation"`
+	Code            hexutil.Bytes   `json:"code"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -266,6 +268,8 @@ func convertIdentity(address common.Address, data state.Identity) Identity {
 		QualifiedFlips:  data.QualifiedFlips,
 		ShortFlipPoints: data.GetShortFlipPoints(),
 		Flips:           result,
+		Generation:      data.Generation,
+		Code:            hexutil.Bytes(data.Code),
 	}
 }
 
