@@ -17,7 +17,7 @@ func ShortSessionFlipsCount() uint {
 func LongSessionFlipsCount(networkSize int) uint {
 	_, _, flipsPerIdentity := NetworkParams(networkSize)
 	totalFlips := uint64(flipsPerIdentity * networkSize)
-	return uint(math2.Min(totalFlips, uint64(flipsPerIdentity*LongSessionTesters)))
+	return uint(math2.Max(1, math2.Min(totalFlips, uint64(flipsPerIdentity*LongSessionTesters))))
 }
 
 func NetworkParams(networkSize int) (epochDuration int, invites int, flips int) {
