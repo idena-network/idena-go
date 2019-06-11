@@ -93,6 +93,8 @@ type Identity struct {
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
 	Flips           [][]byte `rlp:"nil"`
+	Generation      uint32
+	Code            []byte `rlp:"nil"`
 }
 
 func (i *Identity) GetShortFlipPoints() float32 {
@@ -284,6 +286,16 @@ func (s *stateIdentity) State() IdentityState {
 func (s *stateIdentity) SetState(state IdentityState) {
 	s.data.State = state
 	s.touch()
+}
+
+func (s *stateIdentity) SetGeneticCode(generation uint32, code []byte) {
+	s.data.Generation = generation
+	s.data.Code = code
+	s.touch()
+}
+
+func (s *stateIdentity) GeneticCode() (generation uint32, code []byte) {
+	return s.data.Generation, s.data.Code
 }
 
 func (s *stateIdentity) Stake() *big.Int {

@@ -5,7 +5,9 @@ import (
 )
 
 type candidate struct {
-	PubKey []byte
+	PubKey     []byte
+	Generation uint32
+	Code       []byte
 }
 
 type FlipStatus byte

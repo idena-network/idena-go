@@ -174,6 +174,10 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 		return LateTx
 	}
 
+	if appState.State.GetIdentityState(sender) < state.Candidate {
+		return NotCandidate
+	}
+
 	god := appState.State.GodAddress()
 	noFlips := appState.State.GetRequiredFlips(sender) == appState.State.GetMadeFlips(sender)
 	if noFlips && sender != god ||

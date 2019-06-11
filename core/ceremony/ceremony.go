@@ -248,7 +248,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 
 	vc.candidates, vc.flips, vc.flipsPerAuthor = vc.getCandidatesAndFlips()
 
-	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, len(vc.candidates), vc.flips, int(vc.ShortSessionFlipsCount()), seed, false, nil)
+	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()), seed, false, nil)
 
 	chosenFlips := make(map[int]bool)
 	for _, a := range shortFlipsPerCandidate {
@@ -257,7 +257,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		}
 	}
 
-	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, len(vc.candidates), vc.flips, int(vc.LongSessionFlipsCount()), seed, true, chosenFlips)
+	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), seed, true, chosenFlips)
 
 	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
 	vc.longFlipsPerCandidate = longFlipsPerCandidate
@@ -330,7 +330,6 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, [][]byte, m
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
-	godAddress := vc.appState.State.GodAddress()
 
 	addFlips := func(candidateFlips [][]byte) {
 		for _, f := range candidateFlips {
@@ -355,10 +354,10 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, [][]byte, m
 			addFlips(data.Flips)
 
 			m = append(m, &candidate{
-				PubKey: data.PubKey,
+				PubKey:     data.PubKey,
+				Generation: data.Generation,
+				Code:       data.Code,
 			})
-		} else if addr == godAddress {
-			addFlips(data.Flips)
 		}
 
 		return false
