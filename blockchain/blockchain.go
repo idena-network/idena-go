@@ -978,12 +978,16 @@ func (chain *Blockchain) ResetTo(height uint64) error {
 }
 
 func (chain *Blockchain) EnsureIntegrity() error {
+	wasReset := false
 	for chain.Head.Root() != chain.appState.State.Root() ||
 		chain.Head.IdentityRoot() != chain.appState.IdentityState.Root() {
+		wasReset = true
 		if err := chain.ResetTo(chain.Head.Height() - 1); err != nil {
 			return err
 		}
 	}
-	chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+	if wasReset {
+		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+	}
 	return nil
 }
