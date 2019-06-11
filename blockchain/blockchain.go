@@ -39,7 +39,6 @@ const (
 	EmptyBlockTimeIncrement       = time.Second * 10
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
-	GeneticCodeSize               = 12
 )
 
 var (
@@ -509,18 +508,9 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 
 		generation, code := stateDB.GeneticCode(sender)
 
-		if sender == stateDB.GodAddress() {
-			code = sender[:GeneticCodeSize]
-		}
-		if generation >= math.MaxUint32 {
-			generation = 0
-		} else {
-			generation += 1
-		}
-
 		stateDB.SetState(*tx.To, state.Invite)
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
-		stateDB.SetGeneticCode(*tx.To, generation, append(code[1:], sender[0]))
+		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
 		break
 	case types.KillTx:
 		stateDB.SetState(sender, state.Killed)

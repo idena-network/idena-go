@@ -34,6 +34,7 @@ import (
 
 const (
 	MaxSavedStatesCount = 100000000
+	GeneticCodeSize     = 12
 )
 
 var (
@@ -241,7 +242,11 @@ func (s *StateDB) SetGeneticCode(address common.Address, generation uint32, code
 }
 
 func (s *StateDB) GeneticCode(address common.Address) (generation uint32, code []byte) {
-	return s.GetOrNewIdentityObject(address).GeneticCode()
+	gen, c := s.GetOrNewIdentityObject(address).GeneticCode()
+	if gen == 0 {
+		return gen, address[:GeneticCodeSize]
+	}
+	return gen, c
 }
 
 func (s *StateDB) AddInvite(address common.Address, amount uint8) {
