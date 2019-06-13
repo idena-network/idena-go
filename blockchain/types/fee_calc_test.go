@@ -2,7 +2,6 @@ package types
 
 import (
 	"github.com/stretchr/testify/require"
-	"idena-go/common"
 	"math/big"
 	"testing"
 )
@@ -40,7 +39,7 @@ func TestCalculateCostForInvitation(t *testing.T) {
 	cost := new(big.Int).Add(big.NewInt(16e+16), tx.AmountOrZero())
 
 	// invitation cost (110 for 100 networkSize)
-	cost.Add(cost, new(big.Int).Mul(big.NewInt(InvitationCoef/networkSize), common.DnaBase))
+	//cost.Add(cost, new(big.Int).Mul(big.NewInt(InvitationCoef/networkSize), common.DnaBase))
 
 	require.Equal(t, 0, cost.Cmp(CalculateCost(networkSize, tx)))
 }
