@@ -1,9 +1,7 @@
 package types
 
 import (
-	"github.com/shopspring/decimal"
 	"idena-go/common"
-	"idena-go/common/math"
 	"math/big"
 )
 
@@ -12,7 +10,9 @@ const (
 )
 
 func CalculateFee(networkSize int, tx *Transaction) *big.Int {
-	if tx.Type == KillTx || tx.Type == SubmitAnswersHashTx || tx.Type == SubmitFlipTx || tx.Type == SubmitShortAnswersTx || tx.Type == SubmitLongAnswersTx || tx.Type == EvidenceTx {
+	if tx.Type == KillTx || tx.Type == SubmitAnswersHashTx || tx.Type == SubmitFlipTx ||
+		tx.Type == SubmitShortAnswersTx || tx.Type == SubmitLongAnswersTx || tx.Type == EvidenceTx ||
+		tx.Type == ActivationTx {
 		return big.NewInt(0)
 	}
 	if networkSize == 0 {
@@ -36,13 +36,13 @@ func CalculateCost(networkSize int, tx *Transaction) *big.Int {
 	fee := CalculateFee(networkSize, tx)
 	result.Add(result, fee)
 
-	if tx.Type == InviteTx && networkSize > 0 {
-
-		invitationCost := decimal.NewFromFloat(InvitationCoef / float64(networkSize))
-		coinsPerInvitation := invitationCost.Mul(decimal.NewFromBigInt(common.DnaBase, 0))
-
-		result.Add(result, math.ToInt(&coinsPerInvitation))
-	}
+	//if tx.Type == InviteTx && networkSize > 0 {
+	//
+	//	invitationCost := decimal.NewFromFloat(InvitationCoef / float64(networkSize))
+	//	coinsPerInvitation := invitationCost.Mul(decimal.NewFromBigInt(common.DnaBase, 0))
+	//
+	//	result.Add(result, math.ToInt(&coinsPerInvitation))
+	//}
 
 	return result
 }
