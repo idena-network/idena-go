@@ -59,3 +59,4 @@ datadir*/*
 *.so
 *.dylib
 **/idena-go
+*.db
