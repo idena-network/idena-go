@@ -550,12 +550,11 @@ func getSeedData(prevBlock *types.Header) []byte {
 
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
-	// only validated nodes can propose block
-	if !chain.appState.ValidatorsCache.Contains(chain.coinBaseAddress) && chain.appState.ValidatorsCache.NetworkSize() > 0 {
-		return false, common.Hash{}, nil
+	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
+		return chain.getSortition(chain.getProposerData())
 	}
 
-	return chain.getSortition(chain.getProposerData())
+	return false, common.Hash{}, nil
 }
 
 func (chain *Blockchain) ProposeBlock() *types.Block {
@@ -742,8 +741,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
-	if checkState.ValidatorsCache.NetworkSize() > 0 &&
-		!checkState.ValidatorsCache.Contains(proposerAddr) {
+
+	if !checkIfProposer(proposerAddr, checkState) {
 		return errors.New("proposer is not identity")
 	}
 
@@ -827,11 +826,10 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 	}
 
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)
-	if chain.appState.ValidatorsCache.NetworkSize() > 0 &&
-		!chain.appState.ValidatorsCache.Contains(proposerAddr) {
+
+	if !checkIfProposer(proposerAddr, chain.appState) {
 		return errors.New("Proposer is not identity")
 	}
-
 	return nil
 }
 
@@ -990,4 +988,8 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
 	}
 	return nil
+}
+
+func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
+	return appState.ValidatorsCache.Contains(addr) || appState.State.GodAddress() == addr && appState.ValidatorsCache.OnlineSize() == 0
 }
