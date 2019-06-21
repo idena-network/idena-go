@@ -121,6 +121,10 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	}
 }
 
+func (vc *ValidationCeremony) ShortSessionBeginTime() *time.Time {
+	return vc.appState.EvidenceMap.GetShortSessionBeginningTime()
+}
+
 func (vc *ValidationCeremony) IsCandidate() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
 	return state.IsCeremonyCandidate(identity)
@@ -212,7 +216,7 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
 	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		t := time.Now()
+		t := time.Now().UTC()
 		vc.epochDb.WriteShortSessionTime(t)
 		vc.appState.EvidenceMap.SetShortSessionTime(&t)
 		if vc.shouldInteractWithNetwork() {
@@ -401,7 +405,7 @@ func getFlipsToSolve(pubKey []byte, participants []*candidate, flipsPerCandidate
 func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
 		if tx.Type == types.SubmitAnswersHashTx {
-			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload), time.Now())
+			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload), time.Now().UTC())
 		}
 
 		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
@@ -432,7 +436,10 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() {
 		return
 	}
-	additional := vc.epochDb.GetConfirmedRespondents(vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime())
+
+	shortSessionStart, shortSessionEnd := vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime()
+
+	additional := vc.epochDb.GetConfirmedRespondents(*shortSessionStart, *shortSessionEnd)
 
 	candidates := vc.getParticipantsAddrs()
 

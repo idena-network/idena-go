@@ -10,6 +10,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/hexutil"
+	"idena-go/core/ceremony"
 	"idena-go/core/state"
 	"idena-go/crypto"
 	"idena-go/rlp"
@@ -17,12 +18,13 @@ import (
 )
 
 type DnaApi struct {
-	bc      *blockchain.Blockchain
-	baseApi *BaseApi
+	bc       *blockchain.Blockchain
+	baseApi  *BaseApi
+	ceremony *ceremony.ValidationCeremony
 }
 
-func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain) *DnaApi {
-	return &DnaApi{bc, baseApi}
+func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony) *DnaApi {
+	return &DnaApi{bc, baseApi, ceremony}
 }
 
 type State struct {
@@ -274,9 +276,10 @@ func convertIdentity(address common.Address, data state.Identity) Identity {
 }
 
 type Epoch struct {
-	Epoch          uint16    `json:"epoch"`
-	NextValidation time.Time `json:"nextValidation"`
-	CurrentPeriod  string    `json:"currentPeriod"`
+	Epoch                  uint16     `json:"epoch"`
+	NextValidation         time.Time  `json:"nextValidation"`
+	CurrentPeriod          string     `json:"currentPeriod"`
+	CurrentValidationStart *time.Time `json:"currentValidationStart"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
@@ -302,9 +305,10 @@ func (api *DnaApi) Epoch() Epoch {
 	}
 
 	return Epoch{
-		Epoch:          s.State.Epoch(),
-		NextValidation: s.State.NextValidationTime(),
-		CurrentPeriod:  res,
+		Epoch:                  s.State.Epoch(),
+		NextValidation:         s.State.NextValidationTime(),
+		CurrentPeriod:          res,
+		CurrentValidationStart: api.ceremony.ShortSessionBeginTime(),
 	}
 }
 
