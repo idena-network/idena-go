@@ -9,7 +9,7 @@ type batch struct {
 	headers chan *types.Header
 }
 
-type blockRange struct{
+type blockRange struct {
 	BatchId uint32
 	Headers []*types.Header
 }

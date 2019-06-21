@@ -133,7 +133,7 @@ func LeftPadBytes(slice []byte, l int) []byte {
 	return padded
 }
 
-func ToBytes(value interface{}) []byte{
+func ToBytes(value interface{}) []byte {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, value)
 	if err != nil {

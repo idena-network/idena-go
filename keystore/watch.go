@@ -21,8 +21,8 @@ package keystore
 import (
 	"time"
 
-	"idena-go/log"
 	"github.com/rjeczalik/notify"
+	"idena-go/log"
 )
 
 type watcher struct {

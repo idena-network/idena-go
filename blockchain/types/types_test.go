@@ -18,13 +18,13 @@ func TestAnswers_Answer(t *testing.T) {
 	answers.Left(9)
 	answers.Easy(9)
 
-	answer,  easy := answers.Answer(0)
+	answer, easy := answers.Answer(0)
 	require.True(answer == Right && !easy)
 
 	answer, easy = answers.Answer(3)
 	require.True(answer == Inappropriate && !easy)
 
-	answer,  easy = answers.Answer(9)
+	answer, easy = answers.Answer(9)
 	require.True(answer == Left && easy)
 
 	answer, easy = answers.Answer(10)

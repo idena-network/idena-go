@@ -38,12 +38,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"idena-go/common"
-	"idena-go/common/math"
-	"idena-go/crypto"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/scrypt"
+	"idena-go/common"
+	"idena-go/common/math"
+	"idena-go/crypto"
 )
 
 const (
