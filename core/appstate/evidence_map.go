@@ -42,13 +42,13 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	}
 
 	//TODO : m.shortSessionTime == nil ?
-	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().Sub(*m.shortSessionTime) < ShortSessionDuration {
+	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().UTC().Sub(*m.shortSessionTime) < ShortSessionDuration {
 		m.answersSet.Add(*tx.To)
 	}
 }
 
 func (m *EvidenceMap) NewFlipsKey(author common.Address) {
-	if m.shortSessionTime == nil || time.Now().Sub(*m.shortSessionTime) < ShortSessionFlipKeyDeadline {
+	if m.shortSessionTime == nil || time.Now().UTC().Sub(*m.shortSessionTime) < ShortSessionFlipKeyDeadline {
 		m.keysSet.Add(author)
 	}
 }
@@ -109,12 +109,16 @@ func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
 	m.shortSessionTime = timestamp
 }
 
-func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time {
-	return *m.shortSessionTime
+func (m *EvidenceMap) GetShortSessionBeginningTime() *time.Time {
+	return m.shortSessionTime
 }
 
-func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
-	return m.shortSessionTime.Add(ShortSessionDuration)
+func (m *EvidenceMap) GetShortSessionEndingTime() *time.Time {
+	if m.shortSessionTime == nil {
+		return nil
+	}
+	endTime := m.shortSessionTime.Add(ShortSessionDuration)
+	return &endTime
 }
 
 func (m *EvidenceMap) Clear() {

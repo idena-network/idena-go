@@ -250,7 +250,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(baseApi, node.blockchain),
+			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony),
 			Public:    true,
 		},
 		{
