@@ -164,7 +164,7 @@ func (it *iterator) Next() {
 		it.valid = false
 		return
 	}
-	for ; !it.emptyPermanentIter; {
+	for !it.emptyPermanentIter {
 		if len(it.innerKeys) > 0 && it.compare(it.innerKeys[0], it.permanentIter.Key()) {
 			if bytes.Compare(it.innerKeys[0], it.permanentIter.Key()) == 0 {
 				it.nextPermanent()

@@ -27,7 +27,7 @@ func TestSyncMap(t *testing.T) {
 
 	m2, ok = innerMap.Load(key2)
 
-	if (m2 != "456") {
+	if m2 != "456" {
 		t.Error(fmt.Sprintf("Inner value %v is not equal to %v", m2, "456"))
 	}
 }

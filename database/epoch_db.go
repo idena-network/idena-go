@@ -182,7 +182,7 @@ func (edb *EpochDb) WriteFlipCid(cid []byte) {
 	edb.db.Set(append(FlipCidPrefix, cid...), nil)
 }
 
-func (edb *EpochDb) IterateOverFlipCids(callback func(cid [] byte)) {
+func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	it := edb.db.Iterator(append(FlipCidPrefix, ipfs.MinCid[:]...), append(FlipCidPrefix, ipfs.MaxCid[:]...))
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])

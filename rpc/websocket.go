@@ -31,8 +31,8 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"idena-go/log"
 	"golang.org/x/net/websocket"
+	"idena-go/log"
 )
 
 // websocketJSONCodec is a custom JSON codec with payload size enforcement and

@@ -64,7 +64,7 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	forkBlocks := make([]*types.Block, 0)
 	commonHeight := uint64(1)
 
-	for ; commonHeight == 1; {
+	for commonHeight == 1 {
 		blocks := resolver.downloader.PeekBlocks(from, to, []string{peerId})
 		batchBlocks := make([]*types.Block, 0)
 		for {
@@ -150,7 +150,7 @@ func (resolver *ForkResolver) isForkBigger(fork []*types.Block) bool {
 			forkProposedBlocks++
 		}
 		if !resolver.chain.GetBlockByHeight(i).IsEmpty() {
-			ownProposedBlocks ++
+			ownProposedBlocks++
 		}
 	}
 	if forkProposedBlocks > ownProposedBlocks {

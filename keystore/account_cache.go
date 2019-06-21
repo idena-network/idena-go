@@ -243,8 +243,8 @@ func (ac *accountCache) scanAccounts() error {
 	var (
 		buf = new(bufio.Reader)
 		key struct {
-				Address string `json:"address"`
-			}
+			Address string `json:"address"`
+		}
 	)
 	readAccount := func(path string) *Account {
 		fd, err := os.Open(path)

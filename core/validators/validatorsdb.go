@@ -19,7 +19,7 @@ func NewValidatorsDb(db dbm.DB) *Validatorsdb {
 	}
 }
 
-func (v *Validatorsdb) LoadValidNodes() (ValidNodes) {
+func (v *Validatorsdb) LoadValidNodes() ValidNodes {
 	data := v.db.Get(validPubKeysKey)
 	if len(data) == 0 {
 		return ValidNodes{}

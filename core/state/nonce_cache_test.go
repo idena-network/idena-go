@@ -39,5 +39,4 @@ func TestNonceCache_Set_And_Get_Nonce(t *testing.T) {
 
 	require.Equal(uint32(0), ns.GetNonce(addr, epoch+2))
 
-
 }

@@ -236,5 +236,3 @@ func BenchmarkRecover(b *testing.B) {
 		RecoverPubkey(msg, sig)
 	}
 }
-
-
