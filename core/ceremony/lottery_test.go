@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"github.com/google/tink/go/subtle/random"
 	"github.com/stretchr/testify/require"
+	"idena-go/common"
 	"testing"
 )
 
@@ -13,7 +14,9 @@ func TestSortFlips(t *testing.T) {
 
 	flipsPerAuthor, flips := makeFlips(7, 3)
 
-	flipsPerCandidateShort := SortFlips(flipsPerAuthor, makeCandidates(7), flips, 3, b, false, nil)
+	candidates := makeCandidates(7)
+
+	flipsPerCandidateShort := SortFlips(flipsPerAuthor, candidates, flips, 3, b, false, nil)
 
 	chosenFlips := make(map[int]bool)
 	for _, a := range flipsPerCandidateShort {
@@ -22,10 +25,37 @@ func TestSortFlips(t *testing.T) {
 		}
 	}
 
-	flipsPerCandidateLong := SortFlips(flipsPerAuthor, makeCandidates(7), flips, 10, b, true, chosenFlips)
+	flipsPerCandidateLong := SortFlips(flipsPerAuthor, candidates, flips, 10, common.ReverseBytes(b), true, chosenFlips)
 
 	flipsPerCandidateShortResult := [][]int{{9, 14, 15}, {11, 17, 19}, {4, 13, 16}, {1, 7, 18}, {0, 2, 8}, {6, 10, 20}, {3, 5, 12}}
-	flipsPerCandidateLongResult := [][]int{{4, 6, 9, 10, 12, 13, 15, 16, 18, 20}, {0, 1, 6, 9, 10, 13, 15, 16, 18, 20}, {2, 4, 5, 10, 11, 12, 13, 16, 18, 20}, {0, 2, 3, 7, 8, 12, 14, 17, 18, 19}, {0, 1, 2, 3, 4, 7, 8, 11, 17, 19}, {0, 1, 3, 7, 8, 9, 11, 14, 19, 20}, {3, 4, 5, 6, 10, 11, 12, 13, 15, 16}}
+	flipsPerCandidateLongResult := [][]int{{4, 5, 6, 9, 10, 11, 13, 17, 19, 20}, {0, 1, 2, 6, 7, 12, 14, 15, 16, 19}, {0, 1, 3, 11, 12, 14, 15, 16, 17, 19}, {0, 3, 6, 7, 8, 12, 14, 15, 16, 18}, {2, 3, 4, 5, 9, 10, 11, 17, 18, 20}, {2, 4, 5, 7, 8, 10, 11, 13, 18, 20}, {0, 1, 3, 6, 7, 9, 12, 13, 14, 16}}
+
+	require.Equal(t, flipsPerCandidateShortResult, flipsPerCandidateShort)
+	require.Equal(t, flipsPerCandidateLongResult, flipsPerCandidateLong)
+}
+
+func TestSortFlips_2(t *testing.T) {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, 100)
+
+	flipsPerAuthor, flips := makeFlips(3, 3)
+
+	candidates := makeCandidates(6)
+
+	flipsPerCandidateShort := SortFlips(flipsPerAuthor, candidates, flips, 5, b, false, nil)
+
+	chosenFlips := make(map[int]bool)
+	for _, a := range flipsPerCandidateShort {
+		for _, f := range a {
+			chosenFlips[f] = true
+		}
+	}
+
+	flipsPerCandidateLong := SortFlips(flipsPerAuthor, candidates, flips, 10, common.ReverseBytes(b), true, chosenFlips)
+
+	flipsPerCandidateShortResult := [][]int{{4, 5, 6, 7, 8}, {0, 1, 2, 7, 8}, {0, 2, 3, 4, 5}, {0, 2, 4, 5, 6}, {1, 3, 4, 7, 8}, {0, 1, 3, 5, 7}}
+
+	flipsPerCandidateLongResult := [][]int{{0, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}}
 
 	require.Equal(t, flipsPerCandidateShortResult, flipsPerCandidateShort)
 	require.Equal(t, flipsPerCandidateLongResult, flipsPerCandidateLong)

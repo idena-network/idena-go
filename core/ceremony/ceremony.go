@@ -257,7 +257,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		}
 	}
 
-	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), seed, true, chosenFlips)
+	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), common.ReverseBytes(seed), true, chosenFlips)
 
 	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
 	vc.longFlipsPerCandidate = longFlipsPerCandidate
