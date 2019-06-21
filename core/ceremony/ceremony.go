@@ -625,10 +625,10 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		if missed {
 			return state.Killed
 		}
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips < 10 && shortScore >= MinShortScore && longScore >= 0.75 {
+		if totalQualifiedFlips <= 10 && shortScore >= MinShortScore && longScore >= 0.75 {
 			return state.Newbie
 		}
 		return state.Killed
@@ -636,7 +636,7 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		if missed {
 			return state.Suspended
 		}
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
