@@ -5,6 +5,8 @@ import (
 	"idena-go/config"
 	"idena-go/log"
 	"idena-go/node"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 )
@@ -36,6 +38,8 @@ func main() {
 	}
 
 	app.Action = func(context *cli.Context) error {
+
+		go http.ListenAndServe("0.0.0.0:8080", nil)
 
 		logLvl := log.Lvl(context.Int("verbosity"))
 		if runtime.GOOS == "windows" {

@@ -173,6 +173,9 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 	if attemptNum > MaxAttemptsCountPerBatch {
 		return errors.New("number of attempts exceeded limit")
 	}
+
+	checkState, _ := d.appState.ForCheckWithNewCache(d.chain.Head.Height())
+
 	for i := batch.from; i <= batch.to; i++ {
 		timeout := time.After(time.Second * 10)
 
@@ -190,7 +193,7 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 				d.log.Error("fail to retrieve block", "err", err)
 				return reload()
 			} else {
-				if err := d.chain.AddBlock(block); err != nil {
+				if err := d.chain.AddBlock(block, checkState); err != nil {
 					d.appState.ResetTo(d.chain.Head.Height())
 
 					if err == blockchain.ParentHashIsInvalid {
@@ -206,6 +209,8 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 			d.log.Warn("process batch - timeout was reached")
 			return reload()
 		}
+
+		checkState.Commit()
 	}
 	d.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil

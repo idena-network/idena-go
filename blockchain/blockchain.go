@@ -211,13 +211,13 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	return chain.generateEmptyBlock(chain.appState.ForCheck(chain.Head.Height()), chain.Head)
 }
 
-func (chain *Blockchain) AddBlock(block *types.Block) error {
+func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppState) error {
 
 	if err := validateBlockParentHash(block, chain.Head); err != nil {
 		return err
 	}
 	if !block.IsEmpty() {
-		if err := chain.ValidateProposedBlock(block); err != nil {
+		if err := chain.ValidateProposedBlock(block, checkState); err != nil {
 			return err
 		}
 	}
@@ -771,8 +771,11 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	return nil
 }
 
-func (chain *Blockchain) ValidateProposedBlock(block *types.Block) error {
-	checkState := chain.appState.ForCheck(chain.Head.Height())
+func (chain *Blockchain) ValidateProposedBlock(block *types.Block, checkState *appstate.AppState) error {
+	if checkState == nil {
+		checkState = chain.appState.ForCheck(chain.Head.Height())
+	}
+
 	return chain.validateBlock(checkState, block, chain.Head)
 }
 

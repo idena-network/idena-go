@@ -156,7 +156,7 @@ func (engine *Engine) loop() {
 			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
-			if err := engine.chain.AddBlock(emptyBlock); err != nil {
+			if err := engine.chain.AddBlock(emptyBlock, nil); err != nil {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
@@ -164,7 +164,7 @@ func (engine *Engine) loop() {
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
 			if err == nil {
-				if err := engine.chain.AddBlock(block); err != nil {
+				if err := engine.chain.AddBlock(block, nil); err != nil {
 					engine.log.Error("Add block", "err", err)
 					continue
 				}
@@ -351,7 +351,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 				return true
 			}
 		} else {
-			if err := engine.chain.ValidateProposedBlock(block); err == nil {
+			if err := engine.chain.ValidateProposedBlock(block, nil); err == nil {
 				engine.peekingBlocks = nil
 				return true
 			}
