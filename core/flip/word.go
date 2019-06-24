@@ -3,7 +3,8 @@ package flip
 import (
 	"fmt"
 	"github.com/deckarep/golang-set"
-	"idena-go/crypto/vrf"
+	"idena-go/crypto"
+	"idena-go/crypto/vrf/p256"
 	"math/big"
 )
 
@@ -13,28 +14,36 @@ const (
 	m = 1 << 16
 )
 
-func GeneratePairs(seed []byte, k vrf.PrivateKey, n, pairCount int) (nums []int, proof []byte) {
-	hash, proof := k.Evaluate(seed)
-	rnd := generatePseudoRndSeed(hash, n)
+func (fp *Flipper) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
+	hash, proof := fp.secStore.VrfEvaluate(seed)
+	rnd := generatePseudoRndSeed(hash, dictionarySize)
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var num1, num2 int
-		num1, num2, rnd = nextPair(rnd, n, pairs)
+		num1, num2, rnd = nextPair(rnd, dictionarySize, pairs)
 		nums = append(nums, num1, num2)
 	}
 	return nums, proof
 }
 
-func CheckPair(seed []byte, n, pairCount, num1, num2 int, proof []byte, pk vrf.PublicKey) bool {
-	hash, err := pk.ProofToHash(seed, proof)
+func CheckPair(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, num1, num2 int) bool {
+	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
 	if err != nil {
 		return false
 	}
-	rnd := generatePseudoRndSeed(hash, n)
+	verifier, err := p256.NewVRFVerifier(pubKey)
+	if err != nil {
+		return false
+	}
+	hash, err := verifier.ProofToHash(seed, proof)
+	if err != nil {
+		return false
+	}
+	rnd := generatePseudoRndSeed(hash, dictionarySize)
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var val1, val2 int
-		val1, val2, rnd = nextPair(rnd, n, pairs)
+		val1, val2, rnd = nextPair(rnd, dictionarySize, pairs)
 		if val1 == num1 && val2 == num2 {
 			return true
 		}
@@ -42,18 +51,18 @@ func CheckPair(seed []byte, n, pairCount, num1, num2 int, proof []byte, pk vrf.P
 	return false
 }
 
-func generatePseudoRndSeed(hash [32]byte, n int) int {
+func generatePseudoRndSeed(hash [32]byte, dictionarySize int) int {
 	vrfVal := new(big.Int).SetBytes(hash[:])
 	numSeed := new(big.Int)
-	vrfVal.QuoRem(vrfVal, big.NewInt(int64(n)), numSeed)
+	vrfVal.QuoRem(vrfVal, big.NewInt(int64(dictionarySize)), numSeed)
 	return int(numSeed.Int64())
 }
 
-func nextPair(prevRnd, n int, pairs mapset.Set) (num1, num2, rnd int) {
-	num1, num2, rnd = generatePair(prevRnd, n)
+func nextPair(prevRnd, dictionarySize int, pairs mapset.Set) (num1, num2, rnd int) {
+	num1, num2, rnd = generatePair(prevRnd, dictionarySize)
 	counter := 0
 	for counter < 5 && !checkPair(num1, num2, pairs) {
-		num1, num2, rnd = generatePair(rnd, n)
+		num1, num2, rnd = generatePair(rnd, dictionarySize)
 		counter++
 	}
 
@@ -62,11 +71,11 @@ func nextPair(prevRnd, n int, pairs mapset.Set) (num1, num2, rnd int) {
 	return
 }
 
-func generatePair(prevRnd, n int) (num1, num2, rnd int) {
+func generatePair(prevRnd, dictionarySize int) (num1, num2, rnd int) {
 	rnd = nextRnd(prevRnd)
-	num1 = rnd % n
+	num1 = rnd % dictionarySize
 	rnd = nextRnd(rnd)
-	num2 = rnd % n
+	num2 = rnd % dictionarySize
 	return
 }
 
