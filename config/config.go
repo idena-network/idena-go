@@ -31,6 +31,7 @@ type Config struct {
 	GenesisConf *GenesisConf
 	IpfsConf    *IpfsConfig
 	Validation  *ValidationConfig
+	FastSync    bool
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -120,6 +121,7 @@ func getDefaultConfig() *Config {
 			SwarmKey:  DefaultSwarmKey,
 		},
 		Validation: &ValidationConfig{},
+		FastSync:   true,
 	}
 }
 

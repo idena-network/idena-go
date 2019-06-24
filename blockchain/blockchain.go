@@ -112,7 +112,7 @@ func (chain *Blockchain) InitializeChain() error {
 	chain.pubKey = chain.secStore.GetPubKey()
 	head := chain.GetHead()
 	if head != nil {
-		chain.SetCurrentHead(head)
+		chain.setCurrentHead(head)
 		if chain.genesis = chain.GetBlockHeaderByHeight(1); chain.genesis == nil {
 			return errors.New("genesis block is not found")
 		}
@@ -125,13 +125,13 @@ func (chain *Blockchain) InitializeChain() error {
 	return nil
 }
 
-func (chain *Blockchain) SetCurrentHead(head *types.Header) {
+func (chain *Blockchain) setCurrentHead(head *types.Header) {
 	chain.Head = head
 }
 
 func (chain *Blockchain) setHead(height uint64) {
 	chain.repo.SetHead(height)
-	chain.SetCurrentHead(chain.GetHead())
+	chain.setCurrentHead(chain.GetHead())
 }
 
 func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
@@ -217,7 +217,7 @@ func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 
 func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppState) error {
 
-	if err := validateBlockParentHash(block, chain.Head); err != nil {
+	if err := validateBlockParentHash(block.Header, chain.Head); err != nil {
 		return err
 	}
 	if err := chain.ValidateBlock(block, checkState); err != nil {
@@ -676,15 +676,20 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 	return result, totalFee
 }
 
+func (chain *Blockchain) insertHeader(header *types.Header) {
+	chain.repo.WriteBlockHeader(header)
+	chain.repo.WriteHead(header)
+	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
+}
+
 func (chain *Blockchain) insertBlock(block *types.Block) error {
-	chain.repo.WriteBlockHeader(block)
-	chain.repo.WriteCanonicalHash(block.Height(), block.Hash())
+	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.writeTxIndex(block)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
-		chain.SetCurrentHead(block.Header)
+		chain.setCurrentHead(block.Header)
 	}
 	return err
 }
@@ -729,7 +734,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("empty blocks' hashes mismatch")
 	}
 
-	if err := validateBlockParentHash(block, prevBlock); err != nil {
+	if err := validateBlockParentHash(block.Header, prevBlock); err != nil {
 		return err
 	}
 	if err := validateBlockTimestamp(block, prevBlock); err != nil {
@@ -796,11 +801,11 @@ func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.
 	return chain.validateBlock(checkState, block, chain.Head)
 }
 
-func validateBlockParentHash(block *types.Block, prevBlock *types.Header) error {
+func validateBlockParentHash(block *types.Header, prevBlock *types.Header) error {
 	if prevBlock.Height()+1 != (block.Height()) {
 		return errors.New(fmt.Sprintf("Height is invalid. Expected=%v but received=%v", prevBlock.Height()+1, block.Height()))
 	}
-	if prevBlock.Hash() != block.Header.ParentHash() {
+	if prevBlock.Hash() != block.ParentHash() {
 		return ParentHashIsInvalid
 	}
 	return nil
@@ -856,9 +861,15 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 func (chain *Blockchain) Round() uint64 {
 	return chain.Head.Height() + 1
 }
-func (chain *Blockchain) WriteFinalConsensus(hash common.Hash, cert *types.BlockCert) {
+func (chain *Blockchain) WriteFinalConsensus(hash common.Hash) {
 	chain.repo.WriteFinalConsensus(hash)
-	chain.repo.WriteCert(hash, cert)
+}
+
+func (chain *Blockchain) WriteCertificate(hash common.Hash, cert *types.BlockCert, persistent bool) {
+	chain.repo.WriteCertificate(hash, cert)
+	if !persistent {
+		chain.repo.WriteWeakCertificate(hash)
+	}
 }
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	header := chain.repo.ReadBlockHeader(hash)
@@ -1008,7 +1019,6 @@ func (chain *Blockchain) EnsureIntegrity() error {
 	}
 	return nil
 }
-
 func (chain *Blockchain) StartSync() {
 	chain.isSyncing = true
 	chain.txpool.StartSync()
@@ -1022,4 +1032,43 @@ func (chain *Blockchain) StopSync() {
 func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
 	return appState.ValidatorsCache.Contains(addr) ||
 		appState.State.GodAddress() == addr && appState.ValidatorsCache.OnlineSize() == 0
+}
+
+func (chain *Blockchain) AddHeader(header *types.Header) error {
+
+	if err := validateBlockParentHash(header, chain.Head); err != nil {
+		return err
+	}
+
+	var seedData = getSeedData(chain.Head)
+	pubKey, err := crypto.UnmarshalPubkey(header.ProposedHeader.ProposerPubKey)
+	if err != nil {
+		return err
+	}
+	verifier, err := p256.NewVRFVerifier(pubKey)
+	if err != nil {
+		return err
+	}
+
+	hash, err := verifier.ProofToHash(seedData, header.ProposedHeader.SeedProof)
+	if err != nil {
+		return err
+	}
+	if hash != header.Seed() {
+		return errors.New("seed is invalid")
+	}
+	//proposerAddr, _ := crypto.PubKeyBytesToAddress(header.ProposedHeader.ProposerPubKey)
+	//
+	//if !checkIfProposer(proposerAddr, chain.appState) {
+	//	return errors.New("proposer is not identity")
+	//}
+
+	chain.insertHeader(header)
+	chain.setCurrentHead(header)
+
+	return nil
+}
+
+func (chain *Blockchain) GetCertificate(hash common.Hash) *types.BlockCert {
+	return chain.repo.ReadCertificate(hash)
 }

@@ -10,6 +10,10 @@ import (
 	dbm "github.com/tendermint/tendermint/libs/db"
 )
 
+const (
+	MaxWeakCertificatesCount = 50
+)
+
 type Repo struct {
 	db dbm.DB
 }
@@ -84,16 +88,16 @@ func (r *Repo) WriteHead(header *types.Header) {
 	r.db.Set(headBlockKey, data)
 }
 
-func (r *Repo) WriteBlockHeader(block *types.Block) {
-	data, err := rlp.EncodeToBytes(block.Header)
+func (r *Repo) WriteBlockHeader(header *types.Header) {
+	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
 
-	r.db.Set(headerKey(block.Hash()), data)
+	r.db.Set(headerKey(header.Hash()), data)
 }
 
-func (r *Repo) WriteCert(hash common.Hash, cert *types.BlockCert) {
+func (r *Repo) WriteCertificate(hash common.Hash, cert *types.BlockCert) {
 	data, err := rlp.EncodeToBytes(cert)
 	if err != nil {
 		log.Crit("failed to RLP encode block cert", "err", err)
@@ -151,4 +155,64 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 		return nil
 	}
 	return index
+}
+
+func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
+	data := r.db.Get(certKey(hash))
+	if data == nil {
+		return nil
+	}
+	cert := new(types.BlockCert)
+	if err := rlp.Decode(bytes.NewReader(data), cert); err != nil {
+		log.Error("Invalid block cert RLP", "err", err)
+		return nil
+	}
+	return cert
+}
+
+type weakCeritificates struct {
+	Hashes []common.Hash
+}
+
+func (r *Repo) readWeakCertificates() *weakCeritificates {
+	data := r.db.Get(weakCertificatesKey)
+	if data == nil {
+		return nil
+	}
+	w := new(weakCeritificates)
+	if err := rlp.Decode(bytes.NewReader(data), w); err != nil {
+		log.Error("invalid weak certificates RLP", "err", err)
+		return nil
+	}
+	return w
+}
+
+func (r *Repo) writeWeakCertificate(w *weakCeritificates) {
+	data, err := rlp.EncodeToBytes(w)
+	if err != nil {
+		log.Crit("failed to RLP encode weak certificates", "err", err)
+		return
+	}
+	r.db.Set(weakCertificatesKey, data)
+}
+
+func (r *Repo) removeCertificate(hash common.Hash) {
+	r.db.Delete(certKey(hash))
+}
+
+func (r *Repo) WriteWeakCertificate(hash common.Hash) {
+	weakCerts := r.readWeakCertificates()
+	if weakCerts == nil {
+		weakCerts = &weakCeritificates{
+			Hashes: []common.Hash{hash},
+		}
+		r.writeWeakCertificate(weakCerts)
+		return
+	}
+
+	if len(weakCerts.Hashes) >= MaxWeakCertificatesCount {
+		r.removeCertificate(weakCerts.Hashes[0])
+		weakCerts.Hashes = weakCerts.Hashes[1:]
+	}
+	weakCerts.Hashes = weakCerts.Hashes[1:]
 }

@@ -29,6 +29,7 @@ type peer struct {
 	maxDelayMs        int
 	knownHeight       uint64
 	potentialHeight   uint64
+	manifest          *snapshot.Manifest
 	knownTxs          mapset.Set // Set of transaction hashes known to be known by this peer
 	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
 	knownVotes        mapset.Set // Set of hashes of votes known to be known by this peer

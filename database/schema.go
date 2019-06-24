@@ -19,4 +19,6 @@ var (
 	certPrefix = []byte("c")
 
 	flipEncryptionPrefix = []byte("key")
+
+	weakCertificatesKey = []byte("weak-cert")
 )

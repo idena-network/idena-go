@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
@@ -20,6 +21,17 @@ type IdentityStateDB struct {
 
 	log  log.Logger
 	lock sync.Mutex
+}
+
+type IdentityStateDiff struct {
+	// deleted keys
+	Deleted []common.Address
+
+	// updated key-value pairs
+	Updated map[common.Address][]byte
+
+	// added key-value pairs
+	Added map[common.Address][]byte
 }
 
 func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
@@ -81,9 +93,7 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-
 	s.Precommit(deleteEmptyObjects)
-
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
 	if version > MaxSavedStatesCount {
@@ -97,7 +107,6 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 	}
 
 	s.Clear()
-
 	return hash, version, err
 }
 
@@ -237,4 +246,45 @@ func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bo
 	start := append(identityPrefix, common.MinAddr...)
 	end := append(identityPrefix, common.MaxAddr...)
 	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+}
+// calculate diff between current state and previous version
+func (s *IdentityStateDB) Diff(prev *IdentityStateDB) *IdentityStateDiff {
+
+	deleted := make([]common.Address, 0)
+	updated := make(map[common.Address][]byte)
+	added := make(map[common.Address][]byte)
+
+	currentValues := make(map[common.Address][]byte)
+	prevValues := make(map[common.Address][]byte)
+	s.tree.GetImmutable().Iterate(func(key []byte, value []byte) bool {
+		var addr common.Address
+		addr.SetBytes(key)
+		currentValues[addr] = value
+		return false
+	})
+
+	prev.tree.GetImmutable().Iterate(func(key []byte, value []byte) bool {
+		var addr common.Address
+		addr.SetBytes(key)
+		if val, ok := currentValues[addr]; ok {
+			if bytes.Compare(val, value) != 0 {
+				updated[addr] = val
+			}
+		} else {
+			deleted = append(deleted, addr)
+		}
+		prevValues[addr] = value
+		return false
+	})
+
+	for key, val := range currentValues {
+		if _, ok := prevValues[key]; !ok {
+			added[key] = val
+		}
+	}
+	return &IdentityStateDiff{
+		Added:   added,
+		Updated: updated,
+		Deleted: deleted,
+	}
 }

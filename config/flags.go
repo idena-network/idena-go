@@ -19,7 +19,6 @@ var (
 	DefaultIpfsBootstrapNodes = []string{
 		"/ip4/111.90.140.21/tcp/4002/ipfs/QmZV7cwSgVTSnMUE2zTK3f5nepCuT5yYnTyMpRgGhxJoTG",
 	}
-
 	CfgFileFlag = cli.StringFlag{
 		Name:  "config",
 		Usage: "JSON configuration file",

@@ -6,10 +6,16 @@ type batch struct {
 	p       *peer
 	from    uint64
 	to      uint64
-	headers chan *types.Header
+	headers chan *block
+}
+
+type block struct {
+	header       *types.Header
+	cert         *types.BlockCert
+	identityDiff *state.IdentityStateDiff
 }
 
 type blockRange struct {
 	BatchId uint32
-	Headers []*types.Header
+	Headers []*block
 }
