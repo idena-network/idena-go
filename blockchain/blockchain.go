@@ -62,6 +62,7 @@ type Blockchain struct {
 	timing          *timing
 	bus             eventbus.Bus
 	applyNewEpochFn func(appState *appstate.AppState) int
+	isSyncing       bool
 }
 
 func init() {
@@ -158,7 +159,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 
-	if err := chain.appState.Commit(); err != nil {
+	if err := chain.appState.Commit(nil); err != nil {
 		return nil, err
 	}
 
@@ -216,10 +217,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if err := validateBlockParentHash(block, chain.Head); err != nil {
 		return err
 	}
-	if !block.IsEmpty() {
-		if err := chain.ValidateProposedBlock(block, checkState); err != nil {
-			return err
-		}
+	if err := chain.ValidateBlock(block, checkState); err != nil {
+		return err
 	}
 	if err := chain.processBlock(block); err != nil {
 		return err
@@ -252,12 +251,14 @@ func (chain *Blockchain) processBlock(block *types.Block) (err error) {
 		return errors.Errorf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root())
 	}
 
-	if err := chain.appState.Commit(); err != nil {
+	if err := chain.appState.Commit(block); err != nil {
 		return err
 	}
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
-	chain.txpool.ResetTo(block)
-	chain.appState.ValidatorsCache.RefreshIfUpdated(block)
+
+	if !chain.isSyncing {
+		chain.txpool.ResetTo(block)
+	}
 	return nil
 }
 
@@ -771,7 +772,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	return nil
 }
 
-func (chain *Blockchain) ValidateProposedBlock(block *types.Block, checkState *appstate.AppState) error {
+func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) error {
 	if checkState == nil {
 		checkState = chain.appState.ForCheck(chain.Head.Height())
 	}
@@ -960,10 +961,9 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Bl
 		if err := chain.validateBlock(checkState, b, prevBlock); err != nil {
 			return err
 		}
-		if err := checkState.Commit(); err != nil {
+		if err := checkState.Commit(b); err != nil {
 			return err
 		}
-		checkState.ValidatorsCache.RefreshIfUpdated(b)
 		prevBlock = b.Header
 	}
 
@@ -991,6 +991,15 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
 	}
 	return nil
+}
+
+func (chain *Blockchain) StartSync() {
+	chain.isSyncing = true
+}
+
+func (chain *Blockchain) StopSync() {
+	chain.isSyncing = false
+	chain.txpool.ResetTo(chain.GetBlock(chain.Head.Hash()))
 }
 
 func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {

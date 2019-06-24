@@ -60,3 +60,4 @@ datadir*/*
 *.dylib
 **/idena-go
 *.db
+config.json

@@ -171,7 +171,7 @@ func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
 func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) bool {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
-		if err := proposals.chain.ValidateProposedBlock(block, nil); err != nil {
+		if err := proposals.chain.ValidateBlock(block, nil); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {

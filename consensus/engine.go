@@ -79,7 +79,7 @@ func (engine *Engine) GetProcess() string {
 }
 
 func (engine *Engine) GetAppState() *appstate.AppState {
-	return engine.appState.ForCheck(engine.chain.Head.Height())
+	return engine.appState.Readonly(engine.chain.Head.Height())
 }
 
 func (engine *Engine) loop() {
@@ -351,7 +351,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 				return true
 			}
 		} else {
-			if err := engine.chain.ValidateProposedBlock(block, nil); err == nil {
+			if err := engine.chain.ValidateBlock(block, nil); err == nil {
 				engine.peekingBlocks = nil
 				return true
 			}

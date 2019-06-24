@@ -70,7 +70,9 @@ func getTopHeight(heights map[string]uint64) uint64 {
 
 func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
 	d.isSyncing = true
+	d.chain.StartSync()
 	defer func() {
+		d.chain.StopSync()
 		d.isSyncing = false
 		d.top = 0
 	}()
@@ -180,6 +182,7 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 		timeout := time.After(time.Second * 10)
 
 		reload := func() error {
+			checkState, _ = d.appState.ForCheckWithNewCache(d.chain.Head.Height())
 			b := d.requestBatch(i, batch.to, batch.p.id)
 			if b == nil {
 				return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", i, batch.to))
@@ -204,13 +207,12 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 					// TODO: ban bad peer
 					return reload()
 				}
+				checkState.Commit(block)
 			}
 		case <-timeout:
 			d.log.Warn("process batch - timeout was reached")
 			return reload()
 		}
-
-		checkState.Commit()
 	}
 	d.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil

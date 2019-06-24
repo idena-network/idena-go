@@ -44,7 +44,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	}
 
 	app.State.IncEpoch()
-	app.Commit()
+	app.Commit(nil)
 
 	pool.Add(getTx(3, 0, key1))
 	pool.Add(getTx(1, 0, key1))
@@ -153,7 +153,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 
 	// Current epoch = 1
 	app.State.IncEpoch()
-	app.Commit()
+	app.Commit(nil)
 
 	addressIndex := 0
 	// Prev epoch
