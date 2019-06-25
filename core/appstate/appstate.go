@@ -2,6 +2,7 @@ package appstate
 
 import (
 	dbm "github.com/tendermint/tendermint/libs/db"
+	"idena-go/blockchain/types"
 	"idena-go/common/eventbus"
 	"idena-go/core/state"
 	"idena-go/core/validators"
@@ -28,6 +29,17 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 func (s *AppState) ForCheck(height uint64) *AppState {
 	state, _ := s.State.ForCheck(height)
 	identityState, _ := s.IdentityState.ForCheck(height)
+	return &AppState{
+		State:           state,
+		IdentityState:   identityState,
+		ValidatorsCache: s.ValidatorsCache,
+		NonceCache:      s.NonceCache,
+	}
+}
+
+func (s *AppState) Readonly(height uint64) *AppState {
+	state, _ := s.State.Readonly(height)
+	identityState, _ := s.IdentityState.Readonly(height)
 	return &AppState{
 		State:           state,
 		IdentityState:   identityState,
@@ -74,12 +86,17 @@ func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
 }
-func (s *AppState) Commit() error {
+func (s *AppState) Commit(block *types.Block) error {
 	_, _, err := s.State.Commit(true)
 	if err != nil {
 		return err
 	}
 	_, _, err = s.IdentityState.Commit(true)
+
+	if block != nil {
+		s.ValidatorsCache.RefreshIfUpdated(block)
+	}
+
 	return err
 }
 

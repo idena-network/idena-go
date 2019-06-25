@@ -174,7 +174,7 @@ func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []*types.Block
 		return err
 	}
 	for _, block := range fork {
-		if err := resolver.chain.AddBlock(block); err != nil {
+		if err := resolver.chain.AddBlock(block, nil); err != nil {
 			return err
 		}
 	}

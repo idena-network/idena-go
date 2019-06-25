@@ -89,8 +89,9 @@
   name = "github.com/syndtr/goleveldb"
 
 [[constraint]]
+  branch = "master"
   name = "github.com/tendermint/iavl"
-  version = "0.12.2"
+  source = "github.com/idena-network/iavl"
 
 [[constraint]]
   name = "github.com/tendermint/tendermint"

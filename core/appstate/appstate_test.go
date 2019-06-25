@@ -21,13 +21,13 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	appState.State.SetNonce(addr, 1)
 	appState.IdentityState.Add(addr)
 
-	appState.Commit()
+	appState.Commit(nil)
 
 	appState.State.SetNonce(addr, 2)
 	appState.State.SetNonce(addr2, 1)
 	appState.IdentityState.Add(addr2)
 
-	appState.Commit()
+	appState.Commit(nil)
 
 	stateHash := appState.State.Root()
 	identityHash := appState.IdentityState.Root()
@@ -37,7 +37,7 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	forCheck.State.SetNonce(addr2, 3)
 	forCheck.IdentityState.Remove(addr)
 
-	err := forCheck.Commit()
+	err := forCheck.Commit(nil)
 	require.Nil(t, err)
 
 	appState = NewAppState(db, bus)

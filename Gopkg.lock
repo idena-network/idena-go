@@ -853,12 +853,13 @@
   version = "v0.14.1"
 
 [[projects]]
-  digest = "1:9f8cd74d11cdb703946d85b4d131f014daf989e9f1b22c794ca5210a7773ca3e"
+  branch = "master"
+  digest = "1:d05715c82b9f7216fe3b6a99ed11e98ce79eb115d8e1d4544fd0669747363676"
   name = "github.com/tendermint/iavl"
   packages = ["."]
   pruneopts = "UT"
-  revision = "2f35d309e69ffec33c044a910acd9e8d739eb095"
-  version = "v0.12.2"
+  revision = "d328a04e893fa1860df87cea0f24f674898515f5"
+  source = "github.com/idena-network/iavl"
 
 [[projects]]
   digest = "1:33278ea8886a87a621dbc8908a288335ea4297af09a740217739f354366fcd68"

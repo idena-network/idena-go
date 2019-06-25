@@ -70,7 +70,9 @@ func getTopHeight(heights map[string]uint64) uint64 {
 
 func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
 	d.isSyncing = true
+	d.chain.StartSync()
 	defer func() {
+		d.chain.StopSync()
 		d.isSyncing = false
 		d.top = 0
 	}()
@@ -173,10 +175,14 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 	if attemptNum > MaxAttemptsCountPerBatch {
 		return errors.New("number of attempts exceeded limit")
 	}
+
+	checkState, _ := d.appState.ForCheckWithNewCache(d.chain.Head.Height())
+
 	for i := batch.from; i <= batch.to; i++ {
 		timeout := time.After(time.Second * 10)
 
 		reload := func() error {
+			checkState, _ = d.appState.ForCheckWithNewCache(d.chain.Head.Height())
 			b := d.requestBatch(i, batch.to, batch.p.id)
 			if b == nil {
 				return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", i, batch.to))
@@ -190,7 +196,7 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 				d.log.Error("fail to retrieve block", "err", err)
 				return reload()
 			} else {
-				if err := d.chain.AddBlock(block); err != nil {
+				if err := d.chain.AddBlock(block, checkState); err != nil {
 					d.appState.ResetTo(d.chain.Head.Height())
 
 					if err == blockchain.ParentHashIsInvalid {
@@ -201,6 +207,7 @@ func (d *Downloader) processBatch(batch *batch, attemptNum int) error {
 					// TODO: ban bad peer
 					return reload()
 				}
+				checkState.Commit(block)
 			}
 		case <-timeout:
 			d.log.Warn("process batch - timeout was reached")

@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	MaxSavedStatesCount = 100000000
+	MaxSavedStatesCount = 100
 	GeneticCodeSize     = 12
 )
 
@@ -78,6 +78,23 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
+		return nil, err
+	}
+	return &StateDB{
+		db:                   db,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
+	}, nil
+}
+
+func (s *StateDB) Readonly(height uint64) (*StateDB, error) {
+	db := database.NewBackedMemDb(s.db)
+	tree := NewMutableTree(db)
+	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
 	return &StateDB{
