@@ -26,17 +26,6 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 	}
 }
 
-func (s *AppState) ForCheck(height uint64) *AppState {
-	state, _ := s.State.ForCheck(height)
-	identityState, _ := s.IdentityState.ForCheck(height)
-	return &AppState{
-		State:           state,
-		IdentityState:   identityState,
-		ValidatorsCache: s.ValidatorsCache,
-		NonceCache:      s.NonceCache,
-	}
-}
-
 func (s *AppState) Readonly(height uint64) *AppState {
 	state, _ := s.State.Readonly(height)
 	identityState, _ := s.IdentityState.Readonly(height)

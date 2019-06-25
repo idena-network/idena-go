@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
-	"idena-go/blockchain/validation"
 	"idena-go/common"
 	"idena-go/common/eventbus"
 	"idena-go/core/appstate"
@@ -53,9 +52,9 @@ func (p *KeysPool) Add(key *types.FlipKey) error {
 		return errors.New("sender has already published his key")
 	}
 
-	appState := p.appState.ForCheck(p.head.Height())
+	appState := p.appState.Readonly(p.head.Height())
 
-	if err := validation.ValidateFlipKey(appState, key); err != nil {
+	if err := validateFlipKey(appState, key); err != nil {
 		log.Warn("FlipKey is not valid", "hash", hash.Hex(), "err", err)
 		return err
 	}
@@ -94,4 +93,21 @@ func (p *KeysPool) Clear() {
 
 	p.knownKeys = mapset.NewSet()
 	p.flipKeys = make(map[common.Address]*types.FlipKey)
+}
+
+func validateFlipKey(appState *appstate.AppState, key *types.FlipKey) error {
+	sender, _ := types.SenderFlipKey(key)
+	if sender == (common.Address{}) {
+		return errors.New("invalid signature")
+	}
+
+	if appState.State.Epoch() != key.Epoch {
+		return errors.New("invalid epoch")
+	}
+
+	identity := appState.State.GetIdentity(sender)
+	if len(identity.Flips) == 0 {
+		return errors.New("flips is missing")
+	}
+	return nil
 }

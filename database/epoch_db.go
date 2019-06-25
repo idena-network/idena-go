@@ -22,6 +22,7 @@ var (
 	EvidencePrefix      = []byte("evi")
 	LotterySeedKey      = []byte("ls")
 	FlipCidPrefix       = []byte("cid")
+	FlipEncryptionKey   = []byte("flip-key")
 )
 
 type EpochDb struct {
@@ -187,4 +188,12 @@ func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])
 	}
+}
+
+func (edb *EpochDb) ReadFlipKey() []byte {
+	return edb.db.Get(FlipEncryptionKey)
+}
+
+func (edb *EpochDb) WriteFlipKey(encKey []byte) {
+	edb.db.Set(FlipEncryptionKey, encKey)
 }

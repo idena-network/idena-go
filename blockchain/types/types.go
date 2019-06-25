@@ -341,6 +341,7 @@ func (b Body) IsEmpty() bool {
 type FlipKey struct {
 	Key       []byte
 	Signature []byte
+	Epoch     uint16
 
 	from atomic.Value
 }

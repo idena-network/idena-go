@@ -49,9 +49,7 @@ func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(rawFlip))
 	}
 
-	epoch := api.baseApi.engine.GetAppState().State.Epoch()
-
-	cid, encryptedFlip, err := api.fp.PrepareFlip(epoch, rawFlip)
+	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -151,7 +149,7 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	}
 	cidBytes := c.Bytes()
 
-	data, _, err := api.fp.GetFlip(cidBytes)
+	data, err := api.fp.GetFlip(cidBytes)
 
 	if err != nil {
 		return FlipResponse{}, err

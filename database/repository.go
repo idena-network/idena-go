@@ -136,16 +136,6 @@ func (r *Repo) SetHead(height uint64) {
 	}
 }
 
-func (r *Repo) ReadFlipKey(epoch uint16) []byte {
-	key := flipEncryptionKey(epoch)
-	return r.db.Get(key)
-}
-
-func (r *Repo) WriteFlipKey(epoch uint16, encKey []byte) {
-	key := flipEncryptionKey(epoch)
-	r.db.Set(key, encKey)
-}
-
 func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 	data, err := rlp.EncodeToBytes(index)
 	if err != nil {
