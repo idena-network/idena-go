@@ -516,6 +516,8 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.KillTx:
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
+		stateDB.SubBalance(sender, totalCost)
+		stateDB.AddBalance(*tx.To, stateDB.GetStakeBalance(sender))
 		break
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, totalCost)

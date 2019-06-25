@@ -44,6 +44,7 @@ func init() {
 		types.RegularTx:            validateRegularTx,
 		types.ActivationTx:         validateActivationTx,
 		types.InviteTx:             validateSendInviteTx,
+		types.KillTx:               validateKillIdentityTx,
 		types.SubmitFlipTx:         validateSubmitFlipTx,
 		types.SubmitAnswersHashTx:  validateSubmitAnswersHashTx,
 		types.SubmitShortAnswersTx: validateSubmitShortAnswersTx,
@@ -298,6 +299,19 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 
 	if !shouldBecomeOnline && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
 		return IsAlreadyOffline
+	}
+
+	return nil
+}
+
+func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+
+	if appState.State.GetIdentityState(sender) <= state.Candidate {
+		return NotIdentity
 	}
 
 	return nil
