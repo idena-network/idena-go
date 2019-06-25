@@ -34,6 +34,12 @@ func NewKeysPool(appState *appstate.AppState, bus eventbus.Bus) *KeysPool {
 
 func (p *KeysPool) Initialize(head *types.Header) {
 	p.head = head
+
+	_ = p.bus.Subscribe(events.AddBlockEventID,
+		func(e eventbus.Event) {
+			newBlockEvent := e.(*events.NewBlockEvent)
+			p.head = newBlockEvent.Block.Header
+		})
 }
 
 func (p *KeysPool) Add(key *types.FlipKey) error {
