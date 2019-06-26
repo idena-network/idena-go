@@ -405,17 +405,16 @@ func getFlipsToSolve(pubKey []byte, participants []*candidate, flipsPerCandidate
 
 func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.SubmitAnswersHashTx {
-			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload), time.Now().UTC())
-		}
+		sender, _ := types.Sender(tx)
 
+		if tx.Type == types.SubmitAnswersHashTx {
+			vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
+		}
 		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
-			sender, _ := types.Sender(tx)
 			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswersTx, sender, tx.Payload)
 		}
-
 		if tx.Type == types.EvidenceTx {
-			vc.epochDb.WriteEvidenceMap(*tx.To, tx.Payload)
+			vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
 		}
 	}
 }
