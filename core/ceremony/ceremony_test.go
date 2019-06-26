@@ -108,6 +108,11 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Newbie,
+			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			state.Newbie,
+		},
+		{
+			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, true,
 			state.Killed,
 		},
@@ -124,7 +129,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Verified,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Verified,
+			state.Killed,
 		},
 		{
 			state.Verified,
