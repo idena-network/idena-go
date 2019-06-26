@@ -312,10 +312,11 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 	}
 
 	epoch := vc.appState.State.Epoch()
-	key := vc.flipper.GetFlipEncryptionKey(epoch)
+	key := vc.flipper.GetFlipEncryptionKey()
 
 	msg := types.FlipKey{
-		Key: crypto.FromECDSA(key.ExportECDSA()),
+		Key:   crypto.FromECDSA(key.ExportECDSA()),
+		Epoch: epoch,
 	}
 
 	signedMsg, err := vc.secStore.SignFlipKey(&msg)

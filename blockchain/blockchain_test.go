@@ -36,7 +36,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 
-	appState := chain.appState.ForCheck(1)
+	appState := chain.appState.Readonly(1)
 	chain.applyBlockRewards(fee, appState, block, chain.Head)
 
 	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)

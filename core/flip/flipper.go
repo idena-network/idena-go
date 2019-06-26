@@ -22,7 +22,6 @@ import (
 )
 
 type Flipper struct {
-	repo       *database.Repo
 	epochDb    *database.EpochDb
 	db         dbm.DB
 	log        log.Logger
@@ -38,13 +37,11 @@ type Flipper struct {
 }
 type IpfsFlip struct {
 	Data   []byte
-	Epoch  uint16
 	PubKey []byte
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
 	fp := &Flipper{
-		repo:      database.NewRepo(db),
 		db:        db,
 		log:       log.New(),
 		ipfsProxy: ipfsProxy,
@@ -69,7 +66,6 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 	}
 	ipf := IpfsFlip{
 		Data:   flip.Data,
-		Epoch:  flip.Tx.Epoch,
 		PubKey: pubKey,
 	}
 
@@ -97,9 +93,9 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 	return err
 }
 
-func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error) {
+func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
 
-	encryptionKey := fp.GetFlipEncryptionKey(epoch)
+	encryptionKey := fp.GetFlipEncryptionKey()
 
 	encrypted, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, hex, nil, nil)
 
@@ -109,7 +105,6 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 
 	ipf := IpfsFlip{
 		Data:   encrypted,
-		Epoch:  epoch,
 		PubKey: fp.secStore.GetPubKey(),
 	}
 
@@ -124,7 +119,7 @@ func (fp *Flipper) PrepareFlip(epoch uint16, hex []byte) (cid.Cid, []byte, error
 	return c, encrypted, nil
 }
 
-func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
+func (fp *Flipper) GetFlip(key []byte) ([]byte, error) {
 
 	fp.flipsMutex.Lock()
 	ipfsFlip := fp.flips[common.Hash(rlp.Hash(key))]
@@ -133,26 +128,26 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 	if ipfsFlip == nil {
 		data, err := fp.ipfsProxy.Get(key)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		ipfsFlip = new(IpfsFlip)
 		if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
 	// if flip is mine
 	var encryptionKey *ecies.PrivateKey
 	if bytes.Compare(ipfsFlip.PubKey, fp.secStore.GetPubKey()) == 0 {
-		encryptionKey = fp.GetFlipEncryptionKey(ipfsFlip.Epoch)
+		encryptionKey = fp.GetFlipEncryptionKey()
 		if encryptionKey == nil {
-			return nil, 0, errors.New("flip key is missing")
+			return nil, errors.New("flip key is missing")
 		}
 	} else {
 		addr, _ := crypto.PubKeyBytesToAddress(ipfsFlip.PubKey)
 		flipKey := fp.keyspool.GetFlipKey(addr)
 		if flipKey == nil {
-			return nil, 0, errors.New("flip key is missing")
+			return nil, errors.New("flip key is missing")
 		}
 		ecdsaKey, _ := crypto.ToECDSA(flipKey.Key)
 		encryptionKey = ecies.ImportECDSA(ecdsaKey)
@@ -161,23 +156,23 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, uint16, error) {
 	decryptedFlip, err := encryptionKey.Decrypt(ipfsFlip.Data, nil, nil)
 
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return decryptedFlip, ipfsFlip.Epoch, nil
+	return decryptedFlip, nil
 }
 
-func (fp *Flipper) GetFlipEncryptionKey(epoch uint16) *ecies.PrivateKey {
+func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
-	key := fp.repo.ReadFlipKey(epoch)
+	key := fp.epochDb.ReadFlipKey()
 	var ecdsaKey *ecdsa.PrivateKey
 
 	if key == nil {
 		ecdsaKey, _ = crypto.GenerateKey()
 		key = crypto.FromECDSA(ecdsaKey)
-		fp.repo.WriteFlipKey(epoch, key)
+		fp.epochDb.WriteFlipKey(key)
 	} else {
 		ecdsaKey, _ = crypto.ToECDSA(key)
 	}

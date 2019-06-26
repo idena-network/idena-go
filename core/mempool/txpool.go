@@ -80,7 +80,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		return DuplicateTxError
 	}
 
-	appState := txpool.appState.ForCheck(txpool.head.Height())
+	appState := txpool.appState.Readonly(txpool.head.Height())
 
 	if err := validation.ValidateTx(appState, tx, true); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)

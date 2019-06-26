@@ -209,7 +209,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 }
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
-	return chain.generateEmptyBlock(chain.appState.ForCheck(chain.Head.Height()), chain.Head)
+	return chain.generateEmptyBlock(chain.appState.Readonly(chain.Head.Height()), chain.Head)
 }
 
 func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppState) error {
@@ -562,7 +562,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState := chain.appState.ForCheck(chain.Head.Height())
+	checkState := chain.appState.Readonly(chain.Head.Height())
 
 	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
 	body := &types.Body{
@@ -774,7 +774,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) error {
 	if checkState == nil {
-		checkState = chain.appState.ForCheck(chain.Head.Height())
+		checkState = chain.appState.Readonly(chain.Head.Height())
 	}
 
 	return chain.validateBlock(checkState, block, chain.Head)

@@ -17,6 +17,7 @@ func SignFlipKey(fk *FlipKey, prv *ecdsa.PrivateKey) (*FlipKey, error) {
 
 	return &FlipKey{
 		Key:       fk.Key,
+		Epoch:     fk.Epoch,
 		Signature: sig,
 	}, nil
 }
@@ -45,5 +46,6 @@ func SenderFlipKeyPubKey(fk *FlipKey) ([]byte, error) {
 func signatureFlipKeyHash(fk *FlipKey) common.Hash {
 	return rlp.Hash([]interface{}{
 		fk.Key,
+		fk.Epoch,
 	})
 }
