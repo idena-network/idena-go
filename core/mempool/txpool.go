@@ -163,11 +163,17 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
+			continue
 		}
 		if tx.Epoch > globalEpoch {
 			continue
 		}
+
 		sender, _ := types.Sender(tx)
+		if tx.AccountNonce <= txpool.appState.State.GetNonce(sender) {
+			txpool.Remove(tx)
+			continue
+		}
 		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
 }

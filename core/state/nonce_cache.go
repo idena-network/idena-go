@@ -39,10 +39,6 @@ func (ns *NonceCache) SetNonce(addr common.Address, txEpoch uint16, nonce uint32
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
 
-	if ns.Epoch() == txEpoch {
-		so := ns.GetOrNewAccountObject(addr)
-		so.SetNonce(nonce)
-	}
 	acc := ns.getAccount(addr, txEpoch)
 	if acc.nonce < nonce {
 		acc.nonce = nonce

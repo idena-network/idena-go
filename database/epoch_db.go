@@ -180,7 +180,11 @@ func (edb *EpochDb) ReadLotterySeed() []byte {
 }
 
 func (edb *EpochDb) WriteFlipCid(cid []byte) {
-	edb.db.Set(append(FlipCidPrefix, cid...), nil)
+	edb.db.Set(append(FlipCidPrefix, cid...), []byte{0x1})
+}
+
+func (edb *EpochDb) HasFlipCid(cid []byte) bool {
+	return edb.db.Has(append(FlipCidPrefix, cid...))
 }
 
 func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
