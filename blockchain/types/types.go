@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	RegularTx            uint16 = 0x0
+	SendTx               uint16 = 0x0
 	ActivationTx         uint16 = 0x1
 	InviteTx             uint16 = 0x2
 	KillTx               uint16 = 0x3

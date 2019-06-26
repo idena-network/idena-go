@@ -125,3 +125,44 @@ func Test_ApplyActivateTx(t *testing.T) {
 	require.Equal(t, state.Candidate, appState.State.GetIdentityState(receiver))
 	require.Equal(t, -1, big.NewInt(0).Cmp(appState.State.GetBalance(receiver)))
 }
+
+func Test_ApplyKillTx(t *testing.T) {
+	require := require.New(t)
+	chain, appState, _ := NewTestBlockchain(true, nil)
+
+	key, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(key.PublicKey)
+
+	receiver := crypto.PubkeyToAddress(key2.PublicKey)
+
+	balance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
+	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
+
+	account := appState.State.GetOrNewAccountObject(sender)
+	account.SetBalance(balance)
+
+	id := appState.State.GetOrNewIdentityObject(sender)
+	id.SetStake(stake)
+	id.SetState(state.Invite)
+
+	amount := new(big.Int).Mul(big.NewInt(1), common.DnaBase)
+
+	tx := &types.Transaction{
+		Type:         types.KillTx,
+		Amount:       amount,
+		AccountNonce: 1,
+		To:           &receiver,
+	}
+
+	signed, _ := types.SignTx(tx, key)
+
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+
+	chain.applyTxOnState(chain.appState, signed)
+
+	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
+	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
+
+	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
+}

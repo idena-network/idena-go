@@ -59,7 +59,7 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 type SendTxArgs struct {
 	Type    types.TxType    `json:"type"`
 	From    common.Address  `json:"from"`
-	To      common.Address  `json:"to"`
+	To      *common.Address `json:"to"`
 	Amount  decimal.Decimal `json:"amount"`
 	Payload *hexutil.Bytes  `json:"payload"`
 	BaseTxArgs
@@ -73,7 +73,8 @@ type SendInviteArgs struct {
 }
 
 type ActivateInviteArgs struct {
-	Key string `json:"key"`
+	Key string          `json:"key"`
+	To  *common.Address `json:"to"`
 	BaseTxArgs
 }
 
@@ -92,7 +93,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), &receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, nil)
 
 	if err != nil {
 		return Invite{}, err
@@ -126,7 +127,11 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 	payload := api.baseApi.secStore.GetPubKey()
-	to := api.baseApi.getCurrentCoinbase()
+	to := args.To
+	if to == nil {
+		coinbase := api.baseApi.getCurrentCoinbase()
+		to = &coinbase
+	}
 	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 
 	if err != nil {
@@ -138,7 +143,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 
 func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, from, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, []byte{0x1}, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, []byte{0x1}, nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -149,7 +154,7 @@ func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 
 func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, from, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
 
 	if err != nil {
 		return common.Hash{}, err

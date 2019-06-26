@@ -405,17 +405,16 @@ func getFlipsToSolve(pubKey []byte, participants []*candidate, flipsPerCandidate
 
 func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.SubmitAnswersHashTx {
-			vc.epochDb.WriteAnswerHash(*tx.To, common.BytesToHash(tx.Payload), time.Now().UTC())
-		}
+		sender, _ := types.Sender(tx)
 
+		if tx.Type == types.SubmitAnswersHashTx {
+			vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
+		}
 		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
-			sender, _ := types.Sender(tx)
 			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswersTx, sender, tx.Payload)
 		}
-
 		if tx.Type == types.EvidenceTx {
-			vc.epochDb.WriteEvidenceMap(*tx.To, tx.Payload)
+			vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
 		}
 	}
 }
@@ -474,6 +473,8 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash, error) {
+	vc.mutex.Lock()
+	defer vc.mutex.Unlock()
 
 	signedTx := &types.Transaction{}
 
@@ -481,7 +482,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 		rlp.DecodeBytes(existTx, signedTx)
 	} else {
 		addr := vc.secStore.GetAddress()
-		tx := blockchain.BuildTx(vc.appState, addr, addr, txType, decimal.Zero, 0, 0, payload)
+		tx := blockchain.BuildTx(vc.appState, addr, nil, txType, decimal.Zero, 0, 0, payload)
 		var err error
 		signedTx, err = vc.secStore.SignTx(tx)
 		if err != nil {

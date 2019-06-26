@@ -9,13 +9,13 @@ import (
 	"math/big"
 )
 
-func BuildTx(appState *appstate.AppState, from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal,
+func BuildTx(appState *appstate.AppState, from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
 	nonce uint32, epoch uint16, payload []byte) *types.Transaction {
 
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
-		To:           &to,
+		To:           to,
 		Amount:       ConvertToInt(amount),
 		Payload:      payload,
 		Epoch:        epoch,
