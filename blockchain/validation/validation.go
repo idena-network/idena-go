@@ -305,10 +305,20 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 }
 
 func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
-		return err
-	}
 	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	fee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), tx)
+	if appState.State.GetStakeBalance(sender).Cmp(fee) < 0 {
+		return InsufficientFunds
+	}
+
+	if appState.State.GetBalance(sender).Cmp(tx.AmountOrZero()) < 0 {
+		return InsufficientFunds
+	}
 
 	if appState.State.GetIdentityState(sender) <= state.Candidate {
 		return NotIdentity
