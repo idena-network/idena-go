@@ -221,7 +221,13 @@ func (api *DnaApi) Identities() []Identity {
 	return identities
 }
 
-func (api *DnaApi) Identity(address common.Address) Identity {
+func (api *DnaApi) Identity(addressHex string) Identity {
+	var address common.Address
+	if len(addressHex) > 0 {
+		address = common.HexToAddress(addressHex)
+	} else {
+		address = api.GetCoinbaseAddr()
+	}
 	var flipKeyWordPairs []int
 	if address == api.GetCoinbaseAddr() {
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
