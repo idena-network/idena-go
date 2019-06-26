@@ -15,7 +15,7 @@ import (
 
 var (
 	txTypeMap = map[types.TxType]string{
-		types.RegularTx:            "regular",
+		types.SendTx:               "regular",
 		types.ActivationTx:         "activation",
 		types.InviteTx:             "invite",
 		types.KillTx:               "kill",

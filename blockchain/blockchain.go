@@ -496,7 +496,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
 		break
-	case types.RegularTx:
+	case types.SendTx:
 		amount := tx.AmountOrZero()
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, amount)
@@ -522,10 +522,10 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(*tx.To, amount)
 		break
 	case types.SubmitFlipTx:
-		stateDB.SubBalance(sender, totalCost)
+		stateDB.SubBalance(sender, fee)
 		stateDB.AddFlip(sender, tx.Payload)
 	case types.OnlineStatusTx:
-		stateDB.SubBalance(sender, totalCost)
+		stateDB.SubBalance(sender, fee)
 		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
 		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
 	}

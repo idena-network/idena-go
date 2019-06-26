@@ -9,7 +9,7 @@ import (
 
 func TestCalculateFee(t *testing.T) {
 	tx := &Transaction{
-		Type: RegularTx,
+		Type: SendTx,
 	}
 	//tx size = 8
 	fee1 := big.NewInt(75e+15)
@@ -29,7 +29,7 @@ func TestCalculateFee(t *testing.T) {
 
 func TestCalculateCost(t *testing.T) {
 	tx := &Transaction{
-		Type:   RegularTx,
+		Type:   SendTx,
 		Amount: big.NewInt(1e+18),
 	}
 	//tx size = 16

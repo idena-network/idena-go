@@ -158,54 +158,54 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	addressIndex := 0
 	// Prev epoch
 	app.State.SetEpoch(addresses[addressIndex], 0)
-	pool.Add(getTypedTx(1, 0, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(1, 0, keys[addressIndex], types.SendTx))
 
 	// Current epoch and wrong start nonce
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
 
 	// Priority tx after size limit
 	addressIndex++
 	for i := 0; i < 10814; i++ {
-		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.RegularTx))
+		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx))
 	}
 	pool.Add(getTypedTx(10815, 1, keys[addressIndex], types.EvidenceTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 3)
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 4)
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(7, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(7, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 2)
 	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.EvidenceTx))
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
 	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx))
-	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(8, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(8, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(2, 1, keys[addressIndex], types.RegularTx))
-	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(2, 1, keys[addressIndex], types.SendTx))
+	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.SendTx))
 	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(1, 1, keys[addressIndex], types.RegularTx))
+	pool.Add(getTypedTx(1, 1, keys[addressIndex], types.SendTx))
 	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx))
 
 	// when
@@ -253,17 +253,23 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 }
 
 func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
-	return getTypedTx(nonce, epoch, key, types.RegularTx)
+	return getTypedTx(nonce, epoch, key, types.SendTx)
 }
 
 func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
+	to := &addr
+
+	if txType == types.EvidenceTx || txType == types.SubmitShortAnswersTx ||
+		txType == types.SubmitLongAnswersTx || txType == types.SubmitAnswersHashTx || txType == types.SubmitFlipTx {
+		to = nil
+	}
 
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
-		To:           &addr,
+		To:           to,
 		Amount:       new(big.Int),
 		Epoch:        epoch,
 	}

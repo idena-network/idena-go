@@ -104,7 +104,7 @@ func generateTx(amount *big.Int, to common.Address, nonce uint32, epoch uint16, 
 
 	tx := types.Transaction{
 		AccountNonce: nonce,
-		Type:         types.RegularTx,
+		Type:         types.SendTx,
 		To:           &to,
 		Amount:       amount,
 		Epoch:        epoch,

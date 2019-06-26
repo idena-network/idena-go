@@ -37,13 +37,13 @@ func (api *BaseApi) getCurrentCoinbase() common.Address {
 	return api.secStore.GetAddress()
 }
 
-func (api *BaseApi) getSignedTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (*types.Transaction, error) {
+func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (*types.Transaction, error) {
 	tx := blockchain.BuildTx(api.getAppState(), from, to, txType, amount, nonce, epoch, payload)
 
 	return api.signTransaction(from, tx, key)
 }
 
-func (api *BaseApi) sendTx(from common.Address, to common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
+func (api *BaseApi) sendTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal, nonce uint32, epoch uint16, payload []byte, key *ecdsa.PrivateKey) (common.Hash, error) {
 	signedTx, err := api.getSignedTx(from, to, txType, amount, nonce, epoch, payload, key)
 
 	if err != nil {

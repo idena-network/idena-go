@@ -41,7 +41,7 @@ type validator func(appState *appstate.AppState, tx *types.Transaction, mempoolT
 
 func init() {
 	validators = map[types.TxType]validator{
-		types.RegularTx:            validateRegularTx,
+		types.SendTx:               validateSendTx,
 		types.ActivationTx:         validateActivationTx,
 		types.InviteTx:             validateSendInviteTx,
 		types.KillTx:               validateKillIdentityTx,
@@ -86,18 +86,26 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bo
 	return nil
 }
 
-// specific validation for regularTx
-func validateRegularTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *types.Transaction) error {
+	cost := types.CalculateCost(appState.ValidatorsCache.NetworkSize(), tx)
+	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
+		return InsufficientFunds
+	}
+	return nil
+}
+
+// specific validation for sendTx
+func validateSendTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
 
-	cost := types.CalculateCost(appState.ValidatorsCache.NetworkSize(), tx)
-	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
-		return InsufficientFunds
+	if err := validateTotalCost(sender, appState, tx); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -116,18 +124,19 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 			return InvalidPayload
 		}
 	}
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-
 	if appState.ValidatorsCache.Contains(*tx.To) {
 		return NodeAlreadyActivated
 	}
-
 	if appState.State.GetIdentityState(sender) != state.Invite {
 		return InvitationIsMissing
 	}
-
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
@@ -143,10 +152,12 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-
 	if appState.State.GetInvites(sender) == 0 && sender != appState.State.GodAddress() {
 		return InsufficientInvites
 	}
@@ -163,18 +174,15 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
-		return err
-	}
-
-	if *tx.To != sender {
+	if tx.To != nil {
 		return InvalidRecipient
 	}
-
+	if err := validateTotalCost(sender, appState, tx); err != nil {
+		return err
+	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-
 	if appState.State.GetIdentityState(sender) < state.Candidate {
 		return NotCandidate
 	}
@@ -192,22 +200,18 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-
 	if len(tx.Payload) != common.HashLength {
 		return InvalidPayload
 	}
-
-	if *tx.To != sender {
-		return InvalidRecipient
-	}
-
 	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
-
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -216,22 +220,20 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 }
 
 func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
 	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
 		return LateTx
 	}
-
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-	sender, _ := types.Sender(tx)
-	if *tx.To != sender {
-		return InvalidRecipient
-	}
-
 	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
-
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -239,22 +241,20 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 }
 
 func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
 	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
 		return LateTx
 	}
-
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-	sender, _ := types.Sender(tx)
-	if *tx.To != sender {
-		return InvalidRecipient
-	}
-
 	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
-
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -263,18 +263,17 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 }
 
 func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
-		return err
-	}
 	sender, _ := types.Sender(tx)
-	if *tx.To != sender {
+
+	if tx.To != nil {
 		return InvalidRecipient
 	}
-
+	if err := validateTotalCost(sender, appState, tx); err != nil {
+		return err
+	}
 	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
-
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
@@ -283,11 +282,15 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 }
 
 func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
-	if err := validateRegularTx(appState, tx, mempoolTx); err != nil {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
-	sender, _ := types.Sender(tx)
-	if *tx.To != sender || !appState.ValidatorsCache.Contains(sender) {
+	if !appState.ValidatorsCache.Contains(sender) {
 		return InvalidRecipient
 	}
 
@@ -296,7 +299,6 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	if shouldBecomeOnline && appState.ValidatorsCache.IsOnlineIdentity(sender) {
 		return IsAlreadyOnline
 	}
-
 	if !shouldBecomeOnline && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
 		return IsAlreadyOffline
 	}
@@ -310,16 +312,13 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-
 	fee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), tx)
-	if appState.State.GetStakeBalance(sender).Cmp(fee) < 0 {
+	if fee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(fee) < 0 {
 		return InsufficientFunds
 	}
-
 	if appState.State.GetBalance(sender).Cmp(tx.AmountOrZero()) < 0 {
 		return InsufficientFunds
 	}
-
 	if appState.State.GetIdentityState(sender) <= state.Candidate {
 		return NotIdentity
 	}
