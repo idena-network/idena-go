@@ -32,6 +32,9 @@ const (
 	MinTotalScore = 0.75
 	MinShortScore = 0.5
 	MinLongScore  = 0.75
+
+	WordDictionarySize = 3300
+	WordPairsPerFlip   = 3
 )
 
 type ValidationCeremony struct {
@@ -60,6 +63,7 @@ type ValidationCeremony struct {
 	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
 	epochApplyingResult    map[common.Address]cacheValue
+	flipKeyWordPairs       []int
 }
 
 type cacheValue struct {
@@ -118,6 +122,7 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
 		vc.completeEpoch()
+		vc.generateFlipKeyWordPairs(block.Seed().Bytes())
 	}
 }
 
@@ -164,6 +169,7 @@ func (vc *ValidationCeremony) restoreState() {
 	}
 	vc.qualification.restoreAnswers()
 	vc.calculateCeremonyCandidates()
+	vc.restoreFlipKeyWordPairs()
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
@@ -189,6 +195,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
 	vc.epochApplyingResult = make(map[common.Address]cacheValue)
+	vc.flipKeyWordPairs = nil
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -669,4 +676,28 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		return state.Killed
 	}
 	return state.Undefined
+}
+
+func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
+	return vc.flipKeyWordPairs
+}
+
+func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	words, proof := vc.GeneratePairs(seed, WordDictionarySize, WordPairsPerFlip*int(identity.RequiredFlips))
+	var wordsToPersist []uint32
+	for _, word := range words {
+		wordsToPersist = append(wordsToPersist, uint32(word))
+	}
+	vc.epochDb.WriteFlipKeyWordPairs(wordsToPersist, proof)
+	vc.flipKeyWordPairs = words
+}
+
+func (vc *ValidationCeremony) restoreFlipKeyWordPairs() {
+	persistedWords, _ := vc.epochDb.ReadFlipKeyWordPairs()
+	var words []int
+	for _, persistedWord := range persistedWords {
+		words = append(words, int(persistedWord))
+	}
+	vc.flipKeyWordPairs = words
 }

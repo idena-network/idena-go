@@ -1,4 +1,4 @@
-package flip
+package ceremony
 
 import (
 	"fmt"
@@ -11,28 +11,36 @@ import (
 
 func Test_GeneratePairs(t *testing.T) {
 	secStore := &secstore.SecStore{}
-	flipper := &Flipper{
+	vc := &ValidationCeremony{
 		secStore: secStore,
 	}
 	key, _ := crypto.GenerateKey()
 	secStore.AddKey(crypto.FromECDSA(key))
 
 	for _, tc := range []struct {
-		dictionarySize int
-		pairCount      int
+		dictionarySize  int
+		pairCount       int
+		checkUniqueness bool
 	}{
-		{10, 2},
-		{3300, 9},
-		{100, 50},
-		{10, 20},
+		{10, 2, true},
+		{3300, 9, true},
+		{100, 50, true},
+		{10, 20, true},
+		{3, 3, true},
+		{1, 1, false},
+		{3, 4, false},
 	} {
-		nums, proof := flipper.GeneratePairs([]byte("data"), tc.dictionarySize, tc.pairCount)
+		nums, proof := vc.GeneratePairs([]byte("data"), tc.dictionarySize, tc.pairCount)
 
 		require.Equal(t, tc.pairCount*2, len(nums))
 		require.NotNil(t, proof)
 
 		for i := 0; i < len(nums); i++ {
-			require.True(t, nums[i] >= 0 && nums[i] < tc.dictionarySize)
+			require.True(t, nums[i] < tc.dictionarySize)
+		}
+
+		if !tc.checkUniqueness {
+			continue
 		}
 
 		// Check there is no pair with same values
@@ -52,7 +60,7 @@ func Test_GeneratePairs(t *testing.T) {
 
 func Test_CheckPair(t *testing.T) {
 	secStore := &secstore.SecStore{}
-	flipper := &Flipper{
+	vc := &ValidationCeremony{
 		secStore: secStore,
 	}
 
@@ -63,7 +71,7 @@ func Test_CheckPair(t *testing.T) {
 	seed := []byte("data1")
 	dictionarySize := 3300
 	pairCount := 9
-	nums, proof := flipper.GeneratePairs(seed, dictionarySize, pairCount)
+	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount)
 
 	require.True(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, nums[0], nums[1]))
 	require.True(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, nums[2], nums[3]))
@@ -71,4 +79,16 @@ func Test_CheckPair(t *testing.T) {
 	require.False(t, CheckPair([]byte("data2"), proof, pk, dictionarySize, 9, nums[0], nums[1]))
 	require.False(t, CheckPair(seed, proof, crypto.FromECDSAPub(&wrongKey.PublicKey), dictionarySize, pairCount, nums[0], nums[1]))
 	require.False(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, dictionarySize+100, nums[3]))
+}
+
+func Test_maxUniquePairs(t *testing.T) {
+	require.Equal(t, 0, maxUniquePairs(0))
+	require.Equal(t, 0, maxUniquePairs(1))
+	require.Equal(t, 1, maxUniquePairs(2))
+	require.Equal(t, 3, maxUniquePairs(3))
+	require.Equal(t, 6, maxUniquePairs(4))
+	require.Equal(t, 10, maxUniquePairs(5))
+	require.Equal(t, 15, maxUniquePairs(6))
+	require.Equal(t, 21, maxUniquePairs(7))
+	require.Equal(t, 28, maxUniquePairs(8))
 }

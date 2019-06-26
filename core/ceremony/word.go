@@ -1,4 +1,4 @@
-package flip
+package ceremony
 
 import (
 	"fmt"
@@ -14,13 +14,13 @@ const (
 	m = 1 << 16
 )
 
-func (fp *Flipper) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
-	hash, proof := fp.secStore.VrfEvaluate(seed)
+func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
+	hash, proof := vc.secStore.VrfEvaluate(seed)
 	rnd := generatePseudoRndSeed(hash, dictionarySize)
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var num1, num2 int
-		num1, num2, rnd = nextPair(rnd, dictionarySize, pairs)
+		num1, num2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
 		nums = append(nums, num1, num2)
 	}
 	return nums, proof
@@ -43,12 +43,16 @@ func CheckPair(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pai
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var val1, val2 int
-		val1, val2, rnd = nextPair(rnd, dictionarySize, pairs)
+		val1, val2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
 		if val1 == num1 && val2 == num2 {
 			return true
 		}
 	}
 	return false
+}
+
+func maxUniquePairs(dictionarySize int) int {
+	return (dictionarySize - 1) * dictionarySize / 2
 }
 
 func generatePseudoRndSeed(hash [32]byte, dictionarySize int) int {
@@ -58,12 +62,11 @@ func generatePseudoRndSeed(hash [32]byte, dictionarySize int) int {
 	return int(numSeed.Int64())
 }
 
-func nextPair(prevRnd, dictionarySize int, pairs mapset.Set) (num1, num2, rnd int) {
+func nextPair(prevRnd, dictionarySize, pairCount int, pairs mapset.Set) (num1, num2, rnd int) {
 	num1, num2, rnd = generatePair(prevRnd, dictionarySize)
-	counter := 0
-	for counter < 5 && !checkPair(num1, num2, pairs) {
+	maxPairs := maxUniquePairs(dictionarySize)
+	for pairCount <= maxPairs && !checkPair(num1, num2, pairs) {
 		num1, num2, rnd = generatePair(rnd, dictionarySize)
-		counter++
 	}
 
 	pairs.Add(pairToString(num1, num2))
