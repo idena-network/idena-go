@@ -473,6 +473,8 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash, error) {
+	vc.mutex.Lock()
+	defer vc.mutex.Unlock()
 
 	signedTx := &types.Transaction{}
 

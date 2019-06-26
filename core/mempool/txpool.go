@@ -95,7 +95,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	}
 	senderPending[hash] = tx
 
-	appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+	txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 
 	txpool.bus.Publish(&events.NewTxEvent{
 		Tx: tx,
