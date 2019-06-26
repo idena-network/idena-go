@@ -41,10 +41,9 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 		return
 	}
 
-	sender, _ := types.Sender(tx)
-
 	//TODO : m.shortSessionTime == nil ?
 	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().UTC().Sub(*m.shortSessionTime) < ShortSessionDuration {
+		sender, _ := types.Sender(tx)
 		m.answersSet.Add(sender)
 	}
 }

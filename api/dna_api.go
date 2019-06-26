@@ -127,10 +127,10 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
 	payload := api.baseApi.secStore.GetPubKey()
-	coinbase := api.baseApi.getCurrentCoinbase()
-	to := &coinbase
-	if args.To != nil {
-		to = args.To
+	to := args.To
+	if to == nil {
+		coinbase := api.baseApi.getCurrentCoinbase()
+		to = &coinbase
 	}
 	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 
