@@ -261,7 +261,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		}
 	}
 
-	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), seed, true, chosenFlips)
+	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), common.ReverseBytes(seed), true, chosenFlips)
 
 	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
 	vc.longFlipsPerCandidate = longFlipsPerCandidate
@@ -632,10 +632,10 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		if missed {
 			return state.Killed
 		}
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips < 10 && shortScore >= MinShortScore && longScore >= 0.75 {
+		if totalQualifiedFlips <= 10 && shortScore >= MinShortScore && longScore >= 0.75 {
 			return state.Newbie
 		}
 		return state.Killed
@@ -643,7 +643,7 @@ func determineNewIdentityState(prevState state.IdentityState, shortScore, longSc
 		if missed {
 			return state.Suspended
 		}
-		if totalQualifiedFlips >= 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
