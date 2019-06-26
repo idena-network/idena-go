@@ -8,6 +8,7 @@ import (
 	"idena-go/blockchain/types"
 	"idena-go/common"
 	"idena-go/common/eventbus"
+	"idena-go/crypto"
 	"idena-go/tests"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 
 	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
-	now := time.Now().Add(-29 * time.Second)
+	now := time.Now().UTC().Add(-29 * time.Second)
 	em.shortSessionTime = &now
 
 	const candidatesCount = 10000
@@ -28,13 +29,19 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 
 	for i := 0; i < candidatesCount; i++ {
 		addr := tests.GetRandAddr()
-		addrs = append(addrs, addr)
+
 		if i == txCandidate {
-			em.newTx(&types.Transaction{
-				To:      &addr,
+			key, _ := crypto.GenerateKey()
+			a := crypto.PubkeyToAddress(key.PublicKey)
+			tx := &types.Transaction{
 				Payload: random.GetRandomBytes(common.HashLength),
 				Type:    types.SubmitAnswersHashTx,
-			})
+			}
+			signed, _ := types.SignTx(tx, key)
+			em.newTx(signed)
+			addrs = append(addrs, a)
+		} else {
+			addrs = append(addrs, addr)
 		}
 	}
 
