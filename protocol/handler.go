@@ -244,7 +244,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 			result = append(result, block)
 			p.Log().Trace("Publish block", "height", block.Height())
 		} else {
-			p.Log().Warn("Do not have requested block", "height", block.Height())
+			p.Log().Warn("Do not have requested block", "height", i)
 			return
 		}
 	}
