@@ -166,13 +166,13 @@ func waitForMessages(t *testing.T, in *json.Decoder, successes chan<- jsonSucces
 		var responses []map[string]interface{}
 		if rmsg[0] == '[' {
 			if err := json.Unmarshal(rmsg, &responses); err != nil {
-				errors <- fmt.Errorf("Received invalid message: %s", rmsg)
+				errors <- fmt.Errorf("received invalid message: %s", rmsg)
 				return
 			}
 		} else {
 			var msg map[string]interface{}
 			if err := json.Unmarshal(rmsg, &msg); err != nil {
-				errors <- fmt.Errorf("Received invalid message: %s", rmsg)
+				errors <- fmt.Errorf("received invalid message: %s", rmsg)
 				return
 			}
 			responses = append(responses, msg)
@@ -207,7 +207,7 @@ func waitForMessages(t *testing.T, in *json.Decoder, successes chan<- jsonSucces
 				}
 				continue
 			}
-			errors <- fmt.Errorf("Received invalid message: %s", msg)
+			errors <- fmt.Errorf("received invalid message: %s", msg)
 		}
 	}
 }

@@ -205,7 +205,7 @@ func (txpool *TxPool) createBuildingContext() *buildingContext {
 		txs = append(txs, tx)
 		withPriorityTx = withPriorityTx || priorityTypes[tx.Type]
 	}
-	for sender, _ := range txpool.pendingPerAddr {
+	for sender := range txpool.pendingPerAddr {
 		if txpool.appState.State.GetEpoch(sender) < globalEpoch {
 			curNoncesPerSender[sender] = 0
 		} else {

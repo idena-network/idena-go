@@ -74,10 +74,6 @@ func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 
 	api.pm.BroadcastFlip(&flip)
 
-	if err != nil {
-		return FlipSubmitResponse{}, err
-	}
-
 	return FlipSubmitResponse{
 		TxHash: tx.Hash(),
 		Hash:   cid.String(),

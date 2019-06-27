@@ -19,7 +19,7 @@ func main() {
 	app.Version = version
 
 	app.Flags = []cli.Flag{
-		config.ConfigFileFlag,
+		config.CfgFileFlag,
 		config.DataDirFlag,
 		config.TcpPortFlag,
 		config.RpcHostFlag,

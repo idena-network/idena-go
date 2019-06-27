@@ -95,7 +95,7 @@ func (s *Server) RegisterName(name string, rcvr interface{}) error {
 	methods, subscriptions := suitableCallbacks(rcvrVal, svc.typ)
 
 	if len(methods) == 0 && len(subscriptions) == 0 {
-		return fmt.Errorf("Service %T doesn't have any suitable methods/subscriptions to expose", rcvr)
+		return fmt.Errorf("service %T doesn't have any suitable methods/subscriptions to expose", rcvr)
 	}
 
 	// already a previous service register under given name, merge methods/subscriptions
