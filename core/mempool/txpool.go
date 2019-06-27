@@ -170,7 +170,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		}
 
 		sender, _ := types.Sender(tx)
-		if tx.AccountNonce <= txpool.appState.State.GetNonce(sender) {
+		if tx.AccountNonce <= txpool.appState.State.GetNonce(sender) && txpool.appState.State.GetEpoch(sender) == globalEpoch {
 			txpool.Remove(tx)
 			continue
 		}
