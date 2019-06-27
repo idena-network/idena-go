@@ -195,7 +195,6 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 		})
 		return false
 	}
-	return false
 }
 
 func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte, timeout time.Duration) (*types.Block, error) {

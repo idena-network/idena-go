@@ -51,7 +51,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"        gencodec:"required"`
+	Time           *big.Int    `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
@@ -98,8 +98,8 @@ type Transaction struct {
 	Epoch        uint16
 	Type         TxType
 	To           *common.Address `rlp:"nil"`
-	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	Payload      []byte          `rlp:"nil"	json:"input"    gencodec:"required"`
+	Amount       *big.Int        `json:"value"`
+	Payload      []byte          `rlp:"nil"       json:"input"`
 
 	Signature []byte
 

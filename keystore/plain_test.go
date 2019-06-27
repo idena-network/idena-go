@@ -201,7 +201,7 @@ func TestV1_2(t *testing.T) {
 	privHex := hex.EncodeToString(crypto.FromECDSA(k.PrivateKey))
 	expectedHex := "d1b1178d3529626a1a93e073f65028370d14c7eb0936eb42abef05db6f37ad7d"
 	if privHex != expectedHex {
-		t.Fatal(fmt.Errorf("Unexpected privkey: %v, expected %v", privHex, expectedHex))
+		t.Fatal(fmt.Errorf("unexpected privkey: %v, expected %v", privHex, expectedHex))
 	}
 }
 
@@ -212,7 +212,7 @@ func testDecryptV3(test KeyStoreTestV3, t *testing.T) {
 	}
 	privHex := hex.EncodeToString(privBytes)
 	if test.Priv != privHex {
-		t.Fatal(fmt.Errorf("Decrypted bytes not equal to test, expected %v have %v", test.Priv, privHex))
+		t.Fatal(fmt.Errorf("decrypted bytes not equal to test, expected %v have %v", test.Priv, privHex))
 	}
 }
 
@@ -223,7 +223,7 @@ func testDecryptV1(test KeyStoreTestV1, t *testing.T) {
 	}
 	privHex := hex.EncodeToString(privBytes)
 	if test.Priv != privHex {
-		t.Fatal(fmt.Errorf("Decrypted bytes not equal to test, expected %v have %v", test.Priv, privHex))
+		t.Fatal(fmt.Errorf("decrypted bytes not equal to test, expected %v have %v", test.Priv, privHex))
 	}
 }
 

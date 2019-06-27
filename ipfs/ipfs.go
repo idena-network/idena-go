@@ -62,7 +62,12 @@ type ipfsProxy struct {
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 
-	loadPlugins(cfg.DataDir)
+	err := loadPlugins(cfg.DataDir)
+
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
 
 	ipfsConfig, err := configureIpfs(cfg)
 	if err != nil {
@@ -245,6 +250,10 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		break
 	}
 
+	if path == nil {
+		return cid.Cid{}, err
+	}
+
 	return path.Cid(), err
 }
 
@@ -308,25 +317,25 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 	}
 }
 
-func loadPlugins(ipfsPath string) (*loader.PluginLoader, error) {
-	pluginpath := filepath.Join(ipfsPath, "plugins")
+func loadPlugins(ipfsPath string) error {
+	pluginPath := filepath.Join(ipfsPath, "plugins")
 
 	var plugins *loader.PluginLoader
-	plugins, err := loader.NewPluginLoader(pluginpath)
+	plugins, err := loader.NewPluginLoader(pluginPath)
 
 	if err != nil {
-		log.Error("ipfs plugin loader error")
+		return errors.New("ipfs plugin loader error")
 	}
 
 	if err := plugins.Initialize(); err != nil {
-		log.Error("ipfs plugin initialization error")
+		return errors.New("ipfs plugin initialization error")
 	}
 
 	if err := plugins.Inject(); err != nil {
-		log.Error("ipfs plugin inject error")
+		return errors.New("ipfs plugin inject error")
 	}
 
-	return plugins, nil
+	return nil
 }
 
 func NewMemoryIpfsProxy() Proxy {

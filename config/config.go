@@ -84,7 +84,7 @@ func MakeMobileConfig() *Config {
 func MakeConfig(ctx *cli.Context) *Config {
 	cfg := getDefaultConfig()
 
-	if file := ctx.String(ConfigFileFlag.Name); file != "" {
+	if file := ctx.String(CfgFileFlag.Name); file != "" {
 		if err := loadConfig(file, cfg); err != nil {
 			log.Error(err.Error())
 		}

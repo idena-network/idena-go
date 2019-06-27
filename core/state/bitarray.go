@@ -69,7 +69,7 @@ func (bA *BitArray) setIndex(i uint, v bool) bool {
 		return false
 	}
 	if v {
-		bA.Elems[i/64] |= (uint64(1) << uint(i%64))
+		bA.Elems[i/64] |= uint64(1) << uint(i%64)
 	} else {
 		bA.Elems[i/64] &= ^(uint64(1) << uint(i%64))
 	}
