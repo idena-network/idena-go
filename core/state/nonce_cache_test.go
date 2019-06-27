@@ -23,7 +23,7 @@ func TestNonceCache_Set_And_Get_Nonce(t *testing.T) {
 	stateDb.Commit(false)
 
 	ns := NewNonceCache(stateDb)
-
+	ns.SetNonce(addr, epoch, 3)
 	require.Equal(uint32(5), ns.GetNonce(addr, epoch))
 	require.Equal(uint32(0), ns.GetNonce(addr, epoch+1))
 

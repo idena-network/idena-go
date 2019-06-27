@@ -33,7 +33,6 @@ const (
 )
 const (
 	DecodeErr = 1
-	FlipErr   = 2
 )
 
 var (
@@ -220,9 +219,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		p.markFlip(&flip)
 		if err := pm.flipper.AddNewFlip(flip); err != nil {
-			return errResp(FlipErr, "%v: %v", flip.Tx.Hash(), err)
+			p.Log().Debug("invalid flip", "err", err)
+		} else {
+			pm.BroadcastFlip(&flip)
 		}
-		pm.BroadcastFlip(&flip)
 	case FlipKey:
 		var flipKey types.FlipKey
 		if err := msg.Decode(&flipKey); err != nil {

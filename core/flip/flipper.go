@@ -60,6 +60,9 @@ func (fp *Flipper) Initialize() {
 }
 
 func (fp *Flipper) AddNewFlip(flip types.Flip) error {
+	fp.mutex.Lock()
+	defer fp.mutex.Unlock()
+
 	pubKey, err := types.SenderPubKey(flip.Tx)
 	if err != nil {
 		return errors.Errorf("flip tx has invalid pubkey, tx: %v", flip.Tx.Hash())
@@ -75,6 +78,10 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 
 	if err != nil {
 		return err
+	}
+
+	if fp.epochDb.HasFlipCid(c.Bytes()) {
+		return errors.New("duplicate flip")
 	}
 
 	if bytes.Compare(c.Bytes(), flip.Tx.Payload) != 0 {
