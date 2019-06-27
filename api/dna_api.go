@@ -174,21 +174,22 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 type Identity struct {
-	Address         common.Address  `json:"address"`
-	Nickname        string          `json:"nickname"`
-	Stake           decimal.Decimal `json:"stake"`
-	Invites         uint8           `json:"invites"`
-	Age             uint16          `json:"age"`
-	State           string          `json:"state"`
-	PubKey          string          `json:"pubkey"`
-	RequiredFlips   uint8           `json:"requiredFlips"`
-	MadeFlips       uint8           `json:"madeFlips"`
-	QualifiedFlips  uint32          `json:"totalQualifiedFlips"`
-	ShortFlipPoints float32         `json:"totalShortFlipPoints"`
-	Flips           []string        `json:"flips"`
-	Online          bool            `json:"online"`
-	Generation      uint32          `json:"generation"`
-	Code            hexutil.Bytes   `json:"code"`
+	Address          common.Address  `json:"address"`
+	Nickname         string          `json:"nickname"`
+	Stake            decimal.Decimal `json:"stake"`
+	Invites          uint8           `json:"invites"`
+	Age              uint16          `json:"age"`
+	State            string          `json:"state"`
+	PubKey           string          `json:"pubkey"`
+	RequiredFlips    uint8           `json:"requiredFlips"`
+	FlipKeyWordPairs [][2]uint32     `json:"flipKeyWordPairs"`
+	MadeFlips        uint8           `json:"madeFlips"`
+	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
+	ShortFlipPoints  float32         `json:"totalShortFlipPoints"`
+	Flips            []string        `json:"flips"`
+	Online           bool            `json:"online"`
+	Generation       uint32          `json:"generation"`
+	Code             hexutil.Bytes   `json:"code"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -204,7 +205,11 @@ func (api *DnaApi) Identities() []Identity {
 		if err := rlp.DecodeBytes(value, &data); err != nil {
 			return false
 		}
-		identities = append(identities, convertIdentity(addr, data))
+		var flipKeyWordPairs []int
+		if addr == api.GetCoinbaseAddr() {
+			flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
+		}
+		identities = append(identities, convertIdentity(addr, data, flipKeyWordPairs))
 
 		return false
 	})
@@ -216,13 +221,20 @@ func (api *DnaApi) Identities() []Identity {
 	return identities
 }
 
-func (api *DnaApi) Identity(address common.Address) Identity {
-	converted := convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address))
-	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(address)
+func (api *DnaApi) Identity(address *common.Address) Identity {
+	var flipKeyWordPairs []int
+	coinbase := api.GetCoinbaseAddr()
+	if address == nil || *address == coinbase {
+		address = &coinbase
+		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
+	}
+
+	converted := convertIdentity(*address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
+	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(*address)
 	return converted
 }
 
-func convertIdentity(address common.Address, data state.Identity) Identity {
+func convertIdentity(address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {
 	var s string
 	switch data.State {
 	case state.Invite:
@@ -262,21 +274,27 @@ func convertIdentity(address common.Address, data state.Identity) Identity {
 		result = append(result, c.String())
 	}
 
+	var convertedFlipKeyWordPairs [][2]uint32
+	for i := 0; i < len(flipKeyWordPairs)/2; i++ {
+		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs, [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])})
+	}
+
 	return Identity{
-		Address:         address,
-		State:           s,
-		Stake:           blockchain.ConvertToFloat(data.Stake),
-		Age:             data.Age,
-		Invites:         data.Invites,
-		Nickname:        nickname,
-		PubKey:          fmt.Sprintf("%x", data.PubKey),
-		RequiredFlips:   data.RequiredFlips,
-		MadeFlips:       uint8(len(data.Flips)),
-		QualifiedFlips:  data.QualifiedFlips,
-		ShortFlipPoints: data.GetShortFlipPoints(),
-		Flips:           result,
-		Generation:      data.Generation,
-		Code:            hexutil.Bytes(data.Code),
+		Address:          address,
+		State:            s,
+		Stake:            blockchain.ConvertToFloat(data.Stake),
+		Age:              data.Age,
+		Invites:          data.Invites,
+		Nickname:         nickname,
+		PubKey:           fmt.Sprintf("%x", data.PubKey),
+		RequiredFlips:    data.RequiredFlips,
+		FlipKeyWordPairs: convertedFlipKeyWordPairs,
+		MadeFlips:        uint8(len(data.Flips)),
+		QualifiedFlips:   data.QualifiedFlips,
+		ShortFlipPoints:  data.GetShortFlipPoints(),
+		Flips:            result,
+		Generation:       data.Generation,
+		Code:             hexutil.Bytes(data.Code),
 	}
 }
 

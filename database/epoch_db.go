@@ -13,16 +13,18 @@ import (
 )
 
 var (
-	OwnShortAnswerKey   = []byte("own-short")
-	AnswerHashPrefix    = []byte("hash")
-	ShortSessionTimeKey = []byte("time-short")
-	ShortAnswersKey     = []byte("answers-short")
-	LongShortAnswersKey = []byte("answers-long")
-	TxOwnPrefix         = []byte("tx")
-	EvidencePrefix      = []byte("evi")
-	LotterySeedKey      = []byte("ls")
-	FlipCidPrefix       = []byte("cid")
-	FlipEncryptionKey   = []byte("flip-key")
+	OwnShortAnswerKey           = []byte("own-short")
+	AnswerHashPrefix            = []byte("hash")
+	ShortSessionTimeKey         = []byte("time-short")
+	ShortAnswersKey             = []byte("answers-short")
+	LongShortAnswersKey         = []byte("answers-long")
+	TxOwnPrefix                 = []byte("tx")
+	EvidencePrefix              = []byte("evi")
+	LotterySeedKey              = []byte("ls")
+	FlipCidPrefix               = []byte("cid")
+	FlipEncryptionKey           = []byte("flip-key")
+	FlipKeyWordPairsPrefix      = []byte("word")
+	FlipKeyWordPairsProofPrefix = []byte("word-proof")
 )
 
 type EpochDb struct {
@@ -196,4 +198,20 @@ func (edb *EpochDb) ReadFlipKey() []byte {
 
 func (edb *EpochDb) WriteFlipKey(encKey []byte) {
 	edb.db.Set(FlipEncryptionKey, encKey)
+}
+
+func (edb *EpochDb) WriteFlipKeyWordPairs(words []uint32, proof []byte) {
+	wordsRlp, _ := rlp.EncodeToBytes(words)
+	edb.db.Set(FlipKeyWordPairsPrefix, wordsRlp)
+	edb.db.Set(FlipKeyWordPairsProofPrefix, proof)
+}
+
+func (edb *EpochDb) ReadFlipKeyWordPairs() (words []uint32, proof []byte) {
+	wordsRlp, proof := edb.db.Get(FlipKeyWordPairsPrefix), edb.db.Get(FlipKeyWordPairsProofPrefix)
+	if wordsRlp != nil {
+		if err := rlp.Decode(bytes.NewReader(wordsRlp), &words); err != nil {
+			log.Error("invalid flip key words rlp", "err", err)
+		}
+	}
+	return words, proof
 }
