@@ -221,19 +221,16 @@ func (api *DnaApi) Identities() []Identity {
 	return identities
 }
 
-func (api *DnaApi) Identity(addressHex string) Identity {
-	var address common.Address
-	if len(addressHex) > 0 {
-		address = common.HexToAddress(addressHex)
-	} else {
-		address = api.GetCoinbaseAddr()
-	}
+func (api *DnaApi) Identity(address *common.Address) Identity {
 	var flipKeyWordPairs []int
-	if address == api.GetCoinbaseAddr() {
+	coinbase := api.GetCoinbaseAddr()
+	if address == nil || *address == coinbase {
+		address = &coinbase
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 	}
-	converted := convertIdentity(address, api.baseApi.getAppState().State.GetIdentity(address), flipKeyWordPairs)
-	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(address)
+
+	converted := convertIdentity(*address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
+	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(*address)
 	return converted
 }
 
