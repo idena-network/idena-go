@@ -88,10 +88,6 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 			break
 		}
 		from = math.Max(oldestBlock, to-batchSize)
-		if commonHeight == 1 && uint64(len(batchBlocks)) < to-from+1 {
-			resolver.log.Warn("peer didn't provide all requested blocks, ignore this one", "peerId", peerId)
-			break
-		}
 	}
 	if commonHeight > 1 {
 		resolver.log.Info("common block is found", "peerId", peerId)
