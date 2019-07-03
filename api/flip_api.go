@@ -82,6 +82,7 @@ func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
 	flip := types.Flip{
 		Tx:   tx,
 		Data: encryptedFlip,
+		Pair: args.Pair,
 	}
 
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
