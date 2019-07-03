@@ -2,6 +2,7 @@ package mempool
 
 import (
 	"errors"
+	"github.com/deckarep/golang-set"
 	"idena-go/blockchain/types"
 	"idena-go/blockchain/validation"
 	"idena-go/common"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	BlockBodySize = 1024 * 1024
+	BlockBodySize  = 1024 * 1024
+	MaxDeferredTxs = 100
 )
 
 var (
@@ -30,28 +32,32 @@ var (
 )
 
 type TxPool struct {
-	pending        map[common.Hash]*types.Transaction
-	pendingPerAddr map[common.Address]map[common.Hash]*types.Transaction
-	totalTxLimit   int
-	addrTxLimit    int
-	txSubscription chan *types.Transaction
-	mutex          *sync.Mutex
-	appState       *appstate.AppState
-	log            log.Logger
-	head           *types.Header
-	bus            eventbus.Bus
+	knownDeferredTxs mapset.Set
+	deferredTxs      []*types.Transaction
+	pending          map[common.Hash]*types.Transaction
+	pendingPerAddr   map[common.Address]map[common.Hash]*types.Transaction
+	totalTxLimit     int
+	addrTxLimit      int
+	txSubscription   chan *types.Transaction
+	mutex            *sync.Mutex
+	appState         *appstate.AppState
+	log              log.Logger
+	head             *types.Header
+	bus              eventbus.Bus
+	isSyncing        bool //indicates about blockchain's syncing
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
 	return &TxPool{
-		pending:        make(map[common.Hash]*types.Transaction),
-		pendingPerAddr: make(map[common.Address]map[common.Hash]*types.Transaction),
-		totalTxLimit:   totalTxLimit,
-		addrTxLimit:    addrTxLimit,
-		mutex:          &sync.Mutex{},
-		appState:       appState,
-		log:            log.New(),
-		bus:            bus,
+		pending:          make(map[common.Hash]*types.Transaction),
+		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
+		knownDeferredTxs: mapset.NewSet(),
+		totalTxLimit:     totalTxLimit,
+		addrTxLimit:      addrTxLimit,
+		mutex:            &sync.Mutex{},
+		appState:         appState,
+		log:              log.New(),
+		bus:              bus,
 	}
 }
 
@@ -59,10 +65,26 @@ func (txpool *TxPool) Initialize(head *types.Header) {
 	txpool.head = head
 }
 
+func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
+	if txpool.knownDeferredTxs.Contains(tx.Hash()) {
+		return
+	}
+	txpool.deferredTxs = append(txpool.deferredTxs, tx)
+	if len(txpool.deferredTxs) > MaxDeferredTxs {
+		txpool.deferredTxs = txpool.deferredTxs[1:]
+	}
+	txpool.knownDeferredTxs.Add(tx.Hash())
+}
+
 func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
+
+	if txpool.isSyncing {
+		txpool.addDeferredTx(tx)
+		return nil
+	}
 
 	if err := txpool.checkTotalTxLimit(); err != nil {
 		return err
@@ -160,6 +182,8 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	pending := txpool.GetPendingTransaction()
 
+	appState := txpool.appState.Readonly(txpool.head.Height())
+
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
@@ -171,6 +195,10 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 		sender, _ := types.Sender(tx)
 		if tx.AccountNonce <= txpool.appState.State.GetNonce(sender) && txpool.appState.State.GetEpoch(sender) == globalEpoch {
+			continue
+		}
+
+		if err := validation.ValidateTx(appState, tx, false); err != nil {
 			txpool.Remove(tx)
 			continue
 		}
@@ -232,4 +260,18 @@ func (txpool *TxPool) createBuildingContext() *buildingContext {
 	}
 
 	return newBuildingContext(txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
+}
+
+func (txpool *TxPool) StartSync() {
+	txpool.isSyncing = true
+}
+
+func (txpool *TxPool) StopSync(block *types.Block) {
+	txpool.isSyncing = false
+	txpool.ResetTo(block)
+	for _, tx := range txpool.deferredTxs {
+		txpool.Add(tx)
+	}
+	txpool.deferredTxs = make([]*types.Transaction, 0)
+	txpool.knownDeferredTxs.Clear()
 }
