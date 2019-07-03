@@ -317,6 +317,14 @@ func (s *StateDB) ValidationPeriod() ValidationPeriod {
 	return s.GetOrNewGlobalObject().ValidationPeriod()
 }
 
+func (s *StateDB) FlipWordsSeed() types.Seed {
+	return s.GetOrNewGlobalObject().FlipWordsSeed()
+}
+
+func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
+	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
+}
+
 //
 // Setting, updating & deleting state object methods
 //

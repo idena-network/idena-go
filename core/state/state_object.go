@@ -71,6 +71,7 @@ type Global struct {
 	NextValidationTime *big.Int
 	ValidationPeriod   ValidationPeriod
 	GodAddress         common.Address
+	WordsSeed          types.Seed `rlp:"nil"`
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -427,6 +428,15 @@ func (s *stateGlobal) SetGodAddress(godAddress common.Address) {
 
 func (s *stateGlobal) GodAddress() common.Address {
 	return s.data.GodAddress
+}
+
+func (s *stateGlobal) SetFlipWordsSeed(seed types.Seed) {
+	s.data.WordsSeed = seed
+	s.touch()
+}
+
+func (s *stateGlobal) FlipWordsSeed() types.Seed {
+	return s.data.WordsSeed
 }
 
 // EncodeRLP implements rlp.Encoder.

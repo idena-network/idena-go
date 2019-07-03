@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -416,8 +417,16 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 		if tx.Type == types.SubmitAnswersHashTx {
 			vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
 		}
-		if tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx {
-			vc.qualification.addAnswers(tx.Type == types.SubmitShortAnswersTx, sender, tx.Payload)
+		if tx.Type == types.SubmitShortAnswersTx {
+			attachment := attachments.ParseShortAnswerAttachment(tx)
+			if attachment == nil {
+				log.Error("short answer attachment is invalid", "tx", tx.Hash())
+				continue
+			}
+			vc.qualification.addAnswers(true, sender, attachment.Answers)
+		}
+		if tx.Type == types.SubmitLongAnswersTx {
+			vc.qualification.addAnswers(false, sender, tx.Payload)
 		}
 		if tx.Type == types.EvidenceTx {
 			vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
@@ -434,7 +443,30 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		vc.log.Error("short session answers are missing")
 		return
 	}
-	vc.sendTx(types.SubmitShortAnswersTx, answers)
+
+	key := vc.flipper.GetFlipEncryptionKey()
+	_, proof := vc.epochDb.ReadFlipKeyWordPairs()
+
+	var pairs []uint8
+	myFlips := vc.appState.State.GetIdentity(vc.secStore.GetAddress()).Flips
+	for _, key := range myFlips {
+		flip, err := vc.flipper.GetRawFlip(key)
+		if err != nil || flip == nil {
+			vc.log.Error(fmt.Sprintf("flip is missing, key: %x", key))
+		}
+		pairs = append(pairs, flip.Pair)
+	}
+
+	ipfsAnswer := &attachments.ShortAnswerAttachment{
+		Answers: answers,
+		Proof:   proof,
+		Key:     crypto.FromECDSA(key.ExportECDSA()),
+		Pairs:   pairs,
+	}
+
+	payload, _ := rlp.EncodeToBytes(ipfsAnswer)
+
+	vc.sendTx(types.SubmitShortAnswersTx, payload)
 	vc.shortAnswersSent = true
 }
 

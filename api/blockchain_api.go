@@ -42,16 +42,17 @@ func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Pro
 }
 
 type Block struct {
-	Hash         common.Hash   `json:"hash"`
-	ParentHash   common.Hash   `json:"parentHash"`
-	Height       uint64        `json:"height"`
-	Time         *big.Int      `json:"timestamp"`
-	Root         common.Hash   `json:"root"`         // root of state tree
-	IdentityRoot common.Hash   `json:"identityRoot"` // root of approved identities tree
-	IpfsHash     string        `json:"ipfsCid"`      // ipfs hash of block body
-	Transactions []common.Hash `json:"transactions"`
-	Flags        []string      `json:"flags"`
-	IsEmpty      bool          `json:"isEmpty"`
+	Coinbase     common.Address `json:"coinbase"`
+	Hash         common.Hash    `json:"hash"`
+	ParentHash   common.Hash    `json:"parentHash"`
+	Height       uint64         `json:"height"`
+	Time         *big.Int       `json:"timestamp"`
+	Root         common.Hash    `json:"root"`         // root of state tree
+	IdentityRoot common.Hash    `json:"identityRoot"` // root of approved identities tree
+	IpfsHash     string         `json:"ipfsCid"`      // ipfs hash of block body
+	Transactions []common.Hash  `json:"transactions"`
+	Flags        []string       `json:"flags"`
+	IsEmpty      bool           `json:"isEmpty"`
 }
 
 type Transaction struct {
@@ -178,7 +179,13 @@ func convertToBlock(block *types.Block) *Block {
 		flags = append(flags, "ValidationFinished")
 	}
 
+	var coinbase common.Address
+	if !block.IsEmpty() {
+		coinbase = block.Header.ProposedHeader.Coinbase
+	}
+
 	return &Block{
+		Coinbase:     coinbase,
 		IsEmpty:      block.IsEmpty(),
 		Hash:         block.Hash(),
 		IdentityRoot: block.IdentityRoot(),

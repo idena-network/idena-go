@@ -151,11 +151,14 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	chain.appState.State.SetGodAddress(chain.config.GenesisConf.GodAddress)
 
+	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
+
 	nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
 	if nextValidationTimestamp == 0 {
 		nextValidationTimestamp = time.Now().UTC().Unix()
 	}
 	chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
+	chain.appState.State.SetFlipWordsSeed(seed)
 
 	log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 
@@ -164,7 +167,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	}
 
 	var emptyHash [32]byte
-	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
+
 	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
@@ -198,13 +201,13 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 		Body: &types.Body{},
 	}
 
+	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block)
 
 	chain.applyEmptyBlockOnState(checkState, block)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
 	block.Header.EmptyBlockHeader.IdentityRoot = checkState.IdentityState.Root()
-	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	return block
 }
 
@@ -329,6 +332,8 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.GetEpochDuration(networkSize)))
+
+	appState.State.SetFlipWordsSeed(block.Seed())
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
@@ -601,6 +606,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		Body: body,
 	}
 
+	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
 	header.Flags = chain.calculateFlags(checkState, block)
 
 	chain.applyNewEpoch(checkState, block)
@@ -611,7 +617,6 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	block.Header.ProposedHeader.Root = checkState.State.Root()
 	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
-	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
 
 	return block
 }
