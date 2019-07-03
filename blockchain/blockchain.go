@@ -999,11 +999,12 @@ func (chain *Blockchain) EnsureIntegrity() error {
 
 func (chain *Blockchain) StartSync() {
 	chain.isSyncing = true
+	chain.txpool.StartSync()
 }
 
 func (chain *Blockchain) StopSync() {
 	chain.isSyncing = false
-	chain.txpool.ResetTo(chain.GetBlock(chain.Head.Hash()))
+	chain.txpool.StopSync(chain.GetBlock(chain.Head.Hash()))
 }
 
 func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
