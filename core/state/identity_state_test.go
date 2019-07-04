@@ -2,9 +2,9 @@ package state
 
 import (
 	"crypto/rand"
+	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
 	"testing"
 	"time"
 )

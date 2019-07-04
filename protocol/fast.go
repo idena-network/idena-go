@@ -2,11 +2,11 @@ package protocol
 
 import (
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain"
-	"idena-go/core/appstate"
-	"idena-go/core/state/snapshot"
-	"idena-go/ipfs"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/log"
 )
 
 type fastSync struct {

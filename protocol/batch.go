@@ -1,6 +1,9 @@
 package protocol
 
-import "github.com/idena-network/idena-go/blockchain/types"
+import (
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/core/state"
+)
 
 type batch struct {
 	p       *peer

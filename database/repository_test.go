@@ -2,10 +2,10 @@ package database
 
 import (
 	"crypto/rand"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/blockchain/types"
-	"idena-go/common"
 	"testing"
 )
 

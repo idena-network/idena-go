@@ -411,6 +411,10 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	if flags.HasFlag(types.ValidationFinished) {
 		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
+	if block.Height()-appState.State.LastSnapshot() >= state.SnapshotBlocksRange && appState.State.ValidationPeriod() == state.NonePeriod &&
+		!flags.HasFlag(types.ValidationFinished) {
+		appState.State.SetLastSnapshot(block.Height())
+	}
 }
 
 func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
@@ -626,7 +630,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx {
+		if tx.Type == types.KillTx || tx.Type == types.OnlineStatusTx {
 			flags |= types.IdentityUpdate
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"

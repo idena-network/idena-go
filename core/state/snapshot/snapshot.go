@@ -1,8 +1,7 @@
 package snapshot
 
 import (
-	"github.com/ipfs/go-cid"
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 const (
@@ -21,7 +20,7 @@ type Block struct {
 type Manifest struct {
 	Root   common.Hash
 	Height uint64
-	Cid    cid.Cid
+	Cid    []byte
 }
 
 func (sb *Block) Full() bool {

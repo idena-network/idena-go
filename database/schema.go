@@ -5,6 +5,8 @@ var (
 
 	ApprovedIdentityDbPrefix = []byte("aid")
 
+	SnapshotDbPrefix = []byte("snpsht")
+
 	// headBlockKey tracks the latest know full block's hash.
 	headBlockKey = []byte("LastBlock")
 
@@ -21,4 +23,6 @@ var (
 	flipEncryptionPrefix = []byte("key")
 
 	weakCertificatesKey = []byte("weak-cert")
+
+	lastSnapshotKey = []byte("last-snapshot")
 )

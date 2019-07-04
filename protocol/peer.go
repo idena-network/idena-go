@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/pkg/errors"
 	"math/rand"

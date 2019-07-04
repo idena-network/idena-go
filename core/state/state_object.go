@@ -73,6 +73,7 @@ type Global struct {
 	ValidationPeriod   ValidationPeriod
 	GodAddress         common.Address
 	WordsSeed          types.Seed `rlp:"nil"`
+	LastSnapshot       uint64
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -399,6 +400,11 @@ func (s *stateGlobal) Epoch() uint16 {
 
 func (s *stateGlobal) IncEpoch() {
 	s.data.Epoch++
+	s.touch()
+}
+
+func (s *stateGlobal) SetLastSnapshot(height uint64) {
+	s.data.LastSnapshot = height
 	s.touch()
 }
 

@@ -19,9 +19,13 @@ package state
 import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/mholt/archiver"
+	"github.com/pkg/errors"
+	common2 "github.com/tendermint/tendermint/libs/common"
 	"io"
 	"io/ioutil"
 	"strconv"
@@ -188,6 +192,16 @@ func (s *StateDB) GetEpoch(addr common.Address) uint16 {
 func (s *StateDB) Epoch() uint16 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.Epoch
+}
+
+func (s *StateDB) LastSnapshot() uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.LastSnapshot
+}
+
+func (s *StateDB) SetLastSnapshot(height uint64) {
+	stateObject := s.GetOrNewGlobalObject()
+	stateObject.SetLastSnapshot(height)
 }
 
 func (s *StateDB) NextValidationTime() time.Time {
@@ -756,11 +770,11 @@ func prefix(height uint64) []byte {
 	return []byte("st-" + strconv.FormatUint(height, 16))
 }
 
-func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) error {
+func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
-		return err
+		return common.Hash{}, err
 	}
 
 	tar := archiver.Tar{
@@ -770,7 +784,7 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) error {
 	}
 
 	if err := tar.Create(to); err != nil {
-		return err
+		return common.Hash{}, err
 	}
 
 	it := db.Iterator(nil, nil)
@@ -797,7 +811,7 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) error {
 		sb.Add(it.Key(), it.Value())
 		if sb.Full() {
 			if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
-				return err
+				return common.Hash{}, err
 			}
 			i++
 			sb = &snapshot.Block{}
@@ -805,10 +819,10 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) error {
 	}
 	if len(sb.Data) > 0 {
 		if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
-			return err
+			return common.Hash{}, err
 		}
 	}
-	return tar.Close()
+	return tree.WorkingHash(), tar.Close()
 }
 
 func clearDb(db dbm.DB) {

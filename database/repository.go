@@ -216,3 +216,39 @@ func (r *Repo) WriteWeakCertificate(hash common.Hash) {
 	}
 	weakCerts.Hashes = weakCerts.Hashes[1:]
 }
+
+type dbSnapshotManifest struct {
+	Cid      []byte
+	Height   uint64
+	FileName string
+	Root     common.Hash
+}
+
+func (r *Repo) LastSnapshotManifest() (cid []byte, root common.Hash, height uint64, fileName string) {
+	data := r.db.Get(lastSnapshotKey)
+	if data == nil {
+		return nil, common.Hash{}, 0, ""
+	}
+	manifest := new(dbSnapshotManifest)
+	if err := rlp.Decode(bytes.NewReader(data), manifest); err != nil {
+		log.Error("invalid snapshot manifest RLP", "err", err)
+		return nil, common.Hash{}, 0, ""
+	}
+	return manifest.Cid, manifest.Root, manifest.Height, manifest.FileName
+}
+
+func (r *Repo) WriteLastSnapshotManifest(cid []byte, root common.Hash, height uint64, fileName string) error {
+	manifest := dbSnapshotManifest{
+		Cid:      cid,
+		Height:   height,
+		FileName: fileName,
+		Root:     root,
+	}
+	data, err := rlp.EncodeToBytes(manifest)
+	if err != nil {
+		log.Crit("failed to RLP encode snapshot manifest", "err", err)
+		return err
+	}
+	r.db.Set(lastSnapshotKey, data)
+	return nil
+}

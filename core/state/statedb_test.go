@@ -1,7 +1,9 @@
 package state
 
 import (
+	"bytes"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"

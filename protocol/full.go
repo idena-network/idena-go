@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain"
-	"idena-go/blockchain/types"
-	"idena-go/common/math"
-	"idena-go/core/appstate"
-	"idena-go/ipfs"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/log"
 	"time"
 )
 

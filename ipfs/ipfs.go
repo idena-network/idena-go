@@ -17,6 +17,7 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/multiformats/go-multihash"
 	"github.com/pkg/errors"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -52,6 +53,7 @@ type Proxy interface {
 	Cid(data []byte) (cid.Cid, error)
 	Port() int
 	PeerId() string
+	AddFile(data io.Reader) (cid.Cid, error)
 }
 
 type ipfsProxy struct {
@@ -135,6 +137,28 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	return path.Cid(), nil
 }
 
+func (p ipfsProxy) AddFile(data io.Reader) (cid.Cid, error) {
+
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*1)
+	defer cancel()
+
+	file := files.NewReaderFile(data)
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true))
+	select {
+	case <-ctx.Done():
+		err = errors.New("timeout while writing data to ipfs from reader")
+	default:
+		break
+	}
+	if err != nil {
+		return cid.Cid{}, err
+	}
+	p.log.Debug("Add ipfs data from reader", "cid", path.Cid().String())
+	return path.Cid(), nil
+}
+
 func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	if len(key) == 0 {
 		return []byte{}, nil
@@ -154,19 +178,16 @@ func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	f, err := api.Unixfs().Get(ctx, path)
-
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while reading data from ipfs")
 	default:
 		break
 	}
-
 	if err != nil {
 		p.log.Error("fail to read from ipfs", "cid", path.String(), "err", err)
 		return nil, err
 	}
-
 	file := files.ToFile(f)
 
 	buf := new(bytes.Buffer)
@@ -355,6 +376,10 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i memoryIpfs) AddFile(data io.Reader) (cid.Cid, error) {
+	panic("implement me")
 }
 
 func (i memoryIpfs) Unpin(key []byte) error {
