@@ -3,10 +3,10 @@ package protocol
 import (
 	"fmt"
 	"github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/p2p"
 	"github.com/pkg/errors"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/p2p"
 	"math/rand"
 	"time"
 )

@@ -1,15 +1,15 @@
 package api
 
 import (
+	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/protocol"
 	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
-	"idena-go/blockchain"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/hexutil"
-	"idena-go/core/mempool"
-	"idena-go/ipfs"
-	"idena-go/protocol"
 	"math/big"
 )
 

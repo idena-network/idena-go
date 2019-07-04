@@ -1,9 +1,9 @@
 package types
 
 import (
-	"idena-go/common"
-	"idena-go/crypto"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/rlp"
 	"math/big"
 	"sync/atomic"
 )

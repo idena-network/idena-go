@@ -29,7 +29,7 @@ import (
 
 	"github.com/cespare/cp"
 	"github.com/davecgh/go-spew/spew"
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 var (

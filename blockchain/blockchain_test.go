@@ -1,13 +1,13 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/math"
-	"idena-go/core/state"
-	"idena-go/crypto"
 	"math/big"
 	"testing"
 	"time"

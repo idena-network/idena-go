@@ -1,7 +1,7 @@
 package types
 
 import (
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 	"math/big"
 )
 

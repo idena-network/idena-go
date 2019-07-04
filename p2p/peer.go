@@ -25,11 +25,11 @@ import (
 	"sync"
 	"time"
 
-	"idena-go/common/mclock"
-	"idena-go/log"
-	"idena-go/p2p/enode"
-	"idena-go/p2p/enr"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common/mclock"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 var (

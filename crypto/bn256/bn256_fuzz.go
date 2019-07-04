@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"math/big"
 
-	cloudflare "idena-go/crypto/bn256/cloudflare"
-	google "idena-go/crypto/bn256/google"
+	cloudflare "github.com/idena-network/idena-go/crypto/bn256/cloudflare"
+	google "github.com/idena-network/idena-go/crypto/bn256/google"
 )
 
 // FuzzAdd fuzzez bn256 addition between the Google and Cloudflare libraries.

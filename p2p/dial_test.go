@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"idena-go/p2p/enode"
-	"idena-go/p2p/enr"
-	"idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/netutil"
 )
 
 func init() {

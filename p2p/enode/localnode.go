@@ -26,9 +26,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"idena-go/log"
-	"idena-go/p2p/enr"
-	"idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/netutil"
 )
 
 const (

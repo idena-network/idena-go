@@ -21,7 +21,7 @@ import (
 	"io"
 	"net"
 
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 // Entry is implemented by known node record entry types.

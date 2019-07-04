@@ -27,10 +27,10 @@ import (
 	"testing/quick"
 	"time"
 
-	"idena-go/crypto"
-	"idena-go/p2p/enode"
-	"idena-go/p2p/enr"
-	"idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/netutil"
 )
 
 func TestTable_pingReplace(t *testing.T) {

@@ -2,12 +2,12 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
-	"idena-go/blockchain"
-	"idena-go/common"
-	"idena-go/config"
-	"idena-go/core/state"
-	"idena-go/crypto"
 	"testing"
 )
 

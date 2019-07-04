@@ -23,8 +23,8 @@ import (
 	"math/rand"
 	"time"
 
-	"idena-go/common/mclock"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/common/mclock"
+	"github.com/idena-network/idena-go/log"
 )
 
 const (

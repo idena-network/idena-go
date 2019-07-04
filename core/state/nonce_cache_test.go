@@ -1,8 +1,8 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
-	"idena-go/common"
 	"testing"
 )
 import dbm "github.com/tendermint/tendermint/libs/db"

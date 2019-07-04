@@ -1,7 +1,7 @@
 package common
 
 import (
-	math2 "idena-go/common/math"
+	math2 "github.com/idena-network/idena-go/common/math"
 	"math"
 )
 

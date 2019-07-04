@@ -23,10 +23,10 @@ import (
 	"net"
 	"time"
 
-	"idena-go/common/math"
-	"idena-go/crypto"
-	"idena-go/crypto/secp256k1"
-	"idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/secp256k1"
+	"github.com/idena-network/idena-go/p2p/enode"
 )
 
 // node represents a host on the network.

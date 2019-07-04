@@ -2,9 +2,9 @@ package types
 
 import (
 	"crypto/ecdsa"
-	"idena-go/common"
-	"idena-go/crypto"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 // SignFlipKey returns flip key signed with given private key

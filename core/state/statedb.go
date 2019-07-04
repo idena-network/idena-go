@@ -18,13 +18,13 @@ package state
 
 import (
 	"fmt"
-	"idena-go/database"
-	"idena-go/log"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 	"time"
 
+	"github.com/idena-network/idena-go/common"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
 	"math/big"
 	"sync"
 

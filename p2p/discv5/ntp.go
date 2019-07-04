@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"idena-go/log"
+	"github.com/idena-network/idena-go/log"
 )
 
 const (

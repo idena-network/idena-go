@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"idena-go/common/math"
+	"github.com/idena-network/idena-go/common/math"
 )
 
 func TestBlockNumberJSONUnmarshal(t *testing.T) {

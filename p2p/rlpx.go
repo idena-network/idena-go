@@ -36,12 +36,12 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/idena-network/idena-go/common/bitutil"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
+	"github.com/idena-network/idena-go/crypto/secp256k1"
+	"github.com/idena-network/idena-go/rlp"
 	"golang.org/x/crypto/sha3"
-	"idena-go/common/bitutil"
-	"idena-go/crypto"
-	"idena-go/crypto/ecies"
-	"idena-go/crypto/secp256k1"
-	"idena-go/rlp"
 )
 
 const (

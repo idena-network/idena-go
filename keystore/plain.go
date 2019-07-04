@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 type keyStorePlain struct {

@@ -27,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	"idena-go/common"
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 func tmpKeyStoreIface(t *testing.T, encrypted bool) (dir string, ks keyStore) {

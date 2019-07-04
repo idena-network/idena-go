@@ -3,12 +3,12 @@ package database
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/ipfs"
-	"idena-go/log"
-	"idena-go/rlp"
 	"time"
 )
 

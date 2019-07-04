@@ -1,11 +1,11 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/crypto"
-	"idena-go/database"
 	"math/big"
 	"testing"
 	"time"

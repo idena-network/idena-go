@@ -28,10 +28,10 @@ import (
 	"math/big"
 	"os"
 
-	"idena-go/common"
-	"idena-go/common/math"
-	"idena-go/crypto/sha3"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/crypto/sha3"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 var (

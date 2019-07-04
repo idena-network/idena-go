@@ -40,7 +40,7 @@ import (
 	"io"
 	"sort"
 
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 const SizeLimit = 300 // maximum encoded size of a node record in bytes

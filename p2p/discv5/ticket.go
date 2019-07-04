@@ -25,10 +25,10 @@ import (
 	"sort"
 	"time"
 
-	"idena-go/common"
-	"idena-go/common/mclock"
-	"idena-go/crypto"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/mclock"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/log"
 )
 
 const (

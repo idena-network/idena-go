@@ -2,11 +2,11 @@ package state
 
 import (
 	"fmt"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/database"
-	"idena-go/log"
-	"idena-go/rlp"
 	"sync"
 )
 

@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/common/hexutil"
 )
 
 type MyType [5]byte

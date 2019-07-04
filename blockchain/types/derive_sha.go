@@ -18,10 +18,10 @@ package types
 
 import (
 	"bytes"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/tendermint/iavl"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/rlp"
 )
 
 type DerivableList interface {

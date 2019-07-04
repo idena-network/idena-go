@@ -3,12 +3,12 @@ package mempool
 import (
 	"errors"
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/eventbus"
-	"idena-go/core/appstate"
-	"idena-go/events"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/events"
+	"github.com/idena-network/idena-go/log"
 	"sync"
 )
 

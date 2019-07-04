@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 var testSigData = make([]byte, 32)

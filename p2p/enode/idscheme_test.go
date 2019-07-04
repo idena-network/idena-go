@@ -23,11 +23,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"idena-go/crypto"
-	"idena-go/p2p/enr"
-	"idena-go/rlp"
 )
 
 var (

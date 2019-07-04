@@ -23,8 +23,8 @@ import (
 	"net"
 	"sync"
 
-	"idena-go/p2p/enode"
-	"idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/enr"
 )
 
 var nullNode *enode.Node

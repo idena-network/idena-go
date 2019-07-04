@@ -19,7 +19,7 @@ package rpc
 import (
 	"net"
 
-	"idena-go/log"
+	"github.com/idena-network/idena-go/log"
 )
 
 // StartHTTPEndpoint starts the HTTP RPC endpoint, configured with cors/vhosts/modules

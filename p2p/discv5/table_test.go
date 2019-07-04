@@ -27,8 +27,8 @@ import (
 	"testing/quick"
 	"time"
 
-	"idena-go/common"
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 type nullTransport struct{}

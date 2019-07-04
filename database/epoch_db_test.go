@@ -1,10 +1,10 @@
 package database
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/tests"
 	"testing"
 	"time"
 )

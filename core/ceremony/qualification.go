@@ -2,11 +2,11 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/crypto"
-	"idena-go/database"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/log"
 )
 
 type qualification struct {

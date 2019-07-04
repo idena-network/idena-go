@@ -25,9 +25,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/pbkdf2"
-	"idena-go/crypto"
 )
 
 // creates a Key and stores that in the given KeyStore by decrypting a presale key JSON

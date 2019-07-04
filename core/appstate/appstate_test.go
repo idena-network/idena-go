@@ -1,10 +1,10 @@
 package appstate
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/common/eventbus"
 	"testing"
 )
 

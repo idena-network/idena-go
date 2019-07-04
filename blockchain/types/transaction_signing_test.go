@@ -1,7 +1,7 @@
 package types
 
 import (
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto"
 	"math/big"
 	"testing"
 )

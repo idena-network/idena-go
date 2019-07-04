@@ -29,7 +29,7 @@ import (
 	"net"
 	"sort"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 const (

@@ -1,11 +1,11 @@
 package appstate
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/core/validators"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/blockchain/types"
-	"idena-go/common/eventbus"
-	"idena-go/core/state"
-	"idena-go/core/validators"
 )
 
 type AppState struct {

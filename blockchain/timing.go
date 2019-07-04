@@ -1,8 +1,8 @@
 package blockchain
 
 import (
-	"idena-go/common"
-	"idena-go/config"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
 	"math/big"
 	"time"
 )

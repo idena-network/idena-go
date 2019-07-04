@@ -1,11 +1,11 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/shopspring/decimal"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/math"
-	"idena-go/core/appstate"
 	"math/big"
 )
 

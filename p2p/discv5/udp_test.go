@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"idena-go/common"
-	"idena-go/crypto"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 func init() {
