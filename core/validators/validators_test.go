@@ -1,11 +1,11 @@
 package validators
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/core/state"
-	"idena-go/crypto"
 	"math/rand"
 	"testing"
 )

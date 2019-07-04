@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 // Msg defines the structure of a p2p message.

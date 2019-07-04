@@ -19,7 +19,7 @@ package netutil
 import (
 	"time"
 
-	"idena-go/common/mclock"
+	"github.com/idena-network/idena-go/common/mclock"
 )
 
 // IPTracker predicts the external endpoint, i.e. IP address and port, of the local host

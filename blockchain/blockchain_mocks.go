@@ -1,16 +1,16 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/secstore"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
-	"idena-go/common/eventbus"
-	"idena-go/config"
-	"idena-go/core/appstate"
-	"idena-go/core/mempool"
-	"idena-go/core/state"
-	"idena-go/crypto"
-	"idena-go/ipfs"
-	"idena-go/secstore"
 	"math/big"
 	"time"
 )

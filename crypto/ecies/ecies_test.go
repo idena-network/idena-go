@@ -40,7 +40,7 @@ import (
 	"math/big"
 	"testing"
 
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 var dumpEnc bool

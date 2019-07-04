@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/deckarep/golang-set"
-	"idena-go/common"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/rlp"
 	"math/rand"
 	"sort"
 )

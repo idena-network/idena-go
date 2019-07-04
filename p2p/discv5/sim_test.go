@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 // In this test, nodes try to randomly resolve each other.

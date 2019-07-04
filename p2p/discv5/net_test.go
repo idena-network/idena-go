@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"idena-go/common"
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 func TestNetwork_Lookup(t *testing.T) {

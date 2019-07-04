@@ -42,7 +42,7 @@ import (
 	"fmt"
 	"hash"
 
-	ethcrypto "idena-go/crypto"
+	ethcrypto "github.com/idena-network/idena-go/crypto"
 )
 
 var (

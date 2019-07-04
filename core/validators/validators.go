@@ -3,11 +3,11 @@ package validators
 import (
 	"bytes"
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/core/state"
-	"idena-go/log"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 	"math/big"
 	"sort"
 )

@@ -26,9 +26,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"idena-go/common/math"
-	"idena-go/crypto"
-	"idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/p2p/enr"
 )
 
 var incompleteNodeURL = regexp.MustCompile("(?i)^(?:enode://)?([0-9a-f]+)$")

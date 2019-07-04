@@ -25,7 +25,7 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
-	"idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/types"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -33,9 +33,9 @@ import (
 	"sync"
 	"time"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 var (

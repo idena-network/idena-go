@@ -2,10 +2,10 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/tests"
 	"math/rand"
 	"testing"
 )

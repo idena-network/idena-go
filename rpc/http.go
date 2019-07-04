@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idena-network/idena-go/log"
 	"github.com/rs/cors"
-	"idena-go/log"
 )
 
 const (

@@ -2,10 +2,10 @@ package appstate
 
 import (
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/eventbus"
-	"idena-go/events"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/events"
 	"sync"
 	"time"
 )

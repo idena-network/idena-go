@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"idena-go/common"
-	"idena-go/common/mclock"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/mclock"
 )
 
 func TestTopicRadius(t *testing.T) {

@@ -1,8 +1,8 @@
 package ipfs
 
 import (
+	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
-	"idena-go/config"
 	"testing"
 )
 

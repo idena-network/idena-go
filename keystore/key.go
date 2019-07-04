@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/pborman/uuid"
-	"idena-go/common"
-	"idena-go/crypto"
 )
 
 const (

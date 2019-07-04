@@ -2,10 +2,10 @@ package api
 
 import (
 	"fmt"
-	"idena-go/ipfs"
-	"idena-go/p2p"
-	"idena-go/p2p/enode"
-	"idena-go/protocol"
+	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/p2p"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/protocol"
 )
 
 // NetApi offers helper utils

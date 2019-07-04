@@ -1,9 +1,9 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/tendermint/iavl"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
 	"sync"
 )
 

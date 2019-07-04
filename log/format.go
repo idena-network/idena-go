@@ -22,7 +22,7 @@ const (
 
 // locationTrims are trimmed for display to avoid unwieldy log lines.
 var locationTrims = []string{
-	"idena-go/",
+	"github.com/idena-network/idena-go/",
 }
 
 // PrintOrigins sets or unsets log location (file:line) printing for terminal

@@ -1,7 +1,7 @@
 package rlp
 
 import (
-	"idena-go/crypto/sha3"
+	"github.com/idena-network/idena-go/crypto/sha3"
 )
 
 func Hash(x interface{}) (h [32]byte) {

@@ -2,15 +2,15 @@ package api
 
 import (
 	"crypto/ecdsa"
+	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/consensus"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/keystore"
+	"github.com/idena-network/idena-go/secstore"
 	"github.com/shopspring/decimal"
-	"idena-go/blockchain"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/consensus"
-	"idena-go/core/appstate"
-	"idena-go/core/mempool"
-	"idena-go/keystore"
-	"idena-go/secstore"
 )
 
 type BaseApi struct {

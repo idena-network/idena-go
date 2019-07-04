@@ -32,8 +32,8 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"errors"
-	"idena-go/crypto/secp256k1"
-	"idena-go/crypto/vrf"
+	"github.com/idena-network/idena-go/crypto/secp256k1"
+	"github.com/idena-network/idena-go/crypto/vrf"
 	"io"
 	"math/big"
 )

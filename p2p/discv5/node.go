@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
-	"idena-go/common"
-	"idena-go/crypto"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
 )
 
 // Node represents a host on the network.

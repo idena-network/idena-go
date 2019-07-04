@@ -1,9 +1,9 @@
 package state
 
 import (
-	"idena-go/common"
-	"idena-go/common/math"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/rlp"
 	"io"
 	"math/big"
 )

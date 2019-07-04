@@ -26,7 +26,7 @@ import (
 	"net"
 	"strings"
 
-	"idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/enr"
 )
 
 // Node represents a host on the network.

@@ -1,6 +1,6 @@
 package types
 
-import "idena-go/common"
+import "github.com/idena-network/idena-go/common"
 
 type TransactionIndex struct {
 	BlockHash common.Hash

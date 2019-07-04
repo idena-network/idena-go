@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/rlp"
 	"golang.org/x/crypto/sha3"
-	"idena-go/common/math"
-	"idena-go/crypto"
-	"idena-go/p2p/enr"
-	"idena-go/rlp"
 )
 
 // List of known secure identity schemes.

@@ -19,8 +19,8 @@ package enode
 import (
 	"testing"
 
-	"idena-go/crypto"
-	"idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/p2p/enr"
 )
 
 func newLocalNodeForTesting() (*LocalNode, *DB) {

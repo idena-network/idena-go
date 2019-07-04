@@ -3,8 +3,8 @@ package ceremony
 import (
 	"fmt"
 	"github.com/deckarep/golang-set"
-	"idena-go/crypto"
-	"idena-go/crypto/vrf/p256"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"math/big"
 )
 

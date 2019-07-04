@@ -2,9 +2,9 @@ package pengings
 
 import (
 	"github.com/deckarep/golang-set"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/core/appstate"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/appstate"
 	"sync"
 )
 

@@ -1,9 +1,9 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"idena-go/common"
 	"math/rand"
 	"testing"
 	"time"

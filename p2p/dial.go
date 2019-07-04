@@ -23,9 +23,9 @@ import (
 	"net"
 	"time"
 
-	"idena-go/log"
-	"idena-go/p2p/enode"
-	"idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/netutil"
 )
 
 const (

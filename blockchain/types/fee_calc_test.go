@@ -1,8 +1,8 @@
 package types
 
 import (
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
-	"idena-go/crypto"
 	"math/big"
 	"testing"
 )

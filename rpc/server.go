@@ -26,7 +26,7 @@ import (
 	"sync/atomic"
 
 	mapset "github.com/deckarep/golang-set"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/log"
 )
 
 const MetadataApi = "rpc"

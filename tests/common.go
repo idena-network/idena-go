@@ -2,7 +2,7 @@ package tests
 
 import (
 	"github.com/google/tink/go/subtle/random"
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 func GetRandAddr() common.Address {

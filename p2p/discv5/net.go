@@ -24,13 +24,13 @@ import (
 	"net"
 	"time"
 
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/mclock"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/rlp"
 	"golang.org/x/crypto/sha3"
-	"idena-go/common"
-	"idena-go/common/mclock"
-	"idena-go/crypto"
-	"idena-go/log"
-	"idena-go/p2p/netutil"
-	"idena-go/rlp"
 )
 
 var (

@@ -22,9 +22,9 @@ import (
 	"reflect"
 	"testing"
 
-	"idena-go/common"
-	"idena-go/common/hexutil"
-	"idena-go/common/math"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/common/math"
 )
 
 var (

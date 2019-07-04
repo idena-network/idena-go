@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"idena-go/log"
+	"github.com/idena-network/idena-go/log"
 )
 
 func TestClientRequest(t *testing.T) {
@@ -323,7 +323,7 @@ func TestClientSubscribeClose(t *testing.T) {
 	}
 }
 
-// This test reproduces https://idena-go/issues/17837 where the
+// This test reproduces https://github.com/idena-network/idena-go/issues/17837 where the
 // client hangs during shutdown when Unsubscribe races with Client.Close.
 func TestClientCloseUnsubscribeRace(t *testing.T) {
 	service := &NotificationTestService{}

@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"idena-go/common"
+	"github.com/idena-network/idena-go/common"
 )
 
 const (

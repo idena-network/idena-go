@@ -1,8 +1,8 @@
 package mempool
 
 import (
-	"idena-go/blockchain/types"
-	"idena-go/common"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 )
 
 type buildingContext struct {

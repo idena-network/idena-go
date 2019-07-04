@@ -2,8 +2,8 @@ package protocol
 
 import (
 	"errors"
-	"idena-go/common"
-	"idena-go/p2p"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/p2p"
 	"sync"
 )
 

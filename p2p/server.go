@@ -28,17 +28,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"idena-go/common"
-	"idena-go/common/mclock"
-	"idena-go/crypto"
-	"idena-go/log"
-	"idena-go/p2p/discover"
-	"idena-go/p2p/discv5"
-	"idena-go/p2p/enode"
-	"idena-go/p2p/enr"
-	"idena-go/p2p/nat"
-	"idena-go/p2p/netutil"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/mclock"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/p2p/discover"
+	"github.com/idena-network/idena-go/p2p/discv5"
+	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/p2p/enr"
+	"github.com/idena-network/idena-go/p2p/nat"
+	"github.com/idena-network/idena-go/p2p/netutil"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 const (

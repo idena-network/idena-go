@@ -1,8 +1,8 @@
 package events
 
 import (
-	"idena-go/blockchain/types"
-	"idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/eventbus"
 )
 
 const (

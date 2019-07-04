@@ -1,8 +1,8 @@
 package api
 
 import (
-	"idena-go/common"
-	"idena-go/keystore"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/keystore"
 	"time"
 )
 

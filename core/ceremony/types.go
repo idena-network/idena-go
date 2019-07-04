@@ -1,7 +1,7 @@
 package ceremony
 
 import (
-	"idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/types"
 )
 
 type candidate struct {

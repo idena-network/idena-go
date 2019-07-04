@@ -1,14 +1,14 @@
 package mempool
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/libs/db"
-	"idena-go/blockchain/types"
-	"idena-go/common"
-	"idena-go/common/eventbus"
-	"idena-go/core/appstate"
-	"idena-go/crypto"
-	"idena-go/tests"
 	"math/big"
 	"testing"
 )
@@ -92,8 +92,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 				Height: 0,
 			},
 		},
-		Body: &types.Body{
-		},
+		Body: &types.Body{},
 	})
 
 	r.Len(pool.deferredTxs, 0)
