@@ -9,11 +9,10 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/protocol"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 )
-
 const (
 	MaxFlipSize = 1024 * 600
 )

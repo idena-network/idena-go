@@ -51,7 +51,7 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"`
+	Time           *big.Int `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree

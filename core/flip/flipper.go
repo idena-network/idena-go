@@ -15,7 +15,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"sync"
