@@ -78,26 +78,25 @@ func dropOldDirOnFork(cfg *config.Config) error {
 	path := filepath.Join(cfg.DataDir, VersionFile)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return writeVersion(cfg)
-	} else {
-		b, err := ioutil.ReadFile(path)
+	}
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	current := semver.New(version)
+	old := semver.New(string(b))
+
+	if old.Major < current.Major || old.Minor < current.Minor {
+		log.Info("Network fork, removing db folder...")
+		err = os.RemoveAll(filepath.Join(cfg.DataDir, "idenachain.db"))
 		if err != nil {
 			return err
 		}
+	}
 
-		current := semver.New(version)
-		old := semver.New(string(b))
-
-		if old.Major < current.Major || old.Minor < current.Minor {
-			log.Info("Network fork, removing db folder...")
-			err = os.RemoveAll(filepath.Join(cfg.DataDir, "idenachain.db"))
-			if err != nil {
-				return err
-			}
-		}
-
-		if old.LessThan(*current) {
-			return writeVersion(cfg)
-		}
+	if old.LessThan(*current) {
+		return writeVersion(cfg)
 	}
 	return nil
 }
