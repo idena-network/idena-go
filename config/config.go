@@ -81,18 +81,19 @@ func MakeMobileConfig() *Config {
 	return getDefaultConfig()
 }
 
-func MakeConfig(ctx *cli.Context) *Config {
+func MakeConfig(ctx *cli.Context) (*Config, error) {
 	cfg := getDefaultConfig()
 
 	if file := ctx.String(CfgFileFlag.Name); file != "" {
 		if err := loadConfig(file, cfg); err != nil {
 			log.Error(err.Error())
+			return nil, err
 		}
 	}
 
 	applyFlags(ctx, cfg)
 
-	return cfg
+	return cfg, nil
 }
 
 func getDefaultConfig() *Config {
