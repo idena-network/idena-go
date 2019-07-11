@@ -74,7 +74,7 @@ type cacheValue struct {
 
 type blockHandler func(block *types.Block)
 
-func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
+func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
 	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
