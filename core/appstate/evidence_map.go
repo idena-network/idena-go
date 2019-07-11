@@ -56,7 +56,7 @@ func (m *EvidenceMap) NewFlipsKey(author common.Address) {
 
 func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, maps [][]byte) []common.Address {
 	score := make(map[uint32]int)
-	minScore := len(candidates)/2 + 1
+	minScore := len(maps)/2 + 1
 
 	for _, bm := range maps {
 		bitmap := common.NewBitmap(uint32(len(candidates)))

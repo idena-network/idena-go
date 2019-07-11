@@ -42,7 +42,6 @@ type ValidationCeremony struct {
 	db                     dbm.DB
 	appState               *appstate.AppState
 	flipper                *flip.Flipper
-	pm                     *protocol.ProtocolManager
 	secStore               *secstore.SecStore
 	log                    log.Logger
 	flips                  [][]byte
@@ -59,6 +58,7 @@ type ValidationCeremony struct {
 	epochDb                *database.EpochDb
 	qualification          *qualification
 	mempool                *mempool.TxPool
+	keysPool               *mempool.KeysPool
 	chain                  *blockchain.Blockchain
 	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
@@ -75,17 +75,17 @@ type cacheValue struct {
 type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, pm *protocol.ProtocolManager, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
-	chain *blockchain.Blockchain, syncer protocol.Syncer) *ValidationCeremony {
+	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:             flipper,
 		appState:            appState,
 		bus:                 bus,
-		pm:                  pm,
 		secStore:            secStore,
 		log:                 log.New(),
 		db:                  db,
 		mempool:             mempool,
+		keysPool:            keysPool,
 		epochApplyingResult: make(map[common.Address]cacheValue),
 		chain:               chain,
 		syncer:              syncer,
@@ -112,7 +112,7 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 		})
 
 	vc.restoreState()
-	vc.handleBlock(currentBlock)
+	vc.addBlock(currentBlock)
 }
 
 func (vc *ValidationCeremony) addBlock(block *types.Block) {
@@ -333,8 +333,7 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 		return
 	}
 
-	vc.pm.BroadcastFlipKey(signedMsg)
-
+	vc.keysPool.Add(signedMsg)
 	vc.keySent = true
 }
 
