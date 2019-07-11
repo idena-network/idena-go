@@ -2,6 +2,7 @@ package state
 
 import (
 	"bufio"
+	"context"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -17,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"time"
 )
 
 const (
@@ -124,6 +127,41 @@ func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, root common.Hash
 	m.repo.WriteLastSnapshotManifest(snapshotCid, root, height, file)
 }
 
-func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) error {
-	return nil
+func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePath string, err error) {
+
+	filePath, file, err := createSnapshotFile(m.cfg.DataDir, snapshot.Height)
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	lastLoad := time.Now()
+	done := false
+	onLoading := func(size, read int64) {
+		lastLoad = time.Now()
+	}
+	var loadToErr error
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		loadToErr = m.ipfs.LoadTo(snapshot.Cid, file, ctx, onLoading)
+		wg.Done()
+		done = true
+	}()
+
+	go func() {
+		for !done {
+			time.Sleep(1 * time.Second)
+			if time.Now().Sub(lastLoad) > time.Minute {
+				cancel()
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	return filePath, loadToErr
 }

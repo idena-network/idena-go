@@ -48,7 +48,7 @@ func init() {
 type Proxy interface {
 	Add(data []byte) (cid.Cid, error)
 	Get(key []byte) ([]byte, error)
-	LoadTo(key []byte, to io.Writer, ctx context.Context)
+	LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error
 	Pin(key []byte) error
 	Unpin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
@@ -62,10 +62,6 @@ type ipfsProxy struct {
 	log    log.Logger
 	port   int
 	peerId string
-}
-
-func (p ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context) {
-	panic("implement me")
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
@@ -203,6 +199,37 @@ func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 	}
 	p.log.Debug("read data from ipfs", "cid", path.String())
 	return buf.Bytes(), nil
+}
+
+func (p ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error {
+	if len(key) == 0 {
+		return nil
+	}
+	c, err := cid.Cast(key)
+	if err != nil {
+		return err
+	}
+	if c == EmptyCid {
+		return nil
+	}
+
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	f, err := api.Unixfs().Get(ctx, path.IpfsPath(c))
+	select {
+	case <-ctx.Done():
+		return errors.New("ipfs load: context canceled")
+	default:
+		break
+	}
+	file := files.ToFile(f)
+
+	size, err := file.Size()
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(to, &progressReader{r: file, size: size, onLoading: onLoading})
+	return err
 }
 
 func (p ipfsProxy) Pin(key []byte) error {
@@ -363,7 +390,7 @@ type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
-func (i *memoryIpfs) LoadTo(key []byte, to io.Writer, ctx context.Context) {
+func (i *memoryIpfs) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error {
 	panic("implement me")
 }
 
@@ -412,4 +439,22 @@ func (*memoryIpfs) Cid(data []byte) (cid.Cid, error) {
 		Version:  1,
 	}
 	return v1CidPrefix.Sum(data)
+}
+
+type progressReader struct {
+	r         io.Reader
+	read      int
+	size      int64
+	onLoading func(size, loaded int64)
+}
+
+func (r *progressReader) Read(p []byte) (n int, err error) {
+	n, err = r.Read(p)
+	if err == nil {
+		r.read += n
+		if r.onLoading != nil {
+			r.onLoading(r.size, int64(r.read))
+		}
+	}
+	return n, err
 }
