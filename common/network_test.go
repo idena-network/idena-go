@@ -42,7 +42,7 @@ func TestNetworkParams(t *testing.T) {
 func TestLongSessionFlipsCount(t *testing.T) {
 	require := require.New(t)
 
-	require.Equal(uint(3), LongSessionFlipsCount(1))
+	require.Equal(uint(5), LongSessionFlipsCount(1))
 	require.Equal(uint(6), LongSessionFlipsCount(2))
 	require.Equal(uint(15), LongSessionFlipsCount(5))
 	require.Equal(uint(30), LongSessionFlipsCount(10))
