@@ -48,6 +48,7 @@ func init() {
 type Proxy interface {
 	Add(data []byte) (cid.Cid, error)
 	Get(key []byte) ([]byte, error)
+	LoadTo(key []byte, to io.Writer, ctx context.Context)
 	Pin(key []byte) error
 	Unpin(key []byte) error
 	Cid(data []byte) (cid.Cid, error)
@@ -61,6 +62,10 @@ type ipfsProxy struct {
 	log    log.Logger
 	port   int
 	peerId string
+}
+
+func (p ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context) {
+	panic("implement me")
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
@@ -145,7 +150,7 @@ func (p ipfsProxy) AddFile(data io.Reader) (cid.Cid, error) {
 	defer cancel()
 
 	file := files.NewReaderFile(data)
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true))
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs from reader")
@@ -266,26 +271,6 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		Version:  1,
 	}
 	return v1CidPrefix.Sum(data)
-	/*api, _ := coreapi.NewCoreAPI(p.node)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-
-	file := files.NewBytesFile(data)
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true))
-	fmt.Println(err)
-	select {
-	case <-ctx.Done():
-		err = errors.New("timeout while getting cid")
-	default:
-		break
-	}
-
-	if path == nil {
-		return cid.Cid{}, err
-	}
-
-	return path.Cid(), err*/
 }
 
 func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
@@ -378,21 +363,25 @@ type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
-func (i memoryIpfs) AddFile(data io.Reader) (cid.Cid, error) {
+func (i *memoryIpfs) LoadTo(key []byte, to io.Writer, ctx context.Context) {
 	panic("implement me")
 }
 
-func (i memoryIpfs) Unpin(key []byte) error {
+func (i *memoryIpfs) AddFile(data io.Reader) (cid.Cid, error) {
+	panic("implement me")
+}
+
+func (i *memoryIpfs) Unpin(key []byte) error {
 	return nil
 }
 
-func (i memoryIpfs) Add(data []byte) (cid.Cid, error) {
+func (i *memoryIpfs) Add(data []byte) (cid.Cid, error) {
 	cid, _ := i.Cid(data)
 	i.values[cid] = data
 	return cid, nil
 }
 
-func (i memoryIpfs) Get(key []byte) ([]byte, error) {
+func (i *memoryIpfs) Get(key []byte) ([]byte, error) {
 	c, err := cid.Parse(key)
 	if err != nil {
 		return nil, err
@@ -403,19 +392,19 @@ func (i memoryIpfs) Get(key []byte) ([]byte, error) {
 	return nil, errors.New("not found")
 }
 
-func (memoryIpfs) Pin(key []byte) error {
+func (*memoryIpfs) Pin(key []byte) error {
 	return nil
 }
 
-func (memoryIpfs) PeerId() string {
+func (*memoryIpfs) PeerId() string {
 	return ""
 }
 
-func (memoryIpfs) Port() int {
+func (*memoryIpfs) Port() int {
 	return 0
 }
 
-func (memoryIpfs) Cid(data []byte) (cid.Cid, error) {
+func (*memoryIpfs) Cid(data []byte) (cid.Cid, error) {
 	var v1CidPrefix = cid.Prefix{
 		Codec:    cid.Raw,
 		MhLength: -1,

@@ -91,12 +91,12 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 	filePath, file, err := createSnapshotFile(m.cfg.DataDir, height)
 	if err != nil {
 		m.log.Error("Cannot create file for snapshot", "err", err)
-		return
+		return common.Hash{}
 	}
 
-	if root, err := m.state.WriteSnapshot(height, file); err != nil {
+	if _, err := m.state.WriteSnapshot(height, file); err != nil {
 		m.log.Error("Cannot write snapshot to file", "err", err)
-		return
+		return common.Hash{}
 	}
 	var f *os.File
 	var cid cid.Cid
@@ -105,7 +105,7 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 		os.Remove(filePath)
 		return
 	}
-	if cid, err := m.ipfs.AddFile(bufio.NewReader(f)); err != nil {
+	if _, err := m.ipfs.AddFile(bufio.NewReader(f)); err != nil {
 		m.log.Error("Cannot add snapshot file to ipfs", "err", err)
 		os.Remove(filePath)
 		return
@@ -125,5 +125,5 @@ func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, root common.Hash
 }
 
 func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) error {
-
+	return nil
 }

@@ -11,6 +11,7 @@ require (
 	github.com/davidlazar/go-crypto v0.0.0-20190522120613-62389b5e4ae0 // indirect
 	github.com/deckarep/golang-set v1.7.1
 	github.com/dgraph-io/badger v1.6.0 // indirect
+	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/go-kit/kit v0.9.0 // indirect
@@ -27,10 +28,13 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.0.8
 	github.com/jackpal/go-nat-pmp v1.0.1
 	github.com/mattn/go-colorable v0.1.2 // indirect
+	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/miekg/dns v1.1.15 // indirect
 	github.com/minio/sha256-simd v0.1.0 // indirect
 	github.com/multiformats/go-multihash v0.0.5
+	github.com/nwaples/rardecode v1.0.0 // indirect
 	github.com/pborman/uuid v1.2.0
+	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14 // indirect
 	github.com/rjeczalik/notify v0.9.2
@@ -44,6 +48,7 @@ require (
 	github.com/tendermint/iavl v0.0.0-20190701090235-eef65d855b4a
 	github.com/tendermint/tendermint v0.32.0
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opencensus.io v0.22.0 // indirect
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7

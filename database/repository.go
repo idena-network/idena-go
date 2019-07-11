@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MaxWeakCertificatesCount = 50
+	MaxWeakCertificatesCount = 11000
 )
 
 type Repo struct {
@@ -203,18 +203,15 @@ func (r *Repo) removeCertificate(hash common.Hash) {
 func (r *Repo) WriteWeakCertificate(hash common.Hash) {
 	weakCerts := r.readWeakCertificates()
 	if weakCerts == nil {
-		weakCerts = &weakCeritificates{
-			Hashes: []common.Hash{hash},
-		}
-		r.writeWeakCertificate(weakCerts)
-		return
+		weakCerts = &weakCeritificates{}
 	}
+	weakCerts.Hashes = append(weakCerts.Hashes, hash)
 
-	if len(weakCerts.Hashes) >= MaxWeakCertificatesCount {
+	if len(weakCerts.Hashes) > MaxWeakCertificatesCount {
 		r.removeCertificate(weakCerts.Hashes[0])
 		weakCerts.Hashes = weakCerts.Hashes[1:]
 	}
-	weakCerts.Hashes = weakCerts.Hashes[1:]
+	r.writeWeakCertificate(weakCerts)
 }
 
 type dbSnapshotManifest struct {
