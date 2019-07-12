@@ -192,7 +192,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 2)
 	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.EvidenceTx))
 	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx))
+	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SubmitLongAnswersTx))
 	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SendTx))
 	pool.Add(getTypedTx(8, 1, keys[addressIndex], types.SendTx))
 

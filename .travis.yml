@@ -1,0 +1,26 @@
+dist: xenial
+
+language: go
+
+branches:
+  only:
+    - master
+    - develop
+
+env:
+  - GO111MODULE=on
+
+go:
+  - 1.12.x
+
+git:
+  depth: 1
+
+install: true
+
+notifications:
+  email: false
+
+script:
+  - go test -v ./...
+  - go build
