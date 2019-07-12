@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
-	"github.com/ipsn/go-ipfs/core"
-	"github.com/ipsn/go-ipfs/core/coreapi"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
-	ipfsConf "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-ipfs-config"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-ipfs-files"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/interface-go-ipfs-core/options"
-	"github.com/ipsn/go-ipfs/plugin/loader"
-	"github.com/ipsn/go-ipfs/repo/fsrepo"
+	"github.com/ipfs/go-cid"
+	ipfsConf "github.com/ipfs/go-ipfs-config"
+	"github.com/ipfs/go-ipfs-files"
+	"github.com/ipfs/go-ipfs/core"
+	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-ipfs/plugin/loader"
+	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	"github.com/ipfs/interface-go-ipfs-core/options"
+	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/multiformats/go-multihash"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
@@ -35,7 +36,7 @@ var (
 )
 
 func init() {
-	e, _ := cid.Decode("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+	e, _ := cid.Decode("bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
 	EmptyCid = e
 
 	for i := range MaxCid {
@@ -120,7 +121,7 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	defer cancel()
 
 	file := files.NewBytesFile(data)
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true))
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs")
@@ -135,6 +136,9 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 }
 
 func (p ipfsProxy) Get(key []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return []byte{}, nil
+	}
 	c, err := cid.Cast(key)
 	if err != nil {
 		return nil, err
@@ -142,10 +146,10 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	if c == EmptyCid {
 		return []byte{}, nil
 	}
-	return p.get(iface.IpfsPath(c))
+	return p.get(path.IpfsPath(c))
 }
 
-func (p ipfsProxy) get(path iface.Path) ([]byte, error) {
+func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -186,7 +190,7 @@ func (p ipfsProxy) Pin(key []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	err = api.Pin().Add(ctx, iface.IpfsPath(c))
+	err = api.Pin().Add(ctx, path.IpfsPath(c))
 
 	select {
 	case <-ctx.Done():
@@ -209,7 +213,7 @@ func (p ipfsProxy) Unpin(key []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	err = api.Pin().Rm(ctx, iface.IpfsPath(c))
+	err = api.Pin().Rm(ctx, path.IpfsPath(c))
 
 	select {
 	case <-ctx.Done():
@@ -234,15 +238,21 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
 	}
-
-	api, _ := coreapi.NewCoreAPI(p.node)
+	var v1CidPrefix = cid.Prefix{
+		Codec:    cid.Raw,
+		MhLength: -1,
+		MhType:   multihash.SHA2_256,
+		Version:  1,
+	}
+	return v1CidPrefix.Sum(data)
+	/*api, _ := coreapi.NewCoreAPI(p.node)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	file := files.NewBytesFile(data)
 	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true))
-
+	fmt.Println(err)
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while getting cid")
@@ -254,7 +264,7 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		return cid.Cid{}, err
 	}
 
-	return path.Cid(), err
+	return path.Cid(), err*/
 }
 
 func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
@@ -267,7 +277,6 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		bps, _ := ipfsConf.ParseBootstrapPeers(cfg.BootNodes)
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
 	}
-
 	var ipfsConfig *ipfsConf.Config
 	if !fsrepo.IsInitialized(cfg.DataDir) {
 		ipfsConfig, _ = ipfsConf.Init(os.Stdout, 2048)
@@ -382,6 +391,11 @@ func (memoryIpfs) Port() int {
 }
 
 func (memoryIpfs) Cid(data []byte) (cid.Cid, error) {
-	format := cid.V0Builder{}
-	return format.Sum(data)
+	var v1CidPrefix = cid.Prefix{
+		Codec:    cid.Raw,
+		MhLength: -1,
+		MhType:   multihash.SHA2_256,
+		Version:  1,
+	}
+	return v1CidPrefix.Sum(data)
 }

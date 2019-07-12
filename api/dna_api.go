@@ -12,7 +12,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/rlp"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"time"
 )

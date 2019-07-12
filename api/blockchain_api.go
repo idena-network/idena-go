@@ -8,7 +8,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/protocol"
-	"github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"math/big"
 )

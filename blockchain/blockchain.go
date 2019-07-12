@@ -21,7 +21,7 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
-	cid2 "github.com/ipsn/go-ipfs/gxlibs/github.com/ipfs/go-cid"
+	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tendermint/libs/db"
@@ -580,7 +580,10 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
 		newBlockTime = localTime
 	}
-
+	var cidBytes []byte
+	if cid != ipfs.EmptyCid {
+		cidBytes = cid.Bytes()
+	}
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
@@ -588,7 +591,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
-		IpfsHash:       cid.Bytes(),
+		IpfsHash:       cidBytes,
 	}
 
 	block := &types.Block{
@@ -769,7 +772,11 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	cid, _ := chain.ipfs.Cid(block.Body.Bytes())
 
-	if bytes.Compare(cid.Bytes(), block.Header.ProposedHeader.IpfsHash) != 0 {
+	var cidBytes []byte
+	if cid != ipfs.EmptyCid {
+		cidBytes = cid.Bytes()
+	}
+	if bytes.Compare(cidBytes, block.Header.ProposedHeader.IpfsHash) != 0 {
 		return errors.New("invalid block cid")
 	}
 
