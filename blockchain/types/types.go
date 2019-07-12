@@ -129,6 +129,7 @@ type Vote struct {
 type Flip struct {
 	Tx   *Transaction
 	Data []byte
+	Pair uint8
 }
 
 func (b *Block) Hash() common.Hash {

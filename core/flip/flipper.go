@@ -38,6 +38,7 @@ type Flipper struct {
 type IpfsFlip struct {
 	Data   []byte
 	PubKey []byte
+	Pair   uint8
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
@@ -59,7 +60,7 @@ func (fp *Flipper) Initialize() {
 	fp.epochDb = database.NewEpochDb(fp.db, fp.appState.State.Epoch())
 }
 
-func (fp *Flipper) AddNewFlip(flip types.Flip) error {
+func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
@@ -70,6 +71,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 	ipf := IpfsFlip{
 		Data:   flip.Data,
 		PubKey: pubKey,
+		Pair:   flip.Pair,
 	}
 
 	data, _ := rlp.EncodeToBytes(ipf)
@@ -93,14 +95,18 @@ func (fp *Flipper) AddNewFlip(flip types.Flip) error {
 		return err
 	}
 
-	_, err = fp.ipfsProxy.Add(data)
+	key, err := fp.ipfsProxy.Add(data)
+
+	if local {
+		fp.ipfsProxy.Pin(key.Bytes())
+	}
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
 
 	return err
 }
 
-func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
+func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) {
 
 	encryptionKey := fp.GetFlipEncryptionKey()
 
@@ -113,6 +119,7 @@ func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
 	ipf := IpfsFlip{
 		Data:   encrypted,
 		PubKey: fp.secStore.GetPubKey(),
+		Pair:   pair,
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)
@@ -133,12 +140,9 @@ func (fp *Flipper) GetFlip(key []byte) ([]byte, error) {
 	fp.flipsMutex.Unlock()
 
 	if ipfsFlip == nil {
-		data, err := fp.ipfsProxy.Get(key)
+		var err error
+		ipfsFlip, err = fp.GetRawFlip(key)
 		if err != nil {
-			return nil, err
-		}
-		ipfsFlip = new(IpfsFlip)
-		if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
 			return nil, err
 		}
 	}
@@ -242,4 +246,16 @@ func (fp *Flipper) IsFlipReady(cid []byte) bool {
 
 func (fp *Flipper) UnpinFlip(flipCid []byte) {
 	fp.ipfsProxy.Unpin(flipCid)
+}
+
+func (fp *Flipper) GetRawFlip(flipCid []byte) (*IpfsFlip, error) {
+	data, err := fp.ipfsProxy.Get(flipCid)
+	if err != nil {
+		return nil, err
+	}
+	ipfsFlip := new(IpfsFlip)
+	if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
+		return nil, err
+	}
+	return ipfsFlip, nil
 }

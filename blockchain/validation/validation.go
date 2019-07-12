@@ -1,11 +1,13 @@
 package validation
 
 import (
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/pkg/errors"
 )
 
@@ -236,9 +238,47 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
 		return EarlyTx
 	}
-	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
+
+	identity := appState.State.GetIdentity(sender)
+	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
 	}
+
+	attachment := attachments.ParseShortAnswerAttachment(tx)
+
+	if len(attachment.Pairs) != len(identity.Flips) {
+		return InvalidPayload
+	}
+
+	// TODO: restore
+	//s := mapset.NewSet()
+	//for _, item := range attachment.Pairs {
+	//	s.Add(item)
+	//}
+	//if s.Cardinality() != len(attachment.Pairs) {
+	//	return InvalidPayload
+	//}
+
+	// we do not check VRF proof until first validation
+	if appState.State.Epoch() == 0 {
+		return nil
+	}
+
+	seed := appState.State.FlipWordsSeed()
+	rawPubKey, _ := types.SenderPubKey(tx)
+	pubKey, err := crypto.UnmarshalPubkey(rawPubKey)
+	if err != nil {
+		return err
+	}
+	verifier, err := p256.NewVRFVerifier(pubKey)
+	if err != nil {
+		return err
+	}
+	_, err = verifier.ProofToHash(seed[:], attachment.Proof)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

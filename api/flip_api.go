@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -13,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 )
+
 const (
 	MaxFlipSize = 1024 * 600
 )
@@ -35,20 +38,37 @@ type FlipSubmitResponse struct {
 	Hash   string      `json:"hash"`
 }
 
-// SubmitFlip receives an image as hex
-func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
+type FlipSubmitArgs struct {
+	Hex  *hexutil.Bytes `json:"hex"`
+	Pair uint8          `json:"pair"`
+}
 
-	if hex == nil {
+func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
+	//TODO: remove this after desktop updating
+	// temp code start
+	args := &FlipSubmitArgs{}
+	dec := json.NewDecoder(bytes.NewReader(*i))
+	if err := dec.Decode(args); err != nil {
+		fallbackDec := json.NewDecoder(bytes.NewReader(*i))
+		var s *hexutil.Bytes
+		if err = fallbackDec.Decode(&s); err != nil {
+			return FlipSubmitResponse{}, err
+		}
+		args.Hex = s
+	}
+	// temp code end
+
+	if args.Hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
-	rawFlip := *hex
+	rawFlip := *args.Hex
 
 	if len(rawFlip) > MaxFlipSize {
 		return FlipSubmitResponse{}, errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(rawFlip))
 	}
 
-	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip)
+	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip, args.Pair)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -65,9 +85,10 @@ func (api *FlipApi) Submit(hex *hexutil.Bytes) (FlipSubmitResponse, error) {
 	flip := types.Flip{
 		Tx:   tx,
 		Data: encryptedFlip,
+		Pair: args.Pair,
 	}
 
-	if err := api.fp.AddNewFlip(flip); err != nil {
+	if err := api.fp.AddNewFlip(flip, true); err != nil {
 		return FlipSubmitResponse{}, err
 	}
 

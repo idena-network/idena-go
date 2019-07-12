@@ -18,6 +18,7 @@ package state
 
 import (
 	"fmt"
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
@@ -315,6 +316,14 @@ func (s *StateDB) IncEpoch() {
 
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
 	return s.GetOrNewGlobalObject().ValidationPeriod()
+}
+
+func (s *StateDB) FlipWordsSeed() types.Seed {
+	return s.GetOrNewGlobalObject().FlipWordsSeed()
+}
+
+func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
+	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
 }
 
 //

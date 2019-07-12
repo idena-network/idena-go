@@ -218,7 +218,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.markFlip(&flip)
-		if err := pm.flipper.AddNewFlip(flip); err != nil {
+		if err := pm.flipper.AddNewFlip(flip, false); err != nil {
 			p.Log().Debug("invalid flip", "err", err)
 		} else {
 			pm.BroadcastFlip(&flip)
