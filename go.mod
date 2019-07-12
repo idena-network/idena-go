@@ -6,7 +6,7 @@ require (
 	github.com/awnumar/memguard v0.17.1
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
 	github.com/cespare/cp v1.1.1
-	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190522120613-62389b5e4ae0 // indirect
 	github.com/deckarep/golang-set v1.7.1
