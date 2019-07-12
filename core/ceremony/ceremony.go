@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"

@@ -2,8 +2,8 @@ package attachments
 
 import (
 	"bytes"
-	"idena-go/blockchain/types"
-	"idena-go/rlp"
+	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 type ShortAnswerAttachment struct {

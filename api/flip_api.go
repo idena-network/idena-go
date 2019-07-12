@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -13,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 )
+
 const (
 	MaxFlipSize = 1024 * 600
 )

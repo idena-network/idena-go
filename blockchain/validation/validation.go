@@ -1,11 +1,13 @@
 package validation
 
 import (
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/pkg/errors"
 )
 

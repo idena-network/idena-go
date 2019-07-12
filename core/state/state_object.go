@@ -1,6 +1,7 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/rlp"

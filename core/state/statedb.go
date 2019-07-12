@@ -18,6 +18,7 @@ package state
 
 import (
 	"fmt"
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
