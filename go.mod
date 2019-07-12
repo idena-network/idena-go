@@ -6,7 +6,7 @@ require (
 	github.com/awnumar/memguard v0.17.1
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
 	github.com/cespare/cp v1.1.1
-	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190522120613-62389b5e4ae0 // indirect
 	github.com/deckarep/golang-set v1.7.1
@@ -53,3 +53,5 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
+
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.0.0-20190701090235-eef65d855b4a
