@@ -25,4 +25,6 @@ var (
 	weakCertificatesKey = []byte("weak-cert")
 
 	lastSnapshotKey = []byte("last-snapshot")
+
+	identityStateDiffPrefix = []byte("id-diff")
 )

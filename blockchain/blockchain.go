@@ -223,10 +223,12 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if err := chain.ValidateBlock(block, checkState); err != nil {
 		return err
 	}
-	if err := chain.processBlock(block); err != nil {
+	diff, err := chain.processBlock(block)
+	if err != nil {
 		return err
 	}
-	if err := chain.insertBlock(block); err != nil {
+
+	if err := chain.insertBlock(block, diff); err != nil {
 		return err
 	}
 
@@ -237,35 +239,34 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	return nil
 }
 
-func (chain *Blockchain) processBlock(block *types.Block) (err error) {
+func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityStateDiff, err error) {
 	var root, identityRoot common.Hash
-
 	if block.IsEmpty() {
 		root, identityRoot = chain.applyEmptyBlockOnState(chain.appState, block)
 	} else {
-		if root, identityRoot, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
+		if root, identityRoot, diff, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
 			chain.appState.Reset()
-			return err
+			return nil, err
 		}
 	}
 
 	if root != block.Root() || identityRoot != block.IdentityRoot() {
 		chain.appState.Reset()
-		return errors.Errorf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root())
+		return nil, errors.Errorf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root())
 	}
 
 	if err := chain.appState.Commit(block); err != nil {
-		return err
+		return nil, err
 	}
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
-	return nil
+	return diff, nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, err error) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
 	var totalFee *big.Int
 	if totalFee, err = chain.processTxs(appState, block); err != nil {
 		return
@@ -275,9 +276,9 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyBlockRewards(totalFee, appState, block, prevBlock)
 	chain.applyGlobalParams(appState, block)
 
-	appState.Precommit()
+	diff := appState.Precommit()
 
-	return appState.State.Root(), appState.IdentityState.Root(), nil
+	return appState.State.Root(), appState.IdentityState.Root(), diff, nil
 }
 
 func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash) {
@@ -686,9 +687,14 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
 }
 
-func (chain *Blockchain) insertBlock(block *types.Block) error {
+func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
 	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
+
+	if !diff.Empty() {
+		chain.repo.WriteIdentityStateDiff(block.Height(), diff.Bytes())
+	}
+
 	chain.writeTxIndex(block)
 	chain.repo.WriteHead(block.Header)
 
@@ -778,10 +784,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("flags are invalid")
 	}
 
-	if root, identityRoot, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
+	if root, identityRoot, _, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
 		return err
 	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
-		return errors.Errorf("Invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
+		return errors.Errorf("invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
 	cid, _ := chain.ipfs.Cid(block.Body.Bytes())
@@ -795,6 +801,17 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	}
 
 	return nil
+}
+
+func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Block, checkState *appstate.AppState) (err error) {
+	if checkState == nil {
+		checkState, err = chain.appState.ForCheckWithNewCache(prevBlock.Height())
+		if err != nil {
+			return err
+		}
+	}
+	if
+	checkState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), )
 }
 
 func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) error {

@@ -84,6 +84,7 @@ type Block struct {
 
 	Body *Body
 
+	Cert *BlockCert
 	// caches
 	hash        atomic.Value
 	proposeHash atomic.Value

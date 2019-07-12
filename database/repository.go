@@ -52,6 +52,10 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
+func identityStateDiffKey(height uint64) []byte {
+	return append(identityStateDiffPrefix, encodeBlockNumber(height)...)
+}
+
 func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 	data := r.db.Get(headerKey(hash))
 	if data == nil {
@@ -248,4 +252,12 @@ func (r *Repo) WriteLastSnapshotManifest(cid []byte, root common.Hash, height ui
 	}
 	r.db.Set(lastSnapshotKey, data)
 	return nil
+}
+
+func (r *Repo) WriteIdentityStateDiff(height uint64, diff []byte) {
+	r.db.Set(identityStateDiffKey(height), diff)
+}
+
+func (r *Repo) ReadIdentityStateDiff(height uint64) []byte {
+	return r.db.Get(identityStateDiffKey(height))
 }

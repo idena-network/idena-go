@@ -66,9 +66,9 @@ func (s *AppState) Initialize(height uint64) {
 	s.NonceCache = state.NewNonceCache(s.State)
 }
 
-func (s *AppState) Precommit() {
+func (s *AppState) Precommit() *state.IdentityStateDiff {
 	s.State.Precommit(true)
-	s.IdentityState.Precommit(true)
+	return s.IdentityState.Precommit(true)
 }
 
 func (s *AppState) Reset() {
@@ -80,7 +80,7 @@ func (s *AppState) Commit(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = s.IdentityState.Commit(true)
+	_, _, _, err = s.IdentityState.Commit(true)
 
 	if block != nil {
 		s.ValidatorsCache.RefreshIfUpdated(block)

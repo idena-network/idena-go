@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
@@ -21,17 +20,6 @@ type IdentityStateDB struct {
 
 	log  log.Logger
 	lock sync.Mutex
-}
-
-type IdentityStateDiff struct {
-	// deleted keys
-	Deleted []common.Address
-
-	// updated key-value pairs
-	Updated map[common.Address][]byte
-
-	// added key-value pairs
-	Added map[common.Address][]byte
 }
 
 func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
@@ -92,8 +80,8 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-	s.Precommit(deleteEmptyObjects)
+func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
+	diff = s.Precommit(deleteEmptyObjects)
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
 	if version > MaxSavedStatesCount {
@@ -107,20 +95,26 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 	}
 
 	s.Clear()
-	return hash, version, err
+	return hash, version, diff, err
 }
 
-func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) {
+func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
 	// Commit identity objects to the trie.
+	diff := &IdentityStateDiff{
+		Updated: make(map[common.Address][]byte),
+	}
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
 		if deleteEmptyObjects && stateObject.empty() {
 			s.deleteStateIdentityObject(stateObject)
+			diff.Deleted = append(diff.Deleted, addr)
 		} else {
-			s.updateStateIdentityObject(stateObject)
+			encoded := s.updateStateIdentityObject(stateObject)
+			diff.Updated[addr] = encoded
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
+	return diff
 }
 
 func (s *IdentityStateDB) Reset() {
@@ -194,7 +188,7 @@ func (s *IdentityStateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity) {
+func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity) (encoded []byte) {
 	addr := stateObject.Address()
 	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
@@ -202,6 +196,7 @@ func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedId
 	}
 
 	s.tree.Set(append(identityPrefix, addr[:]...), data)
+	return data
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
@@ -247,44 +242,20 @@ func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bo
 	end := append(identityPrefix, common.MaxAddr...)
 	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
 }
-// calculate diff between current state and previous version
-func (s *IdentityStateDB) Diff(prev *IdentityStateDB) *IdentityStateDiff {
 
-	deleted := make([]common.Address, 0)
-	updated := make(map[common.Address][]byte)
-	added := make(map[common.Address][]byte)
+type IdentityStateDiff struct {
+	// deleted keys
+	Deleted []common.Address
 
-	currentValues := make(map[common.Address][]byte)
-	prevValues := make(map[common.Address][]byte)
-	s.tree.GetImmutable().Iterate(func(key []byte, value []byte) bool {
-		var addr common.Address
-		addr.SetBytes(key)
-		currentValues[addr] = value
-		return false
-	})
+	// updated key-value pairs
+	Updated map[common.Address][]byte
+}
 
-	prev.tree.GetImmutable().Iterate(func(key []byte, value []byte) bool {
-		var addr common.Address
-		addr.SetBytes(key)
-		if val, ok := currentValues[addr]; ok {
-			if bytes.Compare(val, value) != 0 {
-				updated[addr] = val
-			}
-		} else {
-			deleted = append(deleted, addr)
-		}
-		prevValues[addr] = value
-		return false
-	})
+func (diff *IdentityStateDiff) Empty() bool {
+	return len(diff.Deleted) == 0 && len(diff.Updated) == 0
+}
 
-	for key, val := range currentValues {
-		if _, ok := prevValues[key]; !ok {
-			added[key] = val
-		}
-	}
-	return &IdentityStateDiff{
-		Added:   added,
-		Updated: updated,
-		Deleted: deleted,
-	}
+func (diff *IdentityStateDiff) Bytes() []byte {
+	enc, _ := rlp.EncodeToBytes(diff)
+	return enc
 }

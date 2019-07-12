@@ -27,7 +27,7 @@ import (
 
 const (
 	DefaultBufSize = 1048576
-	CidLength      = 34
+	CidLength      = 36
 )
 
 var (
@@ -38,6 +38,7 @@ var (
 
 func init() {
 	e, _ := cid.Decode("bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
+	fmt.Println(len(e.Bytes()))
 	EmptyCid = e
 
 	for i := range MaxCid {
