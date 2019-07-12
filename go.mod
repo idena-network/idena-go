@@ -53,3 +53,5 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
+
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.0.0-20190701090235-eef65d855b4a
