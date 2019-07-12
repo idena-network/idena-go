@@ -151,7 +151,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Trace("Income blocks range", "batchId", response.BatchId)
 		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
 			if batch, ok := peerBatches[response.BatchId]; ok {
-				for _, b := range response.Headers {
+				for _, b := range response.Blocks {
 					batch.headers <- b
 				}
 				pm.batchedLock.Lock()
@@ -234,7 +234,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 		pm.flipKeyPool.Add(&flipKey)
 	case SnapshotManifest:
-
+		manifest := new(snapshot.Manifest)
+		if err := msg.Decode(manifest); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.manifest = manifest
 	}
 
 	return nil
@@ -246,16 +250,10 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 
 		b := pm.bcn.GetBlockHeaderByHeight(i)
 		if b != nil {
-			var cert *types.BlockCert
-			if b.EmptyBlockHeader != nil && b.ProposedHeader.Flags.HasFlag(types.IdentityUpdate) {
-				cert = pm.bcn.GetCertificate(b.Hash())
-				if cert == nil {
-					p.Log().Warn("Do not have cert for requested block", "height", b.Height())
-				}
-			}
 			result = append(result, &block{
-				header: b,
-				cert:   cert,
+				Header:       b,
+				Cert:         pm.bcn.GetCertificate(b.Hash()),
+				IdentityDiff: pm.bcn.GetIdentityDiff(b.Height()),
 			})
 			p.Log().Trace("Publish block", "height", b.Height())
 		} else {
@@ -263,6 +261,11 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 			break
 		}
 	}
+
+	p.SendBlockRangeAsync(&blockRange{
+		BatchId: batchId,
+		Blocks:  result,
+	})
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
@@ -451,6 +454,14 @@ func (pm *ProtocolManager) syncTxPool(p *peer) {
 	for _, tx := range pending {
 		p.SendTxAsync(tx)
 	}
+}
+
+func (pm *ProtocolManager) sendManifest(p *peer) {
+	manifest := pm.bcn.ReadSnapshotManifest()
+	if manifest == nil {
+		return
+	}
+	p.SendSnapshotManifest(manifest)
 }
 
 func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {

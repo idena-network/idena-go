@@ -108,7 +108,6 @@ func (p *peer) RequestBlockByHash(hash common.Hash) {
 	}}:
 	case <-p.finished:
 	}
-
 }
 
 func (p *peer) RequestBlocksRange(batchId uint32, from uint64, to uint64) {
@@ -270,6 +269,13 @@ func (p *peer) SendFlipAsync(flip *types.Flip) {
 	select {
 	case p.queuedFlips <- flip:
 		p.markFlip(flip)
+	case <-p.finished:
+	}
+}
+
+func (p *peer) SendSnapshotManifest(manifest *snapshot.Manifest) {
+	select {
+	case p.queuedRequests <- &request{msgcode: SnapshotManifest, data: manifest}:
 	case <-p.finished:
 	}
 }

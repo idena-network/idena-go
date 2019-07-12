@@ -83,8 +83,6 @@ type Block struct {
 	Header *Header
 
 	Body *Body
-
-	Cert *BlockCert
 	// caches
 	hash        atomic.Value
 	proposeHash atomic.Value
@@ -109,7 +107,7 @@ type Transaction struct {
 	from atomic.Value
 }
 
-type BlockCert []*Vote
+type BlockCert = []*Vote
 
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction

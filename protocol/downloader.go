@@ -159,6 +159,9 @@ func (d *Downloader) createSyncer() (loader chainLoader, toHeight uint64) {
 }
 
 func (d *Downloader) getBestManifest() *snapshot.Manifest {
+
+
+
 	manifests := d.pm.GetKnownManifests()
 
 	var best *snapshot.Manifest

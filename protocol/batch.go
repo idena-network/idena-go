@@ -13,12 +13,12 @@ type batch struct {
 }
 
 type block struct {
-	header       *types.Header
-	cert         *types.BlockCert
-	identityDiff *state.IdentityStateDiff
+	Header       *types.Header
+	Cert         types.BlockCert
+	IdentityDiff *state.IdentityStateDiff
 }
 
 type blockRange struct {
 	BatchId uint32
-	Headers []*block
+	Blocks  []*block
 }

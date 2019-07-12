@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"errors"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -10,7 +9,12 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
+	"github.com/pkg/errors"
 	"time"
+)
+
+var (
+	BlockCertIsMissing = errors.New("block cert is missing")
 )
 
 type fullSync struct {
@@ -22,6 +26,7 @@ type fullSync struct {
 	isSyncing            bool
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
+	deferredHeaders      []*block
 }
 
 func NewFullSync(pm *ProtocolManager, log log.Logger,
@@ -70,6 +75,9 @@ loop:
 	}
 	fs.log.Info(fmt.Sprintf("All blocks was requested. Wait applying of blocks"))
 	close(completed)
+	if len(fs.deferredHeaders) > 0 {
+		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers has not been added to chain"))
+	}
 	<-term
 }
 
@@ -120,6 +128,34 @@ func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	return nil
 }
 
+func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) error {
+	defer func() {
+		fs.deferredHeaders = []*block{}
+	}()
+
+	for _, block := range fs.deferredHeaders {
+		if block, err := fs.GetBlock(block.Header); err != nil {
+			fs.log.Error("fail to retrieve block", "err", err)
+			return err
+		} else {
+			if err := fs.chain.AddBlock(block, checkState); err != nil {
+				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
+					return err
+				}
+
+				fs.log.Warn(fmt.Sprintf("Block %v is invalid: %v", block.Height(), err))
+				time.Sleep(time.Second)
+				// TODO: ban bad peer
+				return err
+			}
+			if checkState.Commit(block) != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 	fs.log.Info("Start process batch", "from", batch.from, "to", batch.to)
 	if attemptNum > MaxAttemptsCountPerBatch {
@@ -141,22 +177,18 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 
 		select {
 		case block := <-batch.headers:
-			if block, err := fs.GetBlock(block.header); err != nil {
-				fs.log.Error("fail to retrieve block", "err", err)
-				return reload()
-			} else {
-				if err := fs.chain.AddBlock(block, checkState); err != nil {
-					fs.appState.ResetTo(fs.chain.Head.Height())
 
-					if err == blockchain.ParentHashIsInvalid {
-						fs.potentialForkedPeers.Add(batch.p.id)
-					}
-					fs.log.Warn(fmt.Sprintf("Block from peer %v is invalid: %v", batch.p.id, err))
-					time.Sleep(time.Second)
-					// TODO: ban bad peer
+			if err := fs.simpleValidateHeader(block); err != nil {
+				if err == blockchain.ParentHashIsInvalid {
+					fs.potentialForkedPeers.Add(batch.p.id)
+				}
+				return reload()
+			}
+			fs.deferredHeaders = append(fs.deferredHeaders, block)
+			if len(block.Cert) > 0 {
+				if fs.applyDeferredBlocks(checkState) != nil {
 					return reload()
 				}
-				checkState.Commit(block)
 			}
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
@@ -164,6 +196,29 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 		}
 	}
 	fs.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
+	return nil
+}
+
+func (fs *fullSync) simpleValidateHeader(block *block) error {
+	prevBlock := fs.chain.Head
+	if len(fs.deferredHeaders) > 0 {
+		prevBlock = fs.deferredHeaders[len(fs.deferredHeaders)-1].Header
+	}
+
+	err := fs.chain.ValidateHeader(block.Header, prevBlock)
+	if err != nil {
+		return err
+	}
+
+	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		if len(block.Cert) == 0 {
+			return BlockCertIsMissing
+		}
+	}
+	if len(block.Cert) > 0 {
+		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache)
+	}
+
 	return nil
 }
 
@@ -207,7 +262,7 @@ func (fs *fullSync) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *
 				timeout := time.After(time.Second * 10)
 				select {
 				case header := <-batch.headers:
-					if block, err := fs.GetBlock(header.header); err != nil {
+					if block, err := fs.GetBlock(header.Header); err != nil {
 						fs.log.Warn("fail to retrieve block while peeking", "err", err)
 						continue
 					} else {

@@ -161,7 +161,7 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	return index
 }
 
-func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
+func (r *Repo) ReadCertificate(hash common.Hash) types.BlockCert {
 	data := r.db.Get(certKey(hash))
 	if data == nil {
 		return nil
@@ -171,7 +171,7 @@ func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
 		log.Error("Invalid block cert RLP", "err", err)
 		return nil
 	}
-	return cert
+	return *cert
 }
 
 type weakCeritificates struct {
