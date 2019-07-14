@@ -49,7 +49,7 @@ type Block struct {
 	Time         *big.Int       `json:"timestamp"`
 	Root         common.Hash    `json:"root"`         // root of state tree
 	IdentityRoot common.Hash    `json:"identityRoot"` // root of approved identities tree
-	IpfsHash     string         `json:"ipfsCid"`      // ipfs hash of block body
+	IpfsHash     *string        `json:"ipfsCid"`      // ipfs hash of block body
 	Transactions []common.Hash  `json:"transactions"`
 	Flags        []string       `json:"flags"`
 	IsEmpty      bool           `json:"isEmpty"`
@@ -152,11 +152,12 @@ func convertToBlock(block *types.Block) *Block {
 		}
 	}
 
-	var ipfsHashStr string
+	var ipfsHashStr *string
 	ipfsHash := block.Header.IpfsHash()
-	if ipfsHash != nil {
+	if len(ipfsHash) > 0 {
 		c, _ := cid.Parse(ipfsHash)
-		ipfsHashStr = c.String()
+		stringCid := c.String()
+		ipfsHashStr = &stringCid
 	}
 
 	var flags []string
