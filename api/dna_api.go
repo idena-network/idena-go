@@ -214,8 +214,8 @@ func (api *DnaApi) Identities() []Identity {
 		return false
 	})
 
-	for _, identity := range identities {
-		identity.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(identity.Address)
+	for idx := range identities {
+		identities[idx].Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(identities[idx].Address)
 	}
 
 	return identities
