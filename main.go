@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/coreos/go-semver/semver"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
@@ -76,7 +77,7 @@ func main() {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
-		n, err := node.NewNode(cfg)
+		n, err := node.NewNode(cfg, eventbus.New())
 		if err != nil {
 			return err
 		}

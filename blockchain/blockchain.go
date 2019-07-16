@@ -506,7 +506,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 		if err := validation.ValidateTx(appState, tx, false); err != nil {
 			return nil, err
 		}
-		if fee, err = chain.applyTxOnState(appState, tx); err != nil {
+		if fee, err = chain.ApplyTxOnState(appState, tx); err != nil {
 			return nil, err
 		}
 
@@ -516,7 +516,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	return totalFee, nil
 }
 
-func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.Transaction) (*big.Int, error) {
+func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.Transaction) (*big.Int, error) {
 
 	stateDB := appState.State
 
@@ -780,7 +780,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 		if err := validation.ValidateTx(appState, tx, false); err != nil {
 			continue
 		}
-		if fee, err := chain.applyTxOnState(appState, tx); err == nil {
+		if fee, err := chain.ApplyTxOnState(appState, tx); err == nil {
 			totalFee.Add(totalFee, fee)
 			result = append(result, tx)
 		}

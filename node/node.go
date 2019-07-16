@@ -63,13 +63,25 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 }
 
+func (node *Node) AppStateReadonly(height uint64) *appstate.AppState {
+	return node.appState.Readonly(height)
+}
+
+func (node *Node) Ceremony() *ceremony.ValidationCeremony {
+	return node.ceremony
+}
+
+func (node *Node) Blockchain() *blockchain.Blockchain {
+	return node.blockchain
+}
+
 func StartMobileNode(path string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
 	c := config.MakeMobileConfig(path)
 
-	n, err := NewNode(c)
+	n, err := NewNode(c, eventbus.New())
 
 	if err != nil {
 		return err.Error()
@@ -80,7 +92,7 @@ func StartMobileNode(path string) string {
 	return "done"
 }
 
-func NewNode(config *config.Config) (*Node, error) {
+func NewNode(config *config.Config, bus eventbus.Bus) (*Node, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -97,8 +109,6 @@ func NewNode(config *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	bus := eventbus.New()
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
