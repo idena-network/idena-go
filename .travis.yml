@@ -1,5 +1,4 @@
 dist: xenial
-
 language: go
 
 os:
