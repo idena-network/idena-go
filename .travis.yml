@@ -15,12 +15,13 @@ go:
 git:
   depth: 1
 
-install: true
+install:
+  - go mod vendor
 
 script:
   - go test -v ./...
   - mkdir builds && cd builds
-  - go build ../
+  - go build ../ -mod=vendor
 
 deploy:
   provider: releases
@@ -28,3 +29,7 @@ deploy:
   file_glob: true
   file: builds/*
   skip_cleanup: true
+  on:
+    branches:
+      only:
+        - travis-releases
