@@ -2,8 +2,6 @@ dist: xenial
 language: go
 
 os:
-  - osx
-  - windows
   - linux
 
 env:
@@ -21,7 +19,7 @@ install:
 script:
   - go test -v ./...
   - mkdir builds && cd builds
-  - go build ../ -mod=vendor
+  - go build -mod=vendor ../
 
 deploy:
   provider: releases
