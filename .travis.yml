@@ -2,10 +2,10 @@ dist: xenial
 
 language: go
 
-branches:
-  only:
-    - master
-    - develop
+os:
+  - osx
+  - windows
+  - linux
 
 env:
   - GO111MODULE=on
@@ -18,9 +18,14 @@ git:
 
 install: true
 
-notifications:
-  email: false
-
 script:
   - go test -v ./...
-  - go build
+  - mkdir builds && cd builds
+  - go build ../
+
+deploy:
+  provider: releases
+  api_key: "$GH_TOKEN"
+  file_glob: true
+  file: builds/*
+  skip_cleanup: true
