@@ -12,6 +12,12 @@ env:
 go:
   - 1.12.x
 
+branches:
+  only:
+    - develop
+    - master
+    - /v\d+\.\d+\.\d+/
+
 cache:
   directories:
     - $GOPATH/pkg/mod
