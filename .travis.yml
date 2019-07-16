@@ -23,6 +23,7 @@ script:
   - go test -v ./...
   - mkdir builds && cd builds
   - go build ../
+  - cd ..
 
 deploy:
   provider: releases
