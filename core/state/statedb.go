@@ -46,10 +46,12 @@ const (
 )
 
 var (
-	addressPrefix           = []byte("a")
-	identityPrefix          = []byte("i")
-	globalPrefix            = []byte("global")
-	currentStateDbPrefixKey = []byte("statedb-prefix")
+	addressPrefix                       = []byte("a")
+	identityPrefix                      = []byte("i")
+	globalPrefix                        = []byte("global")
+	currentStateDbPrefixKey             = []byte("statedb-prefix")
+	currentIdentityStateDbPrefixKey     = []byte("id-statedb-prefix")
+	preliminaryIdentityStateDbPrefixKey = []byte("pre-id-statedb-prefix")
 )
 
 type StateDB struct {

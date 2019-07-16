@@ -5,7 +5,6 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
-	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
@@ -44,70 +43,6 @@ func NewFullSync(pm *ProtocolManager, log log.Logger,
 		pm:                   pm,
 		isSyncing:            true,
 		ipfs:                 ipfs,
-	}
-}
-
-func (fs *fullSync) Load(toHeight uint64) {
-	term := make(chan interface{})
-	completed := make(chan interface{})
-	go fs.consumeBlocks(term, completed)
-	head := fs.chain.Head
-	from := head.Height() + 1
-	knownHeights := fs.pm.GetKnownHeights()
-loop:
-	for from <= toHeight {
-		for peer, height := range knownHeights {
-			if height < from {
-				continue
-			}
-			to := math.Min(from+BatchSize, height)
-			if err, batch := fs.pm.GetBlocksRange(peer, from, to); err != nil {
-				continue
-			} else {
-				select {
-				case fs.batches <- batch:
-				case <-term:
-					break loop
-				}
-			}
-			from = to + 1
-		}
-	}
-	fs.log.Info(fmt.Sprintf("All blocks was requested. Wait applying of blocks"))
-	close(completed)
-	if len(fs.deferredHeaders) > 0 {
-		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers has not been added to chain"))
-	}
-	<-term
-}
-
-func (fs *fullSync) consumeBlocks(term chan interface{}, completed chan interface{}) {
-	defer close(term)
-	for {
-		timeout := time.After(time.Second * 15)
-
-		select {
-		case batch := <-fs.batches:
-			if err := fs.processBatch(batch, 1); err != nil {
-				fs.log.Warn("failed to process batch", "err", err)
-				return
-			}
-			continue
-		default:
-		}
-
-		select {
-		case batch := <-fs.batches:
-			if err := fs.processBatch(batch, 1); err != nil {
-				fs.log.Warn("failed to process batch", "err", err)
-				return
-			}
-			break
-		case <-completed:
-			return
-		case <-timeout:
-			return
-		}
 	}
 }
 
@@ -156,6 +91,12 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) error {
 	return nil
 }
 
+func (fs *fullSync) postConsuming() {
+	if len(fs.deferredHeaders) > 0 {
+		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers has not been added to chain"))
+	}
+}
+
 func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 	fs.log.Info("Start process batch", "from", batch.from, "to", batch.to)
 	if attemptNum > MaxAttemptsCountPerBatch {
@@ -164,42 +105,47 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 
 	checkState, _ := fs.appState.ForCheckWithNewCache(fs.chain.Head.Height())
 
+	reload := func(from uint64) error {
+		b := fs.requestBatch(from, batch.to, batch.p.id)
+		if b == nil {
+			return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", from, batch.to))
+		}
+		return fs.processBatch(b, attemptNum+1)
+	}
+
 	for i := batch.from; i <= batch.to; i++ {
 		timeout := time.After(time.Second * 10)
-
-		reload := func() error {
-			b := fs.requestBatch(i, batch.to, batch.p.id)
-			if b == nil {
-				return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", i, batch.to))
-			}
-			return fs.processBatch(b, attemptNum+1)
-		}
 
 		select {
 		case block := <-batch.headers:
 
-			if err := fs.simpleValidateHeader(block); err != nil {
+			if err := fs.validateHeader(block); err != nil {
 				if err == blockchain.ParentHashIsInvalid {
 					fs.potentialForkedPeers.Add(batch.p.id)
+					return err
 				}
-				return reload()
+				return reload(i)
 			}
 			fs.deferredHeaders = append(fs.deferredHeaders, block)
 			if len(block.Cert) > 0 {
 				if fs.applyDeferredBlocks(checkState) != nil {
-					return reload()
+					return reload(i)
 				}
 			}
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
-			return reload()
+			return reload(i)
 		}
 	}
 	fs.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil
 }
 
-func (fs *fullSync) simpleValidateHeader(block *block) error {
+func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
+	return head.Height() + 1, nil
+}
+
+func (fs *fullSync) validateHeader(block *block) error {
 	prevBlock := fs.chain.Head
 	if len(fs.deferredHeaders) > 0 {
 		prevBlock = fs.deferredHeaders[len(fs.deferredHeaders)-1].Header

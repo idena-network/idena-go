@@ -21,6 +21,12 @@ const (
 	OnlineStatusTx       uint16 = 0x9
 )
 
+const (
+	ReductionOne = 998
+	ReductionTwo = 999
+	Final        = 1000
+)
+
 type BlockFlag uint32
 
 const (
@@ -30,6 +36,7 @@ const (
 	LongSessionStarted
 	AfterLongSessionStarted
 	ValidationFinished
+	Snapshot
 )
 
 type Network = uint32
@@ -107,7 +114,7 @@ type Transaction struct {
 	from atomic.Value
 }
 
-type BlockCert = []*Vote
+type BlockCert  []*Vote
 
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction

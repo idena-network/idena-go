@@ -5,10 +5,12 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
+	"time"
 )
 
 const (
@@ -21,8 +23,10 @@ type Syncer interface {
 	IsSyncing() bool
 }
 
-type chainLoader interface {
-	Load(toHeight uint64)
+type blockApplier interface {
+	processBatch(batch *batch, attemptNum int) error
+	postConsuming()
+	preConsuming(head *types.Header) (uint64, error)
 }
 
 type ForkResolver interface {
@@ -92,9 +96,74 @@ func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
 			d.log.Info(fmt.Sprintf("Node is synchronized"))
 			return
 		}
+		d.Load()
+	}
+}
 
-		syncer, toHeight := d.createSyncer()
-		syncer.Load(toHeight)
+func (d *Downloader) Load() {
+
+	head := d.chain.Head
+
+	applier, toHeight := d.createBlockApplier()
+	from, _ := applier.preConsuming(head)
+
+	term := make(chan interface{})
+	completed := make(chan interface{})
+	go d.consumeBlocks(applier, term, completed)
+
+	knownHeights := d.pm.GetKnownHeights()
+loop:
+	for from <= toHeight {
+		for peer, height := range knownHeights {
+			if height < from {
+				continue
+			}
+			to := math.Min(from+BatchSize, height)
+			if err, batch := d.pm.GetBlocksRange(peer, from, to); err != nil {
+				continue
+			} else {
+				select {
+				case d.batches <- batch:
+				case <-term:
+					break loop
+				}
+			}
+			from = to + 1
+		}
+	}
+	d.log.Info("All blocks was requested. Wait applying of blocks")
+	close(completed)
+	<-term
+	applier.postConsuming()
+}
+
+func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, completed chan interface{}) {
+	defer close(term)
+	for {
+		timeout := time.After(time.Second * 15)
+
+		select {
+		case batch := <-d.batches:
+			if err := applier.processBatch(batch, 1); err != nil {
+				d.log.Warn("failed to process batch", "err", err)
+				return
+			}
+			continue
+		default:
+		}
+
+		select {
+		case batch := <-d.batches:
+			if err := applier.processBatch(batch, 1); err != nil {
+				d.log.Warn("failed to process batch", "err", err)
+				return
+			}
+			break
+		case <-completed:
+			return
+		case <-timeout:
+			return
+		}
 	}
 }
 
@@ -136,7 +205,7 @@ func (d *Downloader) ClearPotentialForks() {
 	d.potentialForkedPeers.Clear()
 }
 
-func (d *Downloader) createSyncer() (loader chainLoader, toHeight uint64) {
+func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64) {
 
 	canUseFastSync := true
 
@@ -160,9 +229,16 @@ func (d *Downloader) createSyncer() (loader chainLoader, toHeight uint64) {
 
 func (d *Downloader) getBestManifest() *snapshot.Manifest {
 
-
-
 	manifests := d.pm.GetKnownManifests()
+
+	timeout := time.Second * 30
+	if len(manifests) == 0 {
+		d.log.Info("Wait for snapshot manifests")
+		for start := time.Now(); time.Since(start) < timeout && len(manifests) == 0; {
+			time.Sleep(2 * time.Second)
+			manifests = d.pm.GetKnownManifests()
+		}
+	}
 
 	var best *snapshot.Manifest
 
@@ -171,17 +247,8 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 			best = m
 		}
 	}
+	if best == nil {
+		d.log.Info("Snapshot manifest is not found")
+	}
 	return best
-}
-
-func (d *Downloader) shouldRetrieveBlock(header *types.Header) bool {
-	knownHeights := d.pm.GetKnownHeights()
-	top := getTopHeight(knownHeights)
-	if top-header.Height() < ForceFullSyncOnLastBlocksThreshold {
-		return true
-	}
-	if header.EmptyBlockHeader != nil {
-		return header.ProposedHeader.Flags.HasFlag(types.IdentityUpdate)
-	}
-	return false
 }

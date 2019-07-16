@@ -1,9 +1,6 @@
 package database
 
 var (
-	StateDbPrefix = []byte("st")
-
-	ApprovedIdentityDbPrefix = []byte("aid")
 
 	SnapshotDbPrefix = []byte("snpsht")
 
@@ -27,4 +24,7 @@ var (
 	lastSnapshotKey = []byte("last-snapshot")
 
 	identityStateDiffPrefix = []byte("id-diff")
+
+	preliminaryHeadKey =[]byte("preliminary-head")
+
 )

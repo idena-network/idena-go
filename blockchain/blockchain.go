@@ -11,7 +11,6 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
-	"github.com/idena-network/idena-go/consensus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
@@ -54,6 +53,7 @@ type Blockchain struct {
 	repo            *database.Repo
 	secStore        *secstore.SecStore
 	Head            *types.Header
+	PreliminaryHead *types.Header
 	genesis         *types.Header
 	config          *config.Config
 	pubKey          []byte
@@ -666,6 +666,11 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.IdentityUpdate
 	}
 
+	if block.Height()-appState.State.LastSnapshot() >= state.SnapshotBlocksRange && appState.State.ValidationPeriod() == state.NonePeriod &&
+		!flags.HasFlag(types.ValidationFinished) {
+		flags |= types.Snapshot
+	}
+
 	return flags
 }
 
@@ -810,7 +815,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
 
 	step := cert[0].Header.Step
-	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteSize(validatorsCache, step == consensus.Final))
+	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteSize(validatorsCache, step == types.Final))
 
 	voters := mapset.NewSet()
 
@@ -831,7 +836,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		voters.Add(vote.VoterAddr())
 	}
 
-	if voters.Cardinality() < chain.GetCommitteeVotesTreshold(validatorsCache, step == consensus.Final) {
+	if voters.Cardinality() < chain.GetCommitteeVotesTreshold(validatorsCache, step == types.Final) {
 		return errors.New("not enough votes")
 	}
 	return nil
@@ -1080,35 +1085,14 @@ func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
 
 func (chain *Blockchain) AddHeader(header *types.Header) error {
 
-	if err := validateBlockParentHash(header, chain.Head); err != nil {
+	if err := chain.ValidateHeader(header, chain.PreliminaryHead); err != nil {
 		return err
 	}
 
-	var seedData = getSeedData(chain.Head)
-	pubKey, err := crypto.UnmarshalPubkey(header.ProposedHeader.ProposerPubKey)
-	if err != nil {
-		return err
-	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return err
-	}
-
-	hash, err := verifier.ProofToHash(seedData, header.ProposedHeader.SeedProof)
-	if err != nil {
-		return err
-	}
-	if hash != header.Seed() {
-		return errors.New("seed is invalid")
-	}
-	proposerAddr, _ := crypto.PubKeyBytesToAddress(header.ProposedHeader.ProposerPubKey)
-
-	if !checkIfProposer(proposerAddr, chain.appState) {
-		return errors.New("proposer is not identity")
-	}
-
-	chain.insertHeader(header)
-	chain.setCurrentHead(header)
+	chain.repo.WriteBlockHeader(header)
+	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
+	chain.repo.WritePreliminaryHead(header)
+	chain.PreliminaryHead = header
 
 	return nil
 }
@@ -1174,4 +1158,8 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 		Root:   root,
 		Height: height,
 	}
+}
+
+func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
+	return chain.repo.ReadPreliminaryHead()
 }

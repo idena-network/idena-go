@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MaxWeakCertificatesCount = 11000
+	MaxWeakCertificatesCount = 300
 )
 
 type Repo struct {
@@ -260,4 +260,12 @@ func (r *Repo) WriteIdentityStateDiff(height uint64, diff []byte) {
 
 func (r *Repo) ReadIdentityStateDiff(height uint64) []byte {
 	return r.db.Get(identityStateDiffKey(height))
+}
+
+func (r *Repo) WritePreliminaryHead(header *types.Header) {
+	
+}
+
+func (r *Repo) ReadPreliminaryHead() *types.Header {
+	
 }
