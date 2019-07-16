@@ -1,11 +1,10 @@
 dist: xenial
-
 language: go
 
-branches:
-  only:
-    - master
-    - develop
+os:
+  - linux
+  - osx
+  - windows
 
 env:
   - GO111MODULE=on
@@ -13,14 +12,26 @@ env:
 go:
   - 1.12.x
 
+cache:
+  directories:
+    - $GOPATH/pkg/mod
+
 git:
   depth: 1
 
 install: true
 
-notifications:
-  email: false
-
 script:
   - go test -v ./...
-  - go build
+  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then go build -o=builds/idena-node-win-$TRAVIS_TAG.exe; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go build -o=builds/idena-node-linux-$TRAVIS_TAG; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then go build -o=builds/idena-node-mac-$TRAVIS_TAG; fi
+
+deploy:
+  provider: releases
+  api_key: "$GH_TOKEN"
+  file_glob: true
+  file: builds/*
+  skip_cleanup: true
+  on:
+    tags: true
