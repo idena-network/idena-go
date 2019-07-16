@@ -10,16 +10,19 @@ env:
 go:
   - 1.12.x
 
+cache:
+  directories:
+    - $GOPATH/pkg/mod
+
 git:
   depth: 1
 
-install:
-  - go mod vendor
+install: true
 
 script:
   - go test -v ./...
   - mkdir builds && cd builds
-  - go build -mod=vendor ../
+  - go build ../
 
 deploy:
   provider: releases
@@ -28,6 +31,4 @@ deploy:
   file: builds/*
   skip_cleanup: true
   on:
-    branches:
-      only:
-        - travis-releases
+    tags: true
