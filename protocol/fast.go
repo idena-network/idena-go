@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
+	"os"
 	"time"
 )
 
@@ -28,6 +29,7 @@ type fastSync struct {
 	preliminaryHead      *types.Header
 	stateDb              *state.IdentityStateDB
 	validators           *validators.ValidatorsCache
+	sm                   *state.SnapshotManager
 }
 
 func NewFastSync(pm *ProtocolManager, log log.Logger,
@@ -35,7 +37,7 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
 	potentialForkedPeers mapset.Set,
-	manifest *snapshot.Manifest) *fastSync {
+	manifest *snapshot.Manifest, sm *state.SnapshotManager) *fastSync {
 
 	return &fastSync{
 		appState:             appState,
@@ -47,15 +49,19 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 		isSyncing:            true,
 		ipfs:                 ipfs,
 		manifest:             manifest,
+		sm:                   sm,
 	}
 }
 
-func (fs *fastSync) createPreliminaryCopy() (*state.IdentityStateDB, error) {
-
+func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB, error) {
+	return fs.appState.IdentityState.CreatePreliminaryCopy(height)
 }
 
 func (fs *fastSync) dropPreliminaries() {
-
+	fs.chain.RemovePreliminaryHead()
+	fs.preliminaryHead = nil
+	fs.stateDb.DropPreliminary()
+	fs.stateDb = nil
 }
 
 func (fs *fastSync) loadValidators() {
@@ -67,7 +73,7 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	fs.preliminaryHead = fs.chain.ReadPreliminaryHead()
 	if fs.preliminaryHead == nil {
 		fs.preliminaryHead = head
-		fs.stateDb, err = fs.createPreliminaryCopy()
+		fs.stateDb, err = fs.createPreliminaryCopy(head.Height())
 		from = head.Height() + 1
 		fs.loadValidators()
 		return from, err
@@ -110,11 +116,15 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 				}
 				return reload(i)
 			}
-
+			if err := fs.validateIdentityState(block); err != nil {
+				return err
+			}
+			if _, _, _, err := fs.stateDb.Commit(true); err != nil {
+				return err
+			}
 			if fs.chain.AddHeader(block.Header) != nil {
 				reload(i)
 			}
-
 
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
@@ -126,7 +136,12 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 }
 
 func (fs *fastSync) validateIdentityState(block *block) error {
-
+	fs.stateDb.AddDiff(block.IdentityDiff)
+	if fs.stateDb.Root() != block.Header.IdentityRoot() {
+		fs.stateDb.Reset()
+		return errors.New("identity root is invalid")
+	}
+	return nil
 }
 
 func (fs *fastSync) validateHeader(block *block) error {
@@ -166,6 +181,33 @@ func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	return nil
 }
 
-func (fs *fastSync) postConsuming() {
-	panic("implement me")
+func (fs *fastSync) postConsuming() error {
+	if fs.preliminaryHead.Height() != fs.manifest.Height {
+		return errors.New("Preliminary head is lower than manifest's head")
+	}
+
+	if fs.preliminaryHead.Root() != fs.manifest.Root {
+		return errors.New("Preliminary head's root doesn't equal manifest's root")
+	}
+
+	filePath, err := fs.sm.DownloadSnapshot(fs.manifest)
+	if err != nil {
+		return errors.WithMessage(err, "Snapshot's downloading has been failed")
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	err = fs.appState.State.RecoverSnapshot(fs.manifest, file)
+	if err != nil {
+		return err
+	}
+
+	err = fs.appState.IdentityState.SwitchToPreliminary(fs.manifest.Height)
+	if err != nil {
+		return err
+	}
+	fs.chain.RemovePreliminaryHead()
+	return err
 }

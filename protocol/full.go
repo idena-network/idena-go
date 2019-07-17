@@ -91,10 +91,11 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) error {
 	return nil
 }
 
-func (fs *fullSync) postConsuming() {
+func (fs *fullSync) postConsuming() error {
 	if len(fs.deferredHeaders) > 0 {
 		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers has not been added to chain"))
 	}
+	return nil
 }
 
 func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {

@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"strconv"
 	"sync"
@@ -102,7 +103,7 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
+func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff IdentityStateDiff, err error) {
 	diff = s.Precommit(deleteEmptyObjects)
 	hash, version, err := s.tree.SaveVersion()
 	//TODO: snapshots
@@ -120,19 +121,24 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 	return hash, version, diff, err
 }
 
-func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
+func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) IdentityStateDiff {
 	// Commit identity objects to the trie.
-	diff := &IdentityStateDiff{
-		Updated: make(map[common.Address][]byte),
-	}
+	diff := IdentityStateDiff{}
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
 		if deleteEmptyObjects && stateObject.empty() {
 			s.deleteStateIdentityObject(stateObject)
-			diff.Deleted = append(diff.Deleted, addr)
+			diff = append(diff, &IdentityStateDiffValue{
+				Address: addr,
+				Deleted: true,
+			})
 		} else {
 			encoded := s.updateStateIdentityObject(stateObject)
-			diff.Updated[addr] = encoded
+			diff = append(diff, &IdentityStateDiffValue{
+				Address: addr,
+				Deleted: false,
+				Value:   encoded,
+			})
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
@@ -221,6 +227,11 @@ func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedId
 	return data
 }
 
+func (s *IdentityStateDB) updateStateIdentityObjectRaw(stateObject *stateApprovedIdentity, value []byte) {
+	addr := stateObject.Address()
+	s.tree.Set(append(identityPrefix, addr[:]...), value)
+}
+
 // deleteStateAccountObject removes the given object from the state trie.
 func (s *IdentityStateDB) deleteStateIdentityObject(stateObject *stateApprovedIdentity) {
 	stateObject.deleted = true
@@ -263,19 +274,66 @@ func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bo
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
 
-type IdentityStateDiff struct {
-	// deleted keys
-	Deleted []common.Address
-
-	// updated key-value pairs
-	Updated map[common.Address][]byte
+func (s *IdentityStateDB) AddDiff(diff IdentityStateDiff) {
+	for _, v := range diff {
+		stateObject := s.stateIdentities[v.Address]
+		if v.Deleted {
+			s.deleteStateIdentityObject(stateObject)
+		} else {
+			s.updateStateIdentityObjectRaw(stateObject, v.Value)
+		}
+	}
 }
 
-func (diff *IdentityStateDiff) Empty() bool {
-	return len(diff.Deleted) == 0 && len(diff.Updated) == 0
+func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
+	prefix := loadIdentityPrefix(s.original, true)
+	if prefix == nil {
+		return errors.New("preliminary head is not found")
+	}
+	pdb := dbm.NewPrefixDB(s.original, prefix)
+	tree := NewMutableTree(pdb)
+	if _, err := tree.LoadVersion(int64(heigth)); err != nil {
+		clearDb(pdb)
+		return err
+	}
+	setIdentityPrefix(s.original, prefix, false)
+	setIdentityPrefix(s.original, nil, true)
+	clearDb(s.db)
+
+	s.db = pdb
+	s.tree = tree
+	return nil
 }
 
-func (diff *IdentityStateDiff) Bytes() []byte {
+func (s *IdentityStateDB) DropPreliminary() {
+	clearDb(s.db)
+	setIdentityPrefix(s.original, nil, true)
+}
+
+func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
+	preliminaryPrefix := identityStatePrefix(height + 1)
+	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
+	it := s.db.Iterator(nil, nil)
+	for ; it.Valid(); it.Next() {
+		pdb.Set(it.Key(), it.Value())
+	}
+	setIdentityPrefix(s.original, preliminaryPrefix, true)
+	return s.LoadPreliminary(height)
+}
+
+type IdentityStateDiffValue struct {
+	Address common.Address
+	Deleted bool
+	Value   []byte
+}
+
+type IdentityStateDiff []*IdentityStateDiffValue
+
+func (diff IdentityStateDiff) Empty() bool {
+	return len(diff) == 0
+}
+
+func (diff IdentityStateDiff) Bytes() []byte {
 	enc, _ := rlp.EncodeToBytes(diff)
 	return enc
 }

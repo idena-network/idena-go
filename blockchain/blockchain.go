@@ -121,9 +121,12 @@ func (chain *Blockchain) InitializeChain() error {
 			return errors.New("genesis block is not found")
 		}
 	} else {
-		chain.GenerateGenesis(chain.config.Network)
+		_, err := chain.GenerateGenesis(chain.config.Network)
+		if err != nil {
+			return err
+		}
 	}
-
+	chain.PreliminaryHead = chain.repo.ReadPreliminaryHead()
 	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
 	log.Info("Coinbase address", "addr", chain.coinBaseAddress.Hex())
 	return nil
@@ -184,7 +187,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		},
 	}, Body: &types.Body{}}
 
-	if err := chain.insertBlock(block, &state.IdentityStateDiff{}); err != nil {
+	if err := chain.insertBlock(block, state.IdentityStateDiff{}); err != nil {
 		return nil, err
 	}
 	chain.genesis = block.Header
@@ -243,7 +246,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	return nil
 }
 
-func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityStateDiff, err error) {
+func (chain *Blockchain) processBlock(block *types.Block) (diff state.IdentityStateDiff, err error) {
 	var root, identityRoot common.Hash
 	if block.IsEmpty() {
 		root, identityRoot = chain.applyEmptyBlockOnState(chain.appState, block)
@@ -270,7 +273,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 	return diff, nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff state.IdentityStateDiff, err error) {
 	var totalFee *big.Int
 	if totalFee, err = chain.processTxs(appState, block); err != nil {
 		return
@@ -696,7 +699,7 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
 }
 
-func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
+func (chain *Blockchain) insertBlock(block *types.Block, diff state.IdentityStateDiff) error {
 	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 
@@ -1137,13 +1140,13 @@ func (chain *Blockchain) GetCertificate(hash common.Hash) types.BlockCert {
 	return chain.repo.ReadCertificate(hash)
 }
 
-func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff {
+func (chain *Blockchain) GetIdentityDiff(height uint64) state.IdentityStateDiff {
 
 	data := chain.repo.ReadIdentityStateDiff(height)
 	if data == nil {
 		return nil
 	}
-	diff := new(state.IdentityStateDiff)
+	diff := state.IdentityStateDiff{}
 	rlp.DecodeBytes(data, diff)
 	return diff
 }
@@ -1162,4 +1165,9 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 
 func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 	return chain.repo.ReadPreliminaryHead()
+}
+
+func (chain *Blockchain) RemovePreliminaryHead() {
+	chain.PreliminaryHead = nil
+	chain.repo.RemovePreliminaryHead()
 }

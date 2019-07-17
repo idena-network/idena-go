@@ -263,9 +263,27 @@ func (r *Repo) ReadIdentityStateDiff(height uint64) []byte {
 }
 
 func (r *Repo) WritePreliminaryHead(header *types.Header) {
-	
+	data, err := rlp.EncodeToBytes(header)
+	if err != nil {
+		log.Crit("Failed to RLP encode header", "err", err)
+		return
+	}
+	r.db.Set(preliminaryHeadKey, data)
 }
 
 func (r *Repo) ReadPreliminaryHead() *types.Header {
-	
+	data := r.db.Get(preliminaryHeadKey)
+	if data == nil {
+		return nil
+	}
+	header := new(types.Header)
+	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
+		log.Error("Invalid block header RLP", "err", err)
+		return nil
+	}
+	return header
+}
+
+func (r *Repo) RemovePreliminaryHead() {
+	r.db.Delete(preliminaryHeadKey)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
@@ -25,7 +26,7 @@ type Syncer interface {
 
 type blockApplier interface {
 	processBatch(batch *batch, attemptNum int) error
-	postConsuming()
+	postConsuming() (err error)
 	preConsuming(head *types.Header) (uint64, error)
 }
 
@@ -43,6 +44,7 @@ type Downloader struct {
 	appState             *appstate.AppState
 	top                  uint64
 	potentialForkedPeers mapset.Set
+	sm                   *state.SnapshotManager
 }
 
 func (d *Downloader) IsSyncing() bool {
@@ -53,7 +55,7 @@ func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 	return d.chain.Head.Height(), d.top
 }
 
-func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState) *Downloader {
+func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager) *Downloader {
 	return &Downloader{
 		pm:                   pm,
 		chain:                chain,
@@ -62,6 +64,7 @@ func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.
 		appState:             appState,
 		isSyncing:            true,
 		potentialForkedPeers: mapset.NewSet(),
+		sm:                   sm,
 	}
 }
 
@@ -221,7 +224,7 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 	}
 
 	if canUseFastSync {
-		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest), manifest.Height
+		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm), manifest.Height
 	} else {
 		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers), d.top
 	}

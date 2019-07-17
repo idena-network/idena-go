@@ -163,5 +163,9 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 
 	wg.Wait()
 
+	if loadToErr == nil {
+		m.writeLastManifest(snapshot.Cid, snapshot.Root, snapshot.Height, filePath)
+	}
+
 	return filePath, loadToErr
 }
