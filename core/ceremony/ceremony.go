@@ -635,15 +635,18 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true, notApprovedFlips)
+		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
+		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 		addFlipAnswersToStats(shortFlipAnswers, true, stats)
 
-		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
+		longFlipsToSolve := vc.longFlipsPerCandidate[idx]
+		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
 		addFlipAnswersToStats(longFlipAnswers, false, stats)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
-		missed := !approvedCandidatesSet.Contains(addr)
+		approved := approvedCandidatesSet.Contains(addr)
+		missed := !approved
 
 		var shortScore, longScore, totalScore float32
 
@@ -674,11 +677,15 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		vc.epochApplyingResult[addr] = value
 
 		stats.IdentitiesPerAddr[addr] = &IdentityStats{
-			ShortPoint: shortFlipPoint,
-			ShortFlips: shortQualifiedFlipsCount,
-			LongPoint:  longFlipPoint,
-			LongFlips:  longQualifiedFlipsCount,
-			State:      newIdentityState,
+			ShortPoint:        shortFlipPoint,
+			ShortFlips:        shortQualifiedFlipsCount,
+			LongPoint:         longFlipPoint,
+			LongFlips:         longQualifiedFlipsCount,
+			State:             newIdentityState,
+			Approved:          approved,
+			Missed:            missed,
+			ShortFlipsToSolve: shortFlipsToSolve,
+			LongFlipsToSolve:  longFlipsToSolve,
 		}
 
 		applyOnState(addr, newIdentityState, shortQualifiedFlipsCount, shortFlipPoint)

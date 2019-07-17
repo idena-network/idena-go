@@ -13,11 +13,15 @@ type Stats struct {
 }
 
 type IdentityStats struct {
-	ShortPoint float32
-	ShortFlips uint32
-	LongPoint  float32
-	LongFlips  uint32
-	State      state.IdentityState
+	ShortPoint        float32
+	ShortFlips        uint32
+	LongPoint         float32
+	LongFlips         uint32
+	State             state.IdentityState
+	Approved          bool
+	Missed            bool
+	ShortFlipsToSolve []int
+	LongFlipsToSolve  []int
 }
 
 type FlipStats struct {
