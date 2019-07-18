@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bufio"
 	"context"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -14,7 +13,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/ipfs/go-cid"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,7 +21,7 @@ import (
 )
 
 const (
-	SnapshotBlocksRange = 10000
+	SnapshotBlocksRange = 20
 )
 
 type SnapshotManager struct {
@@ -43,7 +41,7 @@ func NewSnapshotManager(db dbm.DB, state *StateDB, bus eventbus.Bus, ipfs ipfs.P
 	m := &SnapshotManager{
 		db:    pdb,
 		state: state,
-		repo:  database.NewRepo(pdb),
+		repo:  database.NewRepo(db),
 		bus:   bus,
 		cfg:   cfg,
 		log:   log.New(),
@@ -67,8 +65,8 @@ func (m *SnapshotManager) loadState() {
 	}
 }
 
-func createSnapshotFile(datadir string, height uint64) (fileName string, file io.Writer, err error) {
-	newpath := filepath.Join(datadir, "snapshot")
+func createSnapshotFile(datadir string, height uint64) (fileName string, file *os.File, err error) {
+	newpath := filepath.Join(datadir, "/ipfs/snapshots")
 	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
 		return "", nil, err
 	}
@@ -78,7 +76,7 @@ func createSnapshotFile(datadir string, height uint64) (fileName string, file io
 	if err != nil {
 		return "", nil, err
 	}
-	return filePath, bufio.NewWriter(f), nil
+	return filePath, f, nil
 }
 
 func (m *SnapshotManager) createSnapshotIfNeeded(block *types.Header) {
@@ -97,10 +95,12 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 		return common.Hash{}
 	}
 
-	if _, err := m.state.WriteSnapshot(height, file); err != nil {
+	if root, err = m.state.WriteSnapshot(height, file); err != nil {
+		file.Close()
 		m.log.Error("Cannot write snapshot to file", "err", err)
 		return common.Hash{}
 	}
+	file.Close()
 	var f *os.File
 	var cid cid.Cid
 	if f, err = os.Open(filePath); err != nil {
@@ -108,15 +108,21 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 		os.Remove(filePath)
 		return
 	}
-	if _, err := m.ipfs.AddFile(bufio.NewReader(f)); err != nil {
+	stat, _ := f.Stat()
+	if cid, err = m.ipfs.AddFile(f.Name(), f, stat); err != nil {
 		m.log.Error("Cannot add snapshot file to ipfs", "err", err)
-		os.Remove(filePath)
+		f.Close()
+		if err = os.Remove(filePath); err != nil {
+			m.log.Error("Cannot remove file", "err", err)
+		}
 		return
 	}
 	if prevCid, _, _, prevSnapshotFile := m.repo.LastSnapshotManifest(); prevCid != nil {
 		m.ipfs.Unpin(prevCid)
 		if prevSnapshotFile != "" {
-			os.Remove(prevSnapshotFile)
+			if err = os.Remove(prevSnapshotFile); err != nil {
+				m.log.Error("Cannot remove previous snapshot file", "err", err)
+			}
 		}
 	}
 	m.writeLastManifest(cid.Bytes(), root, height, filePath)

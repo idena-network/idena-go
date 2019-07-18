@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const FastSyncBatchSize = 1000
+
 type fastSync struct {
 	pm                   *ProtocolManager
 	log                  log.Logger
@@ -26,10 +28,13 @@ type fastSync struct {
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
 	manifest             *snapshot.Manifest
-	preliminaryHead      *types.Header
 	stateDb              *state.IdentityStateDB
 	validators           *validators.ValidatorsCache
 	sm                   *state.SnapshotManager
+}
+
+func (fs *fastSync) batchSize() uint64 {
+	return FastSyncBatchSize
 }
 
 func NewFastSync(pm *ProtocolManager, log log.Logger,
@@ -59,7 +64,6 @@ func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB
 
 func (fs *fastSync) dropPreliminaries() {
 	fs.chain.RemovePreliminaryHead()
-	fs.preliminaryHead = nil
 	fs.stateDb.DropPreliminary()
 	fs.stateDb = nil
 }
@@ -70,21 +74,20 @@ func (fs *fastSync) loadValidators() {
 }
 
 func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
-	fs.preliminaryHead = fs.chain.ReadPreliminaryHead()
-	if fs.preliminaryHead == nil {
-		fs.preliminaryHead = head
+	if fs.chain.PreliminaryHead == nil {
+		fs.chain.PreliminaryHead = head
 		fs.stateDb, err = fs.createPreliminaryCopy(head.Height())
 		from = head.Height() + 1
 		fs.loadValidators()
 		return from, err
 	}
-	fs.stateDb, err = fs.appState.IdentityState.LoadPreliminary(fs.preliminaryHead.Height())
+	fs.stateDb, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
 	if err != nil {
 		fs.dropPreliminaries()
 		return fs.preConsuming(head)
 	}
 	fs.loadValidators()
-	from = fs.preliminaryHead.Height() + 1
+	from = fs.chain.PreliminaryHead.Height() + 1
 	return from, nil
 }
 
@@ -114,6 +117,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 					fs.potentialForkedPeers.Add(batch.p.id)
 					return err
 				}
+				fs.log.Error("Block header is invalid", "err", err)
 				return reload(i)
 			}
 			if err := fs.validateIdentityState(block); err != nil {
@@ -123,8 +127,9 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 				return err
 			}
 			if fs.chain.AddHeader(block.Header) != nil {
-				reload(i)
+				return reload(i)
 			}
+
 
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
@@ -145,7 +150,7 @@ func (fs *fastSync) validateIdentityState(block *block) error {
 }
 
 func (fs *fastSync) validateHeader(block *block) error {
-	prevBlock := fs.preliminaryHead
+	prevBlock := fs.chain.PreliminaryHead
 
 	err := fs.chain.ValidateHeader(block.Header, prevBlock)
 	if err != nil {
@@ -153,11 +158,11 @@ func (fs *fastSync) validateHeader(block *block) error {
 	}
 
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
-		if len(block.Cert) == 0 {
+		if block.Cert.Empty() {
 			return BlockCertIsMissing
 		}
 	}
-	if len(block.Cert) > 0 {
+	if !block.Cert.Empty() {
 		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.validators)
 	}
 
@@ -182,11 +187,11 @@ func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 }
 
 func (fs *fastSync) postConsuming() error {
-	if fs.preliminaryHead.Height() != fs.manifest.Height {
+	if fs.chain.PreliminaryHead.Height() != fs.manifest.Height {
 		return errors.New("Preliminary head is lower than manifest's head")
 	}
 
-	if fs.preliminaryHead.Root() != fs.manifest.Root {
+	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
 		return errors.New("Preliminary head's root doesn't equal manifest's root")
 	}
 
@@ -208,6 +213,7 @@ func (fs *fastSync) postConsuming() error {
 	if err != nil {
 		return err
 	}
+	fs.chain.SwitchToPreliminary()
 	fs.chain.RemovePreliminaryHead()
-	return err
+	return nil
 }

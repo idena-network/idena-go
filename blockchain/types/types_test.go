@@ -46,3 +46,8 @@ func TestBlockFlag_HasFlag(t *testing.T) {
 	require.False(t, flags.HasFlag(LongSessionStarted))
 	require.False(t, flags.HasFlag(AfterLongSessionStarted))
 }
+
+func TestBlockCert_Empty(t *testing.T) {
+	var cert *BlockCert
+	require.True(t, cert.Empty())
+}

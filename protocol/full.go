@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const FullSyncBatchSize = 200
+
 var (
 	BlockCertIsMissing = errors.New("block cert is missing")
 )
@@ -26,6 +28,10 @@ type fullSync struct {
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
 	deferredHeaders      []*block
+}
+
+func (fs *fullSync) batchSize() uint64 {
+	return FullSyncBatchSize
 }
 
 func NewFullSync(pm *ProtocolManager, log log.Logger,
@@ -63,7 +69,7 @@ func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	return nil
 }
 
-func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) error {
+func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, error) {
 	defer func() {
 		fs.deferredHeaders = []*block{}
 	}()
@@ -71,29 +77,29 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) error {
 	for _, block := range fs.deferredHeaders {
 		if block, err := fs.GetBlock(block.Header); err != nil {
 			fs.log.Error("fail to retrieve block", "err", err)
-			return err
+			return block.Height(), err
 		} else {
 			if err := fs.chain.AddBlock(block, checkState); err != nil {
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
-					return err
+					return block.Height(), err
 				}
 
 				fs.log.Warn(fmt.Sprintf("Block %v is invalid: %v", block.Height(), err))
 				time.Sleep(time.Second)
 				// TODO: ban bad peer
-				return err
+				return block.Height(), err
 			}
 			if checkState.Commit(block) != nil {
-				return err
+				return block.Height(), err
 			}
 		}
 	}
-	return nil
+	return 0, nil
 }
 
 func (fs *fullSync) postConsuming() error {
 	if len(fs.deferredHeaders) > 0 {
-		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers has not been added to chain"))
+		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers have not been added to chain"))
 	}
 	return nil
 }
@@ -125,12 +131,13 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 					fs.potentialForkedPeers.Add(batch.p.id)
 					return err
 				}
+				fs.log.Error("Block header is invalid", "err", err)
 				return reload(i)
 			}
 			fs.deferredHeaders = append(fs.deferredHeaders, block)
-			if len(block.Cert) > 0 {
-				if fs.applyDeferredBlocks(checkState) != nil {
-					return reload(i)
+			if block.Cert != nil && block.Cert.Len() > 0 {
+				if from, err := fs.applyDeferredBlocks(checkState); err != nil {
+					return reload(from)
 				}
 			}
 		case <-timeout:
@@ -158,11 +165,11 @@ func (fs *fullSync) validateHeader(block *block) error {
 	}
 
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
-		if len(block.Cert) == 0 {
+		if block.Cert.Empty() {
 			return BlockCertIsMissing
 		}
 	}
-	if len(block.Cert) > 0 {
+	if !block.Cert.Empty() {
 		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache)
 	}
 

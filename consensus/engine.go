@@ -147,13 +147,14 @@ func (engine *Engine) loop() {
 		var hash common.Hash
 		var finalCert *types.BlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, cert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			hash, finalCert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock, nil); err != nil {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
+			engine.chain.WriteCertificate(blockHash, cert, emptyBlock.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
 			engine.log.Info("Reached consensus on empty block")
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
@@ -170,12 +171,11 @@ func (engine *Engine) loop() {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
 
-				engine.chain.WriteCertificate(blockHash, cert, block.Header.ProposedHeader.Flags.HasFlag(types.IdentityUpdate | types.Snapshot))
+				engine.chain.WriteCertificate(blockHash, cert, block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}
 		}
-
 		engine.completeRound(round)
 	}
 }
@@ -433,9 +433,9 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 							}
 							return len(list) >= necessaryVotesCount
 						})
-						cert = types.BlockCert(list)
+						cert = types.BlockCert{Votes: list}
 						bestHash = vote.Header.VotedHash
-						found = len(cert) >= necessaryVotesCount
+						found = cert.Len() >= necessaryVotesCount
 						engine.log.Debug("Has votes", "cnt", roundVotes.Cardinality(), "need", necessaryVotesCount, "step", step, "hash", bestHash.Hex())
 						return !found
 					}

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MaxWeakCertificatesCount = 300
+	MaxWeakCertificatesCount = 5
 )
 
 type Repo struct {
@@ -154,24 +154,24 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 		return nil
 	}
 	index := new(types.TransactionIndex)
-	if err := rlp.Decode(bytes.NewReader(data), index); err != nil {
+	if err := rlp.DecodeBytes(data, index); err != nil {
 		log.Error("invalid transaction index RLP", "err", err)
 		return nil
 	}
 	return index
 }
 
-func (r *Repo) ReadCertificate(hash common.Hash) types.BlockCert {
+func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
 	data := r.db.Get(certKey(hash))
 	if data == nil {
 		return nil
 	}
 	cert := new(types.BlockCert)
-	if err := rlp.Decode(bytes.NewReader(data), cert); err != nil {
+	if err := rlp.DecodeBytes(data, cert); err != nil {
 		log.Error("Invalid block cert RLP", "err", err)
 		return nil
 	}
-	return *cert
+	return cert
 }
 
 type weakCeritificates struct {

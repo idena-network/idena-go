@@ -278,7 +278,7 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 
 	go pm.syncTxPool(peer)
 	go pm.syncFlipKeyPool(peer)
-
+	pm.sendManifest(peer)
 	defer pm.unregister(peer)
 	p.Log().Info("Peer successfully connected", "peerId", p.ID())
 	return pm.runListening(peer)

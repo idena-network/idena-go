@@ -815,14 +815,14 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	return nil
 }
 
-func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
+func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
 
-	step := cert[0].Header.Step
+	step := cert.Votes[0].Header.Step
 	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteSize(validatorsCache, step == types.Final))
 
 	voters := mapset.NewSet()
 
-	for _, vote := range cert {
+	for _, vote := range cert.Votes {
 		if !validators.Contains(vote.VoterAddr()) {
 			return errors.New("invalid voter")
 		}
@@ -1088,7 +1088,11 @@ func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
 
 func (chain *Blockchain) AddHeader(header *types.Header) error {
 
-	if err := chain.ValidateHeader(header, chain.PreliminaryHead); err != nil {
+	prev := chain.PreliminaryHead
+	if prev == nil {
+		prev = chain.Head
+	}
+	if err := chain.ValidateHeader(header, prev); err != nil {
 		return err
 	}
 
@@ -1136,7 +1140,7 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	return nil
 }
 
-func (chain *Blockchain) GetCertificate(hash common.Hash) types.BlockCert {
+func (chain *Blockchain) GetCertificate(hash common.Hash) *types.BlockCert {
 	return chain.repo.ReadCertificate(hash)
 }
 
@@ -1170,4 +1174,8 @@ func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 func (chain *Blockchain) RemovePreliminaryHead() {
 	chain.PreliminaryHead = nil
 	chain.repo.RemovePreliminaryHead()
+}
+
+func (chain *Blockchain) SwitchToPreliminary() {
+	chain.setHead(chain.PreliminaryHead.Height())
 }

@@ -14,8 +14,8 @@ type batch struct {
 
 type block struct {
 	Header       *types.Header
-	Cert         types.BlockCert
-	IdentityDiff state.IdentityStateDiff
+	Cert         *types.BlockCert        `rlp:"nil"`
+	IdentityDiff state.IdentityStateDiff `rlp:"nil"`
 }
 
 type blockRange struct {

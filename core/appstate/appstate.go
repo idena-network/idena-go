@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
+	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tendermint/libs/db"
 )
 
@@ -93,6 +94,9 @@ func (s *AppState) ResetTo(height uint64) error {
 	err := s.State.ResetTo(height)
 	if err != nil {
 		return err
+	}
+	if !s.IdentityState.HasVersion(height) {
+		return errors.New("target tree version doesn't exist")
 	}
 	err = s.IdentityState.ResetTo(height)
 	return err

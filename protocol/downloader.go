@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	BatchSize                          = 200
 	MaxAttemptsCountPerBatch           = 10
-	ForceFullSyncOnLastBlocksThreshold = 100
+	ForceFullSyncOnLastBlocksThreshold = 10
 )
 
 type Syncer interface {
@@ -25,6 +24,7 @@ type Syncer interface {
 }
 
 type blockApplier interface {
+	batchSize() uint64
 	processBatch(batch *batch, attemptNum int) error
 	postConsuming() (err error)
 	preConsuming(head *types.Header) (uint64, error)
@@ -109,7 +109,7 @@ func (d *Downloader) Load() {
 
 	applier, toHeight := d.createBlockApplier()
 	from, _ := applier.preConsuming(head)
-
+	d.batches = make(chan *batch, 10)
 	term := make(chan interface{})
 	completed := make(chan interface{})
 	go d.consumeBlocks(applier, term, completed)
@@ -121,7 +121,7 @@ loop:
 			if height < from {
 				continue
 			}
-			to := math.Min(from+BatchSize, height)
+			to := math.Min(from+applier.batchSize(), math.Min(toHeight, height))
 			if err, batch := d.pm.GetBlocksRange(peer, from, to); err != nil {
 				continue
 			} else {
@@ -137,7 +137,10 @@ loop:
 	d.log.Info("All blocks was requested. Wait applying of blocks")
 	close(completed)
 	<-term
-	applier.postConsuming()
+	if err := applier.postConsuming(); err != nil {
+		d.log.Error("Post consuming error", "err", err)
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, completed chan interface{}) {
@@ -224,8 +227,10 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 	}
 
 	if canUseFastSync {
+		d.log.Info("Fast sync wil be used")
 		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm), manifest.Height
 	} else {
+		d.log.Info("Full sync wil be used")
 		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers), d.top
 	}
 }
@@ -244,7 +249,6 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 	}
 
 	var best *snapshot.Manifest
-
 	for _, m := range manifests {
 		if best == nil || best.Height < m.Height {
 			best = m
@@ -253,5 +257,6 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 	if best == nil {
 		d.log.Info("Snapshot manifest is not found")
 	}
+	d.log.Info("Found manifest", "height", best.Height)
 	return best
 }

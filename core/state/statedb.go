@@ -877,5 +877,6 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 
 	s.db = pdb
 	s.tree = tree
+	s.Clear()
 	return nil
 }

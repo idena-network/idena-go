@@ -270,6 +270,9 @@ func (s *IdentityStateDB) ResetTo(height uint64) error {
 	return err
 }
 
+func (s *IdentityStateDB) HasVersion(height uint64) bool {
+	 return s.tree.ExistVersion(int64(height))
+}
 func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
