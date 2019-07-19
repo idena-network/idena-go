@@ -149,6 +149,10 @@ func NewNode(config *config.Config, bus eventbus.Bus) (*Node, error) {
 }
 
 func (node *Node) Start() {
+	node.StartWithHeight(0)
+}
+
+func (node *Node) StartWithHeight(height uint64) {
 
 	config := node.config.P2P
 	config.Protocols = []p2p.Protocol{
@@ -169,6 +173,13 @@ func (node *Node) Start() {
 	if err := node.blockchain.InitializeChain(); err != nil {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
 		return
+	}
+
+	if height > 0 && node.blockchain.Head.Height() > height {
+		if err := node.blockchain.ResetTo(height); err != nil {
+			node.log.Error(fmt.Sprintf("Cannot reset blockchain to %d", height), "error", err.Error())
+			return
+		}
 	}
 
 	node.appState.Initialize(node.blockchain.Head.Height())
