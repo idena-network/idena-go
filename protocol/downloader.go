@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -46,6 +47,7 @@ type Downloader struct {
 	top                  uint64
 	potentialForkedPeers mapset.Set
 	sm                   *state.SnapshotManager
+	bus                  eventbus.Bus
 }
 
 func (d *Downloader) IsSyncing() bool {
@@ -56,7 +58,7 @@ func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 	return d.chain.Head.Height(), d.top
 }
 
-func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager) *Downloader {
+func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager, bus eventbus.Bus) *Downloader {
 	return &Downloader{
 		pm:                   pm,
 		cfg:                  cfg,
@@ -67,6 +69,7 @@ func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Bl
 		isSyncing:            true,
 		potentialForkedPeers: mapset.NewSet(),
 		sm:                   sm,
+		bus:                  bus,
 	}
 }
 
@@ -230,7 +233,7 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 
 	if canUseFastSync {
 		d.log.Info("Fast sync will be used")
-		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm), manifest.Height
+		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm, d.bus), manifest.Height
 	} else {
 		d.log.Info("Full sync will be used")
 		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers), d.top

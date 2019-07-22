@@ -702,9 +702,6 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
 	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
-	if block.Height() == 58 {
-		fmt.Print("insert block")
-	}
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.writeTxIndex(block)
 	chain.repo.WriteHead(block.Header)

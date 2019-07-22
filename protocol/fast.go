@@ -5,10 +5,12 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/core/validators"
+	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
@@ -31,6 +33,7 @@ type fastSync struct {
 	stateDb              *state.IdentityStateDB
 	validators           *validators.ValidatorsCache
 	sm                   *state.SnapshotManager
+	bus                  eventbus.Bus
 }
 
 func (fs *fastSync) batchSize() uint64 {
@@ -42,7 +45,7 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
 	potentialForkedPeers mapset.Set,
-	manifest *snapshot.Manifest, sm *state.SnapshotManager) *fastSync {
+	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus) *fastSync {
 
 	return &fastSync{
 		appState:             appState,
@@ -55,6 +58,7 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 		ipfs:                 ipfs,
 		manifest:             manifest,
 		sm:                   sm,
+		bus:                  bus,
 	}
 }
 
@@ -222,5 +226,6 @@ func (fs *fastSync) postConsuming() error {
 	fs.appState.ValidatorsCache.Load()
 	fs.chain.SwitchToPreliminary()
 	fs.chain.RemovePreliminaryHead()
+	fs.bus.Publish(events.FastSyncCompletedEvent{})
 	return nil
 }

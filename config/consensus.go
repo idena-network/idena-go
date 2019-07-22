@@ -38,6 +38,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		StakeRewardRate:                0.2,
 		FeeBurnRate:                    0.9,
 		FinalCommitteeReward:           big.NewInt(6e+18),
-		SnapshotRange:                  35,
+		SnapshotRange:                  10000,
 	}
 }
