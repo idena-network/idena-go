@@ -31,7 +31,7 @@ type Config struct {
 	GenesisConf *GenesisConf
 	IpfsConf    *IpfsConfig
 	Validation  *ValidationConfig
-	FastSync    bool
+	Sync        *SyncConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -121,7 +121,10 @@ func getDefaultConfig() *Config {
 			SwarmKey:  DefaultSwarmKey,
 		},
 		Validation: &ValidationConfig{},
-		FastSync:   true,
+		Sync: &SyncConfig{
+			FastSync:      true,
+			ForceFullSync: DefaultForceFullSync,
+		},
 	}
 }
 
@@ -136,6 +139,16 @@ func applyFlags(ctx *cli.Context, cfg *Config) {
 	applyGenesisFlags(ctx, cfg)
 	applyIpfsFlags(ctx, cfg)
 	applyValidationFlags(ctx, cfg)
+	applySyncFlags(ctx, cfg)
+}
+
+func applySyncFlags(ctx *cli.Context, cfg *Config) {
+	if ctx.IsSet(FastSyncFlag.Name) {
+		cfg.Sync.FastSync = ctx.Bool(FastSyncFlag.Name)
+	}
+	if ctx.IsSet(ForceFullSyncFlag.Name){
+		cfg.Sync.ForceFullSync = ctx.Uint64(ForceFullSyncFlag.Name)
+	}
 }
 
 func applyP2PFlags(ctx *cli.Context, cfg *Config) {
@@ -165,6 +178,9 @@ func applyP2PFlags(ctx *cli.Context, cfg *Config) {
 func applyConsensusFlags(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(AutomineFlag.Name) {
 		cfg.Consensus.Automine = ctx.Bool(AutomineFlag.Name)
+	}
+	if ctx.IsSet(SnapshotRangeFlag.Name) {
+		cfg.Consensus.SnapshotRange = ctx.Uint64(SnapshotRangeFlag.Name)
 	}
 }
 

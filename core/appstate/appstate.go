@@ -67,7 +67,7 @@ func (s *AppState) Initialize(height uint64) {
 	s.NonceCache = state.NewNonceCache(s.State)
 }
 
-func (s *AppState) Precommit() state.IdentityStateDiff {
+func (s *AppState) Precommit() *state.IdentityStateDiff {
 	s.State.Precommit(true)
 	return s.IdentityState.Precommit(true)
 }

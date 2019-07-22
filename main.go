@@ -21,7 +21,6 @@ var (
 )
 
 func main() {
-
 	app := cli.NewApp()
 	app.Version = version
 
@@ -40,6 +39,9 @@ func main() {
 		config.GodAddressFlag,
 		config.CeremonyTimeFlag,
 		config.MaxNetworkDelayFlag,
+		config.FastSyncFlag,
+		config.ForceFullSyncFlag,
+		config.SnapshotRangeFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {

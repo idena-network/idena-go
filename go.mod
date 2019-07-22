@@ -36,6 +36,7 @@ require (
 	github.com/pborman/uuid v1.2.0
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/pkg/profile v1.3.0
 	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14 // indirect
 	github.com/rjeczalik/notify v0.9.2
 	github.com/rs/cors v1.6.0

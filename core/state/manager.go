@@ -20,10 +20,6 @@ import (
 	"time"
 )
 
-const (
-	SnapshotBlocksRange = 20
-)
-
 type SnapshotManager struct {
 	db        dbm.DB
 	state     *StateDB
@@ -66,7 +62,7 @@ func (m *SnapshotManager) loadState() {
 }
 
 func createSnapshotFile(datadir string, height uint64) (fileName string, file *os.File, err error) {
-	newpath := filepath.Join(datadir, "/ipfs/snapshots")
+	newpath := filepath.Join(datadir, "/snapshots")
 	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
 		return "", nil, err
 	}
@@ -134,7 +130,6 @@ func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, root common.Hash
 }
 
 func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePath string, err error) {
-
 	filePath, file, err := createSnapshotFile(m.cfg.DataDir, snapshot.Height)
 	if err != nil {
 		return "", err

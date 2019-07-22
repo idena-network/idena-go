@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
@@ -15,8 +16,7 @@ import (
 )
 
 const (
-	MaxAttemptsCountPerBatch           = 10
-	ForceFullSyncOnLastBlocksThreshold = 10
+	MaxAttemptsCountPerBatch = 10
 )
 
 type Syncer interface {
@@ -36,6 +36,7 @@ type ForkResolver interface {
 
 type Downloader struct {
 	pm                   *ProtocolManager
+	cfg                  *config.Config
 	log                  log.Logger
 	chain                *blockchain.Blockchain
 	batches              chan *batch
@@ -55,9 +56,10 @@ func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 	return d.chain.Head.Height(), d.top
 }
 
-func NewDownloader(pm *ProtocolManager, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager) *Downloader {
+func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager) *Downloader {
 	return &Downloader{
 		pm:                   pm,
+		cfg:                  cfg,
 		chain:                chain,
 		log:                  log.New("component", "downloader"),
 		ipfs:                 ipfs,
@@ -79,11 +81,7 @@ func getTopHeight(heights map[string]uint64) uint64 {
 }
 
 func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
-	d.isSyncing = true
-	defer func() {
-		d.isSyncing = false
-		d.top = 0
-	}()
+
 	for {
 		if forkResolver.HasLoadedFork() {
 			return
@@ -98,6 +96,10 @@ func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
 		if head.Height() >= d.top {
 			d.log.Info(fmt.Sprintf("Node is synchronized"))
 			return
+		}
+		if !d.isSyncing {
+			d.startSync()
+			defer d.stopSync()
 		}
 		d.Load()
 	}
@@ -213,24 +215,24 @@ func (d *Downloader) ClearPotentialForks() {
 
 func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64) {
 
-	canUseFastSync := true
+	canUseFastSync := d.cfg.Sync.FastSync
 
-	//knownHeights := d.pm.GetKnownHeights()
-	//top := getTopHeight(knownHeights)
-	if d.top-d.chain.Head.Height() < ForceFullSyncOnLastBlocksThreshold {
+	if d.top-d.chain.Head.Height() < d.cfg.Sync.ForceFullSync {
 		canUseFastSync = false
 	}
-
-	manifest := d.getBestManifest()
-	if manifest == nil || manifest.Height-d.chain.Head.Height() < ForceFullSyncOnLastBlocksThreshold {
-		canUseFastSync = false
+	var manifest *snapshot.Manifest
+	if canUseFastSync {
+		manifest = d.getBestManifest()
+		if manifest == nil || manifest.Height-d.chain.Head.Height() < d.cfg.Sync.ForceFullSync {
+			canUseFastSync = false
+		}
 	}
 
 	if canUseFastSync {
-		d.log.Info("Fast sync wil be used")
+		d.log.Info("Fast sync will be used")
 		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm), manifest.Height
 	} else {
-		d.log.Info("Full sync wil be used")
+		d.log.Info("Full sync will be used")
 		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers), d.top
 	}
 }
@@ -256,7 +258,19 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 	}
 	if best == nil {
 		d.log.Info("Snapshot manifest is not found")
+	} else {
+		d.log.Info("Found manifest", "height", best.Height)
 	}
-	d.log.Info("Found manifest", "height", best.Height)
 	return best
+}
+
+func (d *Downloader) startSync() {
+	d.isSyncing = true
+	d.chain.StartSync()
+}
+
+func (d *Downloader) stopSync() {
+	d.chain.StopSync()
+	d.isSyncing = false
+	d.top = 0
 }

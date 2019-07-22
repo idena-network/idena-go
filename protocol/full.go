@@ -74,8 +74,8 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 		fs.deferredHeaders = []*block{}
 	}()
 
-	for _, block := range fs.deferredHeaders {
-		if block, err := fs.GetBlock(block.Header); err != nil {
+	for _, b := range fs.deferredHeaders {
+		if block, err := fs.GetBlock(b.Header); err != nil {
 			fs.log.Error("fail to retrieve block", "err", err)
 			return block.Height(), err
 		} else {
@@ -88,6 +88,9 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 				time.Sleep(time.Second)
 				// TODO: ban bad peer
 				return block.Height(), err
+			}
+			if !b.Cert.Empty() {
+				fs.chain.WriteCertificate(block.Hash(), b.Cert, true)
 			}
 			if checkState.Commit(block) != nil {
 				return block.Height(), err

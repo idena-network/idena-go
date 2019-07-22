@@ -124,7 +124,7 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
 		vc.completeEpoch()
-		vc.generateFlipKeyWordPairs(block.Seed().Bytes())
+		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	}
 }
 
@@ -727,6 +727,10 @@ func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 
 func (vc *ValidationCeremony) restoreFlipKeyWordPairs() {
 	persistedWords, _ := vc.epochDb.ReadFlipKeyWordPairs()
+	if persistedWords == nil {
+		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
+		return
+	}
 	var words []int
 	for _, persistedWord := range persistedWords {
 		words = append(words, int(persistedWord))

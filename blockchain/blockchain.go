@@ -187,7 +187,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		},
 	}, Body: &types.Body{}}
 
-	if err := chain.insertBlock(block, state.IdentityStateDiff{}); err != nil {
+	if err := chain.insertBlock(block, new(state.IdentityStateDiff)); err != nil {
 		return nil, err
 	}
 	chain.genesis = block.Header
@@ -246,10 +246,10 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	return nil
 }
 
-func (chain *Blockchain) processBlock(block *types.Block) (diff state.IdentityStateDiff, err error) {
+func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityStateDiff, err error) {
 	var root, identityRoot common.Hash
 	if block.IsEmpty() {
-		root, identityRoot = chain.applyEmptyBlockOnState(chain.appState, block)
+		root, identityRoot, diff = chain.applyEmptyBlockOnState(chain.appState, block)
 	} else {
 		if root, identityRoot, diff, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
 			chain.appState.Reset()
@@ -273,7 +273,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff state.IdentitySt
 	return diff, nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff state.IdentityStateDiff, err error) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
 	var totalFee *big.Int
 	if totalFee, err = chain.processTxs(appState, block); err != nil {
 		return
@@ -288,14 +288,14 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	return appState.State.Root(), appState.IdentityState.Root(), diff, nil
 }
 
-func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash) {
+func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyNewEpoch(appState, block)
 	chain.applyGlobalParams(appState, block)
 
-	appState.Precommit()
+	diff = appState.Precommit()
 
-	return appState.State.Root(), appState.IdentityState.Root()
+	return appState.State.Root(), appState.IdentityState.Root(), diff
 }
 
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
@@ -419,7 +419,7 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	if flags.HasFlag(types.ValidationFinished) {
 		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
-	if block.Height()-appState.State.LastSnapshot() >= state.SnapshotBlocksRange && appState.State.ValidationPeriod() == state.NonePeriod &&
+	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
 		!flags.HasFlag(types.ValidationFinished) {
 		appState.State.SetLastSnapshot(block.Height())
 	}
@@ -669,7 +669,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.IdentityUpdate
 	}
 
-	if block.Height()-appState.State.LastSnapshot() >= state.SnapshotBlocksRange && appState.State.ValidationPeriod() == state.NonePeriod &&
+	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
 		!flags.HasFlag(types.ValidationFinished) {
 		flags |= types.Snapshot
 	}
@@ -699,14 +699,13 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
 }
 
-func (chain *Blockchain) insertBlock(block *types.Block, diff state.IdentityStateDiff) error {
+func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
 	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
-
-	if !diff.Empty() {
-		chain.repo.WriteIdentityStateDiff(block.Height(), diff.Bytes())
+	if block.Height() == 58 {
+		fmt.Print("insert block")
 	}
-
+	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.writeTxIndex(block)
 	chain.repo.WriteHead(block.Header)
 
@@ -1144,13 +1143,13 @@ func (chain *Blockchain) GetCertificate(hash common.Hash) *types.BlockCert {
 	return chain.repo.ReadCertificate(hash)
 }
 
-func (chain *Blockchain) GetIdentityDiff(height uint64) state.IdentityStateDiff {
+func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff {
 
 	data := chain.repo.ReadIdentityStateDiff(height)
 	if data == nil {
 		return nil
 	}
-	diff := state.IdentityStateDiff{}
+	diff := new(state.IdentityStateDiff)
 	rlp.DecodeBytes(data, diff)
 	return diff
 }
@@ -1169,6 +1168,11 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 
 func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 	return chain.repo.ReadPreliminaryHead()
+}
+func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.IdentityStateDiff) {
+	if !diff.Empty() {
+		chain.repo.WriteIdentityStateDiff(height, diff.Bytes())
+	}
 }
 
 func (chain *Blockchain) RemovePreliminaryHead() {

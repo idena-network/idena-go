@@ -102,7 +102,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	reload := func(from uint64) error {
 		b := fs.requestBatch(from, batch.to, batch.p.id)
 		if b == nil {
-			return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", from, batch.to))
+			return errors.New(fmt.Sprintf("batch (%v-%v) can't be loaded", from, batch.to))
 		}
 		return fs.processBatch(b, attemptNum+1)
 	}
@@ -123,11 +123,16 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 			if err := fs.validateIdentityState(block); err != nil {
 				return err
 			}
-			if _, _, _, err := fs.stateDb.Commit(true); err != nil {
-				return err
-			}
+			fs.stateDb.CommitTree()
 			if fs.chain.AddHeader(block.Header) != nil {
 				return reload(i)
+			}
+			if !block.IdentityDiff.Empty() {
+				fs.loadValidators()
+			}
+			fs.chain.WriteIdentityStateDiff(block.Header.Height(), block.IdentityDiff)
+			if !block.Cert.Empty() {
+				fs.chain.WriteCertificate(block.Header.Hash(), block.Cert, true)
 			}
 
 
@@ -188,17 +193,18 @@ func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 
 func (fs *fastSync) postConsuming() error {
 	if fs.chain.PreliminaryHead.Height() != fs.manifest.Height {
-		return errors.New("Preliminary head is lower than manifest's head")
+		return errors.New("preliminary head is lower than manifest's head")
 	}
 
 	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
-		return errors.New("Preliminary head's root doesn't equal manifest's root")
+		return errors.New("preliminary head's root doesn't equal manifest's root")
 	}
-
+	fs.log.Info("Start loading of snapshot", "height", fs.manifest.Height)
 	filePath, err := fs.sm.DownloadSnapshot(fs.manifest)
 	if err != nil {
-		return errors.WithMessage(err, "Snapshot's downloading has been failed")
+		return errors.WithMessage(err, "snapshot's downloading has been failed")
 	}
+	fs.log.Info("Snapshot has been loaded", "height", fs.manifest.Height)
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -213,6 +219,7 @@ func (fs *fastSync) postConsuming() error {
 	if err != nil {
 		return err
 	}
+	fs.appState.ValidatorsCache.Load()
 	fs.chain.SwitchToPreliminary()
 	fs.chain.RemovePreliminaryHead()
 	return nil

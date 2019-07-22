@@ -103,10 +103,14 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff IdentityStateDiff, err error) {
+func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
 	diff = s.Precommit(deleteEmptyObjects)
+	hash, version := s.CommitTree()
+	return hash, version, diff, err
+}
+
+func (s *IdentityStateDB) CommitTree() (root []byte, version int64) {
 	hash, version, err := s.tree.SaveVersion()
-	//TODO: snapshots
 	if version > MaxSavedStatesCount {
 		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
 			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
@@ -118,23 +122,23 @@ func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version 
 	}
 
 	s.Clear()
-	return hash, version, diff, err
+	return hash, version
 }
 
-func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) IdentityStateDiff {
+func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
 	// Commit identity objects to the trie.
-	diff := IdentityStateDiff{}
+	diff := new(IdentityStateDiff)
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
 		if deleteEmptyObjects && stateObject.empty() {
 			s.deleteStateIdentityObject(stateObject)
-			diff = append(diff, &IdentityStateDiffValue{
+			diff.Values = append(diff.Values, &IdentityStateDiffValue{
 				Address: addr,
 				Deleted: true,
 			})
 		} else {
 			encoded := s.updateStateIdentityObject(stateObject)
-			diff = append(diff, &IdentityStateDiffValue{
+			diff.Values = append(diff.Values, &IdentityStateDiffValue{
 				Address: addr,
 				Deleted: false,
 				Value:   encoded,
@@ -271,15 +275,18 @@ func (s *IdentityStateDB) ResetTo(height uint64) error {
 }
 
 func (s *IdentityStateDB) HasVersion(height uint64) bool {
-	 return s.tree.ExistVersion(int64(height))
+	return s.tree.ExistVersion(int64(height))
 }
 func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
 
-func (s *IdentityStateDB) AddDiff(diff IdentityStateDiff) {
-	for _, v := range diff {
-		stateObject := s.stateIdentities[v.Address]
+func (s *IdentityStateDB) AddDiff(diff *IdentityStateDiff) {
+	if diff.Empty() {
+		return
+	}
+	for _, v := range diff.Values {
+		stateObject := s.GetOrNewIdentityObject(v.Address)
 		if v.Deleted {
 			s.deleteStateIdentityObject(stateObject)
 		} else {
@@ -330,10 +337,12 @@ type IdentityStateDiffValue struct {
 	Value   []byte
 }
 
-type IdentityStateDiff []*IdentityStateDiffValue
+type IdentityStateDiff struct {
+	Values []*IdentityStateDiffValue
+}
 
-func (diff IdentityStateDiff) Empty() bool {
-	return len(diff) == 0
+func (diff *IdentityStateDiff) Empty() bool {
+	return diff == nil || len(diff.Values) == 0
 }
 
 func (diff IdentityStateDiff) Bytes() []byte {
