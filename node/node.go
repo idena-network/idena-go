@@ -75,6 +75,10 @@ func (node *Node) Blockchain() *blockchain.Blockchain {
 	return node.blockchain
 }
 
+func (node *Node) Flipper() *flip.Flipper {
+	return node.fp
+}
+
 func StartMobileNode(path string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
