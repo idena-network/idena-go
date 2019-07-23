@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
 	dbm "github.com/tendermint/tm-cmn/db"
+	"github.com/pkg/errors"
 )
 
 type AppState struct {
@@ -66,9 +67,9 @@ func (s *AppState) Initialize(height uint64) {
 	s.NonceCache = state.NewNonceCache(s.State)
 }
 
-func (s *AppState) Precommit() {
+func (s *AppState) Precommit() *state.IdentityStateDiff {
 	s.State.Precommit(true)
-	s.IdentityState.Precommit(true)
+	return s.IdentityState.Precommit(true)
 }
 
 func (s *AppState) Reset() {
@@ -80,7 +81,7 @@ func (s *AppState) Commit(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = s.IdentityState.Commit(true)
+	_, _, _, err = s.IdentityState.Commit(true)
 
 	if block != nil {
 		s.ValidatorsCache.RefreshIfUpdated(block)
@@ -93,6 +94,9 @@ func (s *AppState) ResetTo(height uint64) error {
 	err := s.State.ResetTo(height)
 	if err != nil {
 		return err
+	}
+	if !s.IdentityState.HasVersion(height) {
+		return errors.New("target tree version doesn't exist")
 	}
 	err = s.IdentityState.ResetTo(height)
 	return err

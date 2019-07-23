@@ -10,6 +10,10 @@ import (
 	dbm "github.com/tendermint/tm-cmn/db"
 )
 
+const (
+	MaxWeakCertificatesCount = 5
+)
+
 type Repo struct {
 	db dbm.DB
 }
@@ -48,6 +52,10 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
+func identityStateDiffKey(height uint64) []byte {
+	return append(identityStateDiffPrefix, encodeBlockNumber(height)...)
+}
+
 func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 	data := r.db.Get(headerKey(hash))
 	if data == nil {
@@ -84,16 +92,16 @@ func (r *Repo) WriteHead(header *types.Header) {
 	r.db.Set(headBlockKey, data)
 }
 
-func (r *Repo) WriteBlockHeader(block *types.Block) {
-	data, err := rlp.EncodeToBytes(block.Header)
+func (r *Repo) WriteBlockHeader(header *types.Header) {
+	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 	}
 
-	r.db.Set(headerKey(block.Hash()), data)
+	r.db.Set(headerKey(header.Hash()), data)
 }
 
-func (r *Repo) WriteCert(hash common.Hash, cert *types.BlockCert) {
+func (r *Repo) WriteCertificate(hash common.Hash, cert *types.BlockCert) {
 	data, err := rlp.EncodeToBytes(cert)
 	if err != nil {
 		log.Crit("failed to RLP encode block cert", "err", err)
@@ -146,9 +154,136 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 		return nil
 	}
 	index := new(types.TransactionIndex)
-	if err := rlp.Decode(bytes.NewReader(data), index); err != nil {
+	if err := rlp.DecodeBytes(data, index); err != nil {
 		log.Error("invalid transaction index RLP", "err", err)
 		return nil
 	}
 	return index
+}
+
+func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
+	data := r.db.Get(certKey(hash))
+	if data == nil {
+		return nil
+	}
+	cert := new(types.BlockCert)
+	if err := rlp.DecodeBytes(data, cert); err != nil {
+		log.Error("Invalid block cert RLP", "err", err)
+		return nil
+	}
+	return cert
+}
+
+type weakCeritificates struct {
+	Hashes []common.Hash
+}
+
+func (r *Repo) readWeakCertificates() *weakCeritificates {
+	data := r.db.Get(weakCertificatesKey)
+	if data == nil {
+		return nil
+	}
+	w := new(weakCeritificates)
+	if err := rlp.Decode(bytes.NewReader(data), w); err != nil {
+		log.Error("invalid weak certificates RLP", "err", err)
+		return nil
+	}
+	return w
+}
+
+func (r *Repo) writeWeakCertificate(w *weakCeritificates) {
+	data, err := rlp.EncodeToBytes(w)
+	if err != nil {
+		log.Crit("failed to RLP encode weak certificates", "err", err)
+		return
+	}
+	r.db.Set(weakCertificatesKey, data)
+}
+
+func (r *Repo) removeCertificate(hash common.Hash) {
+	r.db.Delete(certKey(hash))
+}
+
+func (r *Repo) WriteWeakCertificate(hash common.Hash) {
+	weakCerts := r.readWeakCertificates()
+	if weakCerts == nil {
+		weakCerts = &weakCeritificates{}
+	}
+	weakCerts.Hashes = append(weakCerts.Hashes, hash)
+
+	if len(weakCerts.Hashes) > MaxWeakCertificatesCount {
+		r.removeCertificate(weakCerts.Hashes[0])
+		weakCerts.Hashes = weakCerts.Hashes[1:]
+	}
+	r.writeWeakCertificate(weakCerts)
+}
+
+type dbSnapshotManifest struct {
+	Cid      []byte
+	Height   uint64
+	FileName string
+	Root     common.Hash
+}
+
+func (r *Repo) LastSnapshotManifest() (cid []byte, root common.Hash, height uint64, fileName string) {
+	data := r.db.Get(lastSnapshotKey)
+	if data == nil {
+		return nil, common.Hash{}, 0, ""
+	}
+	manifest := new(dbSnapshotManifest)
+	if err := rlp.Decode(bytes.NewReader(data), manifest); err != nil {
+		log.Error("invalid snapshot manifest RLP", "err", err)
+		return nil, common.Hash{}, 0, ""
+	}
+	return manifest.Cid, manifest.Root, manifest.Height, manifest.FileName
+}
+
+func (r *Repo) WriteLastSnapshotManifest(cid []byte, root common.Hash, height uint64, fileName string) error {
+	manifest := dbSnapshotManifest{
+		Cid:      cid,
+		Height:   height,
+		FileName: fileName,
+		Root:     root,
+	}
+	data, err := rlp.EncodeToBytes(manifest)
+	if err != nil {
+		log.Crit("failed to RLP encode snapshot manifest", "err", err)
+		return err
+	}
+	r.db.Set(lastSnapshotKey, data)
+	return nil
+}
+
+func (r *Repo) WriteIdentityStateDiff(height uint64, diff []byte) {
+	r.db.Set(identityStateDiffKey(height), diff)
+}
+
+func (r *Repo) ReadIdentityStateDiff(height uint64) []byte {
+	return r.db.Get(identityStateDiffKey(height))
+}
+
+func (r *Repo) WritePreliminaryHead(header *types.Header) {
+	data, err := rlp.EncodeToBytes(header)
+	if err != nil {
+		log.Crit("Failed to RLP encode header", "err", err)
+		return
+	}
+	r.db.Set(preliminaryHeadKey, data)
+}
+
+func (r *Repo) ReadPreliminaryHead() *types.Header {
+	data := r.db.Get(preliminaryHeadKey)
+	if data == nil {
+		return nil
+	}
+	header := new(types.Header)
+	if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
+		log.Error("Invalid block header RLP", "err", err)
+		return nil
+	}
+	return header
+}
+
+func (r *Repo) RemovePreliminaryHead() {
+	r.db.Delete(preliminaryHeadKey)
 }

@@ -1,7 +1,9 @@
 package state
 
 import (
+	"bytes"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
@@ -204,4 +206,103 @@ func TestStateGlobal_IncEpoch(t *testing.T) {
 	stateDb.Clear()
 
 	require.Equal(t, uint16(2), stateDb.Epoch())
+}
+
+func TestStateDB_WriteSnapshot(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	stateDb.AddInvite(common.Address{}, 1)
+	stateDb.AddInvite(common.Address{0x1}, 1)
+
+	stateDb.Commit(true)
+
+	buffer := new(bytes.Buffer)
+
+	stateDb.WriteSnapshot(1, buffer)
+
+	require.True(t, buffer.Len() > 0)
+}
+
+func TestStateDB_RecoverSnapshot(t *testing.T) {
+	//arrange
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	prevStateDb := stateDb.db
+
+	identity := common.Address{}
+	stateDb.AddInvite(identity, 1)
+
+	stateDb.Commit(true)
+	const AddrsCount = 50000
+	const Height = uint64(2)
+
+	for i := 0; i < AddrsCount; i++ {
+		addr := common.Address{}
+		addr.SetBytes(common.ToBytes(uint64(i)))
+		stateDb.SetNonce(addr, uint32(i+1))
+	}
+
+	stateDb.Commit(true)
+
+	var keys [][]byte
+	var values [][]byte
+
+	stateDb.IterateAccounts(func(key []byte, value []byte) bool {
+		keys = append(keys, key)
+		values = append(values, value)
+		return false
+	})
+
+	require.Equal(t, AddrsCount, len(keys))
+
+	expectedRoot := stateDb.Root()
+	stateDb.AddInvite(common.Address{}, 2)
+
+	stateDb.Commit(true)
+	stateDb = NewLazy(database)
+	stateDb.Load(3)
+	stateDb.tree.Hash()
+
+	//act
+
+	buffer := new(bytes.Buffer)
+	stateDb.WriteSnapshot(Height, buffer)
+	require.True(t, buffer.Len() > 0)
+
+	require.Nil(t, stateDb.RecoverSnapshot(&snapshot.Manifest{
+		Height: Height,
+		Root:   expectedRoot,
+	}, buffer))
+
+	//assert
+
+	require.Equal(t, int64(Height), stateDb.tree.Version())
+	require.Equal(t, expectedRoot, stateDb.Root())
+
+	i := 0
+	stateDb.IterateAccounts(func(key []byte, value []byte) bool {
+
+		require.Equal(t, keys[i], key)
+		require.Equal(t, values[i], value)
+		i++
+		return false
+	})
+
+	require.Equal(t, AddrsCount, i)
+
+	cnt := 0
+
+	stateDb.IterateIdentities(func(key []byte, value []byte) bool {
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+		require.Equal(t, addr, identity)
+		cnt++
+		return false
+	})
+	require.Equal(t, 1, cnt)
+
+	it := prevStateDb.Iterator(nil, nil)
+	require.False(t, it.Valid())
 }

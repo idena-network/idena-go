@@ -19,12 +19,6 @@ import (
 	"time"
 )
 
-const (
-	ReductionOne = 998
-	ReductionTwo = 999
-	Final        = 1000
-)
-
 var (
 	ForkDetected = errors.New("fork is detected")
 )
@@ -138,7 +132,7 @@ func (engine *Engine) loop() {
 		}
 
 		blockHash := engine.reduction(round, block)
-		blockHash, err := engine.binaryBa(blockHash)
+		blockHash, cert, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
 
@@ -151,15 +145,16 @@ func (engine *Engine) loop() {
 		}
 		engine.process = "Count final votes"
 		var hash common.Hash
-		var cert *types.BlockCert
+		var finalCert *types.BlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, cert, _ = engine.countVotes(round, Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			hash, finalCert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock, nil); err != nil {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
+			engine.chain.WriteCertificate(blockHash, cert, emptyBlock.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
 			engine.log.Info("Reached consensus on empty block")
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
@@ -170,15 +165,17 @@ func (engine *Engine) loop() {
 				}
 				if hash == blockHash {
 					engine.log.Info("Reached FINAL", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
-					engine.chain.WriteFinalConsensus(blockHash, cert)
+					engine.chain.WriteFinalConsensus(blockHash)
+					cert = finalCert
 				} else {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
+
+				engine.chain.WriteCertificate(blockHash, cert, block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}
 		}
-
 		engine.completeRound(round)
 	}
 }
@@ -243,22 +240,22 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.process = "Reduction started"
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
 
-	engine.vote(round, ReductionOne, block.Hash())
-	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionOne)
+	engine.vote(round, types.ReductionOne, block.Hash())
+	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionOne)
 
-	hash, _, err := engine.countVotes(round, ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
-	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionOne)
+	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
+	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
 
 	if err != nil {
 		hash = emptyBlock.Hash()
 	}
-	engine.vote(round, ReductionTwo, hash)
+	engine.vote(round, types.ReductionTwo, hash)
 
-	engine.process = fmt.Sprintf("Reduction %v vote commited", ReductionTwo)
-	hash, _, err = engine.countVotes(round, ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
-	engine.process = fmt.Sprintf("Reduction %v votes counted", ReductionTwo)
+	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionTwo)
+	hash, _, err = engine.countVotes(round, types.ReductionTwo, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
+	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionTwo)
 
 	if err != nil {
 		hash = emptyBlock.Hash()
@@ -271,7 +268,7 @@ func (engine *Engine) completeBA() {
 	engine.peekingBlocks = nil
 }
 
-func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
+func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, *types.BlockCert, error) {
 	defer engine.completeBA()
 	engine.log.Info("binaryBa started", "block", blockHash.Hex())
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -286,7 +283,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
+		hash, cert, err := engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 		if err != nil {
 			hash = blockHash
 		} else if hash != emptyBlockHash {
@@ -294,9 +291,9 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 				engine.vote(round, step+i, hash)
 			}
 			if step == 1 {
-				engine.vote(round, Final, hash)
+				engine.vote(round, types.Final, hash)
 			}
-			return hash, nil
+			return hash, cert, nil
 		}
 		step++
 
@@ -304,7 +301,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 
 		engine.vote(round, step, hash)
 
-		hash, _, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
+		hash, cert, err = engine.countVotes(round, step, emptyBlock.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 
 		if err != nil {
 			hash = emptyBlockHash
@@ -312,19 +309,19 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, error) {
 			for i := uint16(1); i <= 2; i++ {
 				engine.vote(round, step+i, hash)
 			}
-			return hash, nil
+			return hash, cert, nil
 		}
 
 		step++
 
 		if engine.futureBlockExist(round, emptyBlockHash) {
-			return common.Hash{}, errors.New("Detected future block")
+			return common.Hash{}, nil, errors.New("Detected future block")
 		}
 		if engine.forkResolver.HasLoadedFork() {
-			return common.Hash{}, ForkDetected
+			return common.Hash{}, nil, ForkDetected
 		}
 	}
-	return common.Hash{}, errors.New("No consensus")
+	return common.Hash{}, nil, errors.New("No consensus")
 }
 
 func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash) bool {
@@ -363,7 +360,7 @@ func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash)
 }
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
-	committeeSize := engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final)
+	committeeSize := engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == types.Final)
 	stepValidators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, committeeSize)
 	if stepValidators == nil {
 		return
@@ -394,7 +391,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	defer engine.log.Debug("Finish count votes", "step", step)
 
 	byBlock := make(map[common.Hash]mapset.Set)
-	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == Final))
+	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteSize(engine.appState.ValidatorsCache, step == types.Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
@@ -436,7 +433,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 							}
 							return len(list) >= necessaryVotesCount
 						})
-						cert = types.BlockCert(list)
+						cert = types.BlockCert{Votes: list}
 						bestHash = vote.Header.VotedHash
 						found = cert.Len() >= necessaryVotesCount
 						engine.log.Debug("Has votes", "cnt", roundVotes.Cardinality(), "need", necessaryVotesCount, "step", step, "hash", bestHash.Hex())

@@ -21,6 +21,12 @@ const (
 	OnlineStatusTx       uint16 = 0x9
 )
 
+const (
+	ReductionOne = 998
+	ReductionTwo = 999
+	Final        = 1000
+)
+
 type BlockFlag uint32
 
 const (
@@ -30,6 +36,7 @@ const (
 	LongSessionStarted
 	AfterLongSessionStarted
 	ValidationFinished
+	Snapshot
 )
 
 type Network = uint32
@@ -83,7 +90,6 @@ type Block struct {
 	Header *Header
 
 	Body *Body
-
 	// caches
 	hash        atomic.Value
 	proposeHash atomic.Value
@@ -108,7 +114,9 @@ type Transaction struct {
 	from atomic.Value
 }
 
-type BlockCert []*Vote
+type BlockCert struct {
+	Votes []*Vote
+}
 
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction
@@ -307,7 +315,11 @@ func (s Transactions) GetRlp(i int) []byte {
 	return enc
 }
 
-func (s BlockCert) Len() int { return len(s) }
+func (s *BlockCert) Len() int { return len(s.Votes) }
+
+func (s *BlockCert) Empty() bool {
+	return s == nil || s.Len() == 0
+}
 
 func (p NewEpochPayload) Bytes() []byte {
 	enc, _ := rlp.EncodeToBytes(p)
