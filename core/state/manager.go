@@ -24,7 +24,6 @@ type SnapshotManager struct {
 	db        dbm.DB
 	state     *StateDB
 	ipfs      ipfs.Proxy
-	lastSaved *snapshot.Manifest
 	bus       eventbus.Bus
 	isSyncing bool
 	cfg       *config.Config
@@ -48,17 +47,7 @@ func NewSnapshotManager(db dbm.DB, state *StateDB, bus eventbus.Bus, ipfs ipfs.P
 			newBlockEvent := e.(*events.NewBlockEvent)
 			m.createSnapshotIfNeeded(newBlockEvent.Block.Header)
 		})
-	m.loadState()
 	return m
-}
-
-func (m *SnapshotManager) loadState() {
-	cid, root, height, _ := m.repo.LastSnapshotManifest()
-	m.lastSaved = &snapshot.Manifest{
-		Cid:    cid,
-		Root:   root,
-		Height: height,
-	}
 }
 
 func createSnapshotFile(datadir string, height uint64) (fileName string, file *os.File, err error) {
@@ -169,4 +158,12 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	}
 
 	return filePath, loadToErr
+}
+
+func (m *SnapshotManager) StartSync() {
+	m.isSyncing = true
+}
+
+func (m *SnapshotManager) StopSync() {
+	m.isSyncing = false
 }

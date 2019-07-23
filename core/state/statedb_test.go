@@ -303,12 +303,6 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	})
 	require.Equal(t, 1, cnt)
 
-	cnt = 0
-
 	it := prevStateDb.Iterator(nil, nil)
-	for ; it.Valid(); it.Next() {
-		cnt++
-	}
-	// previous prefix DB should be empty
-	require.Equal(t, 0, cnt)
+	require.False(t, it.Valid())
 }

@@ -270,10 +270,12 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 func (d *Downloader) startSync() {
 	d.isSyncing = true
 	d.chain.StartSync()
+	d.sm.StartSync()
 }
 
 func (d *Downloader) stopSync() {
 	d.chain.StopSync()
+	d.sm.StopSync()
 	d.isSyncing = false
 	d.top = 0
 }

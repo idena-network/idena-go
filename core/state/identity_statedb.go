@@ -298,7 +298,7 @@ func (s *IdentityStateDB) AddDiff(diff *IdentityStateDiff) {
 func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
 	prefix := loadIdentityPrefix(s.original, true)
 	if prefix == nil {
-		return errors.New("preliminary head is not found")
+		return errors.New("preliminary prefix is not found")
 	}
 	pdb := dbm.NewPrefixDB(s.original, prefix)
 	tree := NewMutableTree(pdb)
@@ -318,6 +318,8 @@ func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
 func (s *IdentityStateDB) DropPreliminary() {
 	clearDb(s.db)
 	setIdentityPrefix(s.original, nil, true)
+	s.tree = NewMutableTree(s.db)
+	s.tree.Load()
 }
 
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
