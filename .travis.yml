@@ -14,8 +14,8 @@ go:
 
 branches:
   only:
-    - develop
     - master
+    - /fork\/\d+\.\d+\.\d+/
     - /v\d+\.\d+\.\d+/
 
 cache:

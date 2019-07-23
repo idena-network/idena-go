@@ -23,15 +23,16 @@ const (
 )
 
 type Config struct {
-	DataDir     string
-	Network     uint32
-	Consensus   *ConsensusConf
-	P2P         *p2p.Config
-	RPC         *rpc.Config
-	GenesisConf *GenesisConf
-	IpfsConf    *IpfsConfig
-	Validation  *ValidationConfig
-	Sync        *SyncConfig
+	DataDir          string
+	Network          uint32
+	Consensus        *ConsensusConf
+	P2P              *p2p.Config
+	RPC              *rpc.Config
+	GenesisConf      *GenesisConf
+	IpfsConf         *IpfsConfig
+	Validation       *ValidationConfig
+	Sync             *SyncConfig
+	OfflineDetection *OfflineDetectionConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -125,6 +126,7 @@ func getDefaultConfig(dataDir string) *Config {
 			FastSync:      true,
 			ForceFullSync: DefaultForceFullSync,
 		},
+		OfflineDetection: GetDefaultOfflineDetectionConfig(),
 	}
 }
 
@@ -146,7 +148,7 @@ func applySyncFlags(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(FastSyncFlag.Name) {
 		cfg.Sync.FastSync = ctx.Bool(FastSyncFlag.Name)
 	}
-	if ctx.IsSet(ForceFullSyncFlag.Name){
+	if ctx.IsSet(ForceFullSyncFlag.Name) {
 		cfg.Sync.ForceFullSync = ctx.Uint64(ForceFullSyncFlag.Name)
 	}
 }

@@ -287,3 +287,25 @@ func (r *Repo) ReadPreliminaryHead() *types.Header {
 func (r *Repo) RemovePreliminaryHead() {
 	r.db.Delete(preliminaryHeadKey)
 }
+
+func (r *Repo) ReadActivity() *types.ActivityMonitor {
+	data := r.db.Get(activityMonitorKey)
+	if data == nil {
+		return nil
+	}
+	monitor := new(types.ActivityMonitor)
+	if err := rlp.Decode(bytes.NewReader(data), monitor); err != nil {
+		log.Error("invalid activity monitor RLP", "err", err)
+		return nil
+	}
+	return monitor
+}
+
+func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
+	data, err := rlp.EncodeToBytes(monitor)
+	if err != nil {
+		log.Crit("failed to RLP encode activity monitor", "err", err)
+		return
+	}
+	r.db.Set(activityMonitorKey, data)
+}
