@@ -179,9 +179,6 @@ func applyConsensusFlags(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(AutomineFlag.Name) {
 		cfg.Consensus.Automine = ctx.Bool(AutomineFlag.Name)
 	}
-	if ctx.IsSet(SnapshotRangeFlag.Name) {
-		cfg.Consensus.SnapshotRange = ctx.Uint64(SnapshotRangeFlag.Name)
-	}
 }
 
 func applyRpcFlags(ctx *cli.Context, cfg *Config) {

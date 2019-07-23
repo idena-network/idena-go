@@ -41,7 +41,6 @@ func main() {
 		config.MaxNetworkDelayFlag,
 		config.FastSyncFlag,
 		config.ForceFullSyncFlag,
-		config.SnapshotRangeFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {

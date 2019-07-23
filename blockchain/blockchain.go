@@ -419,8 +419,7 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	if flags.HasFlag(types.ValidationFinished) {
 		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
-	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
-		!flags.HasFlag(types.ValidationFinished) {
+	if flags.HasFlag(types.Snapshot) {
 		appState.State.SetLastSnapshot(block.Height())
 	}
 }

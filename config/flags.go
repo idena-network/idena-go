@@ -81,10 +81,6 @@ var (
 		Name:  "fast",
 		Usage: "Enable fast sync",
 	}
-	SnapshotRangeFlag = cli.Uint64Flag{
-		Name:  "snapshotrange",
-		Usage: "Blocks range between snapshot checkpoints",
-	}
 	ForceFullSyncFlag = cli.Uint64Flag{
 		Name:  "forcefullsync",
 		Usage: "Force full sync on last blocks",

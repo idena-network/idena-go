@@ -66,7 +66,7 @@ func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Bl
 		log:                  log.New("component", "downloader"),
 		ipfs:                 ipfs,
 		appState:             appState,
-		isSyncing:            true,
+		isSyncing:            false,
 		potentialForkedPeers: mapset.NewSet(),
 		sm:                   sm,
 		bus:                  bus,
