@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"
@@ -18,18 +19,19 @@ import (
 )
 
 const (
-	Handshake      = 0x01
-	GetHead        = 0x02
-	Head           = 0x03
-	ProposeBlock   = 0x04
-	ProposeProof   = 0x05
-	Vote           = 0x06
-	NewTx          = 0x07
-	GetBlockByHash = 0x08
-	GetBlocksRange = 0x09
-	BlocksRange    = 0x0A
-	NewFlip        = 0x0B
-	FlipKey        = 0x0C
+	Handshake        = 0x01
+	GetHead          = 0x02
+	Head             = 0x03
+	ProposeBlock     = 0x04
+	ProposeProof     = 0x05
+	Vote             = 0x06
+	NewTx            = 0x07
+	GetBlockByHash   = 0x08
+	GetBlocksRange   = 0x09
+	BlocksRange      = 0x0A
+	NewFlip          = 0x0B
+	FlipKey          = 0x0C
+	SnapshotManifest = 0x0D
 )
 const (
 	DecodeErr = 1
@@ -149,7 +151,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Trace("Income blocks range", "batchId", response.BatchId)
 		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
 			if batch, ok := peerBatches[response.BatchId]; ok {
-				for _, b := range response.Headers {
+				for _, b := range response.Blocks {
 					batch.headers <- b
 				}
 				pm.batchedLock.Lock()
@@ -231,26 +233,38 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markFlipKey(&flipKey)
 
 		pm.flipKeyPool.Add(&flipKey)
+	case SnapshotManifest:
+		manifest := new(snapshot.Manifest)
+		if err := msg.Decode(manifest); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.manifest = manifest
 	}
 
 	return nil
 }
 
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
-	result := make([]*types.Header, 0)
+	var result []*block
 	for i := from; i <= to; i++ {
-		block := pm.bcn.GetBlockHeaderByHeight(i)
-		if block != nil {
-			result = append(result, block)
-			p.Log().Trace("Publish block", "height", block.Height())
+
+		b := pm.bcn.GetBlockHeaderByHeight(i)
+		if b != nil {
+			result = append(result, &block{
+				Header:       b,
+				Cert:         pm.bcn.GetCertificate(b.Hash()),
+				IdentityDiff: pm.bcn.GetIdentityDiff(b.Height()),
+			})
+			p.Log().Trace("Publish block", "height", b.Height())
 		} else {
 			p.Log().Warn("Do not have requested block", "height", i)
 			break
 		}
 	}
+
 	p.SendBlockRangeAsync(&blockRange{
 		BatchId: batchId,
-		Headers: result,
+		Blocks:  result,
 	})
 }
 
@@ -264,7 +278,7 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 
 	go pm.syncTxPool(peer)
 	go pm.syncFlipKeyPool(peer)
-
+	pm.sendManifest(peer)
 	defer pm.unregister(peer)
 	p.Log().Info("Peer successfully connected", "peerId", p.ID())
 	return pm.runListening(peer)
@@ -325,6 +339,20 @@ func (pm *ProtocolManager) GetKnownHeights() map[string]uint64 {
 	return result
 }
 
+func (pm *ProtocolManager) GetKnownManifests() map[string]*snapshot.Manifest {
+	result := make(map[string]*snapshot.Manifest)
+	peers := pm.peers.Peers()
+	if len(peers) == 0 {
+		return result
+	}
+	for _, peer := range peers {
+		if peer.manifest != nil {
+			result[peer.id] = peer.manifest
+		}
+	}
+	return result
+}
+
 func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64) (error, *batch) {
 	peer := pm.peers.Peer(peerId)
 	if peer == nil {
@@ -335,7 +363,7 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 		from:    from,
 		to:      to,
 		p:       peer,
-		headers: make(chan *types.Header, to-from+1),
+		headers: make(chan *block, to-from+1),
 	}
 	peerBatches, ok := pm.incomeBatches[peerId]
 
@@ -426,6 +454,14 @@ func (pm *ProtocolManager) syncTxPool(p *peer) {
 	for _, tx := range pending {
 		p.SendTxAsync(tx)
 	}
+}
+
+func (pm *ProtocolManager) sendManifest(p *peer) {
+	manifest := pm.bcn.ReadSnapshotManifest()
+	if manifest == nil {
+		return
+	}
+	p.SendSnapshotManifest(manifest)
 }
 
 func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {

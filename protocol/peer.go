@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/pkg/errors"
 	"math/rand"
@@ -29,6 +30,7 @@ type peer struct {
 	maxDelayMs        int
 	knownHeight       uint64
 	potentialHeight   uint64
+	manifest          *snapshot.Manifest
 	knownTxs          mapset.Set // Set of transaction hashes known to be known by this peer
 	knownBlocks       mapset.Set // Set of block hashes known to be known by this peer
 	knownVotes        mapset.Set // Set of hashes of votes known to be known by this peer
@@ -106,7 +108,6 @@ func (p *peer) RequestBlockByHash(hash common.Hash) {
 	}}:
 	case <-p.finished:
 	}
-
 }
 
 func (p *peer) RequestBlocksRange(batchId uint32, from uint64, to uint64) {
@@ -268,6 +269,13 @@ func (p *peer) SendFlipAsync(flip *types.Flip) {
 	select {
 	case p.queuedFlips <- flip:
 		p.markFlip(flip)
+	case <-p.finished:
+	}
+}
+
+func (p *peer) SendSnapshotManifest(manifest *snapshot.Manifest) {
+	select {
+	case p.queuedRequests <- &request{msgcode: SnapshotManifest, data: manifest}:
 	case <-p.finished:
 	}
 }

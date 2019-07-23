@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/core/ceremony"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
@@ -110,10 +111,10 @@ func NewNode(config *config.Config) (*Node, error) {
 	proposals := pengings.NewProposals(chain)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
-	downloader := protocol.NewDownloader(pm, chain, ipfsProxy, appState)
+	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
+	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool)
-
 	return &Node{
 		config:          config,
 		blockchain:      chain,

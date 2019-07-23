@@ -31,6 +31,7 @@ type Config struct {
 	GenesisConf *GenesisConf
 	IpfsConf    *IpfsConfig
 	Validation  *ValidationConfig
+	Sync        *SyncConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -120,6 +121,10 @@ func getDefaultConfig(dataDir string) *Config {
 			SwarmKey:  DefaultSwarmKey,
 		},
 		Validation: &ValidationConfig{},
+		Sync: &SyncConfig{
+			FastSync:      true,
+			ForceFullSync: DefaultForceFullSync,
+		},
 	}
 }
 
@@ -134,6 +139,16 @@ func applyFlags(ctx *cli.Context, cfg *Config) {
 	applyGenesisFlags(ctx, cfg)
 	applyIpfsFlags(ctx, cfg)
 	applyValidationFlags(ctx, cfg)
+	applySyncFlags(ctx, cfg)
+}
+
+func applySyncFlags(ctx *cli.Context, cfg *Config) {
+	if ctx.IsSet(FastSyncFlag.Name) {
+		cfg.Sync.FastSync = ctx.Bool(FastSyncFlag.Name)
+	}
+	if ctx.IsSet(ForceFullSyncFlag.Name){
+		cfg.Sync.ForceFullSync = ctx.Uint64(ForceFullSyncFlag.Name)
+	}
 }
 
 func applyP2PFlags(ctx *cli.Context, cfg *Config) {

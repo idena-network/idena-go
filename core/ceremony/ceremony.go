@@ -66,6 +66,7 @@ type ValidationCeremony struct {
 	blockHandlers          map[state.ValidationPeriod]blockHandler
 	epochApplyingResult    map[common.Address]cacheValue
 	flipKeyWordPairs       []int
+	epoch                  uint16
 }
 
 type cacheValue struct {
@@ -105,6 +106,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 
 func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.epoch = vc.appState.State.Epoch()
 	vc.qualification = NewQualification(vc.epochDb)
 
 	_ = vc.bus.Subscribe(events.AddBlockEventID,
@@ -112,6 +114,11 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 			newBlockEvent := e.(*events.NewBlockEvent)
 			vc.addBlock(newBlockEvent.Block)
 		})
+
+	_ = vc.bus.Subscribe(events.FastSyncCompleted, func(event eventbus.Event) {
+		vc.completeEpoch()
+		vc.restoreState()
+	})
 
 	vc.restoreState()
 	vc.addBlock(currentBlock)
@@ -124,7 +131,7 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
 		vc.completeEpoch()
-		vc.generateFlipKeyWordPairs(block.Seed().Bytes())
+		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	}
 }
 
@@ -175,13 +182,20 @@ func (vc *ValidationCeremony) restoreState() {
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
-	edb := vc.epochDb
-	go func() {
-		vc.dropFlips(edb)
-		edb.Clear()
-	}()
-
+	vc.clear()
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.epoch = vc.appState.State.Epoch()
+}
+
+func (vc *ValidationCeremony) clear() {
+	if vc.epoch != vc.appState.State.Epoch() {
+		edb := vc.epochDb
+		go func() {
+			vc.dropFlips(edb)
+			edb.Clear()
+		}()
+	}
+
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Reset()
 	vc.appState.EvidenceMap.Clear()
@@ -725,6 +739,10 @@ func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 
 func (vc *ValidationCeremony) restoreFlipKeyWordPairs() {
 	persistedWords, _ := vc.epochDb.ReadFlipKeyWordPairs()
+	if persistedWords == nil {
+		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
+		return
+	}
 	var words []int
 	for _, persistedWord := range persistedWords {
 		words = append(words, int(persistedWord))

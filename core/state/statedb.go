@@ -19,9 +19,16 @@ package state
 import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/mholt/archiver"
+	"github.com/pkg/errors"
+	common2 "github.com/tendermint/tendermint/libs/common"
+	"io"
+	"io/ioutil"
+	"strconv"
 	"time"
 
 	"github.com/idena-network/idena-go/common"
@@ -39,14 +46,18 @@ const (
 )
 
 var (
-	addressPrefix  = []byte("a")
-	identityPrefix = []byte("i")
-	globalPrefix   = []byte("global")
+	addressPrefix                       = []byte("a")
+	identityPrefix                      = []byte("i")
+	globalPrefix                        = []byte("global")
+	currentStateDbPrefixKey             = []byte("statedb-prefix")
+	currentIdentityStateDbPrefixKey     = []byte("id-statedb-prefix")
+	preliminaryIdentityStateDbPrefixKey = []byte("pre-id-statedb-prefix")
 )
 
 type StateDB struct {
-	db   dbm.DB
-	tree Tree
+	original dbm.DB
+	db       dbm.DB
+	tree     Tree
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateAccounts        map[common.Address]*stateAccount
@@ -62,9 +73,10 @@ type StateDB struct {
 }
 
 func NewLazy(db dbm.DB) *StateDB {
-	pdb := dbm.NewPrefixDB(db, database.StateDbPrefix)
+	pdb := dbm.NewPrefixDB(db, loadPrefix(db))
 	tree := NewMutableTree(pdb)
 	return &StateDB{
+		original:             db,
 		db:                   pdb,
 		tree:                 tree,
 		stateAccounts:        make(map[common.Address]*stateAccount),
@@ -82,6 +94,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 		return nil, err
 	}
 	return &StateDB{
+		original:             s.original,
 		db:                   db,
 		tree:                 tree,
 		stateAccounts:        make(map[common.Address]*stateAccount),
@@ -113,6 +126,7 @@ func (s *StateDB) MemoryState() *StateDB {
 	tree := NewMutableTree(s.db)
 	tree.Load()
 	return &StateDB{
+		original:             s.original,
 		db:                   s.db,
 		tree:                 tree.GetImmutable(),
 		stateAccounts:        make(map[common.Address]*stateAccount),
@@ -180,6 +194,16 @@ func (s *StateDB) GetEpoch(addr common.Address) uint16 {
 func (s *StateDB) Epoch() uint16 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.Epoch
+}
+
+func (s *StateDB) LastSnapshot() uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.LastSnapshot
+}
+
+func (s *StateDB) SetLastSnapshot(height uint64) {
+	stateObject := s.GetOrNewGlobalObject()
+	stateObject.SetLastSnapshot(height)
 }
 
 func (s *StateDB) NextValidationTime() time.Time {
@@ -728,4 +752,131 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		callback(addr, data)
 		return false
 	})
+}
+
+func loadPrefix(db dbm.DB) []byte {
+	p := db.Get(currentStateDbPrefixKey)
+	if p == nil {
+		p = prefix(0)
+		setPrefix(db, p)
+		return p
+	}
+	return p
+}
+
+func setPrefix(db dbm.DB, prefix []byte) {
+	db.Set(currentStateDbPrefixKey, prefix)
+}
+
+func prefix(height uint64) []byte {
+	return []byte("st-" + strconv.FormatUint(height, 16))
+}
+
+func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
+	db := database.NewBackedMemDb(s.db)
+	tree := NewMutableTree(db)
+	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
+		return common.Hash{}, err
+	}
+
+	tar := archiver.Tar{
+		MkdirAll:               true,
+		OverwriteExisting:      false,
+		ImplicitTopLevelFolder: false,
+	}
+
+	if err := tar.Create(to); err != nil {
+		return common.Hash{}, err
+	}
+
+	it := db.Iterator(nil, nil)
+
+	sb := &snapshot.Block{}
+
+	writeBlock := func(sb *snapshot.Block, name string) error {
+
+		data, _ := rlp.EncodeToBytes(sb)
+
+		return tar.Write(archiver.File{
+			FileInfo: archiver.FileInfo{
+				CustomName: name,
+				FileInfo: &fakeFileInfo{
+					size: int64(len(data)),
+				},
+			},
+			ReadCloser: common2.NewBufferCloser(data),
+		})
+	}
+
+	i := 0
+	for ; it.Valid(); it.Next() {
+		sb.Add(it.Key(), it.Value())
+		if sb.Full() {
+			if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
+				return common.Hash{}, err
+			}
+			i++
+			sb = &snapshot.Block{}
+		}
+	}
+	if len(sb.Data) > 0 {
+		if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
+			return common.Hash{}, err
+		}
+	}
+	return tree.WorkingHash(), tar.Close()
+}
+
+func clearDb(db dbm.DB) {
+	it := db.Iterator(nil, nil)
+	for ; it.Valid(); it.Next() {
+		db.Delete(it.Key())
+	}
+}
+
+func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) error {
+	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
+
+	tar := archiver.Tar{
+		MkdirAll:               true,
+		OverwriteExisting:      false,
+		ImplicitTopLevelFolder: false,
+	}
+
+	if err := tar.Open(from, 0); err != nil {
+		return err
+	}
+
+	for file, err := tar.Read(); err == nil; file, err = tar.Read() {
+		if data, err := ioutil.ReadAll(file); err != nil {
+			clearDb(pdb)
+			return err
+		} else {
+			sb := &snapshot.Block{}
+			if err := rlp.DecodeBytes(data, sb); err != nil {
+				clearDb(pdb)
+				return err
+			}
+			for _, pair := range sb.Data {
+				pdb.Set(pair.Key, pair.Value)
+			}
+		}
+	}
+	tree := NewMutableTree(pdb)
+	if _, err := tree.LoadVersion(int64(manifest.Height)); err != nil {
+		clearDb(pdb)
+		return err
+	}
+	if tree.WorkingHash() != manifest.Root {
+		clearDb(pdb)
+		return errors.New("wrong manifest root")
+	}
+
+	setPrefix(s.original, prefix(manifest.Height))
+	clearDb(s.db)
+
+	s.db = pdb
+	s.tree = tree
+	s.Clear()
+	return nil
 }
