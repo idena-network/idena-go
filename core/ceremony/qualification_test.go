@@ -4,10 +4,14 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
+	db2 "github.com/tendermint/tendermint/libs/db"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func Test_getAnswersCount(t *testing.T) {
@@ -87,6 +91,9 @@ func Test_getFlipStatusForCandidate(t *testing.T) {
 
 func Test_qualifyCandidate(t *testing.T) {
 	// given
+	db := db2.NewMemDB()
+	epochDb := database.NewEpochDb(db, 1)
+
 	flipsToSolve := []int{10, 11, 12, 13, 20, 21, 22, 23, 24}
 
 	flipQualificationMap := make(map[int]FlipQualification)
@@ -132,24 +139,37 @@ func Test_qualifyCandidate(t *testing.T) {
 	notApprovedFlips.Add(24)
 
 	candidate := tests.GetRandAddr()
+	maliciousCandidate := tests.GetRandAddr()
+
+	shortAnswer := []byte{57, 99}
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
+	epochDb.WriteAnswerHash(maliciousCandidate, rlp.Hash([]byte{0x0}), time.Now())
+
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
-			candidate: {57, 99}, // 11100101100011
+			candidate:          shortAnswer, // 11100101100011
+			maliciousCandidate: shortAnswer,
 		},
 		longAnswers: map[common.Address][]byte{
 			candidate: {57, 99}, // 11100101100011
 		},
+		epochDb: epochDb,
 	}
 
 	// when
 	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, true, notApprovedFlips)
 	longPoint, longQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, false, notApprovedFlips)
 
+	mShortPoint, mShortQualifiedFlipsCount := q.qualifyCandidate(maliciousCandidate, flipQualificationMap, flipsToSolve, true, notApprovedFlips)
+
 	// then
 	require.Equal(t, float32(3.5), shortPoint)
 	require.Equal(t, uint32(6), shortQualifiedFlipsCount)
 	require.Equal(t, float32(3.5), longPoint)
 	require.Equal(t, uint32(7), longQualifiedFlipsCount)
+
+	require.Equal(t, float32(0), mShortPoint)
+	require.Equal(t, uint32(len(flipsToSolve)), mShortQualifiedFlipsCount)
 }
 
 func fillArray(left int, right int, inapp int, none int) []types.Answer {

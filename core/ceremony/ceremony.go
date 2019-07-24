@@ -415,21 +415,19 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
 		sender, _ := types.Sender(tx)
 
-		if tx.Type == types.SubmitAnswersHashTx {
+		switch tx.Type {
+		case types.SubmitAnswersHashTx:
 			vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
-		}
-		if tx.Type == types.SubmitShortAnswersTx {
+		case types.SubmitShortAnswersTx:
 			attachment := attachments.ParseShortAnswerAttachment(tx)
 			if attachment == nil {
 				log.Error("short answer attachment is invalid", "tx", tx.Hash())
 				continue
 			}
 			vc.qualification.addAnswers(true, sender, attachment.Answers)
-		}
-		if tx.Type == types.SubmitLongAnswersTx {
+		case types.SubmitLongAnswersTx:
 			vc.qualification.addAnswers(false, sender, tx.Payload)
-		}
-		if tx.Type == types.EvidenceTx {
+		case types.EvidenceTx:
 			vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
 		}
 	}

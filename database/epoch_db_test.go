@@ -99,3 +99,25 @@ func TestEpochDb_Write_Read_FlipKeyWordPairs(t *testing.T) {
 		require.Equal(t, proof[i], readProof[i])
 	}
 }
+
+func TestEpochDb_GetAnswers(t *testing.T) {
+	require := require.New(t)
+
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+
+	timestamp := time.Now()
+
+	addr1 := tests.GetRandAddr()
+	addr2 := tests.GetRandAddr()
+	addr3 := tests.GetRandAddr()
+
+	edb.WriteAnswerHash(addr1, common.Hash{}, timestamp.Add(time.Second))
+	edb.WriteAnswerHash(addr2, common.Hash{}, timestamp.Add(time.Second*2))
+	edb.WriteAnswerHash(addr3, common.Hash{}, timestamp.Add(time.Second*5))
+
+	answers := edb.GetAnswers()
+	require.Len(answers, 3)
+	require.Contains(answers, addr1, addr2, addr3)
+}
