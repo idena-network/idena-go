@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 )
 
 type qualification struct {
@@ -114,11 +115,15 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	var answerBytes []byte
 	if shortSession {
+		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = q.shortAnswers[candidate]
+		if answerBytes != nil && hash != rlp.Hash(answerBytes) {
+			return 0, uint32(len(flipsToSolve))
+		}
+
 	} else {
 		answerBytes = q.longAnswers[candidate]
 	}
-
 	// candidate didn't send answers
 	if answerBytes == nil {
 		return 0, 0

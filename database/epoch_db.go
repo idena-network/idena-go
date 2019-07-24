@@ -84,6 +84,20 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 	return answers
 }
 
+func (edb *EpochDb) GetAnswerHash(address common.Address) common.Hash {
+	key := append(AnswerHashPrefix, address.Bytes()...)
+	data := edb.db.Get(key)
+	if data == nil {
+		return common.Hash{}
+	}
+	a := &shortAnswerDb{}
+	if err := rlp.DecodeBytes(data, a); err != nil {
+		log.Error("invalid short answers rlp", "err", err)
+		return common.Hash{}
+	}
+	return a.Hash
+}
+
 func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []common.Address {
 	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
 	var result []common.Address
