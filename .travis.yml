@@ -1,16 +1,20 @@
 dist: xenial
 language: go
 
-os:
-  - linux
-  - osx
-  - windows
-
 env:
   - GO111MODULE=on
 
 go:
   - 1.12.x
+
+matrix:
+  include:
+    - if: branch =~ /v\d+\.\d+\.\d+/
+      os: windows
+    - if: branch =~ /v\d+\.\d+\.\d+/
+      os: osx
+    - os: linux
+
 
 branches:
   only:
@@ -29,13 +33,12 @@ install: true
 
 before_script:
   - export VERSION=${TRAVIS_TAG:1}
-  - export BRANCH_BUILD_ALL_REGEX="/offline/"
 
 script:
   - go test -v ./...
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-linux-$VERSION; fi
-  - if [[ "$TRAVIS_OS_NAME" == "windows" && "$TRAVIS_BRANCH" =~ $BRANCH_BUILD_ALL_REGEX ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-win-$VERSION.exe; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx"  && "$TRAVIS_BRANCH" =~ $BRANCH_BUILD_ALL_REGEX ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-mac-$VERSION; fi
+  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-win-$VERSION.exe; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-mac-$VERSION; fi
 
 deploy:
   provider: releases
