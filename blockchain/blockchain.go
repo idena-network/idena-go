@@ -61,6 +61,7 @@ type Blockchain struct {
 	log             log.Logger
 	txpool          *mempool.TxPool
 	appState        *appstate.AppState
+	offlineDetector *OfflineDetector
 	secretKey       *ecdsa.PrivateKey
 	ipfs            ipfs.Proxy
 	timing          *timing
@@ -79,17 +80,19 @@ func init() {
 	MaxHash = new(big.Float).SetInt(i)
 }
 
-func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus) *Blockchain {
+func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore,
+	bus eventbus.Bus, offlineDetector *OfflineDetector) *Blockchain {
 	return &Blockchain{
-		repo:     database.NewRepo(db),
-		config:   config,
-		log:      log.New(),
-		txpool:   txpool,
-		appState: appState,
-		ipfs:     ipfs,
-		timing:   NewTiming(config.Validation),
-		bus:      bus,
-		secStore: secStore,
+		repo:            database.NewRepo(db),
+		config:          config,
+		log:             log.New(),
+		txpool:          txpool,
+		appState:        appState,
+		ipfs:            ipfs,
+		timing:          NewTiming(config.Validation),
+		bus:             bus,
+		secStore:        secStore,
+		offlineDetector: offlineDetector,
 	}
 }
 
@@ -419,8 +422,14 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	if flags.HasFlag(types.ValidationFinished) {
 		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
+
 	if flags.HasFlag(types.Snapshot) {
 		appState.State.SetLastSnapshot(block.Height())
+	}
+
+	if flags.HasFlag(types.OfflineCommit) {
+		addr := block.Header.OfflineAddr()
+		appState.IdentityState.SetOnline(*addr, false)
 	}
 }
 
@@ -618,7 +627,13 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	}
 
 	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
-	header.Flags = chain.calculateFlags(checkState, block)
+
+	addr, flag := chain.offlineDetector.ProposeOffline(head)
+	if addr != nil {
+		block.Header.ProposedHeader.OfflineAddr = addr
+		block.Header.ProposedHeader.Flags |= flag
+	}
+	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
 	chain.applyNewEpoch(checkState, block)
 	chain.applyBlockRewards(totalFee, checkState, block, chain.Head)
@@ -671,6 +686,10 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
 		!flags.HasFlag(types.ValidationFinished) {
 		flags |= types.Snapshot
+	}
+
+	if block.Header.Flags().HasFlag(types.OfflineCommit) {
+		flags |= types.IdentityUpdate
 	}
 
 	return flags
@@ -751,28 +770,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("empty blocks' hashes mismatch")
 	}
 
-	if err := validateBlockParentHash(block.Header, prevBlock); err != nil {
+	if err := chain.ValidateHeader(block.Header, prevBlock); err != nil {
 		return err
-	}
-	if err := validateBlockTimestamp(block.Header, prevBlock); err != nil {
-		return err
-	}
-	var seedData = getSeedData(prevBlock)
-	pubKey, err := crypto.UnmarshalPubkey(block.Header.ProposedHeader.ProposerPubKey)
-	if err != nil {
-		return err
-	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return err
-	}
-
-	hash, err := verifier.ProofToHash(seedData, block.Header.ProposedHeader.SeedProof)
-	if err != nil {
-		return err
-	}
-	if hash != block.Seed() {
-		return errors.New("seed is invalid")
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
@@ -787,7 +786,9 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("txHash is invalid")
 	}
 
-	if chain.calculateFlags(checkState, block) != block.Header.ProposedHeader.Flags {
+	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
+
+	if chain.calculateFlags(checkState, block) != persistentFlags {
 		return errors.New("flags are invalid")
 	}
 

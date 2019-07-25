@@ -63,8 +63,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	bus := eventbus.New()
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
+	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())

@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"math/big"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -37,6 +38,8 @@ const (
 	AfterLongSessionStarted
 	ValidationFinished
 	Snapshot
+	OfflinePropose
+	OfflineCommit
 )
 
 type Network = uint32
@@ -58,14 +61,15 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"`
+	Time           *big.Int    `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
 	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
 	Flags          BlockFlag
-	IpfsHash       []byte // ipfs hash of block body
+	IpfsHash       []byte          // ipfs hash of block body
+	OfflineAddr    *common.Address `rlp:"nil"`
 
 	BlockSeed Seed
 
@@ -80,10 +84,11 @@ type Header struct {
 type TxType = uint16
 
 type VoteHeader struct {
-	Round      uint64
-	Step       uint16
-	ParentHash common.Hash
-	VotedHash  common.Hash
+	Round       uint64
+	Step        uint16
+	ParentHash  common.Hash
+	VotedHash   common.Hash
+	TurnOffline bool
 }
 
 type Block struct {
@@ -138,6 +143,16 @@ type Flip struct {
 	Tx   *Transaction
 	Data []byte
 	Pair uint8
+}
+
+type ActivityMonitor struct {
+	UpdateDt time.Time
+	Data     []*AddrActivity
+}
+
+type AddrActivity struct {
+	Addr common.Address
+	Time time.Time
 }
 
 func (b *Block) Hash() common.Hash {
@@ -243,6 +258,22 @@ func (h *Header) Flags() BlockFlag {
 	}
 }
 
+func (h *Header) Coinbase() common.Address {
+	if h.EmptyBlockHeader != nil {
+		return common.Address{}
+	} else {
+		return h.ProposedHeader.Coinbase
+	}
+}
+
+func (h *Header) OfflineAddr() *common.Address {
+	if h.EmptyBlockHeader != nil {
+		return nil
+	} else {
+		return h.ProposedHeader.OfflineAddr
+	}
+}
+
 func (h *ProposedHeader) Hash() common.Hash {
 	return rlp.Hash(h)
 }
@@ -328,6 +359,10 @@ func (p NewEpochPayload) Bytes() []byte {
 
 func (f BlockFlag) HasFlag(flag BlockFlag) bool {
 	return f&flag != 0
+}
+
+func (f BlockFlag) UnsetFlag(flag BlockFlag) BlockFlag {
+	return f &^ flag
 }
 
 func (b Body) Bytes() []byte {
