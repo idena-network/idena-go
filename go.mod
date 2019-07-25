@@ -11,7 +11,6 @@ require (
 	github.com/davidlazar/go-crypto v0.0.0-20190522120613-62389b5e4ae0 // indirect
 	github.com/deckarep/golang-set v1.7.1
 	github.com/dgraph-io/badger v1.6.0 // indirect
-	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/go-stack/stack v1.8.0
@@ -39,10 +38,10 @@ require (
 	github.com/smartystreets/assertions v1.0.0 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a // indirect
 	github.com/stretchr/testify v1.3.0
-	github.com/syndtr/goleveldb v1.0.0
+	github.com/syndtr/goleveldb v1.0.1-0.20190318030020-c3a204f8e965
 	github.com/tendermint/go-amino v0.15.0 // indirect
 	github.com/tendermint/iavl v0.0.0-20190701090235-eef65d855b4a
-	github.com/tendermint/tendermint v0.32.0
+	github.com/tendermint/tm-cmn v0.0.0-20190716080004-dfcde30d5acb
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
 	go.opencensus.io v0.22.0 // indirect
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
@@ -54,4 +53,4 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
-replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.0.0-20190701090235-eef65d855b4a
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190724103809-104317193459

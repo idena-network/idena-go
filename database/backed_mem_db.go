@@ -3,7 +3,7 @@ package database
 import (
 	"bytes"
 	"github.com/deckarep/golang-set"
-	"github.com/tendermint/tendermint/libs/db"
+	"github.com/tendermint/tm-cmn/db"
 	"sync"
 )
 

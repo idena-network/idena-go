@@ -17,7 +17,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
-	dbm "github.com/tendermint/tendermint/libs/db"
+	dbm "github.com/tendermint/tm-cmn/db"
 	"sync"
 )
 
