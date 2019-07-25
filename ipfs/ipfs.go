@@ -310,6 +310,8 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 
 		bps, _ := ipfsConf.ParseBootstrapPeers(cfg.BootNodes)
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
+
+		ipfsConfig.Experimental.FilestoreEnabled = true
 	}
 	var ipfsConfig *ipfsConf.Config
 
@@ -321,7 +323,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.EnableAutoNATService = true
 		ipfsConfig.Swarm.EnableAutoRelay = true
 		ipfsConfig.Swarm.EnableRelayHop = true
-		ipfsConfig.Experimental.FilestoreEnabled = true
+
 		updateIpfsConfig(ipfsConfig)
 
 		if err := fsrepo.Init(datadir, ipfsConfig); err != nil {
