@@ -60,6 +60,7 @@ type Node struct {
 	bus             eventbus.Bus
 	ceremony        *ceremony.ValidationCeremony
 	downloader      *protocol.Downloader
+	offlineDetector *blockchain.OfflineDetector
 }
 
 func StartMobileNode(path string) string {
@@ -107,13 +108,14 @@ func NewNode(config *config.Config) (*Node, error) {
 	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus)
-	proposals := pengings.NewProposals(chain)
+	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
+	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool)
 	return &Node{
 		config:          config,
@@ -132,6 +134,7 @@ func NewNode(config *config.Config) (*Node, error) {
 		flipKeyPool:     flipKeyPool,
 		ceremony:        ceremony,
 		downloader:      downloader,
+		offlineDetector: offlineDetector,
 	}, nil
 }
 
@@ -164,7 +167,7 @@ func (node *Node) Start() {
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
-
+	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
 	node.srv.Start()
 	node.pm.Start()

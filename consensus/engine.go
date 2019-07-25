@@ -24,39 +24,42 @@ var (
 )
 
 type Engine struct {
-	chain         *blockchain.Blockchain
-	pm            *protocol.ProtocolManager
-	log           log.Logger
-	process       string
-	pubKey        []byte
-	config        *config.ConsensusConf
-	proposals     *pengings.Proposals
-	votes         *pengings.Votes
-	txpool        *mempool.TxPool
-	addr          common.Address
-	appState      *appstate.AppState
-	downloader    *protocol.Downloader
-	secStore      *secstore.SecStore
-	peekingBlocks chan *types.Block
-	forkResolver  *ForkResolver
+	chain           *blockchain.Blockchain
+	pm              *protocol.ProtocolManager
+	log             log.Logger
+	process         string
+	pubKey          []byte
+	config          *config.ConsensusConf
+	proposals       *pengings.Proposals
+	votes           *pengings.Votes
+	txpool          *mempool.TxPool
+	addr            common.Address
+	appState        *appstate.AppState
+	downloader      *protocol.Downloader
+	secStore        *secstore.SecStore
+	peekingBlocks   chan *types.Block
+	forkResolver    *ForkResolver
+	offlineDetector *blockchain.OfflineDetector
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
-	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader) *Engine {
+	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader,
+	offlineDetector *blockchain.OfflineDetector) *Engine {
 	return &Engine{
-		chain:        chain,
-		pm:           pm,
-		log:          log.New(),
-		config:       config,
-		proposals:    proposals,
-		appState:     appState,
-		votes:        votes,
-		txpool:       txpool,
-		downloader:   downloader,
-		secStore:     secStore,
-		forkResolver: NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
+		chain:           chain,
+		pm:              pm,
+		log:             log.New(),
+		config:          config,
+		proposals:       proposals,
+		appState:        appState,
+		votes:           votes,
+		txpool:          txpool,
+		downloader:      downloader,
+		secStore:        secStore,
+		forkResolver:    NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
+		offlineDetector: offlineDetector,
 	}
 }
 
@@ -374,6 +377,9 @@ func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {
 				VotedHash:  block,
 			},
 		}
+		if b, err := engine.proposals.GetBlockByHash(round, block); err == nil {
+			vote.Header.TurnOffline = engine.offlineDetector.VoteForOffline(b)
+		}
 		vote.Signature = engine.secStore.Sign(vote.Header.SignatureHash().Bytes())
 		engine.pm.SendVote(&vote)
 
@@ -423,6 +429,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 						return true
 					}
 					roundVotes.Add(vote.Hash())
+					engine.offlineDetector.ProcessVote(vote)
 
 					if roundVotes.Cardinality() >= necessaryVotesCount {
 						list := make([]*types.Vote, 0, necessaryVotesCount)

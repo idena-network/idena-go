@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tm-cmn/db"
+	"time"
 )
 
 const (
@@ -286,4 +287,55 @@ func (r *Repo) ReadPreliminaryHead() *types.Header {
 
 func (r *Repo) RemovePreliminaryHead() {
 	r.db.Delete(preliminaryHeadKey)
+}
+
+type activityMonitorDb struct {
+	UpdateDt uint64
+	Data     []*addrActivityDb
+}
+
+type addrActivityDb struct {
+	Addr common.Address
+	Time uint64
+}
+
+func (r *Repo) ReadActivity() *types.ActivityMonitor {
+	data := r.db.Get(activityMonitorKey)
+	if data == nil {
+		return nil
+	}
+	dbMonitor := new(activityMonitorDb)
+	if err := rlp.Decode(bytes.NewReader(data), dbMonitor); err != nil {
+		log.Error("invalid activity monitor RLP", "err", err)
+		return nil
+	}
+	monitor := &types.ActivityMonitor{
+		UpdateDt: time.Unix(int64(dbMonitor.UpdateDt), 0),
+	}
+	for _, item := range dbMonitor.Data {
+		monitor.Data = append(monitor.Data, &types.AddrActivity{
+			Addr: item.Addr,
+			Time: time.Unix(int64(item.Time), 0),
+		})
+	}
+
+	return monitor
+}
+
+func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
+	dbMonitor := &activityMonitorDb{
+		UpdateDt: uint64(monitor.UpdateDt.Unix()),
+	}
+	for _, item := range monitor.Data {
+		dbMonitor.Data = append(dbMonitor.Data, &addrActivityDb{
+			Addr: item.Addr,
+			Time: uint64(item.Time.Unix()),
+		})
+	}
+	data, err := rlp.EncodeToBytes(dbMonitor)
+	if err != nil {
+		log.Crit("failed to RLP encode activity monitor", "err", err)
+		return
+	}
+	r.db.Set(activityMonitorKey, data)
 }

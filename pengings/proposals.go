@@ -21,8 +21,9 @@ type Proof struct {
 }
 
 type Proposals struct {
-	log   log.Logger
-	chain *blockchain.Blockchain
+	log             log.Logger
+	chain           *blockchain.Blockchain
+	offlineDetector *blockchain.OfflineDetector
 
 	// proofs of proposers which are valid for current round
 	proofsByRound *sync.Map
@@ -50,9 +51,10 @@ type blockPeer struct {
 	peerId string
 }
 
-func NewProposals(chain *blockchain.Blockchain) *Proposals {
+func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDetector) *Proposals {
 	return &Proposals{
 		chain:                chain,
+		offlineDetector:      detector,
 		log:                  log.New(),
 		proofsByRound:        &sync.Map{},
 		blocksByRound:        &sync.Map{},
@@ -179,6 +181,12 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 			}
 			return false
 		}
+
+		if err := proposals.offlineDetector.ValidateBlock(proposals.chain.Head, block); err != nil {
+			log.Warn("Failed block offline proposing", "err", err.Error())
+			return false
+		}
+
 		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
 
 		round := m.(*sync.Map)

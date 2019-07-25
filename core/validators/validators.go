@@ -69,6 +69,10 @@ func (v *ValidatorsCache) IsOnlineIdentity(addr common.Address) bool {
 	return v.onlineNodesSet.Contains(addr)
 }
 
+func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
+	return v.onlineNodesSet.Clone()
+}
+
 func (v *ValidatorsCache) RefreshIfUpdated(block *types.Block) {
 	shouldUpdate := block.Header.Flags().HasFlag(types.IdentityUpdate)
 

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-cmn/db"
 	"testing"
+	"time"
 )
 
 func getRandHash() common.Hash {
@@ -27,10 +28,10 @@ func TestRepo_WriteWeakCertificate(t *testing.T) {
 
 	hash2 := getRandHash()
 	cert := types.BlockCert{Votes: []*types.Vote{{
-		Header:&types.VoteHeader{},
+		Header:    &types.VoteHeader{},
 		Signature: []byte("123"),
 	}, {
-		Header:&types.VoteHeader{},
+		Header:    &types.VoteHeader{},
 		Signature: []byte("1234"),
 	}}}
 	repo.WriteCertificate(hash2, &cert)
@@ -48,4 +49,27 @@ func TestRepo_WriteWeakCertificate(t *testing.T) {
 	require.Len(repo.ReadCertificate(hash2).Votes, 2)
 	weakCerts := repo.readWeakCertificates()
 	require.Equal(MaxWeakCertificatesCount, len(weakCerts.Hashes))
+}
+
+func TestRepo_WritActivityMonitor(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+
+	addr := common.Address{0x1}
+
+	monitor := &types.ActivityMonitor{
+		UpdateDt: time.Now().UTC(),
+		Data:     []*types.AddrActivity{{Time: time.Now().UTC(), Addr: addr}},
+	}
+
+	repo.WriteActivity(monitor)
+
+	readActivity := repo.ReadActivity()
+
+	require := require.New(t)
+
+	require.Equal(monitor.UpdateDt.Unix(), readActivity.UpdateDt.Unix())
+	require.Equal(len(monitor.Data), len(readActivity.Data))
+	require.Equal(monitor.Data[0].Addr, readActivity.Data[0].Addr)
+	require.Equal(monitor.Data[0].Time.Unix(), readActivity.Data[0].Time.Unix())
 }

@@ -42,17 +42,18 @@ func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Pro
 }
 
 type Block struct {
-	Coinbase     common.Address `json:"coinbase"`
-	Hash         common.Hash    `json:"hash"`
-	ParentHash   common.Hash    `json:"parentHash"`
-	Height       uint64         `json:"height"`
-	Time         *big.Int       `json:"timestamp"`
-	Root         common.Hash    `json:"root"`         // root of state tree
-	IdentityRoot common.Hash    `json:"identityRoot"` // root of approved identities tree
-	IpfsHash     *string        `json:"ipfsCid"`      // ipfs hash of block body
-	Transactions []common.Hash  `json:"transactions"`
-	Flags        []string       `json:"flags"`
-	IsEmpty      bool           `json:"isEmpty"`
+	Coinbase     common.Address  `json:"coinbase"`
+	Hash         common.Hash     `json:"hash"`
+	ParentHash   common.Hash     `json:"parentHash"`
+	Height       uint64          `json:"height"`
+	Time         *big.Int        `json:"timestamp"`
+	Root         common.Hash     `json:"root"`         // root of state tree
+	IdentityRoot common.Hash     `json:"identityRoot"` // root of approved identities tree
+	IpfsHash     *string         `json:"ipfsCid"`      // ipfs hash of block body
+	Transactions []common.Hash   `json:"transactions"`
+	Flags        []string        `json:"flags"`
+	IsEmpty      bool            `json:"isEmpty"`
+	OfflineAddr  *common.Address `json:"offlineAddress"`
 }
 
 type Transaction struct {
@@ -179,6 +180,12 @@ func convertToBlock(block *types.Block) *Block {
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
 		flags = append(flags, "ValidationFinished")
 	}
+	if block.Header.Flags().HasFlag(types.OfflinePropose) {
+		flags = append(flags, "OfflinePropose")
+	}
+	if block.Header.Flags().HasFlag(types.OfflineCommit) {
+		flags = append(flags, "OfflineCommit")
+	}
 	if block.Header.Flags().HasFlag(types.Snapshot) {
 		flags = append(flags, "Snapshot")
 	}
@@ -200,5 +207,6 @@ func convertToBlock(block *types.Block) *Block {
 		IpfsHash:     ipfsHashStr,
 		Transactions: txs,
 		Flags:        flags,
+		OfflineAddr:  block.Header.OfflineAddr(),
 	}
 }
