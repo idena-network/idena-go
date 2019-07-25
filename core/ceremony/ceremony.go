@@ -21,7 +21,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/shopspring/decimal"
-	dbm "github.com/tendermint/tendermint/libs/db"
+	dbm "github.com/tendermint/tm-cmn/db"
 	"sync"
 	"time"
 )

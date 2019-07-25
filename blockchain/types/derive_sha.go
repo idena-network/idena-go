@@ -21,7 +21,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/tendermint/iavl"
-	"github.com/tendermint/tendermint/libs/db"
+	"github.com/tendermint/tm-cmn/db"
 )
 
 type DerivableList interface {

@@ -8,7 +8,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
-	db2 "github.com/tendermint/tendermint/libs/db"
+	db2 "github.com/tendermint/tm-cmn/db"
 	"math/rand"
 	"testing"
 	"time"

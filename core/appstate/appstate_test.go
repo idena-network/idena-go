@@ -4,7 +4,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/stretchr/testify/require"
-	db2 "github.com/tendermint/tendermint/libs/db"
+	db2 "github.com/tendermint/tm-cmn/db"
 	"testing"
 )
 

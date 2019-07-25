@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/idena-network/idena-go/common"
-	dbm "github.com/tendermint/tendermint/libs/db"
+	dbm "github.com/tendermint/tm-cmn/db"
 	"math/big"
 	"sync"
 
