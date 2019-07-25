@@ -25,7 +25,6 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/mholt/archiver"
 	"github.com/pkg/errors"
-	common2 "github.com/tendermint/tendermint/libs/common"
 	"io"
 	"io/ioutil"
 	"strconv"
@@ -804,7 +803,7 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 					size: int64(len(data)),
 				},
 			},
-			ReadCloser: common2.NewBufferCloser(data),
+			ReadCloser: &readCloser{r: bytes.NewReader(data)},
 		})
 	}
 
@@ -878,5 +877,17 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 	s.db = pdb
 	s.tree = tree
 	s.Clear()
+	return nil
+}
+
+type readCloser struct {
+	r io.Reader
+}
+
+func (rc *readCloser) Read(p []byte) (n int, err error) {
+	return rc.r.Read(p)
+}
+
+func (rc *readCloser) Close() error {
 	return nil
 }

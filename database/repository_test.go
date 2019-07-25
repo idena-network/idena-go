@@ -5,7 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/db"
+	"github.com/tendermint/tm-cmn/db"
 	"testing"
 )
 
