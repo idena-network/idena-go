@@ -77,12 +77,12 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func MakeMobileConfig() *Config {
-	return getDefaultConfig()
+func MakeMobileConfig(path string) *Config {
+	return getDefaultConfig(filepath.Join(path, DefaultDataDir))
 }
 
 func MakeConfig(ctx *cli.Context) (*Config, error) {
-	cfg := getDefaultConfig()
+	cfg := getDefaultConfig(DefaultDataDir)
 
 	if file := ctx.String(CfgFileFlag.Name); file != "" {
 		if err := loadConfig(file, cfg); err != nil {
@@ -96,11 +96,11 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 	return cfg, nil
 }
 
-func getDefaultConfig() *Config {
+func getDefaultConfig(dataDir string) *Config {
 	bootNode, _ := enode.ParseV4(DefaultBootNode)
 
 	return &Config{
-		DataDir: DefaultDataDir,
+		DataDir: dataDir,
 		P2P: &p2p.Config{
 			ListenAddr:     fmt.Sprintf(":%d", DefaultPort),
 			MaxPeers:       25,
@@ -114,7 +114,7 @@ func getDefaultConfig() *Config {
 			GodAddress:        common.HexToAddress(DefaultGodAddress),
 		},
 		IpfsConf: &IpfsConfig{
-			DataDir:   filepath.Join(DefaultDataDir, DefaultIpfsDataDir),
+			DataDir:   filepath.Join(dataDir, DefaultIpfsDataDir),
 			IpfsPort:  DefaultIpfsPort,
 			BootNodes: DefaultIpfsBootstrapNodes,
 			SwarmKey:  DefaultSwarmKey,

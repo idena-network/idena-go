@@ -65,7 +65,7 @@ func StartMobileNode(path string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
-	c := config.MakeMobileConfig()
+	c := config.MakeMobileConfig(path)
 
 	n, err := NewNode(c)
 
