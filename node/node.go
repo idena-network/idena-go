@@ -116,7 +116,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
-	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool)
+	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
 	return &Node{
 		config:          config,
 		blockchain:      chain,
