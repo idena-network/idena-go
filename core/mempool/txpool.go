@@ -85,9 +85,14 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		txpool.addDeferredTx(tx)
 		return nil
 	}
-
 	if err := txpool.checkTotalTxLimit(); err != nil {
 		return err
+	}
+
+	hash := tx.Hash()
+
+	if _, ok := txpool.pending[hash]; ok {
+		return DuplicateTxError
 	}
 
 	sender, _ := types.Sender(tx)
@@ -96,10 +101,8 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		return err
 	}
 
-	hash := tx.Hash()
-
-	if _, ok := txpool.pending[hash]; ok {
-		return DuplicateTxError
+	if err := txpool.checkAddrCeremonyTx(tx); err != nil {
+		return err
 	}
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
@@ -216,6 +219,19 @@ func (txpool *TxPool) checkTotalTxLimit() error {
 func (txpool *TxPool) checkAddrTxLimit(sender common.Address) error {
 	if txpool.addrTxLimit > 0 && len(txpool.pendingPerAddr[sender]) >= txpool.addrTxLimit {
 		return errors.New("address tx queue max size reached")
+	}
+	return nil
+}
+
+func (txpool *TxPool) checkAddrCeremonyTx(tx *types.Transaction) error {
+	if !priorityTypes[tx.Type] {
+		return nil
+	}
+	sender, _ := types.Sender(tx)
+	for _, existingTx := range txpool.pendingPerAddr[sender] {
+		if existingTx.Type == tx.Type {
+			return errors.New("multiple ceremony transaction")
+		}
 	}
 	return nil
 }

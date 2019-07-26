@@ -431,7 +431,9 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 
 		switch tx.Type {
 		case types.SubmitAnswersHashTx:
-			vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
+			if !vc.epochDb.HasAnswerHash(sender) {
+				vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
+			}
 		case types.SubmitShortAnswersTx:
 			attachment := attachments.ParseShortAnswerAttachment(tx)
 			if attachment == nil {
@@ -442,7 +444,9 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 		case types.SubmitLongAnswersTx:
 			vc.qualification.addAnswers(false, sender, tx.Payload)
 		case types.EvidenceTx:
-			vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
+			if !vc.epochDb.HasEvidenceMap(sender) {
+				vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
+			}
 		}
 	}
 }

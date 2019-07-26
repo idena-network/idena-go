@@ -28,12 +28,21 @@ func NewQualification(epochDb *database.EpochDb) *qualification {
 }
 
 func (q *qualification) addAnswers(short bool, sender common.Address, txPayload []byte) {
-	q.hasNewAnswers = true
+
+	var m map[common.Address][]byte
+
 	if short {
-		q.shortAnswers[sender] = txPayload
+		m = q.shortAnswers
 	} else {
-		q.longAnswers[sender] = txPayload
+		m = q.longAnswers
 	}
+
+	if _, ok := m[sender]; ok {
+		return
+	}
+	m[sender] = txPayload
+
+	q.hasNewAnswers = true
 }
 
 func (q *qualification) persistAnswers() {

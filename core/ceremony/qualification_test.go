@@ -194,3 +194,24 @@ func fillArray(left int, right int, inapp int, none int) []types.Answer {
 
 	return ans
 }
+
+func TestQualification_addAnswers(t *testing.T) {
+	q := qualification{
+		shortAnswers: map[common.Address][]byte{
+		},
+		longAnswers: map[common.Address][]byte{
+		},
+	}
+	sender := common.Address{0x1}
+	q.addAnswers(true, sender, []byte{0x1})
+	q.addAnswers(true, sender, []byte{0x2})
+	q.addAnswers(false, sender, []byte{0x3})
+	q.addAnswers(false, sender, []byte{0x4})
+
+	sender2 := common.Address{0x2}
+	q.addAnswers(true, sender2, []byte{0x1})
+
+	require.Equal(t, []byte{0x1}, q.shortAnswers[sender])
+	require.Equal(t, []byte{0x3}, q.longAnswers[sender])
+	require.Equal(t, []byte{0x1}, q.shortAnswers[sender2])
+}

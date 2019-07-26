@@ -121,3 +121,26 @@ func TestEpochDb_GetAnswers(t *testing.T) {
 	require.Len(answers, 3)
 	require.Contains(answers, addr1, addr2, addr3)
 }
+
+func TestEpochDb_HasEvidenceMap(t *testing.T) {
+	require := require.New(t)
+
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+	addr := tests.GetRandAddr()
+
+	edb.WriteEvidenceMap(addr, []byte{0x1})
+	require.True(edb.HasEvidenceMap(addr))
+}
+
+func TestEpochDb_HasAnswerHash(t *testing.T) {
+	require := require.New(t)
+
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+	addr := tests.GetRandAddr()
+	edb.WriteAnswerHash(addr, common.Hash{0x1}, time.Now())
+	require.True(edb.HasAnswerHash(addr))
+}
