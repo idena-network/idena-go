@@ -127,7 +127,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = q.shortAnswers[candidate]
 		if answerBytes != nil && hash != rlp.Hash(answerBytes) {
-			return 0, uint32(len(flipsToSolve))
+			return 0, uint32(len(flipsToSolve)), nil
 		}
 
 	} else {
