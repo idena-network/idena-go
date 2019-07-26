@@ -179,6 +179,8 @@ func (node *Node) StartWithHeight(height uint64) {
 		return
 	}
 
+	node.appState.Initialize(node.blockchain.Head.Height())
+
 	if height > 0 && node.blockchain.Head.Height() > height {
 		if err := node.blockchain.ResetTo(height); err != nil {
 			node.log.Error(fmt.Sprintf("Cannot reset blockchain to %d", height), "error", err.Error())
@@ -186,7 +188,6 @@ func (node *Node) StartWithHeight(height uint64) {
 		}
 	}
 
-	node.appState.Initialize(node.blockchain.Head.Height())
 	node.txpool.Initialize(node.blockchain.Head)
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
