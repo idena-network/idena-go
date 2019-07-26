@@ -11,16 +11,16 @@ import (
 )
 
 var (
-	ShortSessionDuration        = time.Minute * 5
 	ShortSessionFlipKeyDeadline = time.Second * 30
 )
 
 type EvidenceMap struct {
-	answersSet       mapset.Set
-	keysSet          mapset.Set
-	bus              eventbus.Bus
-	shortSessionTime *time.Time
-	mutex            *sync.Mutex
+	answersSet           mapset.Set
+	keysSet              mapset.Set
+	bus                  eventbus.Bus
+	shortSessionTime     *time.Time
+	shortSessionDuration time.Duration
+	mutex                *sync.Mutex
 }
 
 func NewEvidenceMap(bus eventbus.Bus) *EvidenceMap {
@@ -42,7 +42,7 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	}
 
 	//TODO : m.shortSessionTime == nil ?
-	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().UTC().Sub(*m.shortSessionTime) < ShortSessionDuration {
+	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().UTC().Sub(*m.shortSessionTime) < m.shortSessionDuration {
 		sender, _ := types.Sender(tx)
 		m.answersSet.Add(sender)
 	}
@@ -106,8 +106,9 @@ func (m *EvidenceMap) ContainsKey(candidate common.Address) bool {
 	return m.keysSet.Contains(candidate)
 }
 
-func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time) {
+func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time, shortSessionDuration time.Duration) {
 	m.shortSessionTime = timestamp
+	m.shortSessionDuration = shortSessionDuration
 }
 
 func (m *EvidenceMap) GetShortSessionBeginningTime() *time.Time {
@@ -118,7 +119,7 @@ func (m *EvidenceMap) GetShortSessionEndingTime() *time.Time {
 	if m.shortSessionTime == nil {
 		return nil
 	}
-	endTime := m.shortSessionTime.Add(ShortSessionDuration)
+	endTime := m.shortSessionTime.Add(m.shortSessionDuration)
 	return &endTime
 }
 

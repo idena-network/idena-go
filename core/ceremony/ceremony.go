@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
@@ -67,6 +68,7 @@ type ValidationCeremony struct {
 	epochApplyingResult    map[common.Address]cacheValue
 	flipKeyWordPairs       []int
 	epoch                  uint16
+	config                 *config.Config
 }
 
 type cacheValue struct {
@@ -78,7 +80,7 @@ type cacheValue struct {
 type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
-	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool) *ValidationCeremony {
+	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool, config *config.Config) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
 		flipper:             flipper,
@@ -92,6 +94,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		epochApplyingResult: make(map[common.Address]cacheValue),
 		chain:               chain,
 		syncer:              syncer,
+		config:              config,
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -144,6 +147,11 @@ func (vc *ValidationCeremony) IsCandidate() bool {
 	return state.IsCeremonyCandidate(identity)
 }
 
+func (vc *ValidationCeremony) shouldBroadcastFlipKey() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return len(identity.Flips) > 0
+}
+
 func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {
 	return vc.shortFlipsToSolve
 }
@@ -174,7 +182,7 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 func (vc *ValidationCeremony) restoreState() {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.ShortSessionDuration)
 	}
 	vc.qualification.restoreAnswers()
 	vc.calculateCeremonyCandidates()
@@ -182,12 +190,6 @@ func (vc *ValidationCeremony) restoreState() {
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
-	vc.clear()
-	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
-	vc.epoch = vc.appState.State.Epoch()
-}
-
-func (vc *ValidationCeremony) clear() {
 	if vc.epoch != vc.appState.State.Epoch() {
 		edb := vc.epochDb
 		go func() {
@@ -195,6 +197,8 @@ func (vc *ValidationCeremony) clear() {
 			edb.Clear()
 		}()
 	}
+	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
+	vc.epoch = vc.appState.State.Epoch()
 
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Reset()
@@ -213,7 +217,6 @@ func (vc *ValidationCeremony) clear() {
 	vc.epochApplyingResult = make(map[common.Address]cacheValue)
 	vc.flipKeyWordPairs = nil
 }
-
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 	vc.blockHandlers[vc.appState.State.ValidationPeriod()](block)
 }
@@ -229,7 +232,6 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
 		vc.calculateCeremonyCandidates()
-		vc.broadcastFlipKey()
 		vc.logInfoWithInteraction("Flip lottery started")
 	}
 }
@@ -237,16 +239,16 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp)
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.ShortSessionDuration)
 	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		t := time.Now().UTC()
 		vc.epochDb.WriteShortSessionTime(t)
-		vc.appState.EvidenceMap.SetShortSessionTime(&t)
+		vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.ShortSessionDuration)
 		if vc.shouldInteractWithNetwork() {
 			vc.logInfoWithInteraction("Short session started", "at", t.String())
 		}
 	}
-
+	vc.broadcastFlipKey()
 	vc.processCeremonyTxs(block)
 }
 
@@ -255,6 +257,7 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 		vc.logInfoWithInteraction("Long session started")
 	}
 	vc.broadcastShortAnswersTx()
+	vc.broadcastFlipKey()
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
 }
@@ -330,7 +333,7 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 }
 
 func (vc *ValidationCeremony) broadcastFlipKey() {
-	if vc.keySent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() {
+	if vc.keySent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey() {
 		return
 	}
 
