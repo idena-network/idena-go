@@ -42,8 +42,7 @@ type DbAnswer struct {
 }
 
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
-	prefix := []byte("epoch")
-	prefix = append(prefix, uint8(epoch>>8), uint8(epoch&0xff))
+	prefix := append([]byte("epoch"), uint8(epoch>>8), uint8(epoch&0xff))
 	return &EpochDb{db: dbm.NewPrefixDB(db, prefix)}
 }
 
@@ -232,4 +231,14 @@ func (edb *EpochDb) ReadFlipKeyWordPairs() (words []uint32, proof []byte) {
 		}
 	}
 	return words, proof
+}
+
+func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {
+	key := append(EvidencePrefix, addr[:]...)
+	return edb.db.Has(key)
+}
+
+func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
+	key := append(AnswerHashPrefix, addr.Bytes()...)
+	return edb.db.Has(key)
 }

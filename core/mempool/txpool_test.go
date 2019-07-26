@@ -54,6 +54,37 @@ func TestTxPool_checkAddrTxLimit(t *testing.T) {
 	r.Error(pool.checkAddrTxLimit(address))
 }
 
+func TestTxPool_checkAddrCeremonyTx(t *testing.T) {
+	pool := getPool()
+
+	r := require.New(t)
+
+	key, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(key.PublicKey)
+
+	tx := &types.Transaction{Type: types.SubmitAnswersHashTx}
+	tx, _ = types.SignTx(tx, key)
+
+	r.NoError(pool.checkAddrCeremonyTx(tx))
+
+	pool.pendingPerAddr[sender] = make(map[common.Hash]*types.Transaction)
+	pool.pendingPerAddr[sender][tx.Hash()] = tx
+
+	tx = &types.Transaction{Type: types.SubmitLongAnswersTx}
+	tx, _ = types.SignTx(tx, key)
+	r.NoError(pool.checkAddrCeremonyTx(tx))
+
+
+	tx = &types.Transaction{Type: types.SendTx}
+	tx, _ = types.SignTx(tx, key)
+	r.NoError(pool.checkAddrCeremonyTx(tx))
+
+	tx = &types.Transaction{Type: types.SubmitAnswersHashTx, AccountNonce: 1}
+	tx, _ = types.SignTx(tx, key)
+
+	r.Error(pool.checkAddrCeremonyTx(tx))
+}
+
 func TestTxPool_addDeferredTx(t *testing.T) {
 	bus := eventbus.New()
 	appState := appstate.NewAppState(db.NewMemDB(), bus)
