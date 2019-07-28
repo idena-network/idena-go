@@ -226,7 +226,7 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 	var manifest *snapshot.Manifest
 	if canUseFastSync {
 		manifest = d.getBestManifest()
-		if manifest == nil || manifest.Height-d.chain.Head.Height() < d.cfg.Sync.ForceFullSync {
+		if manifest == nil || d.chain.Head.Height() > manifest.Height || manifest.Height-d.chain.Head.Height() < d.cfg.Sync.ForceFullSync {
 			canUseFastSync = false
 		}
 	}
