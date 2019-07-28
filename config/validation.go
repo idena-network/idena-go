@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	FlipLottery      = 1 * time.Minute
+	FlipLottery      = 5 * time.Minute
 	ShortSession     = 2 * time.Minute
 	AfterLongSession = 1 * time.Minute
 )
