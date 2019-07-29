@@ -77,7 +77,7 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 	for _, b := range fs.deferredHeaders {
 		if block, err := fs.GetBlock(b.Header); err != nil {
 			fs.log.Error("fail to retrieve block", "err", err)
-			return block.Height(), err
+			return b.Header.Height(), err
 		} else {
 			if err := fs.chain.AddBlock(block, checkState); err != nil {
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {

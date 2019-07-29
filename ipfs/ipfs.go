@@ -177,7 +177,7 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 
 func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	f, err := api.Unixfs().Get(ctx, path)
 	select {
@@ -187,7 +187,8 @@ func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 		break
 	}
 	if err != nil {
-		p.log.Error("fail to read from ipfs", "cid", path.String(), "err", err)
+		info, _ := api.Swarm().Peers(context.Background())
+		p.log.Error("fail to read from ipfs", "cid", path.String(), "err", err, "peers", len(info))
 		return nil, err
 	}
 	file := files.ToFile(f)
