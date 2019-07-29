@@ -182,7 +182,7 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 func (vc *ValidationCeremony) restoreState() {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.ShortSessionDuration)
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
 	}
 	vc.qualification.restoreAnswers()
 	vc.calculateCeremonyCandidates()
@@ -239,11 +239,11 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.ShortSessionDuration)
+		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
 	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		t := time.Now().UTC()
 		vc.epochDb.WriteShortSessionTime(t)
-		vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.ShortSessionDuration)
+		vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.GetShortSessionDuration())
 		if vc.shouldInteractWithNetwork() {
 			vc.logInfoWithInteraction("Short session started", "at", t.String())
 		}
@@ -578,7 +578,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		}
 		return identitiesCount
 	}
-
+	
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
