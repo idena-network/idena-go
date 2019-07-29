@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MaxWeakCertificatesCount = 5
+	MaxWeakCertificatesCount = 100
 )
 
 type Repo struct {
