@@ -33,6 +33,7 @@ type Config struct {
 	Validation       *ValidationConfig
 	Sync             *SyncConfig
 	OfflineDetection *OfflineDetectionConfig
+	Blockchain       *BlockchainConfig
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
@@ -127,6 +128,9 @@ func getDefaultConfig(dataDir string) *Config {
 			ForceFullSync: DefaultForceFullSync,
 		},
 		OfflineDetection: GetDefaultOfflineDetectionConfig(),
+		Blockchain: &BlockchainConfig{
+			StoreCertRange: DefaultStoreCertRange,
+		},
 	}
 }
 

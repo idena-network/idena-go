@@ -157,7 +157,7 @@ func (engine *Engine) loop() {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
-			engine.chain.WriteCertificate(blockHash, cert, emptyBlock.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
+			engine.chain.WriteCertificate(blockHash, cert, engine.chain.IsPermanentCert(emptyBlock.Header))
 			engine.log.Info("Reached consensus on empty block")
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
@@ -174,7 +174,7 @@ func (engine *Engine) loop() {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
 
-				engine.chain.WriteCertificate(blockHash, cert, block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot))
+				engine.chain.WriteCertificate(blockHash, cert,  engine.chain.IsPermanentCert(block.Header))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}

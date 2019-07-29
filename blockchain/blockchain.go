@@ -1180,3 +1180,8 @@ func (chain *Blockchain) RemovePreliminaryHead() {
 func (chain *Blockchain) SwitchToPreliminary() {
 	chain.setHead(chain.PreliminaryHead.Height())
 }
+
+func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
+	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
+		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+}

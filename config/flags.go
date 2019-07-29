@@ -3,17 +3,18 @@ package config
 import "gopkg.in/urfave/cli.v1"
 
 const (
-	DefaultDataDir       = "datadir"
-	DefaultBootNode      = "enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404"
-	DefaultPort          = 40404
-	DefaultRpcHost       = "localhost"
-	DefaultRpcPort       = 9009
-	DefaultIpfsDataDir   = "ipfs"
-	DefaultIpfsPort      = 4002
-	DefaultGodAddress    = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
-	DefaultCeremonyTime  = int64(1564407000)
-	DefaultSwarmKey      = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
-	DefaultForceFullSync = 100
+	DefaultDataDir        = "datadir"
+	DefaultBootNode       = "enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404"
+	DefaultPort           = 40404
+	DefaultRpcHost        = "localhost"
+	DefaultRpcPort        = 9009
+	DefaultIpfsDataDir    = "ipfs"
+	DefaultIpfsPort       = 4002
+	DefaultGodAddress     = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
+	DefaultCeremonyTime   = int64(1564407000)
+	DefaultSwarmKey       = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
+	DefaultForceFullSync  = 100
+	DefaultStoreCertRange = 2000
 )
 
 var (
