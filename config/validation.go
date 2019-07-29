@@ -12,10 +12,15 @@ const (
 )
 
 type ValidationConfig struct {
-	ValidationInterval       time.Duration
-	FlipLotteryDuration      time.Duration
-	ShortSessionDuration     time.Duration
-	LongSessionDuration      time.Duration
+	// Do not use directly
+	ValidationInterval time.Duration
+	// Do not use directly
+	FlipLotteryDuration time.Duration
+	// Do not use directly
+	ShortSessionDuration time.Duration
+	// Do not use directly
+	LongSessionDuration time.Duration
+	// Do not use directly
 	AfterLongSessionDuration time.Duration
 }
 
