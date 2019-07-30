@@ -74,7 +74,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 		return nil, err
 	}
 
-	ipfsConfig, err := configureIpfs(cfg)
+	_, err = configureIpfs(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,6 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 	if err != nil {
 		return nil, err
 	}
-	node.Repo.SetConfig(ipfsConfig)
 	peerId := node.PeerHost.ID().Pretty()
 	logger.Info("Ipfs initialized", "peerId", peerId)
 	go watchPeers(node)
@@ -336,6 +335,11 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig, _ = fsrepo.ConfigAt(datadir)
 
 		updateIpfsConfig(ipfsConfig)
+
+		repo, _ := fsrepo.Open(datadir)
+		if err := repo.SetConfig(ipfsConfig); err != nil {
+			return nil, err
+		}
 	}
 	return ipfsConfig, nil
 }
