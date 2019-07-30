@@ -44,6 +44,7 @@ func (api *DnaApi) GetCoinbaseAddr() common.Address {
 type Balance struct {
 	Stake   decimal.Decimal `json:"stake"`
 	Balance decimal.Decimal `json:"balance"`
+	Nonce   uint32          `json:"nonce"`
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
@@ -52,6 +53,7 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	return Balance{
 		Stake:   blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
 		Balance: blockchain.ConvertToFloat(state.State.GetBalance(address)),
+		Nonce:   state.State.GetNonce(address),
 	}
 }
 

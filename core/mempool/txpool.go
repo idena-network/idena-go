@@ -195,16 +195,11 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		if tx.Epoch > globalEpoch {
 			continue
 		}
-
-		sender, _ := types.Sender(tx)
-		if tx.AccountNonce <= txpool.appState.State.GetNonce(sender) && txpool.appState.State.GetEpoch(sender) == globalEpoch {
-			continue
-		}
-
 		if err := validation.ValidateTx(appState, tx, false); err != nil {
 			txpool.Remove(tx)
 			continue
 		}
+		sender, _ := types.Sender(tx)
 		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
 }
