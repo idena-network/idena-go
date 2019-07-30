@@ -302,41 +302,56 @@ func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 }
 
 func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
-	updateIpfsConfig := func(ipfsConfig *ipfsConf.Config) {
+	updateIpfsConfig := func(ipfsConfig *ipfsConf.Config) error {
 		ipfsConfig.Addresses.Swarm = []string{
 			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.IpfsPort),
 			fmt.Sprintf("/ip6/::/tcp/%d", cfg.IpfsPort),
 		}
 
-		bps, _ := ipfsConf.ParseBootstrapPeers(cfg.BootNodes)
+		bps, err := ipfsConf.ParseBootstrapPeers(cfg.BootNodes)
+		if err != nil {
+			return err
+		}
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
-
-		ipfsConfig.Experimental.FilestoreEnabled = true
+		return nil
 	}
 	var ipfsConfig *ipfsConf.Config
 
 	datadir, _ := filepath.Abs(cfg.DataDir)
 
 	if !fsrepo.IsInitialized(datadir) {
-		ipfsConfig, _ = ipfsConf.Init(os.Stdout, 2048)
-
+		ipfsConfig, err := ipfsConf.Init(os.Stdout, 2048)
+		if err != nil {
+			return nil, err
+		}
 		ipfsConfig.Swarm.EnableAutoNATService = true
 		ipfsConfig.Swarm.EnableAutoRelay = true
 		ipfsConfig.Swarm.EnableRelayHop = true
+		ipfsConfig.Experimental.FilestoreEnabled = true
 
-		updateIpfsConfig(ipfsConfig)
-
+		err = updateIpfsConfig(ipfsConfig)
+		if err != nil {
+			return nil, err
+		}
 		if err := fsrepo.Init(datadir, ipfsConfig); err != nil {
 			return nil, err
 		}
 
 		writeSwarmKey(datadir, cfg.SwarmKey)
 	} else {
-		ipfsConfig, _ = fsrepo.ConfigAt(datadir)
+		ipfsConfig, err := fsrepo.ConfigAt(datadir)
+		if err != nil {
+			return nil, err
+		}
+		err = updateIpfsConfig(ipfsConfig)
+		if err != nil {
+			return nil, err
+		}
 
-		updateIpfsConfig(ipfsConfig)
-
-		repo, _ := fsrepo.Open(datadir)
+		repo, err := fsrepo.Open(datadir)
+		if err != nil {
+			return nil, err
+		}
 		if err := repo.SetConfig(ipfsConfig); err != nil {
 			return nil, err
 		}
