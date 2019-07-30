@@ -84,13 +84,21 @@ func (api *BlockchainApi) Block(hash common.Hash) *Block {
 }
 
 func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
-	tx, idx := api.bc.GetTx(hash)
+	tx := api.pool.GetTx(hash)
+	var idx *types.TransactionIndex
+
 	if tx == nil {
-		tx = api.pool.GetTx(hash)
-		if tx == nil {
-			return nil
-		}
+		tx, idx = api.bc.GetTx(hash)
 	}
+
+	if tx == nil {
+		return nil
+	}
+
+	if idx == nil {
+		idx = api.bc.GetTxIndex(hash)
+	}
+
 	sender, _ := types.Sender(tx)
 
 	var blockHash common.Hash

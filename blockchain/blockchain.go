@@ -242,6 +242,10 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 		return err
 	}
 
+	if !chain.isSyncing {
+		chain.txpool.ResetTo(block)
+	}
+
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
 	})
@@ -270,9 +274,6 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 	}
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 
-	if !chain.isSyncing {
-		chain.txpool.ResetTo(block)
-	}
 	return diff, nil
 }
 
@@ -956,6 +957,10 @@ func (chain *Blockchain) GetBlockHeaderByHeight(height uint64) *types.Header {
 		return nil
 	}
 	return chain.repo.ReadBlockHeader(hash)
+}
+
+func (chain *Blockchain) GetTxIndex(hash common.Hash) *types.TransactionIndex {
+	return chain.repo.ReadTxIndex(hash)
 }
 
 func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.TransactionIndex) {
