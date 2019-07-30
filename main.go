@@ -63,7 +63,10 @@ func main() {
 			return err
 		}
 
-		n, _ := node.NewNode(cfg)
+		n, err := node.NewNode(cfg)
+		if err != nil {
+			return err
+		}
 		n.Start()
 		n.WaitForStop()
 		return nil
