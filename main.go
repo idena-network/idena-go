@@ -14,6 +14,7 @@ import (
 
 const (
 	VersionFile = "version"
+	LogDir      = "logs"
 )
 
 var (
@@ -44,19 +45,30 @@ func main() {
 	}
 
 	app.Action = func(context *cli.Context) error {
-
 		logLvl := log.Lvl(context.Int("verbosity"))
+
+		var handler log.Handler
 		if runtime.GOOS == "windows" {
-			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
+			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat()))
 		} else {
-			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 		}
+
+		log.Root().SetHandler(handler)
 
 		cfg, err := config.MakeConfig(context)
 
 		if err != nil {
 			return err
 		}
+
+		fileHandler, err := getLogFileHandler(cfg)
+
+		if err != nil {
+			return err
+		}
+
+		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
 		err = dropOldDirOnFork(cfg)
 		if err != nil {
@@ -76,6 +88,19 @@ func main() {
 	if err != nil {
 		log.Error(err.Error())
 	}
+}
+
+func getLogFileHandler(cfg *config.Config) (log.Handler, error) {
+	path := filepath.Join(cfg.DataDir, LogDir)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return nil, err
+		}
+	}
+
+	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
+
+	return fileHandler, nil
 }
 
 func dropOldDirOnFork(cfg *config.Config) error {
