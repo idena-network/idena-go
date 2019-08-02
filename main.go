@@ -15,6 +15,7 @@ import (
 const (
 	VersionFile = "version"
 	LogDir      = "logs"
+	ChainDir    = "idenachain.db"
 )
 
 var (
@@ -62,6 +63,11 @@ func main() {
 			return err
 		}
 
+		err = dropOldDirOnFork(cfg)
+		if err != nil {
+			return err
+		}
+
 		fileHandler, err := getLogFileHandler(cfg)
 
 		if err != nil {
@@ -69,11 +75,6 @@ func main() {
 		}
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
-
-		err = dropOldDirOnFork(cfg)
-		if err != nil {
-			return err
-		}
 
 		n, err := node.NewNode(cfg)
 		if err != nil {
@@ -117,8 +118,12 @@ func dropOldDirOnFork(cfg *config.Config) error {
 	old := semver.New(string(b))
 
 	if old.Major < current.Major || old.Minor < current.Minor {
-		log.Info("Network fork, removing db folder...")
-		err = os.RemoveAll(filepath.Join(cfg.DataDir, "idenachain.db"))
+		log.Info("Network fork, removing db and logs folder...")
+		err = os.RemoveAll(filepath.Join(cfg.DataDir, ChainDir))
+		if err != nil {
+			return err
+		}
+		err = os.RemoveAll(filepath.Join(cfg.DataDir, LogDir))
 		if err != nil {
 			return err
 		}
