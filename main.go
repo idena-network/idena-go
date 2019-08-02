@@ -14,6 +14,8 @@ import (
 
 const (
 	VersionFile = "version"
+	LogDir      = "logs"
+	ChainDir    = "idenachain.db"
 )
 
 var (
@@ -44,13 +46,16 @@ func main() {
 	}
 
 	app.Action = func(context *cli.Context) error {
-
 		logLvl := log.Lvl(context.Int("verbosity"))
+
+		var handler log.Handler
 		if runtime.GOOS == "windows" {
-			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat())))
+			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat()))
 		} else {
-			log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
 		}
+
+		log.Root().SetHandler(handler)
 
 		cfg, err := config.MakeConfig(context)
 
@@ -62,6 +67,14 @@ func main() {
 		if err != nil {
 			return err
 		}
+
+		fileHandler, err := getLogFileHandler(cfg)
+
+		if err != nil {
+			return err
+		}
+
+		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
 		n, err := node.NewNode(cfg)
 		if err != nil {
@@ -78,6 +91,19 @@ func main() {
 	}
 }
 
+func getLogFileHandler(cfg *config.Config) (log.Handler, error) {
+	path := filepath.Join(cfg.DataDir, LogDir)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return nil, err
+		}
+	}
+
+	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
+
+	return fileHandler, nil
+}
+
 func dropOldDirOnFork(cfg *config.Config) error {
 	path := filepath.Join(cfg.DataDir, VersionFile)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -92,8 +118,12 @@ func dropOldDirOnFork(cfg *config.Config) error {
 	old := semver.New(string(b))
 
 	if old.Major < current.Major || old.Minor < current.Minor {
-		log.Info("Network fork, removing db folder...")
-		err = os.RemoveAll(filepath.Join(cfg.DataDir, "idenachain.db"))
+		log.Info("Network fork, removing db and logs folder...")
+		err = os.RemoveAll(filepath.Join(cfg.DataDir, ChainDir))
+		if err != nil {
+			return err
+		}
+		err = os.RemoveAll(filepath.Join(cfg.DataDir, LogDir))
 		if err != nil {
 			return err
 		}
