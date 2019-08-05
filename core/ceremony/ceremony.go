@@ -69,6 +69,7 @@ type ValidationCeremony struct {
 	flipKeyWordPairs       []int
 	epoch                  uint16
 	config                 *config.Config
+	applyEpochMutex        sync.Mutex
 }
 
 type cacheValue struct {
@@ -563,6 +564,9 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 
 func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identitiesCount int) {
 
+	vc.applyEpochMutex.Lock()
+	defer vc.applyEpochMutex.Unlock()
+
 	applyOnState := func(addr common.Address, s state.IdentityState, shortQualifiedFlipsCount uint32, shortFlipPoint float32) {
 		appState.State.SetState(addr, s)
 		appState.State.AddQualifiedFlipsCount(addr, shortQualifiedFlipsCount)
@@ -578,7 +582,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		}
 		return identitiesCount
 	}
-	
+
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {

@@ -629,6 +629,8 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
 
+	block.Header.ProposedHeader.TxBloom = calculateTxBloom(block)
+
 	addr, flag := chain.offlineDetector.ProposeOffline(head)
 	if addr != nil {
 		block.Header.ProposedHeader.OfflineAddr = addr
@@ -646,6 +648,31 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
 
 	return block
+}
+
+func calculateTxBloom(block *types.Block) []byte {
+	if block.IsEmpty() {
+		return []byte{}
+	}
+	if len(block.Body.Transactions) == 0 {
+		return []byte{}
+	}
+
+	addrs := make(map[common.Address]bool)
+
+	for _, tx := range block.Body.Transactions {
+		sender, _ := types.Sender(tx)
+		addrs[sender] = true
+		if tx.To != nil {
+			addrs[*tx.To] = true
+		}
+	}
+	bloom := common.NewSerializableBF(len(addrs))
+	for addr := range addrs {
+		bloom.Add(addr)
+	}
+	data, _ := bloom.Serialize()
+	return data
 }
 
 func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *types.Block) types.BlockFlag {
@@ -722,7 +749,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.WriteIdentityStateDiff(block.Height(), diff)
-	chain.writeTxIndex(block)
+	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
@@ -731,10 +758,10 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	return err
 }
 
-func (chain *Blockchain) writeTxIndex(block *types.Block) {
-	for i, tx := range block.Body.Transactions {
+func (chain *Blockchain) WriteTxIndex(hash common.Hash, txs types.Transactions) {
+	for i, tx := range txs {
 		idx := &types.TransactionIndex{
-			BlockHash: block.Hash(),
+			BlockHash: hash,
 			Idx:       uint16(i),
 		}
 		chain.repo.WriteTxIndex(tx.Hash(), idx)
@@ -785,6 +812,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
 		return errors.New("txHash is invalid")
+	}
+
+	if bytes.Compare(calculateTxBloom(block), block.Header.ProposedHeader.TxBloom) != 0 {
+		return errors.New("tx bloom is invalid")
 	}
 
 	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
