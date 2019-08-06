@@ -61,17 +61,17 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"`
+	Time           *big.Int `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
 	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
 	Flags          BlockFlag
-	IpfsHash       []byte          // ipfs hash of block body
+	IpfsHash       []byte // ipfs hash of block body
 	OfflineAddr    *common.Address `rlp:"nil"`
-
-	BlockSeed Seed
+	TxBloom        []byte
+	BlockSeed      Seed
 
 	SeedProof []byte
 }

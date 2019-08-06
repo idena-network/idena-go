@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
@@ -34,6 +35,8 @@ type fastSync struct {
 	validators           *validators.ValidatorsCache
 	sm                   *state.SnapshotManager
 	bus                  eventbus.Bus
+	deferredHeaders      []*block
+	coinBase             common.Address
 }
 
 func (fs *fastSync) batchSize() uint64 {
@@ -45,7 +48,7 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
 	potentialForkedPeers mapset.Set,
-	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus) *fastSync {
+	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus, coinbase common.Address) *fastSync {
 
 	return &fastSync{
 		appState:             appState,
@@ -59,6 +62,7 @@ func NewFastSync(pm *ProtocolManager, log log.Logger,
 		manifest:             manifest,
 		sm:                   sm,
 		bus:                  bus,
+		coinBase:             coinbase,
 	}
 }
 
@@ -95,6 +99,60 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	return from, nil
 }
 
+func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
+	defer func() {
+		fs.deferredHeaders = []*block{}
+	}()
+
+	for _, b := range fs.deferredHeaders {
+
+		if err := fs.validateIdentityState(b); err != nil {
+			return b.Header.Height(), err
+		}
+		fs.stateDb.CommitTree()
+
+		if err := fs.chain.AddHeader(b.Header); err != nil {
+			return b.Header.Height(), err
+		}
+
+		if !b.IdentityDiff.Empty() {
+			fs.loadValidators()
+		}
+		fs.chain.WriteIdentityStateDiff(b.Header.Height(), b.IdentityDiff)
+		if !b.Cert.Empty() {
+			fs.chain.WriteCertificate(b.Header.Hash(), b.Cert, true)
+		}
+		if b.Header.ProposedHeader == nil || len(b.Header.ProposedHeader.TxBloom) == 0 {
+			continue
+		}
+		bloom, err := common.NewSerializableBFFromData(b.Header.ProposedHeader.TxBloom)
+		if err != nil {
+			return b.Header.Height(), err
+		}
+		if bloom.Has(fs.coinBase) {
+			txs, err := fs.GetBlockTransactions(b.Header.Hash(), b.Header.ProposedHeader.IpfsHash)
+			if err != nil {
+				return b.Header.Height(), err
+			}
+			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
+		}
+	}
+	return 0, nil
+}
+
+func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (types.Transactions, error) {
+	if txs, err := fs.ipfs.Get(ipfsHash); err != nil {
+		return nil, err
+	} else {
+		if len(txs) > 0 {
+			fs.log.Debug("Retrieve block body from ipfs", "hash", hash.Hex())
+		}
+		body := &types.Body{}
+		body.FromBytes(txs)
+		return body.Transactions, nil
+	}
+}
+
 func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	if fs.manifest == nil {
 		panic("manifest is required")
@@ -124,21 +182,13 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 				fs.log.Error("Block header is invalid", "err", err)
 				return reload(i)
 			}
-			if err := fs.validateIdentityState(block); err != nil {
-				return err
-			}
-			fs.stateDb.CommitTree()
-			if fs.chain.AddHeader(block.Header) != nil {
-				return reload(i)
-			}
-			if !block.IdentityDiff.Empty() {
-				fs.loadValidators()
-			}
-			fs.chain.WriteIdentityStateDiff(block.Header.Height(), block.IdentityDiff)
-			if !block.Cert.Empty() {
-				fs.chain.WriteCertificate(block.Header.Hash(), block.Cert, true)
-			}
 
+			fs.deferredHeaders = append(fs.deferredHeaders, block)
+			if block.Cert != nil && block.Cert.Len() > 0 {
+				if from, err := fs.applyDeferredBlocks(); err != nil {
+					return reload(from)
+				}
+			}
 
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
@@ -160,7 +210,9 @@ func (fs *fastSync) validateIdentityState(block *block) error {
 
 func (fs *fastSync) validateHeader(block *block) error {
 	prevBlock := fs.chain.PreliminaryHead
-
+	if len(fs.deferredHeaders) > 0 {
+		prevBlock = fs.deferredHeaders[len(fs.deferredHeaders)-1].Header
+	}
 	err := fs.chain.ValidateHeader(block.Header, prevBlock)
 	if err != nil {
 		return err
