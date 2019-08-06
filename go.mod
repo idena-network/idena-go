@@ -47,6 +47,7 @@ require (
 	github.com/tendermint/iavl v0.0.0-20190701090235-eef65d855b4a
 	github.com/tendermint/tm-cmn v0.0.0-20190716080004-dfcde30d5acb
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
+	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opencensus.io v0.22.0 // indirect
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
