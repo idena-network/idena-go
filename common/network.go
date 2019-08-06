@@ -6,9 +6,14 @@ import (
 )
 
 const (
-	ShortSessionFlips  = 5
-	LongSessionTesters = 10
+	ShortSessionFlips      = 5
+	LongSessionTesters     = 10
+	ShortSessionExtraFlips = 2
 )
+
+func ShortSessionExtraFlipsCount() uint {
+	return ShortSessionExtraFlips
+}
 
 func ShortSessionFlipsCount() uint {
 	return ShortSessionFlips
