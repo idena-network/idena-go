@@ -473,8 +473,9 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		flip, err := vc.flipper.GetRawFlip(key)
 		if err != nil || flip == nil {
 			vc.log.Error(fmt.Sprintf("flip is missing, key: %x", key))
+		} else {
+			pairs = append(pairs, flip.Pair)
 		}
-		pairs = append(pairs, flip.Pair)
 	}
 
 	ipfsAnswer := &attachments.ShortAnswerAttachment{
@@ -578,7 +579,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		}
 		return identitiesCount
 	}
-	
+
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
