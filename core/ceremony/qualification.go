@@ -138,11 +138,31 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		return 0, 0
 	}
 	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
+	availableExtraFlips := 0
+
+	if shortSession {
+		for i := 0; i < int(common.ShortSessionFlipsCount()) && i < len(flipsToSolve) && availableExtraFlips < int(common.ShortSessionExtraFlipsCount()); i++ {
+			answer, _ := answers.Answer(uint(i))
+			if notApprovedFlips.Contains(flipsToSolve[i]) && answer == types.None {
+				availableExtraFlips++
+			}
+		}
+	}
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
 		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, answers, shortSession)
 		answer, _ := answers.Answer(uint(i))
+
+		//extra flip
+		if shortSession && i >= int(common.ShortSessionFlipsCount()) {
+			if availableExtraFlips > 0 && answer != types.None {
+				availableExtraFlips -= 1
+			} else {
+				continue
+			}
+		}
+
 		switch status {
 		case Qualified:
 			if qual.answer == answer {
