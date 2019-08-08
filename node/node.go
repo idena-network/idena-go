@@ -63,20 +63,12 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 }
 
-func (node *Node) AppStateReadonly(height uint64) *appstate.AppState {
-	return node.appState.Readonly(height)
-}
-
-func (node *Node) Ceremony() *ceremony.ValidationCeremony {
-	return node.ceremony
-}
-
-func (node *Node) Blockchain() *blockchain.Blockchain {
-	return node.blockchain
-}
-
-func (node *Node) Flipper() *flip.Flipper {
-	return node.fp
+type nodeCtx struct {
+	Node       *Node
+	AppState   *appstate.AppState
+	Ceremony   *ceremony.ValidationCeremony
+	Blockchain *blockchain.Blockchain
+	Flipper    *flip.Flipper
 }
 
 func StartMobileNode(path string) string {
@@ -85,7 +77,7 @@ func StartMobileNode(path string) string {
 
 	c := config.MakeMobileConfig(path)
 
-	n, err := NewNode(c, eventbus.New())
+	n, err := NewNode(c)
 
 	if err != nil {
 		return err.Error()
@@ -96,7 +88,15 @@ func StartMobileNode(path string) string {
 	return "done"
 }
 
-func NewNode(config *config.Config, bus eventbus.Bus) (*Node, error) {
+func NewNode(config *config.Config) (*Node, error) {
+	nodeCtx, err := NewIndexerNode(config, eventbus.New())
+	if err != nil {
+		return nil, err
+	}
+	return nodeCtx.Node, err
+}
+
+func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -131,7 +131,7 @@ func NewNode(config *config.Config, bus eventbus.Bus) (*Node, error) {
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
-	return &Node{
+	node := &Node{
 		config:          config,
 		blockchain:      chain,
 		pm:              pm,
@@ -149,6 +149,13 @@ func NewNode(config *config.Config, bus eventbus.Bus) (*Node, error) {
 		ceremony:        ceremony,
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
+	}
+	return &nodeCtx{
+		Node:       node,
+		AppState:   appState,
+		Ceremony:   ceremony,
+		Blockchain: chain,
+		Flipper:    flipper,
 	}, nil
 }
 
