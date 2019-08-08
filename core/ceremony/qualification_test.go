@@ -94,7 +94,8 @@ func Test_qualifyCandidate(t *testing.T) {
 	db := db2.NewMemDB()
 	epochDb := database.NewEpochDb(db, 1)
 
-	flipsToSolve := []int{10, 11, 12, 13, 20, 21, 22, 23, 24}
+	shortFlipsToSolve := []int{10, 11, 12, 13, 20, 21, 22}
+	longFlipsToSolve := []int{10, 11, 12, 13, 20, 21, 22, 23, 24}
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	flipQualificationMap[10] = FlipQualification{
@@ -102,16 +103,16 @@ func Test_qualifyCandidate(t *testing.T) {
 		answer: types.Left,
 	}
 	flipQualificationMap[11] = FlipQualification{
-		status: Qualified,
-		answer: types.Right,
+		status: NotQualified,
+		answer: types.None,
 	}
 	flipQualificationMap[12] = FlipQualification{
-		status: Qualified,
-		answer: types.Right,
+		status: NotQualified,
+		answer: types.None,
 	}
 	flipQualificationMap[13] = FlipQualification{
 		status: NotQualified,
-		answer: types.Right,
+		answer: types.None,
 	}
 	flipQualificationMap[20] = FlipQualification{
 		status: WeaklyQualified,
@@ -135,41 +136,92 @@ func Test_qualifyCandidate(t *testing.T) {
 	}
 
 	notApprovedFlips := mapset.NewSet()
-	notApprovedFlips.Add(23)
-	notApprovedFlips.Add(24)
+	notApprovedFlips.Add(11)
+	notApprovedFlips.Add(12)
 
 	candidate := tests.GetRandAddr()
 	maliciousCandidate := tests.GetRandAddr()
 
-	shortAnswer := []byte{57, 99}
+	short := types.NewAnswers(uint(len(shortFlipsToSolve)))
+	short.Left(0)
+	short.Right(3)
+	short.Right(4)
+	short.Left(5)
+	short.Inappropriate(6)
+
+	long := types.NewAnswers(uint(len(longFlipsToSolve)))
+	long.Left(0)
+	long.Right(3)
+	long.Right(4)
+	long.Left(5)
+	long.Inappropriate(6)
+	long.Left(7)
+	long.Right(8)
+
+	shortAnswer := short.Bytes()
 	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
 	epochDb.WriteAnswerHash(maliciousCandidate, rlp.Hash([]byte{0x0}), time.Now())
 
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
-			candidate:          shortAnswer, // 11100101100011
+			candidate:          shortAnswer,
 			maliciousCandidate: shortAnswer,
 		},
 		longAnswers: map[common.Address][]byte{
-			candidate: {57, 99}, // 11100101100011
+			candidate: long.Bytes(),
 		},
 		epochDb: epochDb,
 	}
 
 	// when
-	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, true, notApprovedFlips)
-	longPoint, longQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, flipsToSolve, false, notApprovedFlips)
+	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
+	longPoint, longQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
 
-	mShortPoint, mShortQualifiedFlipsCount := q.qualifyCandidate(maliciousCandidate, flipQualificationMap, flipsToSolve, true, notApprovedFlips)
+	mShortPoint, mShortQualifiedFlipsCount := q.qualifyCandidate(maliciousCandidate, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 
 	// then
 	require.Equal(t, float32(3.5), shortPoint)
-	require.Equal(t, uint32(6), shortQualifiedFlipsCount)
-	require.Equal(t, float32(3.5), longPoint)
-	require.Equal(t, uint32(7), longQualifiedFlipsCount)
+	require.Equal(t, uint32(4), shortQualifiedFlipsCount)
+	require.Equal(t, float32(4.5), longPoint)
+	require.Equal(t, uint32(6), longQualifiedFlipsCount)
 
 	require.Equal(t, float32(0), mShortPoint)
-	require.Equal(t, uint32(len(flipsToSolve)), mShortQualifiedFlipsCount)
+	require.Equal(t, uint32(len(shortFlipsToSolve)), mShortQualifiedFlipsCount)
+}
+
+func Test_qualifyCandidateWithFewFlips(t *testing.T) {
+	// given
+	db := db2.NewMemDB()
+	epochDb := database.NewEpochDb(db, 1)
+	shortFlipsToSolve := []int{22, 55}
+	candidate := tests.GetRandAddr()
+
+	flipQualificationMap := make(map[int]FlipQualification)
+	flipQualificationMap[22] = FlipQualification{
+		status: Qualified,
+		answer: types.Left,
+	}
+	flipQualificationMap[55] = FlipQualification{
+		status: WeaklyQualified,
+		answer: types.Left,
+	}
+
+	short := types.NewAnswers(uint(len(shortFlipsToSolve)))
+	short.Left(0)
+	short.Right(1)
+
+	shortAnswer := short.Bytes()
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
+	q := qualification{
+		shortAnswers: map[common.Address][]byte{
+			candidate: shortAnswer,
+		},
+		epochDb: epochDb,
+	}
+	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, shortFlipsToSolve, true, mapset.NewSet())
+
+	require.Equal(t, float32(1.5), shortPoint)
+	require.Equal(t, uint32(2), shortQualifiedFlipsCount)
 }
 
 func fillArray(left int, right int, inapp int, none int) []types.Answer {
@@ -197,10 +249,8 @@ func fillArray(left int, right int, inapp int, none int) []types.Answer {
 
 func TestQualification_addAnswers(t *testing.T) {
 	q := qualification{
-		shortAnswers: map[common.Address][]byte{
-		},
-		longAnswers: map[common.Address][]byte{
-		},
+		shortAnswers: map[common.Address][]byte{},
+		longAnswers:  map[common.Address][]byte{},
 	}
 	sender := common.Address{0x1}
 	q.addAnswers(true, sender, []byte{0x1})

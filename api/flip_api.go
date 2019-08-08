@@ -103,6 +103,7 @@ func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
 type FlipHashesResponse struct {
 	Hash  string `json:"hash"`
 	Ready bool   `json:"ready"`
+	Extra bool   `json:"extra"`
 }
 
 func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
@@ -118,7 +119,7 @@ func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 
 	flips := api.ceremony.GetShortFlipsToSolve()
 
-	return prepareHashes(api.fp, flips)
+	return prepareHashes(api.fp, flips, true)
 }
 
 func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
@@ -134,20 +135,25 @@ func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
 
 	flips := api.ceremony.GetLongFlipsToSolve()
 
-	return prepareHashes(api.fp, flips)
+	return prepareHashes(api.fp, flips, false)
 }
 
-func prepareHashes(flipper *flip.Flipper, flips [][]byte) ([]FlipHashesResponse, error) {
+func prepareHashes(flipper *flip.Flipper, flips [][]byte, shortSession bool) ([]FlipHashesResponse, error) {
 	if flips == nil {
 		return nil, errors.New("no flips to solve")
 	}
 
 	var result []FlipHashesResponse
 	for _, v := range flips {
+		extraFlip := false
+		if shortSession && len(result) >= int(common.ShortSessionFlipsCount()) {
+			extraFlip = true
+		}
 		cid, _ := cid.Parse(v)
 		result = append(result, FlipHashesResponse{
 			Hash:  cid.String(),
 			Ready: flipper.IsFlipReady(v),
+			Extra: extraFlip,
 		})
 	}
 

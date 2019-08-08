@@ -279,7 +279,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 
 	vc.candidates, vc.flips, vc.flipsPerAuthor = vc.getCandidatesAndFlips()
 
-	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()), seed, false, nil)
+	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()), seed, false, nil)
 
 	chosenFlips := make(map[int]bool)
 	for _, a := range shortFlipsPerCandidate {
