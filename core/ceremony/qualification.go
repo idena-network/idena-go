@@ -141,7 +141,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	availableExtraFlips := 0
 
 	if shortSession {
-		for i := 0; i < int(common.ShortSessionFlipsCount()) && availableExtraFlips < int(common.ShortSessionExtraFlipsCount()); i++ {
+		for i := 0; i < int(common.ShortSessionFlipsCount()) && i < len(flipsToSolve) && availableExtraFlips < int(common.ShortSessionExtraFlipsCount()); i++ {
 			answer, _ := answers.Answer(uint(i))
 			if notApprovedFlips.Contains(flipsToSolve[i]) && answer == types.None {
 				availableExtraFlips++

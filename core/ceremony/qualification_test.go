@@ -189,6 +189,41 @@ func Test_qualifyCandidate(t *testing.T) {
 	require.Equal(t, uint32(len(shortFlipsToSolve)), mShortQualifiedFlipsCount)
 }
 
+func Test_qualifyCandidateWithFewFlips(t *testing.T) {
+	// given
+	db := db2.NewMemDB()
+	epochDb := database.NewEpochDb(db, 1)
+	shortFlipsToSolve := []int{22, 55}
+	candidate := tests.GetRandAddr()
+
+	flipQualificationMap := make(map[int]FlipQualification)
+	flipQualificationMap[22] = FlipQualification{
+		status: Qualified,
+		answer: types.Left,
+	}
+	flipQualificationMap[55] = FlipQualification{
+		status: WeaklyQualified,
+		answer: types.Left,
+	}
+
+	short := types.NewAnswers(uint(len(shortFlipsToSolve)))
+	short.Left(0)
+	short.Right(1)
+
+	shortAnswer := short.Bytes()
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
+	q := qualification{
+		shortAnswers: map[common.Address][]byte{
+			candidate: shortAnswer,
+		},
+		epochDb: epochDb,
+	}
+	shortPoint, shortQualifiedFlipsCount := q.qualifyCandidate(candidate, flipQualificationMap, shortFlipsToSolve, true, mapset.NewSet())
+
+	require.Equal(t, float32(1.5), shortPoint)
+	require.Equal(t, uint32(2), shortQualifiedFlipsCount)
+}
+
 func fillArray(left int, right int, inapp int, none int) []types.Answer {
 	var ans []types.Answer
 
