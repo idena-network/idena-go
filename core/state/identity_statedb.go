@@ -6,8 +6,8 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
-	dbm "github.com/tendermint/tm-cmn/db"
 	"github.com/pkg/errors"
+	dbm "github.com/tendermint/tm-cmn/db"
 	"strconv"
 	"sync"
 )
@@ -331,6 +331,14 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 	}
 	setIdentityPrefix(s.original, preliminaryPrefix, true)
 	return s.LoadPreliminary(height)
+}
+
+func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
+	for _, identity := range state.ApprovedIdentities {
+		stateObj := s.GetOrNewIdentityObject(identity.Address)
+		stateObj.data.Online = identity.Online
+		stateObj.data.Approved = identity.Approved
+	}
 }
 
 type IdentityStateDiffValue struct {

@@ -90,6 +90,8 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
+
+
 	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		log.Warn("Flip Tx is not valid", "hash", flip.Tx.Hash().Hex(), "err", err)
 		return err

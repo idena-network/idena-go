@@ -161,6 +161,18 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	chain.appState.State.SetGodAddress(chain.config.GenesisConf.GodAddress)
 
+	if network == Testnet {
+		data, err := Asset("stategen.out")
+		if err != nil {
+			return nil, err
+		}
+		predefinedState := new(state.PredefinedState)
+		if err := rlp.DecodeBytes(data, predefinedState); err != nil {
+			return nil, err
+		}
+		chain.appState.SetPredefinedState(predefinedState)
+	}
+
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 
 	nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
