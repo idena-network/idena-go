@@ -97,7 +97,9 @@ type Identity struct {
 	RequiredFlips   uint8
 	Flips           [][]byte `rlp:"nil"`
 	Generation      uint32
-	Code            []byte `rlp:"nil"`
+	Code            []byte           `rlp:"nil"`
+	Invitees        []common.Address `rlp:"nil"`
+	Inviter         common.Address
 }
 
 func (i *Identity) GetShortFlipPoints() float32 {
@@ -387,6 +389,43 @@ func (s *stateIdentity) AddFlip(cid []byte) {
 func (s *stateIdentity) ClearFlips() {
 	s.data.Flips = nil
 	s.touch()
+}
+
+func (s *stateIdentity) SetInviter(address common.Address) {
+	s.data.Inviter = address
+	s.touch()
+}
+
+func (s *stateIdentity) GetInviter() common.Address {
+	return s.data.Inviter
+}
+
+func (s *stateIdentity) ResetInviter() {
+	s.data.Inviter = common.Address{}
+	s.touch()
+}
+
+func (s *stateIdentity) AddInvitee(address common.Address) {
+	s.data.Invitees = append(s.data.Invitees, address)
+	s.touch()
+}
+
+func (s *stateIdentity) GetInvitees() []common.Address {
+	return s.data.Invitees
+}
+
+func (s *stateIdentity) RemoveInvitee(address common.Address) {
+	if len(s.data.Invitees) == 0 {
+		return
+	}
+	for i, invitee := range s.data.Invitees {
+		if invitee != address {
+			continue
+		}
+		s.data.Invitees = append(s.data.Invitees[:i], s.data.Invitees[i+1:]...)
+		s.touch()
+		return
+	}
 }
 
 // EncodeRLP implements rlp.Encoder.

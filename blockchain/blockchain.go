@@ -371,6 +371,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 
 		switch s {
 		case state.Verified:
+			removeLinkWithInviter(appState.State, addr)
 			appState.State.SetInvites(addr, uint8(invites))
 			appState.State.SetRequiredFlips(addr, uint8(flips))
 			appState.IdentityState.Add(addr)
@@ -378,6 +379,10 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 			appState.State.SetRequiredFlips(addr, uint8(flips))
 			appState.State.SetInvites(addr, 0)
 			appState.IdentityState.Add(addr)
+		case state.Killed, state.Undefined:
+			removeLinksWithInviterAndInvitees(appState.State, addr)
+			appState.State.SetInvites(addr, 0)
+			appState.State.SetRequiredFlips(addr, 0)
 		default:
 			appState.State.SetInvites(addr, 0)
 			appState.State.SetRequiredFlips(addr, 0)
@@ -387,6 +392,28 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 
 		appState.State.SetState(addr, s)
 	})
+}
+
+func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Address) {
+	removeLinkWithInviter(stateDB, addr)
+	removeLinkWithInvitees(stateDB, addr)
+}
+
+func removeLinkWithInviter(stateDB *state.StateDB, inviteeAddr common.Address) {
+	inviterAddr := stateDB.GetInviter(inviteeAddr)
+	if inviterAddr == (common.Address{}) {
+		return
+	}
+	stateDB.ResetInviter(inviteeAddr)
+	stateDB.RemoveInvitee(inviterAddr, inviteeAddr)
+}
+
+func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) {
+	for len(stateDB.GetInvitees(inviterAddr)) > 0 {
+		inviteeAddr := stateDB.GetInvitees(inviterAddr)[0]
+		stateDB.RemoveInvitee(inviterAddr, inviteeAddr)
+		stateDB.ResetInviter(inviteeAddr)
+	}
 }
 
 func clearIdentityState(appState *appstate.AppState) {
@@ -521,6 +548,13 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(recipient, change)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
+
+		inviter := stateDB.GetInviter(sender)
+		removeLinkWithInviter(appState.State, sender)
+		if inviter != (common.Address{}) {
+			stateDB.AddInvitee(inviter, recipient)
+			stateDB.SetInviter(recipient, inviter)
+		}
 		break
 	case types.SendTx:
 		amount := tx.AmountOrZero()
@@ -538,8 +572,11 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SetState(*tx.To, state.Invite)
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
 		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
+
+		stateDB.SetInviter(*tx.To, sender)
 		break
 	case types.KillTx:
+		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
 		amount := tx.AmountOrZero()
