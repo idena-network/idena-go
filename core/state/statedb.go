@@ -333,11 +333,11 @@ func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints flo
 	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
 }
 
-func (s *StateDB) SetInviter(address common.Address, inviterAddress common.Address) {
+func (s *StateDB) SetInviter(address common.Address, inviterAddress *common.Address) {
 	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress)
 }
 
-func (s *StateDB) GetInviter(address common.Address) common.Address {
+func (s *StateDB) GetInviter(address common.Address) *common.Address {
 	return s.GetOrNewIdentityObject(address).GetInviter()
 }
 

@@ -99,7 +99,7 @@ type Identity struct {
 	Generation      uint32
 	Code            []byte           `rlp:"nil"`
 	Invitees        []common.Address `rlp:"nil"`
-	Inviter         common.Address
+	Inviter         *common.Address  `rlp:"nil"`
 }
 
 func (i *Identity) GetShortFlipPoints() float32 {
@@ -391,17 +391,17 @@ func (s *stateIdentity) ClearFlips() {
 	s.touch()
 }
 
-func (s *stateIdentity) SetInviter(address common.Address) {
+func (s *stateIdentity) SetInviter(address *common.Address) {
 	s.data.Inviter = address
 	s.touch()
 }
 
-func (s *stateIdentity) GetInviter() common.Address {
+func (s *stateIdentity) GetInviter() *common.Address {
 	return s.data.Inviter
 }
 
 func (s *stateIdentity) ResetInviter() {
-	s.data.Inviter = common.Address{}
+	s.data.Inviter = nil
 	s.touch()
 }
 
