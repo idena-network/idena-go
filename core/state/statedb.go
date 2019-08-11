@@ -333,11 +333,11 @@ func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints flo
 	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
 }
 
-func (s *StateDB) SetInviter(address common.Address, inviterAddress *common.Address) {
-	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress)
+func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash) {
+	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress, txHash)
 }
 
-func (s *StateDB) GetInviter(address common.Address) *common.Address {
+func (s *StateDB) GetInviter(address common.Address) *TxAddr {
 	return s.GetOrNewIdentityObject(address).GetInviter()
 }
 
@@ -345,15 +345,15 @@ func (s *StateDB) ResetInviter(address common.Address) {
 	s.GetOrNewIdentityObject(address).ResetInviter()
 }
 
-func (s *StateDB) AddInvitee(address common.Address, inviteeAddress common.Address) {
-	s.GetOrNewIdentityObject(address).AddInvitee(inviteeAddress)
+func (s *StateDB) AddInvitee(address, inviteeAddress common.Address, txHash common.Hash) {
+	s.GetOrNewIdentityObject(address).AddInvitee(inviteeAddress, txHash)
 }
 
-func (s *StateDB) GetInvitees(address common.Address) []common.Address {
+func (s *StateDB) GetInvitees(address common.Address) []TxAddr {
 	return s.GetOrNewIdentityObject(address).GetInvitees()
 }
 
-func (s *StateDB) RemoveInvitee(address common.Address, inviteeAddress common.Address) {
+func (s *StateDB) RemoveInvitee(address, inviteeAddress common.Address) {
 	s.GetOrNewIdentityObject(address).RemoveInvitee(inviteeAddress)
 }
 

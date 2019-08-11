@@ -400,19 +400,19 @@ func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Addre
 }
 
 func removeLinkWithInviter(stateDB *state.StateDB, inviteeAddr common.Address) {
-	inviterAddr := stateDB.GetInviter(inviteeAddr)
-	if inviterAddr == nil {
+	inviter := stateDB.GetInviter(inviteeAddr)
+	if inviter == nil {
 		return
 	}
 	stateDB.ResetInviter(inviteeAddr)
-	stateDB.RemoveInvitee(*inviterAddr, inviteeAddr)
+	stateDB.RemoveInvitee(inviter.Address, inviteeAddr)
 }
 
 func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) {
 	for len(stateDB.GetInvitees(inviterAddr)) > 0 {
-		inviteeAddr := stateDB.GetInvitees(inviterAddr)[0]
-		stateDB.RemoveInvitee(inviterAddr, inviteeAddr)
-		stateDB.ResetInviter(inviteeAddr)
+		invitee := stateDB.GetInvitees(inviterAddr)[0]
+		stateDB.RemoveInvitee(inviterAddr, invitee.Address)
+		stateDB.ResetInviter(invitee.Address)
 	}
 }
 
@@ -550,10 +550,10 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SetGeneticCode(recipient, generation, code)
 
 		inviter := stateDB.GetInviter(sender)
-		removeLinkWithInviter(appState.State, sender)
 		if inviter != nil {
-			stateDB.AddInvitee(*inviter, recipient)
-			stateDB.SetInviter(recipient, inviter)
+			removeLinkWithInviter(appState.State, sender)
+			stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
+			stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash)
 		}
 		break
 	case types.SendTx:
@@ -573,7 +573,7 @@ func (chain *Blockchain) applyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
 		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
 
-		stateDB.SetInviter(*tx.To, &sender)
+		stateDB.SetInviter(*tx.To, sender, tx.Hash())
 		break
 	case types.KillTx:
 		removeLinksWithInviterAndInvitees(stateDB, sender)

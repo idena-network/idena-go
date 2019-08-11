@@ -97,9 +97,14 @@ type Identity struct {
 	RequiredFlips   uint8
 	Flips           [][]byte `rlp:"nil"`
 	Generation      uint32
-	Code            []byte           `rlp:"nil"`
-	Invitees        []common.Address `rlp:"nil"`
-	Inviter         *common.Address  `rlp:"nil"`
+	Code            []byte   `rlp:"nil"`
+	Invitees        []TxAddr `rlp:"nil"`
+	Inviter         *TxAddr  `rlp:"nil"`
+}
+
+type TxAddr struct {
+	TxHash  common.Hash
+	Address common.Address
 }
 
 func (i *Identity) GetShortFlipPoints() float32 {
@@ -391,12 +396,15 @@ func (s *stateIdentity) ClearFlips() {
 	s.touch()
 }
 
-func (s *stateIdentity) SetInviter(address *common.Address) {
-	s.data.Inviter = address
+func (s *stateIdentity) SetInviter(address common.Address, txHash common.Hash) {
+	s.data.Inviter = &TxAddr{
+		TxHash:  txHash,
+		Address: address,
+	}
 	s.touch()
 }
 
-func (s *stateIdentity) GetInviter() *common.Address {
+func (s *stateIdentity) GetInviter() *TxAddr {
 	return s.data.Inviter
 }
 
@@ -405,12 +413,15 @@ func (s *stateIdentity) ResetInviter() {
 	s.touch()
 }
 
-func (s *stateIdentity) AddInvitee(address common.Address) {
-	s.data.Invitees = append(s.data.Invitees, address)
+func (s *stateIdentity) AddInvitee(address common.Address, txHash common.Hash) {
+	s.data.Invitees = append(s.data.Invitees, TxAddr{
+		TxHash:  txHash,
+		Address: address,
+	})
 	s.touch()
 }
 
-func (s *stateIdentity) GetInvitees() []common.Address {
+func (s *stateIdentity) GetInvitees() []TxAddr {
 	return s.data.Invitees
 }
 
@@ -419,7 +430,7 @@ func (s *stateIdentity) RemoveInvitee(address common.Address) {
 		return
 	}
 	for i, invitee := range s.data.Invitees {
-		if invitee != address {
+		if invitee.Address != address {
 			continue
 		}
 		s.data.Invitees = append(s.data.Invitees[:i], s.data.Invitees[i+1:]...)

@@ -176,23 +176,23 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 }
 
 type Identity struct {
-	Address          common.Address   `json:"address"`
-	Nickname         string           `json:"nickname"`
-	Stake            decimal.Decimal  `json:"stake"`
-	Invites          uint8            `json:"invites"`
-	Age              uint16           `json:"age"`
-	State            string           `json:"state"`
-	PubKey           string           `json:"pubkey"`
-	RequiredFlips    uint8            `json:"requiredFlips"`
-	FlipKeyWordPairs [][2]uint32      `json:"flipKeyWordPairs"`
-	MadeFlips        uint8            `json:"madeFlips"`
-	QualifiedFlips   uint32           `json:"totalQualifiedFlips"`
-	ShortFlipPoints  float32          `json:"totalShortFlipPoints"`
-	Flips            []string         `json:"flips"`
-	Online           bool             `json:"online"`
-	Generation       uint32           `json:"generation"`
-	Code             hexutil.Bytes    `json:"code"`
-	Invitees         []common.Address `json:"invitees"`
+	Address          common.Address  `json:"address"`
+	Nickname         string          `json:"nickname"`
+	Stake            decimal.Decimal `json:"stake"`
+	Invites          uint8           `json:"invites"`
+	Age              uint16          `json:"age"`
+	State            string          `json:"state"`
+	PubKey           string          `json:"pubkey"`
+	RequiredFlips    uint8           `json:"requiredFlips"`
+	FlipKeyWordPairs [][2]uint32     `json:"flipKeyWordPairs"`
+	MadeFlips        uint8           `json:"madeFlips"`
+	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
+	ShortFlipPoints  float32         `json:"totalShortFlipPoints"`
+	Flips            []string        `json:"flips"`
+	Online           bool            `json:"online"`
+	Generation       uint32          `json:"generation"`
+	Code             hexutil.Bytes   `json:"code"`
+	Invitees         []state.TxAddr  `json:"invitees"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -282,7 +282,7 @@ func convertIdentity(address common.Address, data state.Identity, flipKeyWordPai
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs, [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])})
 	}
 
-	var invitees []common.Address
+	var invitees []state.TxAddr
 	if len(data.Invitees) > 0 {
 		invitees = data.Invitees
 	}
