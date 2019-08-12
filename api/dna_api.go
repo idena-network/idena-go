@@ -192,6 +192,7 @@ type Identity struct {
 	Online           bool            `json:"online"`
 	Generation       uint32          `json:"generation"`
 	Code             hexutil.Bytes   `json:"code"`
+	Invitees         []state.TxAddr  `json:"invitees"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -281,6 +282,11 @@ func convertIdentity(address common.Address, data state.Identity, flipKeyWordPai
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs, [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])})
 	}
 
+	var invitees []state.TxAddr
+	if len(data.Invitees) > 0 {
+		invitees = data.Invitees
+	}
+
 	return Identity{
 		Address:          address,
 		State:            s,
@@ -296,7 +302,8 @@ func convertIdentity(address common.Address, data state.Identity, flipKeyWordPai
 		ShortFlipPoints:  data.GetShortFlipPoints(),
 		Flips:            result,
 		Generation:       data.Generation,
-		Code:             hexutil.Bytes(data.Code),
+		Code:             data.Code,
+		Invitees:         invitees,
 	}
 }
 
