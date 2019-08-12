@@ -333,6 +333,30 @@ func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints flo
 	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
 }
 
+func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash) {
+	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress, txHash)
+}
+
+func (s *StateDB) GetInviter(address common.Address) *TxAddr {
+	return s.GetOrNewIdentityObject(address).GetInviter()
+}
+
+func (s *StateDB) ResetInviter(address common.Address) {
+	s.GetOrNewIdentityObject(address).ResetInviter()
+}
+
+func (s *StateDB) AddInvitee(address, inviteeAddress common.Address, txHash common.Hash) {
+	s.GetOrNewIdentityObject(address).AddInvitee(inviteeAddress, txHash)
+}
+
+func (s *StateDB) GetInvitees(address common.Address) []TxAddr {
+	return s.GetOrNewIdentityObject(address).GetInvitees()
+}
+
+func (s *StateDB) RemoveInvitee(address, inviteeAddress common.Address) {
+	s.GetOrNewIdentityObject(address).RemoveInvitee(inviteeAddress)
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
