@@ -104,6 +104,7 @@ func getDefaultConfig(dataDir string) *Config {
 
 	return &Config{
 		DataDir: dataDir,
+		Network: 0x1, // testnet
 		P2P: &p2p.Config{
 			ListenAddr:     fmt.Sprintf(":%d", DefaultPort),
 			MaxPeers:       25,

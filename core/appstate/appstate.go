@@ -101,3 +101,9 @@ func (s *AppState) ResetTo(height uint64) error {
 	err = s.IdentityState.ResetTo(height)
 	return err
 }
+
+func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
+	s.State.SetPredefinedAccounts(predefinedState)
+	s.State.SetPredefinedIdentities(predefinedState)
+	s.IdentityState.SetPredefinedIdentities(predefinedState)
+}

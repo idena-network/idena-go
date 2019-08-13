@@ -904,6 +904,34 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 	return nil
 }
 
+func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
+	for _, acc := range state.Accounts {
+		stateObject := s.GetOrNewAccountObject(acc.Address)
+		stateObject.SetBalance(acc.Balance)
+		stateObject.SetEpoch(acc.Epoch)
+		stateObject.setNonce(acc.Nonce)
+	}
+}
+
+func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
+	for _, identity := range state.Identities {
+		stateObject := s.GetOrNewIdentityObject(identity.Address)
+		stateObject.data.Age = identity.Age
+		stateObject.data.Generation = identity.Generation
+		stateObject.data.Stake = identity.Stake
+		stateObject.data.RequiredFlips = identity.RequiredFlips
+		stateObject.data.PubKey = identity.PubKey
+		stateObject.data.Invites = identity.Invites
+		stateObject.data.State = identity.State
+		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
+		stateObject.data.QualifiedFlips = identity.QualifiedFlips
+		stateObject.data.Nickname = identity.Nickname
+		stateObject.data.Flips = identity.Flips
+		stateObject.data.Code = identity.Code
+		stateObject.touch()
+	}
+}
+
 type readCloser struct {
 	r io.Reader
 }

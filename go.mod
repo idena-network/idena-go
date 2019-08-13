@@ -13,6 +13,7 @@ require (
 	github.com/dgraph-io/badger v1.6.0 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
+	github.com/go-bindata/go-bindata v3.1.2+incompatible // indirect
 	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/mock v1.3.1 // indirect
