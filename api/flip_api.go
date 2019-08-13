@@ -185,6 +185,7 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 type FlipAnswer struct {
 	Easy   bool         `json:"easy"`
 	Answer types.Answer `json:"answer"`
+	Hash   string       `json:"hash"`
 }
 
 type SubmitAnswersArgs struct {
@@ -202,12 +203,9 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flipsCount := len(api.ceremony.GetShortFlipsToSolve())
-	if flipsCount != len(args.Answers) {
-		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
-	}
+	flips := api.ceremony.GetShortFlipsToSolve()
 
-	answers := parseAnswers(args.Answers, uint(flipsCount))
+	answers := prepareAnswers(args.Answers, flips)
 
 	hash, err := api.ceremony.SubmitShortAnswers(answers)
 
@@ -225,12 +223,9 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flipsCount := len(api.ceremony.GetLongFlipsToSolve())
-	if flipsCount != len(args.Answers) {
-		return SubmitAnswersResponse{}, errors.Errorf("some answers are missing, expected %v, actual %v", flipsCount, len(args.Answers))
-	}
+	flips := api.ceremony.GetLongFlipsToSolve()
 
-	answers := parseAnswers(args.Answers, uint(flipsCount))
+	answers := prepareAnswers(args.Answers, flips)
 
 	hash, err := api.ceremony.SubmitLongAnswers(answers)
 
@@ -243,25 +238,36 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 	}, nil
 }
 
-func parseAnswers(answers []FlipAnswer, flipsCount uint) *types.Answers {
-	result := types.NewAnswers(flipsCount)
+func prepareAnswers(answers []FlipAnswer, flips [][]byte) *types.Answers {
+	findAnswer := func(hash []byte) *FlipAnswer {
+		for _, h := range answers {
+			c, err := cid.Parse(h.Hash)
+			if err == nil && bytes.Compare(c.Bytes(), hash) == 0 {
+				return &h
+			}
+		}
+		return nil
+	}
 
-	for i := uint(0); i < uint(len(answers)); i++ {
-		item := answers[i]
-		if item.Answer == types.None {
+	result := types.NewAnswers(uint(len(flips)))
+
+	for i, flip := range flips {
+		answer := findAnswer(flip)
+		if answer == nil {
 			continue
 		}
-		if item.Answer == types.Left {
-			result.Left(i)
+		switch answer.Answer {
+		case types.None:
+			continue
+		case types.Left:
+			result.Left(uint(i))
+		case types.Right:
+			result.Right(uint(i))
+		case types.Inappropriate:
+			result.Inappropriate(uint(i))
 		}
-		if item.Answer == types.Right {
-			result.Right(i)
-		}
-		if item.Answer == types.Inappropriate {
-			result.Inappropriate(i)
-		}
-		if item.Easy {
-			result.Easy(i)
+		if answer.Easy {
+			result.Easy(uint(i))
 		}
 	}
 
