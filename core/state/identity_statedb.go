@@ -338,6 +338,7 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObj := s.GetOrNewIdentityObject(identity.Address)
 		stateObj.data.Online = identity.Online
 		stateObj.data.Approved = identity.Approved
+		stateObj.touch()
 	}
 }
 
