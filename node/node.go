@@ -82,7 +82,7 @@ func StartMobileNode(path string) string {
 
 func NewNode(config *config.Config) (*Node, error) {
 
-	db, err := OpenDatabase(config, "idenachain", 16, 16)
+	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
 	if err != nil {
 		return nil, err
@@ -230,8 +230,8 @@ func (node *Node) stopHTTP() {
 	}
 }
 
-func OpenDatabase(c *config.Config, name string, cache int, handles int) (db.DB, error) {
-	return db.NewGoLevelDBWithOpts(name, c.DataDir, &opt.Options{
+func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, error) {
+	return db.NewGoLevelDBWithOpts(name, datadir, &opt.Options{
 		OpenFilesCacheCapacity: handles,
 		BlockCacheCapacity:     cache / 2 * opt.MiB,
 		WriteBuffer:            cache / 4 * opt.MiB,
