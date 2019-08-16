@@ -23,19 +23,20 @@ import (
 )
 
 type Flipper struct {
-	epochDb                 *database.EpochDb
-	db                      dbm.DB
-	log                     log.Logger
-	keyspool                *mempool.KeysPool
-	ipfsProxy               ipfs.Proxy
-	hasFlips                bool
-	mutex                   sync.Mutex
-	secStore                *secstore.SecStore
-	flips                   map[common.Hash]*IpfsFlip
-	flipReadiness           map[common.Hash]bool
-	appState                *appstate.AppState
-	txpool                  *mempool.TxPool
-	loadingCtxCancellations []context.CancelFunc
+	epochDb          *database.EpochDb
+	db               dbm.DB
+	log              log.Logger
+	keyspool         *mempool.KeysPool
+	ipfsProxy        ipfs.Proxy
+	hasFlips         bool
+	mutex            sync.Mutex
+	secStore         *secstore.SecStore
+	flips            map[common.Hash]*IpfsFlip
+	flipReadiness    map[common.Hash]bool
+	appState         *appstate.AppState
+	txpool           *mempool.TxPool
+	loadingCtx       context.Context
+	cancelLoadingCtx context.CancelFunc
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -44,16 +45,19 @@ type IpfsFlip struct {
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
+	ctx, cancel := context.WithCancel(context.Background())
 	fp := &Flipper{
-		db:            db,
-		log:           log.New(),
-		ipfsProxy:     ipfsProxy,
-		keyspool:      keyspool,
-		txpool:        txpool,
-		secStore:      secStore,
-		flips:         make(map[common.Hash]*IpfsFlip),
-		flipReadiness: make(map[common.Hash]bool),
-		appState:      appState,
+		db:               db,
+		log:              log.New(),
+		ipfsProxy:        ipfsProxy,
+		keyspool:         keyspool,
+		txpool:           txpool,
+		secStore:         secStore,
+		flips:            make(map[common.Hash]*IpfsFlip),
+		flipReadiness:    make(map[common.Hash]bool),
+		appState:         appState,
+		loadingCtx:       ctx,
+		cancelLoadingCtx: cancel,
 	}
 
 	return fp
@@ -191,11 +195,7 @@ func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
 }
 
 func (fp *Flipper) Load(cids [][]byte) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	fp.mutex.Lock()
-	fp.loadingCtxCancellations = append(fp.loadingCtxCancellations, cancel)
-	fp.mutex.Unlock()
+	ctx := fp.loadingCtx
 
 	for len(cids) > 0 {
 
@@ -235,15 +235,13 @@ func (fp *Flipper) Reset() {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
-	for _, cancelCtx := range fp.loadingCtxCancellations {
-		cancelCtx()
-	}
+	fp.cancelLoadingCtx()
 	fp.hasFlips = false
 	fp.flips = make(map[common.Hash]*IpfsFlip)
 	fp.flipReadiness = make(map[common.Hash]bool)
 	fp.keyspool.Clear()
 	fp.Initialize()
-	fp.loadingCtxCancellations = nil
+	fp.loadingCtx, fp.cancelLoadingCtx = context.WithCancel(context.Background())
 }
 
 func (fp *Flipper) HasFlips() bool {
