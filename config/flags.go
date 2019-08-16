@@ -4,7 +4,6 @@ import "gopkg.in/urfave/cli.v1"
 
 const (
 	DefaultDataDir        = "datadir"
-	DefaultBootNode       = "enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404"
 	DefaultPort           = 40404
 	DefaultRpcHost        = "localhost"
 	DefaultRpcPort        = 9009
@@ -18,8 +17,13 @@ const (
 )
 
 var (
+	DefaultBootstrapNodes = []string{
+		"enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404",
+		"enode://1596e005b3addf7b6ef43ce574a18948ec127681d4262ec05da06a38bca5f08d52a8189807c7330c49dc8548b7345fc570c77b6e9541bb952be23f71dfd9eb85@206.81.23.186:40404",
+	}
 	DefaultIpfsBootstrapNodes = []string{
 		"/ip4/111.90.140.21/tcp/4002/ipfs/QmZV7cwSgVTSnMUE2zTK3f5nepCuT5yYnTyMpRgGhxJoTG",
+		"/ip4/206.81.23.186/tcp/40403/ipfs/QmcNz33dvfrY5cMMQs64CcSQoR9sVVGL8qD4mptYUGHUTD",
 	}
 	CfgFileFlag = cli.StringFlag{
 		Name:  "config",
