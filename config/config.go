@@ -100,16 +100,20 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 }
 
 func getDefaultConfig(dataDir string) *Config {
-	bootNode, _ := enode.ParseV4(DefaultBootNode)
+	var bootNodes []*enode.Node
+	for _, item := range DefaultBootstrapNodes {
+		bootNode, _ := enode.ParseV4(item)
+		bootNodes = append(bootNodes, bootNode)
+	}
 
 	return &Config{
 		DataDir: dataDir,
 		Network: 0x1, // testnet
 		P2P: &p2p.Config{
 			ListenAddr:     fmt.Sprintf(":%d", DefaultPort),
-			MaxPeers:       25,
+			MaxPeers:       50,
 			NAT:            nat.Any(),
-			BootstrapNodes: []*enode.Node{bootNode},
+			BootstrapNodes: bootNodes,
 		},
 		Consensus: GetDefaultConsensusConfig(),
 		RPC:       rpc.GetDefaultRPCConfig(DefaultRpcHost, DefaultRpcPort),
