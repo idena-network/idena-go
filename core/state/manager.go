@@ -20,6 +20,8 @@ import (
 	"time"
 )
 
+const SnapshotsFolder = "/snapshots"
+
 type SnapshotManager struct {
 	db        dbm.DB
 	state     *StateDB
@@ -51,7 +53,7 @@ func NewSnapshotManager(db dbm.DB, state *StateDB, bus eventbus.Bus, ipfs ipfs.P
 }
 
 func createSnapshotFile(datadir string, height uint64) (fileName string, file *os.File, err error) {
-	newpath := filepath.Join(datadir, "/snapshots")
+	newpath := filepath.Join(datadir, SnapshotsFolder)
 	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
 		return "", nil, err
 	}
@@ -102,16 +104,39 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 		}
 		return
 	}
-	if prevCid, _, _, prevSnapshotFile := m.repo.LastSnapshotManifest(); prevCid != nil {
+	m.clearFs(filePath)
+	m.writeLastManifest(cid.Bytes(), root, height, filePath)
+	return root
+}
+
+func (m *SnapshotManager) clearFs(excludedFile string) {
+	if prevCid, _, _, _ := m.repo.LastSnapshotManifest(); prevCid != nil {
 		m.ipfs.Unpin(prevCid)
-		if prevSnapshotFile != "" {
-			if err = os.Remove(prevSnapshotFile); err != nil {
-				m.log.Error("Cannot remove previous snapshot file", "err", err)
+	}
+	m.clearSnapshotFolder(excludedFile)
+}
+
+func (m *SnapshotManager) clearSnapshotFolder(excludedFile string) {
+	directory := filepath.Join(m.cfg.DataDir, SnapshotsFolder)
+
+	var files []string
+
+	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() && path != excludedFile {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		m.log.Error("Cannot walk through snapshot directory", "err", err)
+	}
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			if err != nil {
+				m.log.Error("Cannot remove file from snapshot directory", "err", err)
 			}
 		}
 	}
-	m.writeLastManifest(cid.Bytes(), root, height, filePath)
-	return root
 }
 
 func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, root common.Hash, height uint64, file string) {
@@ -154,6 +179,7 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	wg.Wait()
 
 	if loadToErr == nil {
+		m.clearFs(filePath)
 		m.writeLastManifest(snapshot.Cid, snapshot.Root, snapshot.Height, filePath)
 	}
 
