@@ -90,6 +90,9 @@ func (p *KeysPool) GetFlipKeys() []*types.FlipKey {
 }
 
 func (p *KeysPool) GetFlipKey(address common.Address) *types.FlipKey {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	return p.flipKeys[address]
 }
 
