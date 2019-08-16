@@ -142,7 +142,7 @@ loop:
 			from = to + 1
 		}
 	}
-	d.log.Info("All blocks was requested. Wait applying of blocks")
+	d.log.Info("All blocks were requested. Wait for applying of blocks")
 	close(completed)
 	<-term
 	if err := applier.postConsuming(); err != nil {
