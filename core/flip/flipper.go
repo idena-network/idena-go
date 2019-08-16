@@ -2,6 +2,7 @@ package flip
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -22,18 +23,19 @@ import (
 )
 
 type Flipper struct {
-	epochDb    *database.EpochDb
-	db         dbm.DB
-	log        log.Logger
-	keyspool   *mempool.KeysPool
-	ipfsProxy  ipfs.Proxy
-	hasFlips   bool
-	mutex      sync.Mutex
-	flipsMutex sync.Mutex
-	secStore   *secstore.SecStore
-	flips      map[common.Hash]*IpfsFlip
-	appState   *appstate.AppState
-	txpool     *mempool.TxPool
+	epochDb                 *database.EpochDb
+	db                      dbm.DB
+	log                     log.Logger
+	keyspool                *mempool.KeysPool
+	ipfsProxy               ipfs.Proxy
+	hasFlips                bool
+	mutex                   sync.Mutex
+	secStore                *secstore.SecStore
+	flips                   map[common.Hash]*IpfsFlip
+	flipReadiness           map[common.Hash]bool
+	appState                *appstate.AppState
+	txpool                  *mempool.TxPool
+	loadingCtxCancellations []context.CancelFunc
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -43,14 +45,15 @@ type IpfsFlip struct {
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
 	fp := &Flipper{
-		db:        db,
-		log:       log.New(),
-		ipfsProxy: ipfsProxy,
-		keyspool:  keyspool,
-		txpool:    txpool,
-		secStore:  secStore,
-		flips:     make(map[common.Hash]*IpfsFlip),
-		appState:  appState,
+		db:            db,
+		log:           log.New(),
+		ipfsProxy:     ipfsProxy,
+		keyspool:      keyspool,
+		txpool:        txpool,
+		secStore:      secStore,
+		flips:         make(map[common.Hash]*IpfsFlip),
+		flipReadiness: make(map[common.Hash]bool),
+		appState:      appState,
 	}
 
 	return fp
@@ -89,8 +92,6 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	if bytes.Compare(c.Bytes(), flip.Tx.Payload) != 0 {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
-
-
 
 	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		log.Warn("Flip Tx is not valid", "hash", flip.Tx.Hash().Hex(), "err", err)
@@ -137,16 +138,12 @@ func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) 
 
 func (fp *Flipper) GetFlip(key []byte) ([]byte, error) {
 
-	fp.flipsMutex.Lock()
+	fp.mutex.Lock()
 	ipfsFlip := fp.flips[common.Hash(rlp.Hash(key))]
-	fp.flipsMutex.Unlock()
+	fp.mutex.Unlock()
 
 	if ipfsFlip == nil {
-		var err error
-		ipfsFlip, err = fp.GetRawFlip(key)
-		if err != nil {
-			return nil, err
-		}
+		return nil, errors.New("flip is missing")
 	}
 
 	// if flip is mine
@@ -194,7 +191,19 @@ func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
 }
 
 func (fp *Flipper) Load(cids [][]byte) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	fp.mutex.Lock()
+	fp.loadingCtxCancellations = append(fp.loadingCtxCancellations, cancel)
+	fp.mutex.Unlock()
+
 	for len(cids) > 0 {
+
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 
 		key := cids[0]
 		cids = cids[1:]
@@ -214,19 +223,27 @@ func (fp *Flipper) Load(cids [][]byte) {
 			fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
 			continue
 		}
-		fp.flipsMutex.Lock()
+		fp.mutex.Lock()
 		fp.flips[common.Hash(rlp.Hash(key))] = ipfsFlip
-		fp.flipsMutex.Unlock()
+		fp.mutex.Unlock()
 	}
 	fp.log.Info("All flips were loaded")
 	fp.hasFlips = true
 }
 
 func (fp *Flipper) Reset() {
+	fp.mutex.Lock()
+	defer fp.mutex.Unlock()
+
+	for _, cancelCtx := range fp.loadingCtxCancellations {
+		cancelCtx()
+	}
 	fp.hasFlips = false
 	fp.flips = make(map[common.Hash]*IpfsFlip)
+	fp.flipReadiness = make(map[common.Hash]bool)
 	fp.keyspool.Clear()
 	fp.Initialize()
+	fp.loadingCtxCancellations = nil
 }
 
 func (fp *Flipper) HasFlips() bool {
@@ -234,16 +251,27 @@ func (fp *Flipper) HasFlips() bool {
 }
 
 func (fp *Flipper) IsFlipReady(cid []byte) bool {
-	fp.flipsMutex.Lock()
-	flip := fp.flips[common.Hash(rlp.Hash(cid))]
-	fp.flipsMutex.Unlock()
+	hash := common.Hash(rlp.Hash(cid))
+
+	fp.mutex.Lock()
+	flip := fp.flips[hash]
+	isReady := fp.flipReadiness[hash]
+	fp.mutex.Unlock()
+
 	if flip == nil {
 		return false
 	}
 
-	addr, _ := crypto.PubKeyBytesToAddress(flip.PubKey)
+	if !isReady {
+		if _, err := fp.GetFlip(cid); err == nil {
+			fp.mutex.Lock()
+			isReady = true
+			fp.flipReadiness[hash] = true
+			fp.mutex.Unlock()
+		}
+	}
 
-	return fp.keyspool.GetFlipKey(addr) != nil || addr == fp.secStore.GetAddress()
+	return isReady
 }
 
 func (fp *Flipper) UnpinFlip(flipCid []byte) {
