@@ -162,8 +162,17 @@ func (vc *ValidationCeremony) GetLongFlipsToSolve() [][]byte {
 }
 
 func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
-	vc.epochDb.WriteOwnShortAnswers(answers)
-	hash := rlp.Hash(answers.Bytes())
+	vc.mutex.Lock()
+	prevAnswers := vc.epochDb.ReadOwnShortAnswersBits()
+	var hash [32]byte
+	if len(prevAnswers) == 0 {
+		vc.epochDb.WriteOwnShortAnswers(answers)
+		hash = rlp.Hash(answers.Bytes())
+	} else {
+		vc.log.Warn("Repeated short answers submitting")
+		hash = rlp.Hash(prevAnswers)
+	}
+	vc.mutex.Unlock()
 	return vc.sendTx(types.SubmitAnswersHashTx, hash[:])
 }
 
