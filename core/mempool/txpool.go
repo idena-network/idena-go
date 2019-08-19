@@ -76,11 +76,7 @@ func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
 	txpool.knownDeferredTxs.Add(tx.Hash())
 }
 
-func (txpool *TxPool) Add(tx *types.Transaction) error {
-
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
-
+func (txpool *TxPool) Validate(tx *types.Transaction) error {
 	if txpool.isSyncing {
 		txpool.addDeferredTx(tx)
 		return nil
@@ -107,10 +103,21 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
-	if err := validation.ValidateTx(appState, tx, true); err != nil {
+	return validation.ValidateTx(appState, tx, true)
+}
+
+func (txpool *TxPool) Add(tx *types.Transaction) error {
+
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
+	if err := txpool.Validate(tx); err != nil {
 		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}
+
+	hash := tx.Hash()
+	sender, _ := types.Sender(tx)
 
 	txpool.pending[hash] = tx
 	senderPending := txpool.pendingPerAddr[sender]

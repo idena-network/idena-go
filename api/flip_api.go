@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -10,27 +9,21 @@ import (
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/ipfs"
-	"github.com/idena-network/idena-go/protocol"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 )
 
-const (
-	MaxFlipSize = 1024 * 600
-)
-
 type FlipApi struct {
 	baseApi   *BaseApi
 	fp        *flip.Flipper
-	pm        *protocol.ProtocolManager
 	ipfsProxy ipfs.Proxy
 	ceremony  *ceremony.ValidationCeremony
 }
 
 // NewFlipApi creates a new FlipApi instance
-func NewFlipApi(baseApi *BaseApi, fp *flip.Flipper, pm *protocol.ProtocolManager, ipfsProxy ipfs.Proxy, ceremony *ceremony.ValidationCeremony) *FlipApi {
-	return &FlipApi{baseApi, fp, pm, ipfsProxy, ceremony}
+func NewFlipApi(baseApi *BaseApi, fp *flip.Flipper, ipfsProxy ipfs.Proxy, ceremony *ceremony.ValidationCeremony) *FlipApi {
+	return &FlipApi{baseApi, fp, ipfsProxy, ceremony}
 }
 
 type FlipSubmitResponse struct {
@@ -43,30 +36,12 @@ type FlipSubmitArgs struct {
 	Pair uint8          `json:"pair"`
 }
 
-func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
-	//TODO: remove this after desktop updating
-	// temp code start
-	args := &FlipSubmitArgs{}
-	dec := json.NewDecoder(bytes.NewReader(*i))
-	if err := dec.Decode(args); err != nil {
-		fallbackDec := json.NewDecoder(bytes.NewReader(*i))
-		var s *hexutil.Bytes
-		if err = fallbackDec.Decode(&s); err != nil {
-			return FlipSubmitResponse{}, err
-		}
-		args.Hex = s
-	}
-	// temp code end
-
+func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.Hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
 	rawFlip := *args.Hex
-
-	if len(rawFlip) > MaxFlipSize {
-		return FlipSubmitResponse{}, errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(rawFlip))
-	}
 
 	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip, args.Pair)
 
@@ -91,8 +66,6 @@ func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
 		return FlipSubmitResponse{}, err
 	}
-
-	api.pm.BroadcastFlip(&flip)
 
 	return FlipSubmitResponse{
 		TxHash: tx.Hash(),
