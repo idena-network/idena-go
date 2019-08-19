@@ -114,7 +114,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return err
 	}
 
-	fp.bus.Publish(events.NewFlipEvent{Flip: &flip})
+	fp.bus.Publish(&events.NewFlipEvent{Flip: &flip})
 
 	key, err := fp.ipfsProxy.Add(data)
 
