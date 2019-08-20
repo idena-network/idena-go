@@ -114,7 +114,9 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	defer txpool.mutex.Unlock()
 
 	if err := txpool.Validate(tx); err != nil {
-		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
+		if err != DuplicateTxError {
+			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
+		}
 		return err
 	}
 
