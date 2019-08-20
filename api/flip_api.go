@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -36,7 +37,22 @@ type FlipSubmitArgs struct {
 	Pair uint8          `json:"pair"`
 }
 
-func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
+func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
+
+	//TODO: remove this after desktop updating
+	// temp code start
+	args := &FlipSubmitArgs{}
+	dec := json.NewDecoder(bytes.NewReader(*i))
+	if err := dec.Decode(args); err != nil {
+		fallbackDec := json.NewDecoder(bytes.NewReader(*i))
+		var s *hexutil.Bytes
+		if err = fallbackDec.Decode(&s); err != nil {
+			return FlipSubmitResponse{}, err
+		}
+		args.Hex = s
+	}
+	// temp code end
+
 	if args.Hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
