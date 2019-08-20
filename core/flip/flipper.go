@@ -129,7 +129,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		}
 	}
 
-	if err := fp.txpool.Add(flip.Tx); err != nil {
+	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		return err
 	}
 

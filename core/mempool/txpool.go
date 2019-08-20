@@ -77,10 +77,7 @@ func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
 }
 
 func (txpool *TxPool) Validate(tx *types.Transaction) error {
-	if txpool.isSyncing {
-		txpool.addDeferredTx(tx)
-		return nil
-	}
+
 	if err := txpool.checkTotalTxLimit(); err != nil {
 		return err
 	}
@@ -107,6 +104,11 @@ func (txpool *TxPool) Validate(tx *types.Transaction) error {
 }
 
 func (txpool *TxPool) Add(tx *types.Transaction) error {
+
+	if txpool.isSyncing {
+		txpool.addDeferredTx(tx)
+		return nil
+	}
 
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
