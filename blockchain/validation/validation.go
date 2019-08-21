@@ -332,6 +332,9 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	if err := validateTotalCost(sender, appState, tx); err != nil {
 		return err
 	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
 	if !appState.ValidatorsCache.Contains(sender) {
 		return InvalidRecipient
 	}
@@ -357,6 +360,9 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	fee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), tx)
 	if fee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(fee) < 0 {
 		return InsufficientFunds
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
 	}
 	if appState.State.GetBalance(sender).Cmp(tx.AmountOrZero()) < 0 {
 		return InsufficientFunds
