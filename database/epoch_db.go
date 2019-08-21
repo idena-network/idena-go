@@ -194,12 +194,20 @@ func (edb *EpochDb) ReadLotterySeed() []byte {
 	return edb.db.Get(LotterySeedKey)
 }
 
-func (edb *EpochDb) WriteFlipCid(cid []byte) {
-	edb.db.Set(append(FlipCidPrefix, cid...), []byte{0x1})
+func (edb *EpochDb) WriteFlipCid(cid []byte, pair uint8) {
+	edb.db.Set(append(FlipCidPrefix, cid...), []byte{pair})
 }
 
 func (edb *EpochDb) HasFlipCid(cid []byte) bool {
 	return edb.db.Has(append(FlipCidPrefix, cid...))
+}
+
+func (edb *EpochDb) ReadFlipPair(cid []byte) *uint8 {
+	data := edb.db.Get(append(FlipCidPrefix, cid...))
+	if len(data) == 0 {
+		return nil
+	}
+	return &data[0]
 }
 
 func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {

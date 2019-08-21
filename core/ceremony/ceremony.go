@@ -21,6 +21,7 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-cmn/db"
 	"sync"
@@ -480,9 +481,16 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	var pairs []uint8
 	myFlips := vc.appState.State.GetIdentity(vc.secStore.GetAddress()).Flips
 	for _, key := range myFlips {
+		localSavedPair := vc.epochDb.ReadFlipPair(key)
+		if localSavedPair != nil {
+			pairs = append(pairs, *localSavedPair)
+			continue
+		}
 		flip, err := vc.flipper.GetRawFlip(key)
-		if err != nil || flip == nil {
-			vc.log.Error(fmt.Sprintf("flip is missing, key: %x", key))
+		if err != nil {
+			cid, _ := cid.Parse(key)
+			vc.log.Error(fmt.Sprintf("flip is missing, cid: %v", cid.String()))
+			pairs = append(pairs, 0)
 		} else {
 			pairs = append(pairs, flip.Pair)
 		}
