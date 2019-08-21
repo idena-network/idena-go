@@ -105,13 +105,13 @@ func (txpool *TxPool) Validate(tx *types.Transaction) error {
 
 func (txpool *TxPool) Add(tx *types.Transaction) error {
 
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
 	if txpool.isSyncing {
 		txpool.addDeferredTx(tx)
 		return nil
 	}
-
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
 
 	if err := txpool.Validate(tx); err != nil {
 		if err != DuplicateTxError {
