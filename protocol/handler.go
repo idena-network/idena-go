@@ -120,6 +120,10 @@ func (pm *ProtocolManager) Start() {
 		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
 		pm.flipKeyChan <- newFlipKeyEvent.Key
 	})
+	_ = pm.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
+		newFlipEvent := e.(*events.NewFlipEvent)
+		pm.broadcastFlip(newFlipEvent.Flip)
+	})
 
 	go pm.broadcastLoop()
 }
@@ -222,8 +226,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markFlip(&flip)
 		if err := pm.flipper.AddNewFlip(flip, false); err != nil {
 			p.Log().Debug("invalid flip", "err", err)
-		} else {
-			pm.BroadcastFlip(&flip)
 		}
 	case FlipKey:
 		var flipKey types.FlipKey
@@ -421,7 +423,7 @@ func (pm *ProtocolManager) BroadcastTx(transaction *types.Transaction) {
 	}
 }
 
-func (pm *ProtocolManager) BroadcastFlip(flip *types.Flip) {
+func (pm *ProtocolManager) broadcastFlip(flip *types.Flip) {
 	for _, peer := range pm.peers.PeersWithoutFlip(flip.Tx.Hash()) {
 		peer.SendFlipAsync(flip)
 	}

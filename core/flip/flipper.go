@@ -7,11 +7,13 @@ import (
 	"crypto/rand"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
@@ -20,6 +22,10 @@ import (
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-cmn/db"
 	"sync"
+)
+
+const (
+	MaxFlipSize = 1024 * 600
 )
 
 type Flipper struct {
@@ -37,6 +43,7 @@ type Flipper struct {
 	txpool           *mempool.TxPool
 	loadingCtx       context.Context
 	cancelLoadingCtx context.CancelFunc
+	bus              eventbus.Bus
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -44,7 +51,7 @@ type IpfsFlip struct {
 	Pair   uint8
 }
 
-func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState) *Flipper {
+func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState, bus eventbus.Bus) *Flipper {
 	ctx, cancel := context.WithCancel(context.Background())
 	fp := &Flipper{
 		db:               db,
@@ -58,6 +65,7 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txp
 		appState:         appState,
 		loadingCtx:       ctx,
 		cancelLoadingCtx: cancel,
+		bus:              bus,
 	}
 
 	return fp
@@ -83,6 +91,10 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 
 	data, _ := rlp.EncodeToBytes(ipf)
 
+	if len(data) > MaxFlipSize {
+		return errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(data))
+	}
+
 	c, err := fp.ipfsProxy.Cid(data)
 
 	if err != nil {
@@ -97,18 +109,29 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
-	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
+	if err := fp.txpool.Validate(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		log.Warn("Flip Tx is not valid", "hash", flip.Tx.Hash().Hex(), "err", err)
 		return err
 	}
 
+	fp.bus.Publish(&events.NewFlipEvent{Flip: &flip})
+
 	key, err := fp.ipfsProxy.Add(data)
 
+	if err != nil {
+		return err
+	}
+	fp.epochDb.WriteFlipCid(c.Bytes())
+
 	if local {
-		fp.ipfsProxy.Pin(key.Bytes())
+		if err := fp.ipfsProxy.Pin(key.Bytes()); err != nil {
+			return err
+		}
 	}
 
-	fp.epochDb.WriteFlipCid(c.Bytes())
+	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
+		return err
+	}
 
 	return err
 }

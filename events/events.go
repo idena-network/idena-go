@@ -10,6 +10,7 @@ const (
 	AddBlockEventID   = eventbus.EventID("block-add")
 	NewFlipKeyID      = eventbus.EventID("flip-key-new")
 	FastSyncCompleted = eventbus.EventID("fast-sync-completed")
+	NewFlipEventID    = eventbus.EventID("flip-new")
 )
 
 type NewTxEvent struct {
@@ -41,4 +42,12 @@ type FastSyncCompletedEvent struct {
 
 func (FastSyncCompletedEvent) EventID() eventbus.EventID {
 	return FastSyncCompleted
+}
+
+type NewFlipEvent struct {
+	Flip *types.Flip
+}
+
+func (NewFlipEvent) EventID() eventbus.EventID {
+	return NewFlipEventID
 }

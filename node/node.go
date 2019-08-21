@@ -111,7 +111,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
-	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState)
+	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
@@ -266,7 +266,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "flip",
 			Version:   "1.0",
-			Service:   api.NewFlipApi(baseApi, node.fp, node.pm, node.ipfsProxy, node.ceremony),
+			Service:   api.NewFlipApi(baseApi, node.fp, node.ipfsProxy, node.ceremony),
 			Public:    true,
 		},
 		{

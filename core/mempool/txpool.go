@@ -76,15 +76,8 @@ func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
 	txpool.knownDeferredTxs.Add(tx.Hash())
 }
 
-func (txpool *TxPool) Add(tx *types.Transaction) error {
+func (txpool *TxPool) Validate(tx *types.Transaction) error {
 
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
-
-	if txpool.isSyncing {
-		txpool.addDeferredTx(tx)
-		return nil
-	}
 	if err := txpool.checkTotalTxLimit(); err != nil {
 		return err
 	}
@@ -107,10 +100,28 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
-	if err := validation.ValidateTx(appState, tx, true); err != nil {
-		log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
+	return validation.ValidateTx(appState, tx, true)
+}
+
+func (txpool *TxPool) Add(tx *types.Transaction) error {
+
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
+	if txpool.isSyncing {
+		txpool.addDeferredTx(tx)
+		return nil
+	}
+
+	if err := txpool.Validate(tx); err != nil {
+		if err != DuplicateTxError {
+			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
+		}
 		return err
 	}
+
+	hash := tx.Hash()
+	sender, _ := types.Sender(tx)
 
 	txpool.pending[hash] = tx
 	senderPending := txpool.pendingPerAddr[sender]
