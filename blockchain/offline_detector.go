@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/secstore"
@@ -95,6 +96,10 @@ func (dt *OfflineDetector) VoteForOffline(block *types.Block) bool {
 		return false
 	}
 
+	if dt.appState.State.ValidationPeriod() != state.NonePeriod {
+		return false
+	}
+
 	dt.mutex.Lock()
 	defer dt.mutex.Unlock()
 
@@ -126,6 +131,9 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 		if !dt.appState.ValidatorsCache.IsOnlineIdentity(*addr) {
 			return errors.New("offline voting works only for online identities")
 		}
+		if dt.appState.State.ValidationPeriod() != state.NonePeriod {
+			return errors.New("block cannot be accepted due to validation ceremony")
+		}
 
 		if offlineCommitSet {
 			prevAddr := head.OfflineAddr()
@@ -145,6 +153,9 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 }
 
 func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, types.BlockFlag) {
+	if dt.appState.State.ValidationPeriod() != state.NonePeriod {
+		return nil, 0
+	}
 	if head.Flags().HasFlag(types.OfflinePropose) {
 		if dt.verifyOfflineProposing(head.Hash()) {
 			return head.OfflineAddr(), types.OfflineCommit
