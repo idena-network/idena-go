@@ -56,8 +56,8 @@ func TestEpochDb_IterateOverFlipCids(t *testing.T) {
 
 	edb := NewEpochDb(mdb, 1)
 
-	edb.WriteFlipCid([]byte{0x1})
-	edb.WriteFlipCid([]byte{0x2})
+	edb.WriteFlipCid([]byte{0x1}, 0)
+	edb.WriteFlipCid([]byte{0x2}, 1)
 
 	//write trash
 	edb.WriteLotterySeed([]byte{0x3})
@@ -75,6 +75,22 @@ func TestEpochDb_IterateOverFlipCids(t *testing.T) {
 	require.Contains(cids, [1]byte{0x1})
 	require.Contains(cids, [1]byte{0x2})
 	require.Len(cids, 2)
+}
+
+func TestEpochDb_Write_Read_FlipPairs(t *testing.T) {
+	require := require.New(t)
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+
+	edb.WriteFlipCid([]byte{0x1}, 0)
+	edb.WriteFlipCid([]byte{0x2}, 1)
+	edb.WriteFlipCid([]byte{0x3}, 3)
+
+	require.Equal(uint8(0), *edb.ReadFlipPair([]byte{0x1}))
+	require.Equal(uint8(1), *edb.ReadFlipPair([]byte{0x2}))
+	require.Equal(uint8(3), *edb.ReadFlipPair([]byte{0x3}))
+	require.Nil(edb.ReadFlipPair([]byte{0x5}))
 }
 
 func TestEpochDb_Write_Read_FlipKeyWordPairs(t *testing.T) {
