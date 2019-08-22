@@ -120,14 +120,14 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
-	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32) {
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]FlipAnswerStats) {
 
 	var answerBytes []byte
 	if shortSession {
 		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = q.shortAnswers[candidate]
 		if answerBytes != nil && hash != rlp.Hash(answerBytes) {
-			return 0, uint32(len(flipsToSolve))
+			return 0, uint32(len(flipsToSolve)), nil
 		}
 
 	} else {
@@ -135,7 +135,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	}
 	// candidate didn't send answers
 	if answerBytes == nil {
-		return 0, 0
+		return 0, 0, nil
 	}
 	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
 	availableExtraFlips := 0
@@ -148,6 +148,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
+	flipAnswers = make(map[int]FlipAnswerStats, len(flipsToSolve) + availableExtraFlips)
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
@@ -163,6 +164,10 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 
+		flipAnswers[flipIdx] = FlipAnswerStats{
+			Respondent: candidate,
+			Answer:     answer,
+		}
 		switch status {
 		case Qualified:
 			if qual.answer == answer {
@@ -179,7 +184,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
-	return point, qualifiedFlipsCount
+	return point, qualifiedFlipsCount, flipAnswers
 }
 
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,

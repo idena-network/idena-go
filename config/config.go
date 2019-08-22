@@ -85,17 +85,22 @@ func MakeMobileConfig(path string) *Config {
 }
 
 func MakeConfig(ctx *cli.Context) (*Config, error) {
-	cfg := getDefaultConfig(DefaultDataDir)
+	cfg, err := MakeConfigFromFile(ctx.String(CfgFileFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+	applyFlags(ctx, cfg)
+	return cfg, nil
+}
 
-	if file := ctx.String(CfgFileFlag.Name); file != "" {
+func MakeConfigFromFile(file string) (*Config, error) {
+	cfg := getDefaultConfig(DefaultDataDir)
+	if file != "" {
 		if err := loadConfig(file, cfg); err != nil {
 			log.Error(err.Error())
 			return nil, err
 		}
 	}
-
-	applyFlags(ctx, cfg)
-
 	return cfg, nil
 }
 
