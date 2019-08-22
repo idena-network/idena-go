@@ -681,7 +681,6 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 			ShortFlips:        shortQualifiedFlipsCount,
 			LongPoint:         longFlipPoint,
 			LongFlips:         longQualifiedFlipsCount,
-			State:             newIdentityState,
 			Approved:          approved,
 			Missed:            missed,
 			ShortFlipsToSolve: shortFlipsToSolve,

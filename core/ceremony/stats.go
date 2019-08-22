@@ -3,7 +3,6 @@ package ceremony
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/core/state"
 )
 
 type Stats struct {
@@ -17,7 +16,6 @@ type IdentityStats struct {
 	ShortFlips        uint32
 	LongPoint         float32
 	LongFlips         uint32
-	State             state.IdentityState
 	Approved          bool
 	Missed            bool
 	ShortFlipsToSolve []int
