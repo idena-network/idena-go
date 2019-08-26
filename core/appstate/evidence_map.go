@@ -123,6 +123,14 @@ func (m *EvidenceMap) GetShortSessionEndingTime() *time.Time {
 	return &endTime
 }
 
+func (m *EvidenceMap) IsCompleted() bool {
+	endTime := m.GetShortSessionEndingTime()
+	if endTime == nil {
+		return false
+	}
+	return time.Now().UTC().After(*endTime)
+}
+
 func (m *EvidenceMap) Clear() {
 	m.shortSessionTime = nil
 	m.answersSet = mapset.NewSet()

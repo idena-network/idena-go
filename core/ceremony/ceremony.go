@@ -517,7 +517,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 }
 
 func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
-	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() {
+	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() || !vc.appState.EvidenceMap.IsCompleted() {
 		return
 	}
 
