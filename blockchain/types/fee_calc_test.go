@@ -46,10 +46,10 @@ func TestCalculateCostForInvitation(t *testing.T) {
 	const networkSize = 100
 
 	//tx cost (amount = 1, fee = 0.16), total 1.16
-	cost := new(big.Int).Add(big.NewInt(83e+16), tx.AmountOrZero())
+	//cost := new(big.Int).Add(big.NewInt(83e+16), tx.AmountOrZero())
 
 	// invitation cost (110 for 100 networkSize)
 	//cost.Add(cost, new(big.Int).Mul(big.NewInt(InvitationCoef/networkSize), common.DnaBase))
 
-	require.Equal(t, 0, cost.Cmp(CalculateCost(networkSize, tx)))
+	require.Equal(t, 0, tx.AmountOrZero().Cmp(CalculateCost(networkSize, tx)))
 }
