@@ -162,24 +162,27 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 
-		flipAnswers[flipIdx] = FlipAnswerStats{
-			Respondent: candidate,
-			Answer:     answer,
-		}
+		var answerPoint float32
 		switch status {
 		case Qualified:
 			if qual.answer == answer {
-				point += 1
+				answerPoint = 1
 			}
 			qualifiedFlipsCount += 1
 		case WeaklyQualified:
 			if qual.answer == answer {
-				point += 1
+				answerPoint = 1
 				qualifiedFlipsCount += 1
 			} else if qual.answer != types.Inappropriate {
-				point += 0.5
+				answerPoint = 0.5
 				qualifiedFlipsCount += 1
 			}
+		}
+		point += answerPoint
+		flipAnswers[flipIdx] = FlipAnswerStats{
+			Respondent: candidate,
+			Answer:     answer,
+			Point:      answerPoint,
 		}
 	}
 	return point, qualifiedFlipsCount, flipAnswers
