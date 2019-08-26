@@ -63,6 +63,14 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 }
 
+type nodeCtx struct {
+	Node       *Node
+	AppState   *appstate.AppState
+	Ceremony   *ceremony.ValidationCeremony
+	Blockchain *blockchain.Blockchain
+	Flipper    *flip.Flipper
+}
+
 func StartMobileNode(path string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
@@ -81,6 +89,14 @@ func StartMobileNode(path string) string {
 }
 
 func NewNode(config *config.Config) (*Node, error) {
+	nodeCtx, err := NewIndexerNode(config, eventbus.New())
+	if err != nil {
+		return nil, err
+	}
+	return nodeCtx.Node, err
+}
+
+func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -97,8 +113,6 @@ func NewNode(config *config.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	bus := eventbus.New()
 
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
@@ -117,7 +131,7 @@ func NewNode(config *config.Config) (*Node, error) {
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
-	return &Node{
+	node := &Node{
 		config:          config,
 		blockchain:      chain,
 		pm:              pm,
@@ -135,10 +149,21 @@ func NewNode(config *config.Config) (*Node, error) {
 		ceremony:        ceremony,
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
+	}
+	return &nodeCtx{
+		Node:       node,
+		AppState:   appState,
+		Ceremony:   ceremony,
+		Blockchain: chain,
+		Flipper:    flipper,
 	}, nil
 }
 
 func (node *Node) Start() {
+	node.StartWithHeight(0)
+}
+
+func (node *Node) StartWithHeight(height uint64) {
 
 	config := node.config.P2P
 	config.Protocols = []p2p.Protocol{
@@ -162,6 +187,14 @@ func (node *Node) Start() {
 	}
 
 	node.appState.Initialize(node.blockchain.Head.Height())
+
+	if height > 0 && node.blockchain.Head.Height() > height {
+		if err := node.blockchain.ResetTo(height); err != nil {
+			node.log.Error(fmt.Sprintf("Cannot reset blockchain to %d", height), "error", err.Error())
+			return
+		}
+	}
+
 	node.txpool.Initialize(node.blockchain.Head)
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.fp.Initialize()

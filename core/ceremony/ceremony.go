@@ -67,6 +67,7 @@ type ValidationCeremony struct {
 	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
 	epochApplyingResult    map[common.Address]cacheValue
+	validationStats        *Stats
 	flipKeyWordPairs       []int
 	epoch                  uint16
 	config                 *config.Config
@@ -190,6 +191,10 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 	return common.LongSessionFlipsCount(networkSize)
 }
 
+func (vc *ValidationCeremony) GetValidationStats() *Stats {
+	return vc.validationStats
+}
+
 func (vc *ValidationCeremony) restoreState() {
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
@@ -226,6 +231,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
 	vc.epochApplyingResult = make(map[common.Address]cacheValue)
+	vc.validationStats = nil
 	vc.flipKeyWordPairs = nil
 }
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -601,6 +607,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		return identitiesCount
 	}
 
+	stats := NewStats()
+	stats.FlipCids = vc.flips
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
@@ -614,6 +622,10 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
 		flipQualificationMap[i] = item
+		stats.FlipsPerIdx[i] = &FlipStats{
+			Status: item.status,
+			Answer: item.answer,
+		}
 	}
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
@@ -623,13 +635,18 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	for idx, candidate := range vc.candidates {
 		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
 
-		shortFlipPoint, shortQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.shortFlipsPerCandidate[idx], true, notApprovedFlips)
+		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
+		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
+		addFlipAnswersToStats(shortFlipAnswers, true, stats)
 
-		longFlipPoint, longQualifiedFlipsCount := vc.qualification.qualifyCandidate(addr, flipQualificationMap, vc.longFlipsPerCandidate[idx], false, notApprovedFlips)
+		longFlipsToSolve := vc.longFlipsPerCandidate[idx]
+		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
+		addFlipAnswersToStats(longFlipAnswers, false, stats)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
-		missed := !approvedCandidatesSet.Contains(addr)
+		approved := approvedCandidatesSet.Contains(addr)
+		missed := !approved
 
 		var shortScore, longScore, totalScore float32
 
@@ -659,9 +676,32 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 		vc.epochApplyingResult[addr] = value
 
+		stats.IdentitiesPerAddr[addr] = &IdentityStats{
+			ShortPoint:        shortFlipPoint,
+			ShortFlips:        shortQualifiedFlipsCount,
+			LongPoint:         longFlipPoint,
+			LongFlips:         longQualifiedFlipsCount,
+			Approved:          approved,
+			Missed:            missed,
+			ShortFlipsToSolve: shortFlipsToSolve,
+			LongFlipsToSolve:  longFlipsToSolve,
+		}
+
 		applyOnState(addr, newIdentityState, shortQualifiedFlipsCount, shortFlipPoint)
 	}
+	vc.validationStats = stats
 	return identitiesCount
+}
+
+func addFlipAnswersToStats(answers map[int]FlipAnswerStats, isShort bool, stats *Stats) {
+	for flipIdx, answer := range answers {
+		flipStats, _ := stats.FlipsPerIdx[flipIdx]
+		if isShort {
+			flipStats.ShortAnswers = append(flipStats.ShortAnswers, answer)
+		} else {
+			flipStats.LongAnswers = append(flipStats.LongAnswers, answer)
+		}
+	}
 }
 
 func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set) mapset.Set {

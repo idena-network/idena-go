@@ -86,7 +86,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.applyTxOnState(chain.appState, signed)
+	chain.ApplyTxOnState(chain.appState, signed)
 
 	require.Equal(t, uint8(0), stateDb.GetInvites(addr))
 	require.Equal(t, state.Invite, stateDb.GetIdentityState(receiver))
@@ -118,7 +118,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.applyTxOnState(chain.appState, signed)
+	chain.ApplyTxOnState(chain.appState, signed)
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(sender))
 	require.Equal(t, 0, big.NewInt(0).Cmp(appState.State.GetBalance(sender)))
 
@@ -159,7 +159,7 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
 
-	chain.applyTxOnState(chain.appState, signed)
+	chain.ApplyTxOnState(chain.appState, signed)
 
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
 	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
