@@ -114,7 +114,7 @@ func watchPeers(node *core.IpfsNode) {
 	}
 }
 
-func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
+func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
 	}
@@ -138,7 +138,7 @@ func (p ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	return path.Cid(), nil
 }
 
-func (p ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error) {
+func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error) {
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -160,7 +160,7 @@ func (p ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (
 	return path.Cid(), nil
 }
 
-func (p ipfsProxy) Get(key []byte) ([]byte, error) {
+func (p *ipfsProxy) Get(key []byte) ([]byte, error) {
 	if len(key) == 0 {
 		return []byte{}, nil
 	}
@@ -174,7 +174,7 @@ func (p ipfsProxy) Get(key []byte) ([]byte, error) {
 	return p.get(path.IpfsPath(c))
 }
 
-func (p ipfsProxy) get(path path.Path) ([]byte, error) {
+func (p *ipfsProxy) get(path path.Path) ([]byte, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -202,7 +202,7 @@ func (p ipfsProxy) get(path path.Path) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (p ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error {
+func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error {
 	if len(key) == 0 {
 		return nil
 	}
@@ -233,7 +233,7 @@ func (p ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoadi
 	return err
 }
 
-func (p ipfsProxy) Pin(key []byte) error {
+func (p *ipfsProxy) Pin(key []byte) error {
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	c, err := cid.Cast(key)
@@ -256,7 +256,7 @@ func (p ipfsProxy) Pin(key []byte) error {
 	return err
 }
 
-func (p ipfsProxy) Unpin(key []byte) error {
+func (p *ipfsProxy) Unpin(key []byte) error {
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	c, err := cid.Cast(key)
@@ -279,26 +279,24 @@ func (p ipfsProxy) Unpin(key []byte) error {
 	return err
 }
 
-func (p ipfsProxy) Port() int {
+func (p *ipfsProxy) Port() int {
 	return p.port
 }
 
-func (p ipfsProxy) PeerId() string {
+func (p *ipfsProxy) PeerId() string {
 	return p.peerId
 }
 
-func (p ipfsProxy) Cid(data []byte) (cid.Cid, error) {
-
+func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
 	}
-	var v1CidPrefix = cid.Prefix{
-		Codec:    cid.Raw,
-		MhLength: -1,
-		MhType:   multihash.SHA2_256,
-		Version:  1,
-	}
-	return v1CidPrefix.Sum(data)
+
+	api, _ := coreapi.NewCoreAPI(p.node)
+
+	file := files.NewBytesFile(data)
+	path, _ := api.Unixfs().Add(context.Background(), file, options.Unixfs.HashOnly(true), options.Unixfs.CidVersion(1))
+	return path.Cid(), nil
 }
 
 func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {

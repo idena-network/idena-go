@@ -52,6 +52,7 @@ profile.cov
 /datadir/*
 */datadir/*
 datadir*/*
+*/datadir*/*
 # executables
 /*.exe
 *.exe~

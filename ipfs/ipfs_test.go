@@ -1,6 +1,7 @@
 package ipfs
 
 import (
+	"github.com/google/tink/go/subtle/random"
 	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -19,29 +20,32 @@ func TestIpfsProxy_Cid(t *testing.T) {
 }
 
 func TestIpfsProxy_Get(t *testing.T) {
-	t.SkipNow()
-
 	require := require.New(t)
 
 	proxy, _ := NewIpfsProxy(&config.IpfsConfig{
+		SwarmKey:  "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
 		BootNodes: []string{},
-		IpfsPort:  4002,
-		DataDir:   ".",
+		IpfsPort:  4012,
+		DataDir:   "./datadir-ipfs",
 	})
 
-	data := []byte{0x1, 0x2, 0x3}
+	cases := []int{1, 100, 500, 1024, 10000, 50000, 100000, 220000, 280000, 350000, 500000, 1000000}
 
-	cid, err := proxy.Add(data)
+	for _, item := range cases {
+		data := random.GetRandomBytes(uint32(item))
 
-	require.NoError(err)
+		cid, err := proxy.Add(data)
 
-	localCid, err := proxy.Cid(data)
+		require.NoError(err)
 
-	require.NoError(err)
+		localCid, err := proxy.Cid(data)
 
-	require.Equal(cid, localCid)
+		require.NoError(err)
 
-	data2, err := proxy.Get(cid.Bytes())
+		require.Equal(cid.Bytes(), localCid.Bytes(), "n: %v", item)
 
-	require.Equal(data, data2)
+		data2, err := proxy.Get(cid.Bytes())
+
+		require.Equal(data, data2)
+	}
 }
