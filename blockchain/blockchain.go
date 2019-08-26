@@ -346,9 +346,6 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-
-	clearIdentityState(appState)
-
 	networkSize := chain.applyNewEpochFn(appState)
 
 	setNewIdentitiesAttributes(appState, networkSize)
@@ -363,25 +360,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 	_, invites, flips := common.NetworkParams(networkSize)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-
-		s := identity.State
-
-		if !identity.HasDoneAllRequiredFlips() {
-			switch identity.State {
-			case state.Verified:
-				s = state.Suspended
-			case state.Newbie:
-				s = state.Killed
-			default:
-				s = state.Killed
-			}
-		}
-
-		if identity.State == state.Invite {
-			s = state.Killed
-		}
-
-		switch s {
+		switch identity.State {
 		case state.Verified:
 			removeLinkWithInviter(appState.State, addr)
 			appState.State.SetInvites(addr, uint8(invites))
@@ -395,14 +374,13 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 			removeLinksWithInviterAndInvitees(appState.State, addr)
 			appState.State.SetInvites(addr, 0)
 			appState.State.SetRequiredFlips(addr, 0)
+			appState.IdentityState.Remove(addr)
 		default:
 			appState.State.SetInvites(addr, 0)
 			appState.State.SetRequiredFlips(addr, 0)
+			appState.IdentityState.Remove(addr)
 		}
-
 		appState.State.ClearFlips(addr)
-
-		appState.State.SetState(addr, s)
 	})
 }
 
@@ -426,18 +404,6 @@ func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) 
 		stateDB.RemoveInvitee(inviterAddr, invitee.Address)
 		stateDB.ResetInviter(invitee.Address)
 	}
-}
-
-func clearIdentityState(appState *appstate.AppState) {
-	appState.IdentityState.IterateIdentities(func(key []byte, value []byte) bool {
-		if key == nil {
-			return true
-		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
-		appState.IdentityState.Remove(addr)
-		return false
-	})
 }
 
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {

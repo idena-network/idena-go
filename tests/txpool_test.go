@@ -117,11 +117,12 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 
 	app.State.IncEpoch()
 
-	app.State.Commit(true)
+	app.Commit(nil)
 
 	// need to emulate new block
 	chain.Head.ProposedHeader.Height++
 
+	app.Commit(nil)
 	err := pool.Add(getTx(1, 1, key))
 	require.NoError(t, err)
 

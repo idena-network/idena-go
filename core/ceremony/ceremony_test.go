@@ -14,7 +14,7 @@ import (
 func TestValidationCeremony_getFlipsToSolve(t *testing.T) {
 	require := require.New(t)
 
-	myKey := []byte{0x1, 0x2, 0x3}
+	myKey := common.Address{0x1, 0x2, 0x3}
 
 	flipsCids := [][]byte{{0x1}, {0x2}, {0x3}, {0x4}, {0x5}}
 
@@ -36,7 +36,7 @@ func TestValidationCeremony_getFlipsToSolve(t *testing.T) {
 func TestValidationCeremony_getFlipsToSolve_fewFlips(t *testing.T) {
 	require := require.New(t)
 
-	myKey := []byte{0x1, 0x2, 0x3}
+	myKey := common.Address{0x1, 0x2, 0x3}
 
 	flipsCids := [][]byte{{0x1}, {0x2}, {0x3}, {0x4}, {0x5}}
 
@@ -51,17 +51,17 @@ func TestValidationCeremony_getFlipsToSolve_fewFlips(t *testing.T) {
 	require.Equal(shouldBe, result)
 }
 
-func getParticipants(myKey []byte, myIndex int, length int) []*candidate {
+func getParticipants(myKey common.Address, myIndex int, length int) []*candidate {
 	participants := make([]*candidate, 0)
 
 	for i := 0; i < length; i++ {
 		if i == myIndex {
 			participants = append(participants, &candidate{
-				PubKey: myKey,
+				Address: myKey,
 			})
 		} else {
 			participants = append(participants, &candidate{
-				PubKey: []byte{byte(i)},
+				Address: common.Address{byte(i)},
 			})
 		}
 	}
@@ -89,7 +89,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Invite,
 			1, 1, 1, 110, false,
-			state.Undefined,
+			state.Killed,
 		},
 		{
 			state.Candidate,
@@ -166,7 +166,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 	require := require.New(t)
 
 	for _, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(c.prev, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed))
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed))
 	}
 }
 
@@ -180,7 +180,7 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		key, _ := crypto.GenerateKey()
 		c := candidate{
-			PubKey: crypto.FromECDSAPub(&key.PublicKey),
+			Address: crypto.PubkeyToAddress(key.PublicKey),
 		}
 		candidates = append(candidates, &c)
 	}
@@ -199,9 +199,9 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	flipsPerAuthor[2] = [][]byte{
 		flips[4],
 	}
-	addr, _ := crypto.PubKeyBytesToAddress(candidates[0].PubKey)
+	addr := candidates[0].Address
 	app.State.SetRequiredFlips(addr, 3)
-	approvedAddr, _ := crypto.PubKeyBytesToAddress(candidates[1].PubKey)
+	approvedAddr := candidates[1].Address
 	app.State.SetRequiredFlips(approvedAddr, 3)
 
 	vc.candidates = candidates

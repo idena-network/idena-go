@@ -4,7 +4,6 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
@@ -91,8 +90,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	for i := 0; i < len(flipsPerCandidate); i++ {
 		candidate := candidates[i]
 		flips := flipsPerCandidate[i]
-		addr, _ := crypto.PubKeyBytesToAddress(candidate.PubKey)
-		answerBytes := q.longAnswers[addr]
+		answerBytes := q.longAnswers[candidate.Address]
 
 		// candidate didn't send long answers
 		if answerBytes == nil {
@@ -148,7 +146,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
-	flipAnswers = make(map[int]FlipAnswerStats, len(flipsToSolve) + availableExtraFlips)
+	flipAnswers = make(map[int]FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
