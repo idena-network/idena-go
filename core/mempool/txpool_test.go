@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-cmn/db"
@@ -74,7 +75,6 @@ func TestTxPool_checkAddrCeremonyTx(t *testing.T) {
 	tx, _ = types.SignTx(tx, key)
 	r.NoError(pool.checkAddrCeremonyTx(tx))
 
-
 	tx = &types.Transaction{Type: types.SendTx}
 	tx, _ = types.SignTx(tx, key)
 	r.NoError(pool.checkAddrCeremonyTx(tx))
@@ -88,10 +88,15 @@ func TestTxPool_checkAddrCeremonyTx(t *testing.T) {
 func TestTxPool_addDeferredTx(t *testing.T) {
 	bus := eventbus.New()
 	appState := appstate.NewAppState(db.NewMemDB(), bus)
+
+	key, _ := crypto.GenerateKey()
+	secStore := secstore.NewSecStore()
+	secStore.AddKey(crypto.FromECDSA(key))
 	pool := NewTxPool(appState, bus, -1, -1)
 	r := require.New(t)
 
-	key, _ := crypto.GenerateKey()
+	key, _ = crypto.GenerateKey()
+
 	address := crypto.PubkeyToAddress(key.PublicKey)
 
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
@@ -134,5 +139,10 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 func getPool() *TxPool {
 	bus := eventbus.New()
 	appState := appstate.NewAppState(db.NewMemDB(), bus)
+
+	key, _ := crypto.GenerateKey()
+	secStore := secstore.NewSecStore()
+	secStore.AddKey(crypto.FromECDSA(key))
+
 	return NewTxPool(appState, bus, -1, -1)
 }

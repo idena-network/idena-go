@@ -181,6 +181,11 @@ func (edb *EpochDb) WriteOwnTx(txType uint16, tx []byte) {
 	edb.db.Set(key, tx)
 }
 
+func (edb *EpochDb) RemoveOwnTx(txType uint16) {
+	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
+	edb.db.Delete(key)
+}
+
 func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
 	return edb.db.Get(key)

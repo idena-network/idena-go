@@ -28,6 +28,10 @@ const (
 	MaxFlipSize = 1024 * 600
 )
 
+var (
+	DuplicateFlipError = errors.New("duplicate flip")
+)
+
 type Flipper struct {
 	epochDb          *database.EpochDb
 	db               dbm.DB
@@ -102,7 +106,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	}
 
 	if fp.epochDb.HasFlipCid(c.Bytes()) {
-		return errors.New("duplicate flip")
+		return DuplicateFlipError
 	}
 
 	if bytes.Compare(c.Bytes(), flip.Tx.Payload) != 0 {

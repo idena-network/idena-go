@@ -69,7 +69,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
-	txPool.Initialize(chain.Head)
+	txPool.Initialize(chain.Head, secStore.GetAddress())
 
 	return chain, appState, txPool
 }

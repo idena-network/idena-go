@@ -219,13 +219,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		pm.provideBlocks(p, query.BatchId, query.From, query.To)
 	case NewFlip:
-		var flip types.Flip
-		if err := msg.Decode(&flip); err != nil {
+		var f types.Flip
+		if err := msg.Decode(&f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markFlip(&flip)
-		if err := pm.flipper.AddNewFlip(flip, false); err != nil {
-			p.Log().Debug("invalid flip", "err", err)
+		p.markFlip(&f)
+		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
+			p.Log().Error("invalid flip", "err", err)
 		}
 	case FlipKey:
 		var flipKey types.FlipKey

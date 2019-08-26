@@ -5,8 +5,8 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
-	dbm "github.com/tendermint/tm-cmn/db"
 	"github.com/pkg/errors"
+	dbm "github.com/tendermint/tm-cmn/db"
 )
 
 type AppState struct {
@@ -28,13 +28,19 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 }
 
 func (s *AppState) Readonly(height uint64) *AppState {
-	state, _ := s.State.Readonly(height)
-	identityState, _ := s.IdentityState.Readonly(height)
+	st, err := s.State.Readonly(height)
+	if err != nil {
+		return nil
+	}
+	identityState, err := s.IdentityState.Readonly(height)
+	if err != nil {
+		return nil
+	}
 	return &AppState{
-		State:           state,
+		State:           st,
 		IdentityState:   identityState,
 		ValidatorsCache: s.ValidatorsCache,
-		NonceCache:      s.NonceCache,
+		NonceCache:      s.NonceCache.Clone(st),
 	}
 }
 
