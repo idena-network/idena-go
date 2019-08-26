@@ -12,6 +12,7 @@ import (
 
 const (
 	GeneticRelationLength = 3
+	MaxLongFlipSolvers    = 10
 )
 
 func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [][]byte, flipsPerAddr int, seed []byte, longSession bool, flipsToUse map[int]bool) (flipsPerCandidate [][]int) {
@@ -47,6 +48,9 @@ func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [
 	maxFlipUses := candidatesLen * flipsPerAddr / len(flips)
 	if candidatesLen*flipsPerAddr%len(flips) > 0 {
 		maxFlipUses++
+	}
+	if longSession && maxFlipUses > MaxLongFlipSolvers {
+		maxFlipUses = MaxLongFlipSolvers
 	}
 
 	used := make([]int, len(flips))
