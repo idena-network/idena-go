@@ -443,7 +443,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	if block.IsEmpty() {
 		return
 	}
-	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), prevBlock.Height(), 1000, chain.GetCommitteSize(appState.ValidatorsCache, true))
+	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), 1000, chain.GetCommitteSize(appState.ValidatorsCache, true))
 	if identities == nil || identities.Cardinality() == 0 {
 		return
 	}
