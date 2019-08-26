@@ -195,7 +195,7 @@ func (node *Node) StartWithHeight(height uint64) {
 		}
 	}
 
-	node.txpool.Initialize(node.blockchain.Head)
+	node.txpool.Initialize(node.blockchain.Head, node.secStore.GetAddress())
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))

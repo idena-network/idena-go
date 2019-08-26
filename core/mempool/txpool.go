@@ -45,10 +45,11 @@ type TxPool struct {
 	head             *types.Header
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
+	coinbase common.Address
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
-	return &TxPool{
+	pool := &TxPool{
 		pending:          make(map[common.Hash]*types.Transaction),
 		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
 		knownDeferredTxs: mapset.NewSet(),
@@ -59,10 +60,18 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 		log:              log.New(),
 		bus:              bus,
 	}
+
+	_ = pool.bus.Subscribe(events.AddBlockEventID,
+		func(e eventbus.Event) {
+			newBlockEvent := e.(*events.NewBlockEvent)
+			pool.head = newBlockEvent.Block.Header
+		})
+	return pool
 }
 
-func (txpool *TxPool) Initialize(head *types.Header) {
+func (txpool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
 	txpool.head = head
+	txpool.coinbase = coinbase
 }
 
 func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
@@ -100,6 +109,9 @@ func (txpool *TxPool) Validate(tx *types.Transaction) error {
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
+	if appState == nil {
+		return errors.New("tx can't be validated")
+	}
 	return validation.ValidateTx(appState, tx, true)
 }
 
@@ -108,7 +120,9 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
 
-	if txpool.isSyncing {
+	sender, _ := types.Sender(tx)
+
+	if txpool.isSyncing && sender != txpool.coinbase {
 		txpool.addDeferredTx(tx)
 		return nil
 	}
@@ -121,7 +135,6 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	}
 
 	hash := tx.Hash()
-	sender, _ := types.Sender(tx)
 
 	txpool.pending[hash] = tx
 	senderPending := txpool.pendingPerAddr[sender]

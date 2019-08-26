@@ -13,7 +13,7 @@ type account struct {
 type NonceCache struct {
 	*StateDB
 
-	mu sync.RWMutex
+	mu *sync.RWMutex
 
 	accounts map[common.Address]map[uint16]*account
 }
@@ -21,7 +21,16 @@ type NonceCache struct {
 func NewNonceCache(sdb *StateDB) *NonceCache {
 	return &NonceCache{
 		StateDB:  sdb.MemoryState(),
+		mu:       &sync.RWMutex{},
 		accounts: make(map[common.Address]map[uint16]*account),
+	}
+}
+
+func (ns *NonceCache) Clone(db *StateDB) *NonceCache {
+	return &NonceCache{
+		StateDB:  db.MemoryState(),
+		mu:       ns.mu,
+		accounts: ns.accounts,
 	}
 }
 

@@ -2,12 +2,13 @@ package ceremony
 
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 )
 
 type candidate struct {
-	PubKey     []byte
-	Generation uint32
-	Code       []byte
+	Address     common.Address
+	Generation  uint32
+	Code        []byte
 }
 
 type FlipStatus byte
