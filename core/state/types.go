@@ -13,23 +13,23 @@ type StateAccount struct {
 }
 
 type StateIdentity struct {
-	Address common.Address
-	Nickname       *[64]byte `rlp:"nil"`
-	Stake          *big.Int
-	Invites        uint8
-	Age            uint16
-	State          IdentityState
-	QualifiedFlips uint32
+	Address         common.Address
+	Nickname        *[64]byte `rlp:"nil"`
+	Stake           *big.Int
+	Invites         uint8
+	Birthday        uint16
+	State           IdentityState
+	QualifiedFlips  uint32
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
 	Flips           [][]byte `rlp:"nil"`
 	Generation      uint32
-	Code            []byte   `rlp:"nil"`
+	Code            []byte `rlp:"nil"`
 }
 
 type StateApprovedIdentity struct {
-	Address common.Address
+	Address  common.Address
 	Approved bool
 	Online   bool
 }
