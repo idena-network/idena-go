@@ -301,6 +301,7 @@ func (s *StateDB) SetInvites(address common.Address, amount uint8) {
 func (s *StateDB) SubInvite(address common.Address, amount uint8) {
 	s.GetOrNewIdentityObject(address).SubInvite(amount)
 }
+
 func (s *StateDB) SetPubKey(address common.Address, pubKey []byte) {
 	s.GetOrNewIdentityObject(address).SetPubKey(pubKey)
 }
@@ -355,6 +356,10 @@ func (s *StateDB) GetInvitees(address common.Address) []TxAddr {
 
 func (s *StateDB) RemoveInvitee(address, inviteeAddress common.Address) {
 	s.GetOrNewIdentityObject(address).RemoveInvitee(inviteeAddress)
+}
+
+func (s *StateDB) SetBirthday(address common.Address, birthday uint16) {
+	s.GetOrNewIdentityObject(address).SetBirthday(birthday)
 }
 
 func (s *StateDB) IncEpoch() {
@@ -916,7 +921,7 @@ func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 	for _, identity := range state.Identities {
 		stateObject := s.GetOrNewIdentityObject(identity.Address)
-		stateObject.data.Age = identity.Age
+		stateObject.data.Birthday = identity.Birthday
 		stateObject.data.Generation = identity.Generation
 		stateObject.data.Stake = identity.Stake
 		stateObject.data.RequiredFlips = identity.RequiredFlips

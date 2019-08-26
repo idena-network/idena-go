@@ -91,7 +91,7 @@ func main() {
 			snapshot.Identities = append(snapshot.Identities, &state.StateIdentity{
 				Address:         addr,
 				State:           data.State,
-				Age:             data.Age,
+				Birthday:        data.Birthday,
 				Code:            data.Code,
 				Generation:      data.Generation,
 				Invites:         data.Invites,
