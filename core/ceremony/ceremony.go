@@ -79,6 +79,7 @@ type cacheValue struct {
 	state                    state.IdentityState
 	shortQualifiedFlipsCount uint32
 	shortFlipPoint           float32
+	birthday                 uint16
 }
 
 type blockHandler func(block *types.Block)
@@ -593,18 +594,19 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
 
-	applyOnState := func(addr common.Address, s state.IdentityState, shortQualifiedFlipsCount uint32, shortFlipPoint float32) {
-		appState.State.SetState(addr, s)
-		appState.State.AddQualifiedFlipsCount(addr, shortQualifiedFlipsCount)
-		appState.State.AddShortFlipPoints(addr, shortFlipPoint)
-		if s == state.Verified || s == state.Newbie {
+	applyOnState := func(addr common.Address, value cacheValue) {
+		appState.State.SetState(addr, value.state)
+		appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
+		appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
+		appState.State.SetBirthday(addr, value.birthday)
+		if value.state == state.Verified || value.state == state.Newbie {
 			identitiesCount++
 		}
 	}
 
 	if len(vc.epochApplyingResult) > 0 {
 		for addr, value := range vc.epochApplyingResult {
-			applyOnState(addr, value.state, value.shortQualifiedFlipsCount, value.shortFlipPoint)
+			applyOnState(addr, value)
 		}
 		return identitiesCount
 	}
@@ -665,13 +667,16 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 			totalScore = (shortFlipPoint + totalFlipPoints) / float32(newTotalQualifiedFlipsCount)
 		}
 
-		newIdentityState := determineNewIdentityState(appState.State.GetIdentity(addr), shortScore, longScore, totalScore,
+		identity := appState.State.GetIdentity(addr)
+		newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
 			newTotalQualifiedFlipsCount, missed)
+		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		value := cacheValue{
 			state:                    newIdentityState,
 			shortQualifiedFlipsCount: shortQualifiedFlipsCount,
 			shortFlipPoint:           shortFlipPoint,
+			birthday:                 identityBirthday,
 		}
 
 		vc.epochApplyingResult[addr] = value
@@ -687,20 +692,23 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 			LongFlipsToSolve:  longFlipsToSolve,
 		}
 
-		applyOnState(addr, newIdentityState, shortQualifiedFlipsCount, shortFlipPoint)
+		applyOnState(addr, value)
 	}
 
 	for _, addr := range vc.nonCandidates {
-		newIdentityState := determineNewIdentityState(appState.State.GetIdentity(addr), 0, 0, 0,
+		identity := appState.State.GetIdentity(addr)
+		newIdentityState := determineNewIdentityState(identity, 0, 0, 0,
 			0, true)
+		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		value := cacheValue{
 			state:                    newIdentityState,
 			shortQualifiedFlipsCount: 0,
 			shortFlipPoint:           0,
+			birthday:                 identityBirthday,
 		}
 		vc.epochApplyingResult[addr] = value
-		applyOnState(addr, newIdentityState, 0, 0)
+		applyOnState(addr, value)
 	}
 
 	vc.validationStats = stats
@@ -751,6 +759,22 @@ func (vc *ValidationCeremony) logInfoWithInteraction(msg string, ctx ...interfac
 	if vc.shouldInteractWithNetwork() {
 		log.Info(msg, ctx...)
 	}
+}
+
+func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, newState state.IdentityState) uint16 {
+	switch identity.State {
+	case state.Candidate:
+		if newState == state.Newbie {
+			return currentEpoch
+		}
+		return 0
+	case state.Newbie:
+	case state.Verified:
+	case state.Suspended:
+	case state.Zombie:
+		return identity.Birthday
+	}
+	return 0
 }
 
 func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {

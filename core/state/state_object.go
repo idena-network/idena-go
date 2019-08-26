@@ -88,7 +88,7 @@ type Identity struct {
 	Nickname       *[64]byte `rlp:"nil"`
 	Stake          *big.Int
 	Invites        uint8
-	Age            uint16
+	Birthday       uint16
 	State          IdentityState
 	QualifiedFlips uint32
 	// should use GetShortFlipPoints instead of reading directly
@@ -437,6 +437,11 @@ func (s *stateIdentity) RemoveInvitee(address common.Address) {
 		s.touch()
 		return
 	}
+}
+
+func (s *stateIdentity) SetBirthday(birthday uint16) {
+	s.data.Birthday = birthday
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.

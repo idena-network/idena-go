@@ -197,6 +197,7 @@ type Identity struct {
 
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
+	epoch := api.baseApi.getAppState().State.Epoch()
 	api.baseApi.engine.GetAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
@@ -212,7 +213,7 @@ func (api *DnaApi) Identities() []Identity {
 		if addr == api.GetCoinbaseAddr() {
 			flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 		}
-		identities = append(identities, convertIdentity(addr, data, flipKeyWordPairs))
+		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs))
 
 		return false
 	})
@@ -232,12 +233,12 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 	}
 
-	converted := convertIdentity(*address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
+	converted := convertIdentity(api.baseApi.getAppState().State.Epoch(), *address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
 	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(*address)
 	return converted
 }
 
-func convertIdentity(address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {
+func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {
 	var s string
 	switch data.State {
 	case state.Invite:
@@ -287,11 +288,16 @@ func convertIdentity(address common.Address, data state.Identity, flipKeyWordPai
 		invitees = data.Invitees
 	}
 
+	age := uint16(0)
+	if data.Birthday > 0 {
+		age = currentEpoch - data.Birthday
+	}
+
 	return Identity{
 		Address:          address,
 		State:            s,
 		Stake:            blockchain.ConvertToFloat(data.Stake),
-		Age:              data.Age,
+		Age:              age,
 		Invites:          data.Invites,
 		Nickname:         nickname,
 		PubKey:           fmt.Sprintf("%x", data.PubKey),
