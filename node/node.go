@@ -119,7 +119,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 	appState := appstate.NewAppState(db, bus)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, secStore)
+	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
@@ -195,7 +195,7 @@ func (node *Node) StartWithHeight(height uint64) {
 		}
 	}
 
-	node.txpool.Initialize(node.blockchain.Head)
+	node.txpool.Initialize(node.blockchain.Head, node.secStore.GetAddress())
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))

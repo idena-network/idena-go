@@ -11,7 +11,6 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/secstore"
 	"sort"
 	"sync"
 )
@@ -46,10 +45,10 @@ type TxPool struct {
 	head             *types.Header
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
-	secStore         *secstore.SecStore
+	coinbase common.Address
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int, secStore *secstore.SecStore) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
 	pool := &TxPool{
 		pending:          make(map[common.Hash]*types.Transaction),
 		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
@@ -60,7 +59,6 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 		appState:         appState,
 		log:              log.New(),
 		bus:              bus,
-		secStore:         secStore,
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -71,8 +69,9 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 	return pool
 }
 
-func (txpool *TxPool) Initialize(head *types.Header) {
+func (txpool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
 	txpool.head = head
+	txpool.coinbase = coinbase
 }
 
 func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
@@ -123,7 +122,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 
 	sender, _ := types.Sender(tx)
 
-	if txpool.isSyncing && sender != txpool.secStore.GetAddress() {
+	if txpool.isSyncing && sender != txpool.coinbase {
 		txpool.addDeferredTx(tx)
 		return nil
 	}
