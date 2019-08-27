@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -247,4 +248,23 @@ func TestPythonIntegration(t *testing.T) {
 
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg0, kh, sig0)
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg1, kh, sig1)
+}
+
+func TestGenerateKeyFromSeed(t *testing.T) {
+	key, _ := GenerateKey()
+	sig, err := Sign(common.Hash{0x1}.Bytes(), key)
+	require.NoError(t, err)
+
+	newKey1, err := GenerateKeyFromSeed(bytes.NewReader(sig))
+	require.NoError(t, err)
+
+	sig2, err := Sign(common.Hash{0x2}.Bytes(), key)
+	newKey2, err := GenerateKeyFromSeed(bytes.NewReader(sig2))
+	require.NoError(t, err)
+
+
+	key1Bytes :=FromECDSA(newKey1)
+	key2Bytes :=FromECDSA(newKey2)
+
+	require.NotEqual(t, key1Bytes, key2Bytes)
 }
