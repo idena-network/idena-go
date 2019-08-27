@@ -73,15 +73,18 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 		round,
 	}
 	if round == proposals.chain.Round() {
+
+		m, _ := proposals.proofsByRound.LoadOrStore(round, &sync.Map{})
+		byRound := m.(*sync.Map)
+		if _, ok := byRound.Load(hash); ok {
+			return false
+		}
+
 		if err := proposals.chain.ValidateProposerProof(p, hash, pubKey); err != nil {
 			log.Warn("Failed Proof proposer validation", "err", err.Error())
 			return false
 		}
 		// TODO: maybe there exists better structure for this
-
-		m, _ := proposals.proofsByRound.LoadOrStore(round, &sync.Map{})
-
-		byRound := m.(*sync.Map)
 		byRound.Store(hash, proof)
 		return true
 	} else if round > proposals.chain.Round() {
@@ -173,6 +176,14 @@ func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
 func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) bool {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
+
+		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
+		round := m.(*sync.Map)
+
+		if _, ok := round.Load(block.Hash()); ok {
+			return false
+		}
+
 		if err := proposals.chain.ValidateBlock(block, nil); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
 			// it might be a signal about a fork
@@ -187,9 +198,6 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 			return false
 		}
 
-		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
-
-		round := m.(*sync.Map)
 		round.Store(block.Hash(), block)
 
 		return true
