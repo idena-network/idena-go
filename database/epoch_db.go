@@ -22,7 +22,6 @@ var (
 	EvidencePrefix              = []byte("evi")
 	LotterySeedKey              = []byte("ls")
 	FlipCidPrefix               = []byte("cid")
-	FlipEncryptionKey           = []byte("flip-key")
 	FlipKeyWordPairsPrefix      = []byte("word")
 	FlipKeyWordPairsProofPrefix = []byte("word-proof")
 )
@@ -220,14 +219,6 @@ func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])
 	}
-}
-
-func (edb *EpochDb) ReadFlipKey() []byte {
-	return edb.db.Get(FlipEncryptionKey)
-}
-
-func (edb *EpochDb) WriteFlipKey(encKey []byte) {
-	edb.db.Set(FlipEncryptionKey, encKey)
 }
 
 func (edb *EpochDb) WriteFlipKeyWordPairs(words []uint32, proof []byte) {
