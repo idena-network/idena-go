@@ -132,6 +132,7 @@ type Syncing struct {
 	Syncing      bool   `json:"syncing"`
 	CurrentBlock uint64 `json:"currentBlock"`
 	HighestBlock uint64 `json:"highestBlock"`
+	WrongTime    bool   `json:"wrongTime"`
 }
 
 func (api *BlockchainApi) Syncing() Syncing {
@@ -145,6 +146,7 @@ func (api *BlockchainApi) Syncing() Syncing {
 		Syncing:      isSyncing,
 		CurrentBlock: current,
 		HighestBlock: highest,
+		WrongTime:    api.pm.WrongTime(),
 	}
 }
 

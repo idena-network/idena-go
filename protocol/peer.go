@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/pkg/errors"
+	"math"
 	"math/rand"
 	"time"
 )
@@ -188,6 +189,7 @@ func (p *peer) Handshake(network types.Network, height uint64, genesis common.Ha
 			NetworkId:    network,
 			Height:       height,
 			GenesisBlock: genesis,
+			Timestamp:    uint64(time.Now().UTC().Unix()),
 		})
 	}()
 	go func() {
@@ -221,10 +223,14 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 		return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
 	}
 	if handShake.GenesisBlock != genesis {
-		return errors.New(fmt.Sprintf("Bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
+		return errors.New(fmt.Sprintf("bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
 	}
 	if handShake.NetworkId != network {
-		return errors.New(fmt.Sprintf("Network mismatch: %d (!= %d)", handShake.NetworkId, network))
+		return errors.New(fmt.Sprintf("network mismatch: %d (!= %d)", handShake.NetworkId, network))
+	}
+	diff := math.Abs(float64(time.Now().UTC().Unix() - int64(handShake.Timestamp)))
+	if diff > MaxTimestampLagSeconds {
+		return errors.New(fmt.Sprintf("time difference is too big (%v sec)", diff))
 	}
 
 	return nil
