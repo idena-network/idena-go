@@ -336,7 +336,7 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
 	for _, identity := range state.ApprovedIdentities {
 		stateObj := s.GetOrNewIdentityObject(identity.Address)
-		stateObj.data.Online = identity.Online
+		stateObj.data.Online = false
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
 	}
