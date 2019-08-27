@@ -34,7 +34,8 @@ const (
 	SnapshotManifest = 0x0D
 )
 const (
-	DecodeErr = 1
+	DecodeErr              = 1
+	MaxTimestampLagSeconds = 30
 )
 
 var (
@@ -61,6 +62,7 @@ type ProtocolManager struct {
 	batchedLock   sync.Mutex
 	bus           eventbus.Bus
 	config        *p2p.Config
+	wrongTime     bool
 }
 
 type getBlockBodyRequest struct {
@@ -89,6 +91,7 @@ type handshakeData struct {
 	NetworkId    types.Network
 	Height       uint64
 	GenesisBlock common.Hash
+	Timestamp    uint64
 }
 
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus,
@@ -126,6 +129,18 @@ func (pm *ProtocolManager) Start() {
 	})
 
 	go pm.broadcastLoop()
+	go pm.checkTime()
+}
+
+func (pm *ProtocolManager) checkTime() {
+	for {
+		pm.wrongTime = !checkClockDrift()
+		time.Sleep(time.Minute)
+	}
+}
+
+func (pm *ProtocolManager) WrongTime() bool {
+	return pm.wrongTime
 }
 
 func (pm *ProtocolManager) handle(p *peer) error {
