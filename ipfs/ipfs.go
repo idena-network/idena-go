@@ -17,6 +17,7 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/multiformats/go-multihash"
 	"github.com/pkg/errors"
+	"github.com/whyrusleeping/go-logging"
 	"io"
 	"io/ioutil"
 	"os"
@@ -65,6 +66,7 @@ type ipfsProxy struct {
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
+	logging.SetLevel(0, "core")
 
 	datadir, _ := filepath.Abs(cfg.DataDir)
 	err := loadPlugins(datadir)
@@ -124,6 +126,7 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	defer cancel()
 
 	file := files.NewBytesFile(data)
+	defer file.Close()
 	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
@@ -146,6 +149,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	defer cancel()
 
 	file, _ := files.NewReaderPathFile(absPath, data, fi)
+	defer file.Close()
 	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
@@ -191,6 +195,7 @@ func (p *ipfsProxy) get(path path.Path) ([]byte, error) {
 		return nil, err
 	}
 	file := files.ToFile(f)
+	defer file.Close()
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(file)
@@ -224,6 +229,7 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 		break
 	}
 	file := files.ToFile(f)
+	defer file.Close()
 
 	size, err := file.Size()
 	if err != nil {
@@ -295,7 +301,10 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	file := files.NewBytesFile(data)
-	path, _ := api.Unixfs().Add(context.Background(), file, options.Unixfs.HashOnly(true), options.Unixfs.CidVersion(1))
+	defer file.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	path, _ := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true), options.Unixfs.CidVersion(1))
 	return path.Cid(), nil
 }
 
