@@ -69,6 +69,7 @@ type nodeCtx struct {
 	Ceremony   *ceremony.ValidationCeremony
 	Blockchain *blockchain.Blockchain
 	Flipper    *flip.Flipper
+	KeysPool   *mempool.KeysPool
 }
 
 func StartMobileNode(path string) string {
@@ -156,6 +157,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 		Ceremony:   ceremony,
 		Blockchain: chain,
 		Flipper:    flipper,
+		KeysPool:   flipKeyPool,
 	}, nil
 }
 
