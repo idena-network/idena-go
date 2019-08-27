@@ -32,6 +32,7 @@ type FlipStats struct {
 type FlipAnswerStats struct {
 	Respondent common.Address
 	Answer     types.Answer
+	Point      float32
 }
 
 func NewStats() *Stats {
