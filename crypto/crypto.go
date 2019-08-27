@@ -193,6 +193,10 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand.Reader)
 }
 
+func GenerateKeyFromSeed(rand io.Reader)  (*ecdsa.PrivateKey, error) {
+	return ecdsa.GenerateKey(S256(), rand)
+}
+
 // ValidateSignatureValues verifies whether the signature values are valid with
 // the given chain rules. The v value is assumed to be either 0 or 1.
 func ValidateSignatureValues(v byte, r, s *big.Int, homestead bool) bool {

@@ -3,8 +3,8 @@ package flip
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/rand"
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -48,6 +48,7 @@ type Flipper struct {
 	loadingCtx       context.Context
 	cancelLoadingCtx context.CancelFunc
 	bus              eventbus.Bus
+	flipKey          *ecies.PrivateKey
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -208,18 +209,21 @@ func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
-	key := fp.epochDb.ReadFlipKey()
-	var ecdsaKey *ecdsa.PrivateKey
-
-	if key == nil {
-		ecdsaKey, _ = crypto.GenerateKey()
-		key = crypto.FromECDSA(ecdsaKey)
-		fp.epochDb.WriteFlipKey(key)
-	} else {
-		ecdsaKey, _ = crypto.ToECDSA(key)
+	if fp.flipKey != nil {
+		return fp.flipKey
 	}
 
-	return ecies.ImportECDSA(ecdsaKey)
+	seed := []byte(fmt.Sprintf("flip-key-for-epoch-%v", fp.appState.State.Epoch()))
+
+	hash := common.Hash(rlp.Hash(seed))
+
+	sig := fp.secStore.Sign(hash.Bytes())
+
+	flipKey, _ := crypto.GenerateKeyFromSeed(bytes.NewReader(sig))
+
+	fp.flipKey = ecies.ImportECDSA(flipKey)
+
+	return fp.flipKey
 }
 
 func (fp *Flipper) Load(cids [][]byte) {
@@ -269,6 +273,7 @@ func (fp *Flipper) Reset() {
 	fp.flipReadiness = make(map[common.Hash]bool)
 	fp.keyspool.Clear()
 	fp.Initialize()
+	fp.flipKey = nil
 	fp.loadingCtx, fp.cancelLoadingCtx = context.WithCancel(context.Background())
 }
 
