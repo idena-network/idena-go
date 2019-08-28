@@ -49,3 +49,21 @@ func TestIpfsProxy_Get(t *testing.T) {
 		require.Equal(data, data2)
 	}
 }
+
+func TestIpfsProxy_Cid_Cache(t *testing.T) {
+	require := require.New(t)
+
+	proxy, _ := NewIpfsProxy(&config.IpfsConfig{
+		SwarmKey:  "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
+		BootNodes: []string{},
+		IpfsPort:  4013,
+		DataDir:   "./datadir-ipfs2",
+	})
+
+	cid, _ := proxy.Cid([]byte{0x1})
+	cid2, _ := proxy.Cid([]byte{0x1})
+
+	require.Equal(cid.Bytes(), cid2.Bytes())
+	p := proxy.(*ipfsProxy)
+	require.Len(p.cidCache.Items(), 1)
+}

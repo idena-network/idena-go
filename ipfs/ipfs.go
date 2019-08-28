@@ -6,16 +6,24 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
+	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	ipfsConf "github.com/ipfs/go-ipfs-config"
 	"github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-ipfs/core/coreunix"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	dag "github.com/ipfs/go-merkledag"
+	dagtest "github.com/ipfs/go-merkledag/test"
+	"github.com/ipfs/go-mfs"
+	ft "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/multiformats/go-multihash"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/whyrusleeping/go-logging"
 	"io"
@@ -59,10 +67,11 @@ type Proxy interface {
 }
 
 type ipfsProxy struct {
-	node   *core.IpfsNode
-	log    log.Logger
-	port   int
-	peerId string
+	node     *core.IpfsNode
+	log      log.Logger
+	port     int
+	peerId   string
+	cidCache *cache.Cache
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
@@ -90,11 +99,15 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 	peerId := node.PeerHost.ID().Pretty()
 	logger.Info("Ipfs initialized", "peerId", peerId)
 	go watchPeers(node)
+
+	c := cache.New(2*time.Minute, 5*time.Minute)
+
 	return &ipfsProxy{
-		node:   node,
-		log:    logger,
-		peerId: peerId,
-		port:   cfg.IpfsPort,
+		node:     node,
+		log:      logger,
+		peerId:   peerId,
+		port:     cfg.IpfsPort,
+		cidCache: c,
 	}, nil
 }
 
@@ -298,14 +311,56 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		return EmptyCid, nil
 	}
 
-	api, _ := coreapi.NewCoreAPI(p.node)
+	hash := rlp.Hash(data)
+	cacheKey := string(hash[:])
+	if value, ok := p.cidCache.Get(cacheKey); ok {
+		return value.(cid.Cid), nil
+	}
 
-	file := files.NewBytesFile(data)
-	defer file.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	path, _ := api.Unixfs().Add(ctx, file, options.Unixfs.HashOnly(true), options.Unixfs.CidVersion(1))
-	return path.Cid(), nil
+	nilnode, _ := core.NewNode(ctx, &core.BuildCfg{
+		NilRepo: true,
+	})
+	defer nilnode.Peerstore.Close()
+
+	addblockstore := nilnode.Blockstore
+	exch := nilnode.Exchange
+	pinning := nilnode.Pinning
+
+	bserv := blockservice.New(addblockstore, exch) // hash security 001
+	dserv := dag.NewDAGService(bserv)
+
+	fileAdder, err := coreunix.NewAdder(ctx, pinning, addblockstore, dserv)
+
+	if err != nil {
+		return EmptyCid, err
+	}
+
+	settings, prefix, err := options.UnixfsAddOptions(options.Unixfs.CidVersion(1))
+	fileAdder.Chunker = settings.Chunker
+	fileAdder.Pin = false
+	fileAdder.RawLeaves = settings.RawLeaves
+	fileAdder.CidBuilder = prefix
+
+	md := dagtest.Mock()
+	emptyDirNode := ft.EmptyDirNode()
+	// Use the same prefix for the "empty" MFS root as for the file adder.
+	emptyDirNode.SetCidBuilder(fileAdder.CidBuilder)
+	mr, err := mfs.NewRoot(ctx, md, emptyDirNode, nil)
+	if err != nil {
+		return EmptyCid, err
+	}
+
+	fileAdder.SetMfsRoot(mr)
+	file := files.NewBytesFile(data)
+	defer file.Close()
+	nd, err := fileAdder.AddAllAndPin(file)
+	if err != nil {
+		return EmptyCid, err
+	}
+	p.cidCache.Set(cacheKey, nd.Cid(), cache.DefaultExpiration)
+	return nd.Cid(), nil
 }
 
 func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
@@ -320,6 +375,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 			return err
 		}
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
+		ipfsConfig.Swarm.DisableBandwidthMetrics = true
 		return nil
 	}
 	var ipfsConfig *ipfsConf.Config
