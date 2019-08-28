@@ -202,6 +202,16 @@ func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, 
 	return nil, 0
 }
 
+func (dt *OfflineDetector) GetActivityMap() map[common.Address]time.Time {
+	dt.mutex.Lock()
+	defer dt.mutex.Unlock()
+	res := make(map[common.Address]time.Time, len(dt.activityMap))
+	for key, value := range dt.activityMap {
+		res[key] = value
+	}
+	return res
+}
+
 func (dt *OfflineDetector) startListening() {
 	for {
 		select {
