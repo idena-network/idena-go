@@ -101,6 +101,9 @@ func main() {
 				RequiredFlips:   data.RequiredFlips,
 				ShortFlipPoints: data.ShortFlipPoints,
 				Stake:           data.Stake,
+				Flips:           data.Flips,
+				Invitees:        data.Invitees,
+				Inviter:         data.Inviter,
 			})
 			return false
 		})

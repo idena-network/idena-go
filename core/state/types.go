@@ -25,7 +25,9 @@ type StateIdentity struct {
 	RequiredFlips   uint8
 	Flips           [][]byte `rlp:"nil"`
 	Generation      uint32
-	Code            []byte `rlp:"nil"`
+	Code            []byte   `rlp:"nil"`
+	Invitees        []TxAddr `rlp:"nil"`
+	Inviter         *TxAddr  `rlp:"nil"`
 }
 
 type StateApprovedIdentity struct {

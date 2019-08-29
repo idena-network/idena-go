@@ -961,6 +961,9 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.Nickname = identity.Nickname
 		//stateObject.data.Flips = identity.Flips
 		stateObject.data.Code = identity.Code
+		stateObject.data.Flips = identity.Flips
+		stateObject.data.Invitees = identity.Invitees
+		stateObject.data.Inviter = identity.Inviter
 		stateObject.touch()
 	}
 }
