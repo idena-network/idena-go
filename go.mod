@@ -20,10 +20,14 @@ require (
 	github.com/google/tink v1.2.2
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/huin/goupnp v1.0.0
+	github.com/ipfs/go-blockservice v0.0.3
 	github.com/ipfs/go-cid v0.0.2
 	github.com/ipfs/go-ipfs v0.4.22
 	github.com/ipfs/go-ipfs-config v0.0.3
 	github.com/ipfs/go-ipfs-files v0.0.3
+	github.com/ipfs/go-merkledag v0.0.3
+	github.com/ipfs/go-mfs v0.0.7
+	github.com/ipfs/go-unixfs v0.0.6
 	github.com/ipfs/interface-go-ipfs-core v0.0.8
 	github.com/jackpal/go-nat-pmp v1.0.1
 	github.com/mattn/go-colorable v0.1.2 // indirect
@@ -32,6 +36,7 @@ require (
 	github.com/minio/sha256-simd v0.1.0 // indirect
 	github.com/multiformats/go-multihash v0.0.5
 	github.com/nwaples/rardecode v1.0.0 // indirect
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.0
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pkg/errors v0.8.1
