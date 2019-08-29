@@ -64,11 +64,13 @@ type Node struct {
 }
 
 type nodeCtx struct {
-	Node       *Node
-	AppState   *appstate.AppState
-	Ceremony   *ceremony.ValidationCeremony
-	Blockchain *blockchain.Blockchain
-	Flipper    *flip.Flipper
+	Node            *Node
+	AppState        *appstate.AppState
+	Ceremony        *ceremony.ValidationCeremony
+	Blockchain      *blockchain.Blockchain
+	Flipper         *flip.Flipper
+	KeysPool        *mempool.KeysPool
+	OfflineDetector *blockchain.OfflineDetector
 }
 
 func StartMobileNode(path string) string {
@@ -151,11 +153,13 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 		offlineDetector: offlineDetector,
 	}
 	return &nodeCtx{
-		Node:       node,
-		AppState:   appState,
-		Ceremony:   ceremony,
-		Blockchain: chain,
-		Flipper:    flipper,
+		Node:            node,
+		AppState:        appState,
+		Ceremony:        ceremony,
+		Blockchain:      chain,
+		Flipper:         flipper,
+		KeysPool:        flipKeyPool,
+		OfflineDetector: offlineDetector,
 	}, nil
 }
 
