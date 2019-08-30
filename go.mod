@@ -8,6 +8,7 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
+	github.com/decred/dcrd/dcrec/secp256k1 v1.0.3
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/frankban/quicktest v1.9.0 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3

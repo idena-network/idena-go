@@ -1,37 +1,20 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package crypto
 
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"math/big"
-	"os"
-
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/pkg/errors"
+	"io"
+	"io/ioutil"
+	"math/big"
+	"os"
 )
 
 var (
@@ -61,25 +44,10 @@ func Keccak256Hash(data ...[]byte) (h common.Hash) {
 	return h
 }
 
-// Keccak512 calculates and returns the Keccak512 hash of the input data.
-func Keccak512(data ...[]byte) []byte {
-	d := sha3.NewKeccak512()
-	for _, b := range data {
-		d.Write(b)
-	}
-	return d.Sum(nil)
-}
-
 // CreateAddress creates an ethereum address given the bytes and the nonce
 func CreateAddress(b common.Address, nonce uint64) common.Address {
 	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})
 	return common.BytesToAddress(Keccak256(data)[12:])
-}
-
-// CreateAddress2 creates an ethereum address given the address bytes, initial
-// contract code hash and a salt.
-func CreateAddress2(b common.Address, salt [32]byte, inithash []byte) common.Address {
-	return common.BytesToAddress(Keccak256([]byte{0xff}, b.Bytes(), salt[:], inithash)[12:])
 }
 
 // ToECDSA creates a private key with the given D value.
@@ -100,7 +68,7 @@ func ToECDSAUnsafe(d []byte) *ecdsa.PrivateKey {
 // it can also accept legacy encodings (0 prefixes).
 func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 	priv := new(ecdsa.PrivateKey)
-	priv.PublicKey.Curve = S256()
+	priv.PublicKey.Curve = secp256k1.S256()
 	if strict && 8*len(d) != priv.Params().BitSize {
 		return nil, fmt.Errorf("invalid length, need %d bits", priv.Params().BitSize)
 	}
@@ -147,13 +115,6 @@ func PubKeyBytesToAddress(b []byte) (common.Address, error) {
 	return common.Address{}, nil
 }
 
-func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
-	if pub == nil || pub.X == nil || pub.Y == nil {
-		return nil
-	}
-	return elliptic.Marshal(S256(), pub.X, pub.Y)
-}
-
 // HexToECDSA parses a secp256k1 private key.
 func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 	b, err := hex.DecodeString(hexkey)
@@ -190,11 +151,53 @@ func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 }
 
 func GenerateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(S256(), rand.Reader)
+	key, err := secp256k1.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	return key.ToECDSA(), nil
 }
 
-func GenerateKeyFromSeed(rand io.Reader)  (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(S256(), rand)
+func GenerateKeyFromSeed(rand io.Reader) (*ecdsa.PrivateKey, error) {
+	key, _, _, err := secp256k1.GenerateKey(rand)
+	if err != nil {
+		return nil, err
+	}
+	k, _ := secp256k1.PrivKeyFromBytes(key)
+	return k.ToECDSA(), nil
+}
+
+func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
+	if pub == nil || pub.X == nil || pub.Y == nil {
+		return nil
+	}
+	return elliptic.Marshal(S256(), pub.X, pub.Y)
+}
+
+func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
+	pubBytes := FromECDSAPub(&p)
+	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
+}
+
+func Sign(hash []byte, prv *ecdsa.PrivateKey) (sig []byte, err error) {
+	if len(hash) != 32 {
+		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
+	}
+	privKey := secp256k1.NewPrivateKey(prv.D)
+
+	return secp256k1.SignCompact(privKey, hash, false)
+	//signature, err := privKey.Sign(hash)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//return signature.Serialize(), nil
+}
+
+func zeroBytes(bytes []byte) {
+	for i := range bytes {
+		bytes[i] = 0
+	}
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with
@@ -210,15 +213,4 @@ func ValidateSignatureValues(v byte, r, s *big.Int, homestead bool) bool {
 	}
 	// Frontier: allow s to be in full N range
 	return r.Cmp(secp256k1N) < 0 && s.Cmp(secp256k1N) < 0 && (v == 0 || v == 1)
-}
-
-func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
-	pubBytes := FromECDSAPub(&p)
-	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
-}
-
-func zeroBytes(bytes []byte) {
-	for i := range bytes {
-		bytes[i] = 0
-	}
 }

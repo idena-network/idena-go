@@ -32,7 +32,7 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"errors"
-	"github.com/idena-network/idena-go/crypto/secp256k1"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"io"
 	"math/big"
@@ -129,19 +129,19 @@ func (k PrivateKey) Evaluate(m []byte) (index [32]byte, proof []byte) {
 	sHx, sHy := curve.ScalarMult(Hx, Hy, k.D.Bytes())
 
 	// vrf := elliptic.Marshal(curve, sHx, sHy) // 65 bytes.
-	vrf := curve.Marshal(sHx, sHy) // 65 bytes.
+	vrf := Marshal(sHx, sHy) // 65 bytes.
 
 	// G is the base point
 	// s = H2(G, H, [k]G, VRF, [r]G, [r]H)
 	rGx, rGy := curve.ScalarBaseMult(r)
 	rHx, rHy := curve.ScalarMult(Hx, Hy, r)
 	var b bytes.Buffer
-	b.Write(curve.Marshal(params.Gx, params.Gy))
-	b.Write(curve.Marshal(Hx, Hy))
-	b.Write(curve.Marshal(k.PublicKey.X, k.PublicKey.Y))
+	b.Write(Marshal(params.Gx, params.Gy))
+	b.Write(Marshal(Hx, Hy))
+	b.Write(Marshal(k.PublicKey.X, k.PublicKey.Y))
 	b.Write(vrf)
-	b.Write(curve.Marshal(rGx, rGy))
-	b.Write(curve.Marshal(rHx, rHy))
+	b.Write(Marshal(rGx, rGy))
+	b.Write(Marshal(rHx, rHy))
 	s := H2(b.Bytes())
 
 	// t = r−s*k mod N
@@ -163,6 +163,53 @@ func (k PrivateKey) Evaluate(m []byte) (index [32]byte, proof []byte) {
 	return index, buf.Bytes()
 }
 
+const (
+	// number of bits in a big.Word
+	wordBits = 32 << (uint64(^big.Word(0)) >> 63)
+	// number of bytes in a big.Word
+	wordBytes = wordBits / 8
+)
+
+// readBits encodes the absolute value of bigint as big-endian bytes. Callers
+// must ensure that buf has enough space. If buf is too short the result will
+// be incomplete.
+func readBits(bigint *big.Int, buf []byte) {
+	i := len(buf)
+	for _, d := range bigint.Bits() {
+		for j := 0; j < wordBytes && i > 0; j++ {
+			i--
+			buf[i] = byte(d)
+			d >>= 8
+		}
+	}
+}
+
+// Marshal converts a point into the form specified in section 4.3.6 of ANSI
+// X9.62.
+func Marshal(x, y *big.Int) []byte {
+	byteLen := (256 + 7) >> 3
+	ret := make([]byte, 1+2*byteLen)
+	ret[0] = 4 // uncompressed point flag
+	readBits(x, ret[1:1+byteLen])
+	readBits(y, ret[1+byteLen:])
+	return ret
+}
+
+// Unmarshal converts a point, serialised by Marshal, into an x, y pair. On
+// error, x = nil.
+func UnmarshalCurve(data []byte) (x, y *big.Int) {
+	byteLen := (256 + 7) >> 3
+	if len(data) != 1+2*byteLen {
+		return
+	}
+	if data[0] != 4 { // uncompressed form
+		return
+	}
+	x = new(big.Int).SetBytes(data[1 : 1+byteLen])
+	y = new(big.Int).SetBytes(data[1+byteLen:])
+	return
+}
+
 // ProofToHash asserts that proof is correct for m and outputs index.
 func (pk *PublicKey) ProofToHash(m, proof []byte) (index [32]byte, err error) {
 	nilIndex := [32]byte{}
@@ -177,7 +224,7 @@ func (pk *PublicKey) ProofToHash(m, proof []byte) (index [32]byte, err error) {
 	vrf := proof[64 : 64+65]
 
 	// uHx, uHy := elliptic.Unmarshal(curve, vrf)
-	uHx, uHy := curve.Unmarshal(vrf) //////???
+	uHx, uHy := UnmarshalCurve(vrf) //////???
 	if uHx == nil {
 		return nilIndex, ErrInvalidVRF
 	}
@@ -198,12 +245,12 @@ func (pk *PublicKey) ProofToHash(m, proof []byte) (index [32]byte, err error) {
 	// = H2(G, H, [k]G, VRF, [t+ks]G, [t+ks]H)
 	// = H2(G, H, [k]G, VRF, [r]G, [r]H)
 	var b bytes.Buffer
-	b.Write(curve.Marshal(params.Gx, params.Gy))
-	b.Write(curve.Marshal(Hx, Hy))
-	b.Write(curve.Marshal(pk.X, pk.Y))
+	b.Write(Marshal(params.Gx, params.Gy))
+	b.Write(Marshal(Hx, Hy))
+	b.Write(Marshal(pk.X, pk.Y))
 	b.Write(vrf)
-	b.Write(curve.Marshal(tksGx, tksGy))
-	b.Write(curve.Marshal(tksHx, tksHy))
+	b.Write(Marshal(tksGx, tksGy))
+	b.Write(Marshal(tksHx, tksHy))
 	h2 := H2(b.Bytes())
 
 	// Left pad h2 with zeros if needed. This will ensure that h2 is padded

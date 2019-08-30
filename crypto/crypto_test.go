@@ -99,7 +99,8 @@ func TestSign(t *testing.T) {
 	if err != nil {
 		t.Errorf("ECRecover error: %s", err)
 	}
-	pubKey, _ := UnmarshalPubkey(recoveredPub)
+	pubKey, err := UnmarshalPubkey(recoveredPub)
+	require.NoError(t, err)
 	recoveredAddr := PubkeyToAddress(*pubKey)
 	if addr != recoveredAddr {
 		t.Errorf("Address mismatch: want: %x have: %x", addr, recoveredAddr)
@@ -262,9 +263,26 @@ func TestGenerateKeyFromSeed(t *testing.T) {
 	newKey2, err := GenerateKeyFromSeed(bytes.NewReader(sig2))
 	require.NoError(t, err)
 
-
-	key1Bytes :=FromECDSA(newKey1)
-	key2Bytes :=FromECDSA(newKey2)
+	key1Bytes := FromECDSA(newKey1)
+	key2Bytes := FromECDSA(newKey2)
 
 	require.NotEqual(t, key1Bytes, key2Bytes)
+}
+
+func Test_Ecrecover(t *testing.T) {
+
+	key, _ := GenerateKey()
+	addr := PubkeyToAddress(key.PublicKey)
+
+	hash := [32]byte{0x1}
+
+	sig, _ := Sign(hash[:], key)
+	require.Len(t, sig, 65)
+
+	pub, err := Ecrecover(hash[:], sig)
+
+	require.NoError(t, err)
+	addr2, _ := PubKeyBytesToAddress(pub)
+
+	require.Equal(t, addr, addr2)
 }
