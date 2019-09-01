@@ -100,6 +100,7 @@ type Identity struct {
 	Code            []byte   `rlp:"nil"`
 	Invitees        []TxAddr `rlp:"nil"`
 	Inviter         *TxAddr  `rlp:"nil"`
+	Penalty         *big.Int
 }
 
 type TxAddr struct {
@@ -442,6 +443,28 @@ func (s *stateIdentity) RemoveInvitee(address common.Address) {
 func (s *stateIdentity) SetBirthday(birthday uint16) {
 	s.data.Birthday = birthday
 	s.touch()
+}
+
+func (s *stateIdentity) SetPenalty(penalty *big.Int) {
+	s.data.Penalty = penalty
+	s.touch()
+}
+
+func (s *stateIdentity) SubPenalty(amount *big.Int) {
+	if amount.Sign() == 0 {
+		return
+	}
+	p := s.data.Penalty
+
+	if p.Cmp(amount) <= 0 {
+		s.SetPenalty(nil)
+	} else {
+		s.SetPenalty(new(big.Int).Sub(s.data.Penalty, amount))
+	}
+}
+
+func (s *stateIdentity) GetPenalty() *big.Int {
+	return s.data.Penalty
 }
 
 // EncodeRLP implements rlp.Encoder.

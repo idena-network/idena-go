@@ -21,6 +21,7 @@ type ConsensusConf struct {
 	FinalCommitteeReward           *big.Int
 	FeeBurnRate                    float32
 	SnapshotRange                  uint64
+	OfflinePenaltyBlocksCount      int64
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -39,5 +40,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		FeeBurnRate:                    0.9,
 		FinalCommitteeReward:           big.NewInt(4e+18),
 		SnapshotRange:                  10000,
+		OfflinePenaltyBlocksCount:      5000,
 	}
 }

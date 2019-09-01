@@ -193,6 +193,7 @@ type Identity struct {
 	Generation       uint32          `json:"generation"`
 	Code             hexutil.Bytes   `json:"code"`
 	Invitees         []state.TxAddr  `json:"invitees"`
+	Penalty          decimal.Decimal `json:"penalty"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -310,6 +311,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Generation:       data.Generation,
 		Code:             data.Code,
 		Invitees:         invitees,
+		Penalty:          blockchain.ConvertToFloat(data.Penalty),
 	}
 }
 

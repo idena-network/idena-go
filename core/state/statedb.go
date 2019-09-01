@@ -362,6 +362,22 @@ func (s *StateDB) SetBirthday(address common.Address, birthday uint16) {
 	s.GetOrNewIdentityObject(address).SetBirthday(birthday)
 }
 
+func (s *StateDB) SetPenalty(address common.Address, penalty *big.Int) {
+	s.GetOrNewIdentityObject(address).SetPenalty(penalty)
+}
+
+func (s *StateDB) SubPenalty(address common.Address, penalty *big.Int) {
+	s.GetOrNewIdentityObject(address).SubPenalty(penalty)
+}
+
+func (s *StateDB) ClearPenalty(address common.Address) {
+	s.GetOrNewIdentityObject(address).SetPenalty(nil)
+}
+
+func (s *StateDB) GetPenalty(address common.Address) *big.Int {
+	return s.GetOrNewIdentityObject(address).GetPenalty()
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
