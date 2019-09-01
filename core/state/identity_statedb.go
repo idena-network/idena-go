@@ -7,7 +7,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/pkg/errors"
-	dbm "github.com/tendermint/tm-cmn/db"
+	dbm "github.com/tendermint/tm-db"
 	"strconv"
 	"sync"
 )

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tm-cmn/db"
+	"github.com/tendermint/tm-db"
 	"testing"
 )
 
@@ -147,7 +147,6 @@ func TestStateDB_Precommit(t *testing.T) {
 	require.Equal(t, addr2, diff.Values[0].Address)
 	require.False(t, diff.Values[1].Deleted)
 	require.False(t, diff.Values[0].Deleted)
-
 
 	stateDb.Commit(true)
 

@@ -3,7 +3,7 @@ package state
 import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
-	dbm "github.com/tendermint/tm-cmn/db"
+	dbm "github.com/tendermint/tm-db"
 	"math/rand"
 	"testing"
 	"time"

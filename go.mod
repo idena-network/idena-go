@@ -50,7 +50,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20190318030020-c3a204f8e965
 	github.com/tendermint/go-amino v0.15.0 // indirect
 	github.com/tendermint/iavl v0.0.0-20190701090235-eef65d855b4a
-	github.com/tendermint/tm-cmn v0.0.0-20190716080004-dfcde30d5acb
+	github.com/tendermint/tm-db v0.1.1
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	github.com/willf/bloom v2.0.3+incompatible
@@ -65,4 +65,4 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
-replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190724103809-104317193459
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190901114926-11530f9fda43

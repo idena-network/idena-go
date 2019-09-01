@@ -27,7 +27,7 @@ import (
 	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	dbm "github.com/tendermint/tm-cmn/db"
+	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"time"
 )

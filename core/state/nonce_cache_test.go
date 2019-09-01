@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 )
-import dbm "github.com/tendermint/tm-cmn/db"
+import dbm "github.com/tendermint/tm-db"
 
 func TestNonceCache_Set_And_Get_Nonce(t *testing.T) {
 	require := require.New(t)

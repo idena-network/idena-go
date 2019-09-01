@@ -20,7 +20,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
-	dbm "github.com/tendermint/tm-cmn/db"
+	dbm "github.com/tendermint/tm-db"
 	"sync"
 )
 

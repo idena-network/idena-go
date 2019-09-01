@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/tendermint/tm-cmn/db"
+	"github.com/tendermint/tm-db"
 )
 
 type backedMemBatch struct {
