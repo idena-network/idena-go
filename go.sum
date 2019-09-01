@@ -200,6 +200,8 @@ github.com/huin/goupnp v1.0.0/go.mod h1:n9v9KO1tAxYH82qOn+UTIFQDmx5n1Zxd/ClZDMX7
 github.com/huin/goutil v0.0.0-20170803182201-1ca381bf3150/go.mod h1:PpLOETDnJ0o3iZrZfqZzyLl6l7F3c6L1oWn7OICBi6o=
 github.com/idena-network/iavl v0.12.3-0.20190724103809-104317193459 h1:A9cql1yvc2NB/gR7Db4INny5/pOD2vPROBvr3uEXJGA=
 github.com/idena-network/iavl v0.12.3-0.20190724103809-104317193459/go.mod h1:RdiCCprSHWRfGvL+JUECU1Q+r2MlCO/zIEI4yoIf+fw=
+github.com/idena-network/iavl v0.12.3-0.20190901114926-11530f9fda43 h1:8X4kC3sP+lPKlZcSyupWIr5OVya3PKxeqtESVbC+gP4=
+github.com/idena-network/iavl v0.12.3-0.20190901114926-11530f9fda43/go.mod h1:8LHakzt8/0G3/I8FUU0ReNx98S/EP6eyPJkAUvEXT/o=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/ipfs/bbloom v0.0.1 h1:s7KkiBPfxCeDVo47KySjK0ACPc5GJRUxFpdyWEuDjhw=
 github.com/ipfs/bbloom v0.0.1/go.mod h1:oqo8CVWsJFMOZqTglBG4wydCE4IQA/G2/SEofB0rjUI=
@@ -686,6 +688,10 @@ github.com/tendermint/tendermint v0.32.1 h1:J8ddXMbCmG6GZjdCl/N1wgdXDU9uO91J2Y5C
 github.com/tendermint/tendermint v0.32.1/go.mod h1:jmPDAKuNkev9793/ivn/fTBnfpA9mGBww8MPRNPNxnU=
 github.com/tendermint/tm-cmn v0.0.0-20190716080004-dfcde30d5acb h1:t/HdvqJc9e1iJDl+hf8wQKfOo40aen+Rkqh4AwEaNsI=
 github.com/tendermint/tm-cmn v0.0.0-20190716080004-dfcde30d5acb/go.mod h1:SLI3Mc+gRrorRsAXJArnHz4xmAdJT8O7Ns0NL4HslXE=
+github.com/tendermint/tm-db v0.0.0-20190731085305-94017c88bf1d h1:yCHL2COLGLNfb4sA9AlzIHpapb8UATvAQyJulS6Eg6Q=
+github.com/tendermint/tm-db v0.0.0-20190731085305-94017c88bf1d/go.mod h1:0cPKWu2Mou3IlxecH+MEUSYc1Ch537alLe6CpFrKzgw=
+github.com/tendermint/tm-db v0.1.1 h1:G3Xezy3sOk9+ekhjZ/kjArYIs1SmwV+1OUgNkj7RgV0=
+github.com/tendermint/tm-db v0.1.1/go.mod h1:0cPKWu2Mou3IlxecH+MEUSYc1Ch537alLe6CpFrKzgw=
 github.com/texttheater/golang-levenshtein v0.0.0-20180516184445-d188e65d659e/go.mod h1:XDKHRm5ThF8YJjx001LtgelzsoaEcvnA7lVWz9EeX3g=
 github.com/tinylib/msgp v1.1.0 h1:9fQd+ICuRIu/ue4vxJZu6/LzxN0HwMds2nq/0cFvxHU=
 github.com/tinylib/msgp v1.1.0/go.mod h1:+d+yLhGm8mzTaHzB+wgMYrodPfmZrzkirds8fDWklFE=

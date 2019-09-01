@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
-	dbm "github.com/tendermint/tm-cmn/db"
+	dbm "github.com/tendermint/tm-db"
 )
 
 type Validatorsdb struct {

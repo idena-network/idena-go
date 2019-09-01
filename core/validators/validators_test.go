@@ -5,7 +5,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tm-cmn/db"
+	"github.com/tendermint/tm-db"
 	"math/rand"
 	"testing"
 )

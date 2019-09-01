@@ -7,7 +7,7 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tm-cmn/db"
+	"github.com/tendermint/tm-db"
 	"math/big"
 	"testing"
 	"time"

@@ -2,7 +2,7 @@ package database
 
 import (
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tm-cmn/db"
+	"github.com/tendermint/tm-db"
 	"testing"
 )
 
