@@ -45,7 +45,7 @@ type TxPool struct {
 	head             *types.Header
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
-	coinbase common.Address
+	coinbase         common.Address
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
@@ -80,6 +80,7 @@ func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
 	}
 	txpool.deferredTxs = append(txpool.deferredTxs, tx)
 	if len(txpool.deferredTxs) > MaxDeferredTxs {
+		txpool.deferredTxs[0] = nil
 		txpool.deferredTxs = txpool.deferredTxs[1:]
 	}
 	txpool.knownDeferredTxs.Add(tx.Hash())

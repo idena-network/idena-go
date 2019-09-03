@@ -187,7 +187,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markProof(&query)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
-		if pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round) {
+		if ok, _ := pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
 			pm.ProposeProof(query.Round, query.Hash, query.Proof, query.PubKey)
 		}
 	case ProposeBlock:
@@ -198,7 +198,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markHeader(block.Header)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
-		if pm.proposals.AddProposedBlock(&block, p.id) {
+		if ok, _ := pm.proposals.AddProposedBlock(&block, p.id); ok {
 			pm.ProposeBlock(&block)
 		}
 	case Vote:
