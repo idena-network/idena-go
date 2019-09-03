@@ -463,22 +463,22 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 
 	if flags.HasFlag(types.OfflineCommit) {
 		addr := block.Header.OfflineAddr()
-		chain.applyOfflinePenalty(*addr)
+		chain.applyOfflinePenalty(appState, *addr)
 	}
 }
 
-func (chain *Blockchain) applyOfflinePenalty(addr common.Address) {
-	networkSize := chain.appState.ValidatorsCache.NetworkSize()
+func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr common.Address) {
+	networkSize := appState.ValidatorsCache.NetworkSize()
 
 	if networkSize > 0 {
 		totalBlockReward := new(big.Int).Add(chain.config.Consensus.FinalCommitteeReward, chain.config.Consensus.BlockReward)
 		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
-		chain.appState.State.SetPenalty(addr, math.ToInt(&res))
+		appState.State.SetPenalty(addr, math.ToInt(&res))
 	}
 
-	chain.appState.IdentityState.SetOnline(addr, false)
+	appState.IdentityState.SetOnline(addr, false)
 }
 
 func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
