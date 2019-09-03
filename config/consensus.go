@@ -34,7 +34,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		WaitSortitionProofDelay:        time.Second * 5,
 		EstimatedBaVariance:            time.Second * 5,
 		WaitForStepDelay:               time.Second * 20,
-		BlockReward:                    big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(8)),
+		BlockReward:                    big.NewInt(2e+18),
 		StakeRewardRate:                0.2,
 		FeeBurnRate:                    0.9,
 		FinalCommitteeReward:           big.NewInt(4e+18),
