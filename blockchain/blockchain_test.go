@@ -166,3 +166,53 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
 }
+
+type testCase struct {
+	data     []*big.Int
+	expected []*big.Int
+}
+
+func Test_CalculatePenalty(t *testing.T) {
+	require := require.New(t)
+
+	cases := []testCase{
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), big.NewInt(900)},
+			expected: []*big.Int{big.NewInt(100), big.NewInt(500), big.NewInt(900)},
+		},
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), big.NewInt(1200)},
+			expected: []*big.Int{big.NewInt(0), big.NewInt(300), big.NewInt(1200)},
+		},
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), big.NewInt(1800)},
+			expected: []*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(1500)},
+		},
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), big.NewInt(1500)},
+			expected: []*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(1500)},
+		},
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), big.NewInt(2600)},
+			expected: []*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(1500)},
+		},
+		{
+			data:     []*big.Int{big.NewInt(1000), big.NewInt(500), nil},
+			expected: []*big.Int{big.NewInt(1000), big.NewInt(500), nil},
+		},
+	}
+
+	for i, item := range cases {
+		a, b, c := calculatePenalty(item.data[0], item.data[1], item.data[2])
+
+		require.Equal(0, item.expected[0].Cmp(a), "balance is wrong, case#%v", i+1)
+		require.Equal(0, item.expected[1].Cmp(b), "stake is wrong, case#%v", i+1)
+
+		if item.expected[2] == nil {
+			require.Equal(item.expected[2], c, "penalty is wrong, case#%v", i+1)
+		} else {
+			require.Equal(0, item.expected[2].Cmp(c), "penalty is wrong, case#%v", i+1)
+		}
+	}
+
+}
