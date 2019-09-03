@@ -10,22 +10,22 @@ func TestNetworkParams(t *testing.T) {
 
 	e, i, f := NetworkParams(1)
 	require.Equal(1, e)
-	require.Equal(5, i)
+	require.Equal(1, i)
 	require.Equal(3, f)
 
 	e, i, f = NetworkParams(5)
 	require.Equal(2, e)
-	require.Equal(5, i)
+	require.Equal(1, i)
 	require.Equal(3, f)
 
 	e, i, f = NetworkParams(100)
 	require.Equal(5, e)
-	require.Equal(5, i)
+	require.Equal(1, i)
 	require.Equal(3, f)
 
 	e, i, f = NetworkParams(1000)
 	require.Equal(10, e)
-	require.Equal(2, i)
+	require.Equal(1, i)
 	require.Equal(3, f)
 
 	e, i, f = NetworkParams(50000)
