@@ -334,11 +334,38 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 	// calculate total reward
 	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
 
+	// calculate penalty
+	balanceAdd, stakeAdd, penaltySub := calculatePenalty(totalReward, intStake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
+
 	// update state
-	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, totalReward)
-	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, intStake)
+	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, balanceAdd)
+	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, stakeAdd)
+	if penaltySub != nil {
+		appState.State.SubPenalty(block.Header.ProposedHeader.Coinbase, penaltySub)
+	}
 
 	chain.rewardFinalCommittee(appState, block, prevBlock)
+}
+
+func calculatePenalty(balanceAppend *big.Int, stakeAppend *big.Int, currentPenalty *big.Int) (balanceAdd *big.Int, stakeAdd *big.Int, penaltySub *big.Int) {
+
+	if currentPenalty == nil {
+		return balanceAppend, stakeAppend, nil
+	}
+
+	// penalty is less than added balance
+	if balanceAppend.Cmp(currentPenalty) >= 0 {
+		return new(big.Int).Sub(balanceAppend, currentPenalty), stakeAppend, currentPenalty
+	}
+
+	remainPenalty := new(big.Int).Sub(currentPenalty, balanceAppend)
+
+	// remain penalty is less than added stake
+	if stakeAppend.Cmp(remainPenalty) >= 0 {
+		return big.NewInt(0), new(big.Int).Sub(stakeAppend, remainPenalty), currentPenalty
+	}
+
+	return big.NewInt(0), big.NewInt(0), new(big.Int).Add(balanceAppend, stakeAppend)
 }
 
 func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types.Block) {
@@ -380,6 +407,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
 			appState.State.SetRequiredFlips(addr, 0)
 			appState.IdentityState.Remove(addr)
 		}
+		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
 	})
 }
@@ -435,8 +463,22 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 
 	if flags.HasFlag(types.OfflineCommit) {
 		addr := block.Header.OfflineAddr()
-		appState.IdentityState.SetOnline(*addr, false)
+		chain.applyOfflinePenalty(appState, *addr)
 	}
+}
+
+func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr common.Address) {
+	networkSize := appState.ValidatorsCache.NetworkSize()
+
+	if networkSize > 0 {
+		totalBlockReward := new(big.Int).Add(chain.config.Consensus.FinalCommitteeReward, chain.config.Consensus.BlockReward)
+		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
+		coins := decimal.NewFromBigInt(totalPenalty, 0)
+		res := coins.Div(decimal.New(int64(networkSize), 0))
+		appState.State.SetPenalty(addr, math.ToInt(&res))
+	}
+
+	appState.IdentityState.SetOnline(addr, false)
 }
 
 func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
@@ -459,8 +501,16 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
-		appState.State.AddBalance(addr, reward)
-		appState.State.AddStake(addr, intStake)
+
+		// calculate penalty
+		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, intStake, appState.State.GetPenalty(addr))
+
+		// update state
+		appState.State.AddBalance(addr, balanceAdd)
+		appState.State.AddStake(addr, stakeAdd)
+		if penaltySub != nil {
+			appState.State.SubPenalty(addr, penaltySub)
+		}
 	}
 }
 
