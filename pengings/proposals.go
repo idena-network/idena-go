@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/log"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
@@ -40,13 +41,9 @@ type Proposals struct {
 	// blocks for future rounds
 	//pendingBlocks []*blockPeer
 
-	// lock for pendingProofs
-	pMutex *sync.Mutex
-
-	// lock for pendingBlocks
-	bMutex *sync.Mutex
-
 	potentialForkedPeers mapset.Set
+
+	proposeCache *cache.Cache
 }
 
 type blockPeer struct {
@@ -63,9 +60,8 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 		blocksByRound:        &sync.Map{},
 		newPendingBlocks:     &sync.Map{},
 		newPendingProofs:     &sync.Map{},
-		bMutex:               &sync.Mutex{},
-		pMutex:               &sync.Mutex{},
 		potentialForkedPeers: mapset.NewSet(),
+		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
 	}
 }
 
@@ -79,6 +75,10 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 	}
 	if round == proposals.chain.Round() {
 
+		if proposals.proposeCache.Add(hash.Hex(), nil, cache.DefaultExpiration) != nil {
+			return false, false
+		}
+
 		m, _ := proposals.proofsByRound.LoadOrStore(round, &sync.Map{})
 		byRound := m.(*sync.Map)
 		if _, ok := byRound.Load(hash); ok {
@@ -86,21 +86,13 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 		}
 
 		if err := proposals.chain.ValidateProposerProof(p, hash, pubKey); err != nil {
-			log.Warn("Failed Proof proposer validation", "err", err.Error())
 			return false, false
 		}
-		// TODO: maybe there exists better structure for this
 		byRound.Store(hash, proof)
 		return true, false
 	} else if round > proposals.chain.Round() {
-
-		proposals.pMutex.Lock()
-		defer proposals.pMutex.Unlock()
-		log.Warn("PENDING PROOF")
-		// TODO: maybe there exists better structure for this
 		proposals.newPendingProofs.LoadOrStore(proof.Hash, proof)
 		return false, true
-		//proposals.pendingProofs = append(proposals.pendingProofs, proof)
 	}
 	return false, false
 }
@@ -147,7 +139,7 @@ func (proposals *Proposals) CompleteRound(height uint64) {
 	})
 }
 
-func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
+func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 	var result []*Proof
 
 	proposals.newPendingProofs.Range(func(key, value interface{}) bool {
@@ -155,7 +147,7 @@ func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
 		if added, pending := proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round); added {
 			result = append(result, proof)
 		} else if !pending {
-			proposals.newPendingProofs.Delete(proof)
+			proposals.newPendingProofs.Delete(key)
 		}
 
 		return true
@@ -164,7 +156,7 @@ func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
 	return result
 }
 
-func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
+func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	var result []*types.Block
 
 	proposals.newPendingBlocks.Range(func(key, value interface{}) bool {
@@ -172,7 +164,7 @@ func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
 		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId); added {
 			result = append(result, blockPeer.block)
 		} else if !pending {
-			proposals.newPendingBlocks.Delete(blockPeer.block.Hash())
+			proposals.newPendingBlocks.Delete(key)
 		}
 
 		return true
@@ -185,14 +177,16 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
 
+		if proposals.proposeCache.Add(block.Hash().Hex(), nil, cache.DefaultExpiration) != nil {
+			return false, false
+		}
+
 		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
 		round := m.(*sync.Map)
 
 		if _, ok := round.Load(block.Hash()); ok {
 			return false, false
 		}
-
-		log.Warn("VALIDATE BLOCK", "currentRound", currentRound, "block", block.Height(), "hash", block.Hash())
 		if err := proposals.chain.ValidateBlock(block, nil); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
 			// it might be a signal about a fork
@@ -211,16 +205,9 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 
 		return true, false
 	} else if currentRound < block.Height() {
-		proposals.bMutex.Lock()
-		defer proposals.bMutex.Unlock()
-		log.Warn("PENDING BLOCK", "currentRound", currentRound, "block", block.Height())
-		// TODO: maybe there exists better structure for this
 		proposals.newPendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
 			block: block, peerId: peerId,
 		})
-		//proposals.pendingBlocks = append(proposals.pendingBlocks, &blockPeer{
-		//	block: block, peerId: peerId,
-		//})
 		return false, true
 	}
 	return false, false

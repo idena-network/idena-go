@@ -198,11 +198,11 @@ func (engine *Engine) completeRound(round uint64) {
 
 	engine.proposals.CompleteRound(round)
 
-	for _, proof := range engine.proposals.ProcessPendingsProofs() {
+	for _, proof := range engine.proposals.ProcessPendingProofs() {
 		engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
 	}
 	engine.log.Debug("Pending proposals processed")
-	for _, block := range engine.proposals.ProcessPendingsBlocks() {
+	for _, block := range engine.proposals.ProcessPendingBlocks() {
 		engine.pm.ProposeBlock(block)
 	}
 	engine.log.Debug("Pending blocks processed")
