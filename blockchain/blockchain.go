@@ -1129,7 +1129,7 @@ func (chain *Blockchain) StopSync() {
 }
 
 func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
-	return appState.ValidatorsCache.Contains(addr) ||
+	return appState.ValidatorsCache.IsOnlineIdentity(addr) ||
 		appState.State.GodAddress() == addr && appState.ValidatorsCache.OnlineSize() == 0
 }
 
