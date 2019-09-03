@@ -29,17 +29,11 @@ type Proposals struct {
 	// proofs of proposers which are valid for current round
 	proofsByRound *sync.Map
 
-	// proofs for future rounds
-	//pendingProofs []*Proof
-
-	newPendingProofs *sync.Map
-	newPendingBlocks *sync.Map
-
 	// proposed blocks are grouped by round
 	blocksByRound *sync.Map
 
-	// blocks for future rounds
-	//pendingBlocks []*blockPeer
+	pendingProofs *sync.Map
+	pendingBlocks *sync.Map
 
 	potentialForkedPeers mapset.Set
 
@@ -58,8 +52,8 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 		log:                  log.New(),
 		proofsByRound:        &sync.Map{},
 		blocksByRound:        &sync.Map{},
-		newPendingBlocks:     &sync.Map{},
-		newPendingProofs:     &sync.Map{},
+		pendingBlocks:        &sync.Map{},
+		pendingProofs:        &sync.Map{},
 		potentialForkedPeers: mapset.NewSet(),
 		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
 	}
@@ -91,7 +85,7 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 		byRound.Store(hash, proof)
 		return true, false
 	} else if round > proposals.chain.Round() {
-		proposals.newPendingProofs.LoadOrStore(proof.Hash, proof)
+		proposals.pendingProofs.LoadOrStore(proof.Hash, proof)
 		return false, true
 	}
 	return false, false
@@ -142,12 +136,12 @@ func (proposals *Proposals) CompleteRound(height uint64) {
 func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 	var result []*Proof
 
-	proposals.newPendingProofs.Range(func(key, value interface{}) bool {
+	proposals.pendingProofs.Range(func(key, value interface{}) bool {
 		proof := value.(*Proof)
 		if added, pending := proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round); added {
 			result = append(result, proof)
 		} else if !pending {
-			proposals.newPendingProofs.Delete(key)
+			proposals.pendingProofs.Delete(key)
 		}
 
 		return true
@@ -159,12 +153,12 @@ func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	var result []*types.Block
 
-	proposals.newPendingBlocks.Range(func(key, value interface{}) bool {
+	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
 		blockPeer := value.(*blockPeer)
 		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId); added {
 			result = append(result, blockPeer.block)
 		} else if !pending {
-			proposals.newPendingBlocks.Delete(key)
+			proposals.pendingBlocks.Delete(key)
 		}
 
 		return true
@@ -205,7 +199,7 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 
 		return true, false
 	} else if currentRound < block.Height() {
-		proposals.newPendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
+		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
 			block: block, peerId: peerId,
 		})
 		return false, true
