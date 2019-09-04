@@ -65,4 +65,4 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
-replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190901114926-11530f9fda43
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190904063136-27ca514acdf7

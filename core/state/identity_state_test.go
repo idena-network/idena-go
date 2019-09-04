@@ -46,9 +46,11 @@ func TestIdentityStateDB_AddDiff(t *testing.T) {
 		stateDb.Commit(true)
 	}
 
+	i := int64(1)
 	for _, d := range diffs {
-		stateDb2.AddDiff(d)
-		stateDb2.CommitTree()
+		stateDb2.AddDiff(uint64(i), d)
+		stateDb2.CommitTree(i)
+		i++
 	}
 
 	require.Equal(t, stateDb.Root(), stateDb2.Root())

@@ -22,6 +22,9 @@ type Tree interface {
 	ExistVersion(version int64) bool
 	LoadVersionForOverwriting(targetVersion int64) (int64, error)
 	Rollback()
+	AvailableVersions() []int
+	SaveVersionAt(version int64) ([]byte, int64, error)
+	SetVirtualVersion(version int64)
 }
 
 func NewMutableTree(db dbm.DB) *MutableTree {
@@ -34,6 +37,17 @@ type MutableTree struct {
 	tree *iavl.MutableTree
 
 	lock sync.RWMutex
+}
+
+func (t *MutableTree) SetVirtualVersion(version int64) {
+	t.tree.SetVirtualVersion(version)
+}
+
+func (t *MutableTree) SaveVersionAt(version int64) ([]byte, int64, error) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.tree.SaveVersionAt(version)
 }
 
 func (t *MutableTree) LoadVersionForOverwriting(targetVersion int64) (int64, error) {
@@ -135,12 +149,24 @@ func (t *MutableTree) Rollback() {
 	t.tree.Rollback()
 }
 
+func (t *MutableTree) AvailableVersions() []int {
+	return t.tree.AvailableVersions()
+}
+
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
 }
 
+func (t *ImmutableTree) SaveVersionAt(version int64) ([]byte, int64, error) {
+	panic("Not implemented")
+}
+
+func (t *ImmutableTree) AvailableVersions() []int {
+	panic("Not implemented")
+}
+
 func (t *ImmutableTree) LoadVersionForOverwriting(targetVersion int64) (int64, error) {
-	panic("implement me")
+	panic("Not implemented")
 }
 
 func (t *ImmutableTree) ExistVersion(version int64) bool {
@@ -216,4 +242,8 @@ func (t *ImmutableTree) DeleteVersion(version int64) error {
 
 func (t *ImmutableTree) Rollback() {
 	panic("Not implemented")
+}
+
+func (t *ImmutableTree) SetVirtualVersion(version int64) {
+	t.tree.SetVirtualVersion(version)
 }

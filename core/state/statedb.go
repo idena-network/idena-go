@@ -75,12 +75,11 @@ func NewLazy(db dbm.DB) *StateDB {
 	pdb := dbm.NewPrefixDB(db, loadPrefix(db))
 	tree := NewMutableTree(pdb)
 	return &StateDB{
-		original:             db,
-		db:                   pdb,
-		tree:                 tree,
-		stateAccounts:        make(map[common.Address]*stateAccount),
-		stateAccountsDirty:   make(map[common.Address]struct{}),
-		stateIdentities:      make(map[common.Address]*stateIdentity),
+		original:           db,
+		db:                 pdb,
+		tree:               tree,
+		stateAccounts:      make(map[common.Address]*stateAccount),
+		stateAccountsDirty: make(map[common.Address]struct{}), stateIdentities: make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
 	}
@@ -899,14 +898,27 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 		clearDb(pdb)
 		return errors.New("wrong manifest root")
 	}
+	return nil
+}
+
+func (s *StateDB) CommitSnapshot(manifest *snapshot.Manifest) {
+	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
 
 	setPrefix(s.original, prefix(manifest.Height))
 	clearDb(s.db)
 
 	s.db = pdb
+	tree := NewMutableTree(pdb)
+	if _, err := tree.LoadVersion(int64(manifest.Height)); err != nil {
+		panic(err)
+	}
 	s.tree = tree
 	s.Clear()
-	return nil
+}
+
+func (s *StateDB) DropSnapshot(manifest *snapshot.Manifest) {
+	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
+	clearDb(pdb)
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
@@ -936,6 +948,8 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.touch()
 	}
 }
+
+
 
 type readCloser struct {
 	r io.Reader
