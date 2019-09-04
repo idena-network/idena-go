@@ -34,9 +34,6 @@ const (
 	MinTotalScore = 0.75
 	MinShortScore = 0.5
 	MinLongScore  = 0.75
-
-	WordDictionarySize = 3300
-	WordPairsPerFlip   = 3
 )
 
 type ValidationCeremony struct {
@@ -818,7 +815,7 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	words, proof := vc.GeneratePairs(seed, WordDictionarySize, WordPairsPerFlip*int(identity.RequiredFlips))
+	words, proof := vc.GeneratePairs(seed, common.WordDictionarySize, identity.GetTotalWordPairsCount())
 	var wordsToPersist []uint32
 	for _, word := range words {
 		wordsToPersist = append(wordsToPersist, uint32(word))

@@ -9,6 +9,9 @@ const (
 	ShortSessionFlips      = 5
 	LongSessionTesters     = 10
 	ShortSessionExtraFlips = 2
+
+	WordDictionarySize = 3300
+	WordPairsPerFlip   = 3
 )
 
 func ShortSessionExtraFlipsCount() uint {

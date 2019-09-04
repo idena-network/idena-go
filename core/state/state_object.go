@@ -121,6 +121,10 @@ func (i *Identity) HasDoneAllRequiredFlips() bool {
 	return uint8(len(i.Flips)) >= i.RequiredFlips
 }
 
+func (i *Identity) GetTotalWordPairsCount() int {
+	return common.WordPairsPerFlip * int(i.RequiredFlips)
+}
+
 type ApprovedIdentity struct {
 	Approved bool
 	Online   bool
