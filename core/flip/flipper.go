@@ -127,7 +127,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 
 	fp.bus.Publish(&events.NewFlipEvent{Flip: &flip})
 
-	fp.epochDb.WriteFlipCid(c.Bytes(), flip.Pair)
+	fp.epochDb.WriteFlipCid(c.Bytes())
 
 	if local {
 		if err := fp.ipfsProxy.Pin(key.Bytes()); err != nil {

@@ -84,6 +84,11 @@ type Account struct {
 	Balance *big.Int
 }
 
+type IdentityFlip struct {
+	Cid  []byte
+	Pair uint8
+}
+
 type Identity struct {
 	Nickname       *[64]byte `rlp:"nil"`
 	Stake          *big.Int
@@ -95,7 +100,7 @@ type Identity struct {
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
-	Flips           [][]byte `rlp:"nil"`
+	Flips           []IdentityFlip `rlp:"nil"`
 	Generation      uint32
 	Code            []byte   `rlp:"nil"`
 	Invitees        []TxAddr `rlp:"nil"`
@@ -385,9 +390,12 @@ func (s *stateIdentity) GetMadeFlips() uint8 {
 	return uint8(len(s.data.Flips))
 }
 
-func (s *stateIdentity) AddFlip(cid []byte) {
+func (s *stateIdentity) AddFlip(cid []byte, pair uint8) {
 	if len(s.data.Flips) < math.MaxUint8 {
-		s.data.Flips = append(s.data.Flips, cid)
+		s.data.Flips = append(s.data.Flips, IdentityFlip{
+			Cid:  cid,
+			Pair: pair,
+		})
 		s.touch()
 	}
 }
