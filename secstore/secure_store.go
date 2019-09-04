@@ -68,3 +68,7 @@ func (s *SecStore) Destroy() {
 		s.buffer.Destroy()
 	}
 }
+
+func (s *SecStore) ExportKey(password string) (string, error) {
+	return "", nil
+}

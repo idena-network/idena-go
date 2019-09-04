@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -378,4 +379,11 @@ func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 		LongSessionDuration:      cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
 		AfterLongSessionDuration: cfg.Validation.GetAfterLongSessionDuration().Seconds(),
 	}
+}
+
+func (api *AccountApi) ExportCoinbaseKey(password string) (string, error) {
+	if password == "" {
+		return "", errors.New("password should not be empty")
+	}
+	return api.baseApi.secStore.ExportKey(password)
 }
