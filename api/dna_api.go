@@ -281,7 +281,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 
 	var result []string
 	for _, v := range data.Flips {
-		c, _ := cid.Parse(v)
+		c, _ := cid.Parse(v.Cid)
 		result = append(result, c.String())
 	}
 
