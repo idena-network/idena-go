@@ -53,7 +53,6 @@ type Flipper struct {
 type IpfsFlip struct {
 	Data   []byte
 	PubKey []byte
-	Pair   uint8
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState, bus eventbus.Bus) *Flipper {
@@ -91,7 +90,6 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	ipf := IpfsFlip{
 		Data:   flip.Data,
 		PubKey: pubKey,
-		Pair:   flip.Pair,
 	}
 
 	data, _ := rlp.EncodeToBytes(ipf)
@@ -142,7 +140,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	return err
 }
 
-func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) {
+func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
 
 	encryptionKey := fp.GetFlipEncryptionKey()
 
@@ -155,7 +153,6 @@ func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) 
 	ipf := IpfsFlip{
 		Data:   encrypted,
 		PubKey: fp.secStore.GetPubKey(),
-		Pair:   pair,
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)

@@ -44,7 +44,7 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 
 	rawFlip := *args.Hex
 
-	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip, args.Pair)
+	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -61,7 +61,6 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	flip := types.Flip{
 		Tx:   tx,
 		Data: encryptedFlip,
-		Pair: args.Pair,
 	}
 
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
