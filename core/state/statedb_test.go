@@ -275,7 +275,10 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 		Height: Height,
 		Root:   expectedRoot,
 	}, buffer))
-
+	stateDb.CommitSnapshot(&snapshot.Manifest{
+		Height: Height,
+		Root:   expectedRoot,
+	})
 	//assert
 
 	require.Equal(t, int64(Height), stateDb.tree.Version())
