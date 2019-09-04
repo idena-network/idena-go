@@ -175,29 +175,29 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
 }
 
-type FlipWordsWithPair struct {
+type FlipWords struct {
 	Words [2]uint32 `json:"words"`
 	Used  bool      `json:"used"`
 }
 
 type Identity struct {
-	Address          common.Address      `json:"address"`
-	Nickname         string              `json:"nickname"`
-	Stake            decimal.Decimal     `json:"stake"`
-	Invites          uint8               `json:"invites"`
-	Age              uint16              `json:"age"`
-	State            string              `json:"state"`
-	PubKey           string              `json:"pubkey"`
-	RequiredFlips    uint8               `json:"requiredFlips"`
-	FlipKeyWordPairs []FlipWordsWithPair `json:"flipKeyWordPairs"`
-	MadeFlips        uint8               `json:"madeFlips"`
-	QualifiedFlips   uint32              `json:"totalQualifiedFlips"`
-	ShortFlipPoints  float32             `json:"totalShortFlipPoints"`
-	Flips            []string            `json:"flips"`
-	Online           bool                `json:"online"`
-	Generation       uint32              `json:"generation"`
-	Code             hexutil.Bytes       `json:"code"`
-	Invitees         []state.TxAddr      `json:"invitees"`
+	Address          common.Address  `json:"address"`
+	Nickname         string          `json:"nickname"`
+	Stake            decimal.Decimal `json:"stake"`
+	Invites          uint8           `json:"invites"`
+	Age              uint16          `json:"age"`
+	State            string          `json:"state"`
+	PubKey           string          `json:"pubkey"`
+	RequiredFlips    uint8           `json:"requiredFlips"`
+	FlipKeyWordPairs []FlipWords     `json:"flipKeyWordPairs"`
+	MadeFlips        uint8           `json:"madeFlips"`
+	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
+	ShortFlipPoints  float32         `json:"totalShortFlipPoints"`
+	Flips            []string        `json:"flips"`
+	Online           bool            `json:"online"`
+	Generation       uint32          `json:"generation"`
+	Code             hexutil.Bytes   `json:"code"`
+	Invitees         []state.TxAddr  `json:"invitees"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -283,10 +283,10 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		result = append(result, c.String())
 	}
 
-	var convertedFlipKeyWordPairs []FlipWordsWithPair
+	var convertedFlipKeyWordPairs []FlipWords
 	for i := 0; i < len(flipKeyWordPairs)/2; i++ {
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
-			FlipWordsWithPair{
+			FlipWords{
 				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
 				Used:  false,
 			})
