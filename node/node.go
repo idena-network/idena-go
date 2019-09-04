@@ -90,6 +90,14 @@ func StartMobileNode(path string) string {
 	return "done"
 }
 
+func ProvideKey(path string, key string, password string) string {
+	c := config.MakeMobileConfig(path)
+	if err := c.ProvideNodeKey(key, password); err != nil {
+		return err.Error()
+	}
+	return "done"
+}
+
 func NewNode(config *config.Config) (*Node, error) {
 	nodeCtx, err := NewIndexerNode(config, eventbus.New())
 	if err != nil {

@@ -381,7 +381,7 @@ func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	}
 }
 
-func (api *AccountApi) ExportCoinbaseKey(password string) (string, error) {
+func (api *DnaApi) ExportKey(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password should not be empty")
 	}
