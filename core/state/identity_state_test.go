@@ -84,7 +84,6 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 	it := preliminary.db.Iterator(nil, nil)
 	require.False(t, it.Valid())
 
-	require.False(t, preliminary.HasVersion(100))
 	require.True(t, stateDb.HasVersion(100))
 
 	preliminaryPrefix = loadIdentityPrefix(preliminary.original, true)
