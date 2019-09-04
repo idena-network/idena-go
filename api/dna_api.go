@@ -175,6 +175,11 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
 }
 
+type FlipWords struct {
+	Words [2]uint32 `json:"words"`
+	Used  bool      `json:"used"`
+}
+
 type Identity struct {
 	Address          common.Address  `json:"address"`
 	Nickname         string          `json:"nickname"`
@@ -184,7 +189,7 @@ type Identity struct {
 	State            string          `json:"state"`
 	PubKey           string          `json:"pubkey"`
 	RequiredFlips    uint8           `json:"requiredFlips"`
-	FlipKeyWordPairs [][2]uint32     `json:"flipKeyWordPairs"`
+	FlipKeyWordPairs []FlipWords     `json:"flipKeyWordPairs"`
 	MadeFlips        uint8           `json:"madeFlips"`
 	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
 	ShortFlipPoints  float32         `json:"totalShortFlipPoints"`
@@ -278,9 +283,13 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		result = append(result, c.String())
 	}
 
-	var convertedFlipKeyWordPairs [][2]uint32
+	var convertedFlipKeyWordPairs []FlipWords
 	for i := 0; i < len(flipKeyWordPairs)/2; i++ {
-		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs, [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])})
+		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
+			FlipWords{
+				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
+				Used:  false,
+			})
 	}
 
 	var invitees []state.TxAddr
