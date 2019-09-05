@@ -178,6 +178,7 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 type FlipWords struct {
 	Words [2]uint32 `json:"words"`
 	Used  bool      `json:"used"`
+	Id    int       `json:"id"`
 }
 
 type Identity struct {
@@ -289,6 +290,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 			FlipWords{
 				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
 				Used:  false,
+				Id:    i,
 			})
 	}
 
