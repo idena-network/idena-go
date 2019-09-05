@@ -46,5 +46,6 @@ deploy:
   file_glob: true
   file: builds/*
   skip_cleanup: true
+  draft: true
   on:
     tags: true
