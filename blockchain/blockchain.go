@@ -635,7 +635,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(*tx.To)
 		stateDB.SubBalance(sender, fee)
 		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
-		if sender != stateDB.GodAddress() {
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified {
 			stateDB.AddInvite(sender, 1)
 		}
 		break

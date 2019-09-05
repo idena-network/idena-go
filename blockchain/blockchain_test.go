@@ -182,6 +182,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
 
 	appState.State.SetInvites(inviter, 5)
+	appState.State.SetState(inviter, state.Verified)
 
 	appState.State.GetOrNewAccountObject(inviter).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
 	appState.State.GetOrNewIdentityObject(invitee).SetStake(new(big.Int).Mul(big.NewInt(10), common.DnaBase))
