@@ -281,14 +281,11 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	var result []string
+	usedPairs := mapset.NewSet()
 	for _, v := range data.Flips {
 		c, _ := cid.Parse(v.Cid)
 		result = append(result, c.String())
-	}
-
-	usedPairs := mapset.NewSet()
-	for _, item := range data.Flips {
-		usedPairs.Add(item.Pair)
+		usedPairs.Add(v.Pair)
 	}
 
 	var convertedFlipKeyWordPairs []FlipWords
