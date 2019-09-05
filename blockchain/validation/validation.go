@@ -213,7 +213,7 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 	}
 
 	// pair index should be less than total words count
-	if identity.GetTotalWordPairsCount() <= int(attachment.Pair) {
+	if identity.GetTotalWordPairsCount() <= int(attachment.Pair) && sender != god {
 		return InvalidPayload
 	}
 

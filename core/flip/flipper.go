@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -108,7 +109,13 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return DuplicateFlipError
 	}
 
-	if bytes.Compare(c.Bytes(), flip.Tx.Payload) != 0 {
+	attachment := attachments.ParseFlipSubmitAttachment(flip.Tx)
+
+	if attachment == nil {
+		return errors.New("flip tx payload is invalid")
+	}
+
+	if bytes.Compare(c.Bytes(), attachment.Cid) != 0 {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
