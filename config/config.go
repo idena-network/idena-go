@@ -50,20 +50,20 @@ func (c *Config) ProvideNodeKey(key string, password string) error {
 
 	keyBytes, err := hex.DecodeString(key)
 	if err != nil {
-		return errors.New("error while decoding key")
+		return errors.Errorf("error while decoding key, err: %v", err.Error())
 	}
 
 	decrypted, err := crypto.Decrypt(keyBytes, password)
 	if err != nil {
-		return errors.New("error while decrypting key")
+		return errors.Errorf("error while decrypting key, err: %v", err.Error())
 	}
 
 	ecdsaKey, err := crypto.ToECDSA(decrypted)
 	if err != nil {
-		return errors.New("key os not valid ECDSA key")
+		return errors.Errorf("key is not valid ECDSA key, err: %v", err.Error())
 	}
 	if err := crypto.SaveECDSA(keyfile, ecdsaKey); err != nil {
-		return errors.New("failed to persist key")
+		return errors.Errorf("failed to persist key, err: %v", err.Error())
 	}
 	return nil
 }
