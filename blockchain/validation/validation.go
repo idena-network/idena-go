@@ -51,6 +51,7 @@ func init() {
 		types.ActivationTx:         validateActivationTx,
 		types.InviteTx:             validateSendInviteTx,
 		types.KillTx:               validateKillIdentityTx,
+		types.KillInviteeTx:        validateKillInviteeTx,
 		types.SubmitFlipTx:         validateSubmitFlipTx,
 		types.SubmitAnswersHashTx:  validateSubmitAnswersHashTx,
 		types.SubmitShortAnswersTx: validateSubmitShortAnswersTx,
@@ -386,5 +387,23 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 		return NotIdentity
 	}
 
+	return nil
+}
+
+func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	sender, _ := types.Sender(tx)
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+	if err := validateTotalCost(sender, appState, tx); err != nil {
+		return err
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+	inviter := appState.State.GetInviter(*tx.To)
+	if inviter == nil || inviter.Address != sender {
+		return InvalidRecipient
+	}
 	return nil
 }
