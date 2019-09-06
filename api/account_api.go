@@ -17,23 +17,23 @@ func NewAccountApi(baseApi *BaseApi) *AccountApi {
 	}
 }
 
-func (ap *AccountApi) List() []common.Address {
+func (api *AccountApi) List() []common.Address {
 	list := make([]common.Address, 0)
-	for _, item := range ap.baseApi.ks.Accounts() {
+	for _, item := range api.baseApi.ks.Accounts() {
 		list = append(list, item.Address)
 	}
 	return list
 }
 
-func (ap *AccountApi) Create(passPhrase string) (common.Address, error) {
-	account, err := ap.baseApi.ks.NewAccount(passPhrase)
+func (api *AccountApi) Create(passPhrase string) (common.Address, error) {
+	account, err := api.baseApi.ks.NewAccount(passPhrase)
 	return account.Address, err
 }
 
-func (ap *AccountApi) Unlock(addr common.Address, passPhrase string, timeout time.Duration) error {
-	return ap.baseApi.ks.TimedUnlock(keystore.Account{Address: addr}, passPhrase, timeout*time.Second)
+func (api *AccountApi) Unlock(addr common.Address, passPhrase string, timeout time.Duration) error {
+	return api.baseApi.ks.TimedUnlock(keystore.Account{Address: addr}, passPhrase, timeout*time.Second)
 }
 
-func (ap *AccountApi) Lock(addr common.Address) error {
-	return ap.baseApi.ks.Lock(addr)
+func (api *AccountApi) Lock(addr common.Address) error {
+	return api.baseApi.ks.Lock(addr)
 }

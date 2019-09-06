@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/idena-network/idena-go/common"
@@ -34,6 +35,37 @@ type Config struct {
 	Sync             *SyncConfig
 	OfflineDetection *OfflineDetectionConfig
 	Blockchain       *BlockchainConfig
+}
+
+func (c *Config) ProvideNodeKey(key string, password string) error {
+	instanceDir := filepath.Join(c.DataDir, "keystore")
+	if err := os.MkdirAll(instanceDir, 0700); err != nil {
+		return err
+	}
+
+	keyfile := filepath.Join(instanceDir, datadirPrivateKey)
+	if _, err := crypto.LoadECDSA(keyfile); err == nil {
+		return errors.New("key already exists")
+	}
+
+	keyBytes, err := hex.DecodeString(key)
+	if err != nil {
+		return errors.Errorf("error while decoding key, err: %v", err.Error())
+	}
+
+	decrypted, err := crypto.Decrypt(keyBytes, password)
+	if err != nil {
+		return errors.Errorf("error while decrypting key, err: %v", err.Error())
+	}
+
+	ecdsaKey, err := crypto.ToECDSA(decrypted)
+	if err != nil {
+		return errors.Errorf("key is not valid ECDSA key, err: %v", err.Error())
+	}
+	if err := crypto.SaveECDSA(keyfile, ecdsaKey); err != nil {
+		return errors.Errorf("failed to persist key, err: %v", err.Error())
+	}
+	return nil
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
