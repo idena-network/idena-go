@@ -82,6 +82,7 @@ func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
 }
+
 func (s *AppState) Commit(block *types.Block) error {
 	_, _, err := s.State.Commit(true)
 	if err != nil {
@@ -91,6 +92,21 @@ func (s *AppState) Commit(block *types.Block) error {
 
 	if block != nil {
 		s.ValidatorsCache.RefreshIfUpdated(block)
+	}
+
+	return err
+}
+
+func (s *AppState) CommitAt(height uint64) error {
+	_, _, err := s.State.SaveForcedVersion(height)
+	if err != nil {
+		return err
+	}
+
+	err = s.IdentityState.SaveForcedVersion(height)
+
+	if err != nil {
+		return err
 	}
 
 	return err

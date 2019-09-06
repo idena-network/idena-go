@@ -177,6 +177,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		chain.appState.SetPredefinedState(predefinedState)
 		blockNumber = predefinedState.Block
 		seed = predefinedState.Seed
+
 	} else {
 		nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
 		if nextValidationTimestamp == 0 {
@@ -186,9 +187,12 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		chain.appState.State.SetFlipWordsSeed(seed)
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
+
 	}
 
-	if err := chain.appState.Commit(nil); err != nil {
+	chain.appState.Precommit()
+
+	if err := chain.appState.CommitAt(blockNumber); err != nil {
 		return nil, err
 	}
 

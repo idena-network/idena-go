@@ -624,23 +624,36 @@ func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-
 	s.Precommit(deleteEmptyObjects)
+	return s.commitTree(s.tree.Version() + 1)
+}
 
-	hash, version, err := s.tree.SaveVersion()
-	//TODO: snapshots
+func (s *StateDB) SaveForcedVersion(height uint64) (root []byte, version int64, err error) {
+	if s.tree.Version() == int64(height) {
+		return
+	}
+	s.tree.SetVirtualVersion(int64(height) - 1)
+	return s.commitTree(int64(height))
+}
+
+func (s *StateDB) commitTree(newVersion int64) (root []byte, version int64, err error) {
+	hash, version, err := s.tree.SaveVersionAt(newVersion)
 	if version > MaxSavedStatesCount {
-		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
-			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
 
-			if err != nil {
-				panic(err)
+		versions := s.tree.AvailableVersions()
+
+		for i := 0; i < len(versions)-MaxSavedStatesCount; i++ {
+			if s.tree.ExistVersion(int64(versions[i])) {
+				err = s.tree.DeleteVersion(int64(versions[i]))
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
+
 	}
 
 	s.Clear()
-
 	return hash, version, err
 }
 
