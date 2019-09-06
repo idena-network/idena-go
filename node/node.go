@@ -94,8 +94,13 @@ func StartMobileNode(path string, cfg string) string {
 	return "started"
 }
 
-func ProvideMobileKey(path string, key string, password string) string {
-	c := config.MakeMobileConfig(path)
+func ProvideMobileKey(path string, cfg string, key string, password string) string {
+	c, err := config.MakeMobileConfig(path, cfg)
+
+	if err != nil {
+		return err.Error()
+	}
+
 	if err := c.ProvideNodeKey(key, password); err != nil {
 		return err.Error()
 	}
