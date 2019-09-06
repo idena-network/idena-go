@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/log"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
@@ -28,22 +29,15 @@ type Proposals struct {
 	// proofs of proposers which are valid for current round
 	proofsByRound *sync.Map
 
-	// proofs for future rounds
-	pendingProofs []*Proof
-
 	// proposed blocks are grouped by round
 	blocksByRound *sync.Map
 
-	// blocks for future rounds
-	pendingBlocks []*blockPeer
-
-	// lock for pendingProofs
-	pMutex *sync.Mutex
-
-	// lock for pendingBlocks
-	bMutex *sync.Mutex
+	pendingProofs *sync.Map
+	pendingBlocks *sync.Map
 
 	potentialForkedPeers mapset.Set
+
+	proposeCache *cache.Cache
 }
 
 type blockPeer struct {
@@ -58,13 +52,14 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 		log:                  log.New(),
 		proofsByRound:        &sync.Map{},
 		blocksByRound:        &sync.Map{},
-		bMutex:               &sync.Mutex{},
-		pMutex:               &sync.Mutex{},
+		pendingBlocks:        &sync.Map{},
+		pendingProofs:        &sync.Map{},
 		potentialForkedPeers: mapset.NewSet(),
+		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
 	}
 }
 
-func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey []byte, round uint64) bool {
+func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey []byte, round uint64) (added bool, pending bool) {
 
 	proof := &Proof{
 		p,
@@ -74,28 +69,26 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 	}
 	if round == proposals.chain.Round() {
 
+		if proposals.proposeCache.Add(hash.Hex(), nil, cache.DefaultExpiration) != nil {
+			return false, false
+		}
+
 		m, _ := proposals.proofsByRound.LoadOrStore(round, &sync.Map{})
 		byRound := m.(*sync.Map)
 		if _, ok := byRound.Load(hash); ok {
-			return false
+			return false, false
 		}
 
 		if err := proposals.chain.ValidateProposerProof(p, hash, pubKey); err != nil {
-			log.Warn("Failed Proof proposer validation", "err", err.Error())
-			return false
+			return false, false
 		}
-		// TODO: maybe there exists better structure for this
 		byRound.Store(hash, proof)
-		return true
+		return true, false
 	} else if round > proposals.chain.Round() {
-
-		proposals.pMutex.Lock()
-		defer proposals.pMutex.Unlock()
-
-		// TODO: maybe there exists better structure for this
-		proposals.pendingProofs = append(proposals.pendingProofs, proof)
+		proposals.pendingProofs.LoadOrStore(proof.Hash, proof)
+		return false, true
 	}
-	return false
+	return false, false
 }
 
 func (proposals *Proposals) GetProposerPubKey(round uint64) []byte {
@@ -140,77 +133,78 @@ func (proposals *Proposals) CompleteRound(height uint64) {
 	})
 }
 
-func (proposals *Proposals) ProcessPendingsProofs() []*Proof {
-	proposals.pMutex.Lock()
-
+func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 	var result []*Proof
 
-	pendings := proposals.pendingProofs
-	proposals.pendingProofs = []*Proof{}
-
-	proposals.pMutex.Unlock()
-	for _, proof := range pendings {
-		if proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round) {
+	proposals.pendingProofs.Range(func(key, value interface{}) bool {
+		proof := value.(*Proof)
+		if added, pending := proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round); added {
 			result = append(result, proof)
+		} else if !pending {
+			proposals.pendingProofs.Delete(key)
 		}
-	}
+
+		return true
+	})
+
 	return result
 }
 
-func (proposals *Proposals) ProcessPendingsBlocks() []*types.Block {
-	proposals.bMutex.Lock()
+func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	var result []*types.Block
-	pendings := proposals.pendingBlocks
-	proposals.pendingBlocks = []*blockPeer{}
 
-	proposals.bMutex.Unlock()
-
-	for _, pending := range pendings {
-		if proposals.AddProposedBlock(pending.block, pending.peerId) {
-			result = append(result, pending.block)
+	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
+		blockPeer := value.(*blockPeer)
+		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId); added {
+			result = append(result, blockPeer.block)
+		} else if !pending {
+			proposals.pendingBlocks.Delete(key)
 		}
-	}
+
+		return true
+	})
+
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) bool {
+func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) (added bool, pending bool) {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
+
+		if proposals.proposeCache.Add(block.Hash().Hex(), nil, cache.DefaultExpiration) != nil {
+			return false, false
+		}
 
 		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
 		round := m.(*sync.Map)
 
 		if _, ok := round.Load(block.Hash()); ok {
-			return false
+			return false, false
 		}
-
 		if err := proposals.chain.ValidateBlock(block, nil); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {
 				proposals.potentialForkedPeers.Add(peerId)
 			}
-			return false
+			return false, false
 		}
 
 		if err := proposals.offlineDetector.ValidateBlock(proposals.chain.Head, block); err != nil {
 			log.Warn("Failed block offline proposing", "err", err.Error())
-			return false
+			return false, false
 		}
 
 		round.Store(block.Hash(), block)
 
-		return true
-	} else {
-		proposals.bMutex.Lock()
-		defer proposals.bMutex.Unlock()
-
-		// TODO: maybe there exists better structure for this
-		proposals.pendingBlocks = append(proposals.pendingBlocks, &blockPeer{
+		return true, false
+	} else if currentRound < block.Height() {
+		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
 			block: block, peerId: peerId,
 		})
-		return false
+		return false, true
 	}
+	return false, false
 }
 
 func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte, timeout time.Duration) (*types.Block, error) {

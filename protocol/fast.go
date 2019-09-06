@@ -72,7 +72,7 @@ func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB
 
 func (fs *fastSync) dropPreliminaries() {
 	fs.chain.RemovePreliminaryHead()
-	fs.stateDb.DropPreliminary()
+	fs.appState.IdentityState.DropPreliminary()
 	fs.stateDb = nil
 }
 
@@ -109,7 +109,9 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		if err := fs.validateIdentityState(b); err != nil {
 			return b.Header.Height(), err
 		}
-		fs.stateDb.CommitTree()
+		if !b.IdentityDiff.Empty() {
+			fs.stateDb.CommitTree(int64(b.Header.Height()))
+		}
 
 		if err := fs.chain.AddHeader(b.Header); err != nil {
 			return b.Header.Height(), err
@@ -200,7 +202,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 }
 
 func (fs *fastSync) validateIdentityState(block *block) error {
-	fs.stateDb.AddDiff(block.IdentityDiff)
+	fs.stateDb.AddDiff(block.Header.Height(), block.IdentityDiff)
 	if fs.stateDb.Root() != block.Header.IdentityRoot() {
 		fs.stateDb.Reset()
 		return errors.New("identity root is invalid")
@@ -271,10 +273,14 @@ func (fs *fastSync) postConsuming() error {
 		return err
 	}
 
+	fs.stateDb.SaveForcedVersion(fs.chain.PreliminaryHead.Height())
+
 	err = fs.appState.IdentityState.SwitchToPreliminary(fs.manifest.Height)
 	if err != nil {
+		fs.appState.State.DropSnapshot(fs.manifest)
 		return err
 	}
+	fs.appState.State.CommitSnapshot(fs.manifest)
 	fs.appState.ValidatorsCache.Load()
 	fs.chain.SwitchToPreliminary()
 	fs.chain.RemovePreliminaryHead()

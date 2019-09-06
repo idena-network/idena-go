@@ -71,6 +71,14 @@ func (c *Config) NodeKey() *ecdsa.PrivateKey {
 	return key
 }
 
+// NodeDB returns the path to the discovery node database.
+func (c *Config) NodeDB() string {
+	if c.DataDir == "" {
+		return "" // ephemeral
+	}
+	return filepath.Join(c.DataDir, "nodes")
+}
+
 func (c *Config) KeyStoreDataDir() (string, error) {
 	instanceDir := filepath.Join(c.DataDir, "keystore")
 	if err := os.MkdirAll(instanceDir, 0700); err != nil {
@@ -192,6 +200,7 @@ func applyP2PFlags(ctx *cli.Context, cfg *Config) {
 		}
 		cfg.P2P.BootstrapNodes = nodes
 	}
+	cfg.P2P.NodeDatabase = cfg.NodeDB()
 
 	if ctx.IsSet(TcpPortFlag.Name) {
 		cfg.P2P.ListenAddr = fmt.Sprintf(":%d", ctx.Int(TcpPortFlag.Name))

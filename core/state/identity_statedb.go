@@ -75,8 +75,26 @@ func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
 func (s *IdentityStateDB) LoadPreliminary(height uint64) (*IdentityStateDB, error) {
 	pdb := dbm.NewPrefixDB(s.original, loadIdentityPrefix(s.original, true))
 	tree := NewMutableTree(pdb)
-	if _, err := tree.LoadVersion(int64(height)); err != nil {
+	version, err := tree.Load()
+	if err != nil {
 		return nil, err
+	}
+	if version != int64(height) {
+		loaded := false
+		versions := tree.AvailableVersions()
+
+		for i := len(versions) - 1; i >= 0; i-- {
+			if versions[i] <= int(height) {
+				if _, err := tree.LoadVersion(int64(versions[i])); err != nil {
+					return nil, err
+				}
+				loaded = true
+				break
+			}
+		}
+		if !loaded {
+			return nil, errors.New("tree version is not found")
+		}
 	}
 
 	return &IdentityStateDB{
@@ -105,20 +123,25 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 // Commit writes the state to the underlying in-memory trie database.
 func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
 	diff = s.Precommit(deleteEmptyObjects)
-	hash, version := s.CommitTree()
+	hash, version := s.CommitTree(s.tree.Version() + 1)
 	return hash, version, diff, err
 }
 
-func (s *IdentityStateDB) CommitTree() (root []byte, version int64) {
-	hash, version, err := s.tree.SaveVersion()
+func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int64) {
+	hash, version, err := s.tree.SaveVersionAt(newVersion)
 	if version > MaxSavedStatesCount {
-		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
-			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
 
-			if err != nil {
-				panic(err)
+		versions := s.tree.AvailableVersions()
+
+		for i := 0; i < len(versions)-MaxSavedStatesCount; i++ {
+			if s.tree.ExistVersion(int64(versions[i])) {
+				err = s.tree.DeleteVersion(int64(versions[i]))
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
+
 	}
 
 	s.Clear()
@@ -281,10 +304,13 @@ func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bo
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
 
-func (s *IdentityStateDB) AddDiff(diff *IdentityStateDiff) {
+func (s *IdentityStateDB) AddDiff(height uint64, diff *IdentityStateDiff) {
 	if diff.Empty() {
 		return
 	}
+
+	s.tree.SetVirtualVersion(int64(height) - 1)
+
 	for _, v := range diff.Values {
 		stateObject := s.GetOrNewIdentityObject(v.Address)
 		if v.Deleted {
@@ -295,6 +321,14 @@ func (s *IdentityStateDB) AddDiff(diff *IdentityStateDiff) {
 	}
 }
 
+func (s *IdentityStateDB) SaveForcedVersion(height uint64) {
+	if s.tree.Version() == int64(height) {
+		return
+	}
+	s.tree.SetVirtualVersion(int64(height) - 1)
+	s.CommitTree(int64(height))
+}
+
 func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
 	prefix := loadIdentityPrefix(s.original, true)
 	if prefix == nil {
@@ -303,7 +337,6 @@ func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
 	pdb := dbm.NewPrefixDB(s.original, prefix)
 	tree := NewMutableTree(pdb)
 	if _, err := tree.LoadVersion(int64(heigth)); err != nil {
-		clearDb(pdb)
 		return err
 	}
 	setIdentityPrefix(s.original, prefix, false)
@@ -316,10 +349,9 @@ func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
 }
 
 func (s *IdentityStateDB) DropPreliminary() {
-	clearDb(s.db)
+	pdb := dbm.NewPrefixDB(s.original, loadIdentityPrefix(s.original, true))
+	clearDb(pdb)
 	setIdentityPrefix(s.original, nil, true)
-	s.tree = NewMutableTree(s.db)
-	s.tree.Load()
 }
 
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
