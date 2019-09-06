@@ -120,8 +120,21 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 	return instanceDir, nil
 }
 
-func MakeMobileConfig(path string) *Config {
-	return getDefaultConfig(filepath.Join(path, DefaultDataDir))
+func MakeMobileConfig(path string, cfg string) (*Config, error) {
+	conf := getDefaultConfig(filepath.Join(path, DefaultDataDir))
+
+	if cfg != "" {
+		log.Info("using custom configuration")
+		bytes := []byte(cfg)
+		err := json.Unmarshal(bytes, &conf)
+		if err != nil {
+			return nil, errors.Errorf("Cannot parse JSON config")
+		}
+	} else {
+		log.Info("using default config")
+	}
+
+	return conf, nil
 }
 
 func MakeConfig(ctx *cli.Context) (*Config, error) {

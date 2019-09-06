@@ -73,11 +73,15 @@ type nodeCtx struct {
 	OfflineDetector *blockchain.OfflineDetector
 }
 
-func StartMobileNode(path string) string {
+func StartMobileNode(path string, cfg string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
-	c := config.MakeMobileConfig(path)
+	c, err := config.MakeMobileConfig(path, cfg)
+
+	if err != nil {
+		return err.Error()
+	}
 
 	n, err := NewNode(c)
 
@@ -87,11 +91,16 @@ func StartMobileNode(path string) string {
 
 	n.Start()
 
-	return "done"
+	return "started"
 }
 
-func ProvideMobileKey(path string, key string, password string) string {
-	c := config.MakeMobileConfig(path)
+func ProvideMobileKey(path string, cfg string, key string, password string) string {
+	c, err := config.MakeMobileConfig(path, cfg)
+
+	if err != nil {
+		return err.Error()
+	}
+
 	if err := c.ProvideNodeKey(key, password); err != nil {
 		return err.Error()
 	}
