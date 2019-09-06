@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -281,9 +282,11 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	var result []string
+	usedPairs := mapset.NewSet()
 	for _, v := range data.Flips {
-		c, _ := cid.Parse(v)
+		c, _ := cid.Parse(v.Cid)
 		result = append(result, c.String())
+		usedPairs.Add(v.Pair)
 	}
 
 	var convertedFlipKeyWordPairs []FlipWords
@@ -291,7 +294,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
 			FlipWords{
 				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
-				Used:  false,
+				Used:  usedPairs.Contains(i),
 				Id:    i,
 			})
 	}

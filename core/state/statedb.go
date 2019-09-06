@@ -317,8 +317,8 @@ func (s *StateDB) GetMadeFlips(addr common.Address) uint8 {
 	return s.GetOrNewIdentityObject(addr).GetMadeFlips()
 }
 
-func (s *StateDB) AddFlip(addr common.Address, cid []byte) {
-	s.GetOrNewIdentityObject(addr).AddFlip(cid)
+func (s *StateDB) AddFlip(addr common.Address, cid []byte, pair uint8) {
+	s.GetOrNewIdentityObject(addr).AddFlip(cid, pair)
 }
 
 func (s *StateDB) ClearFlips(addr common.Address) {
@@ -959,7 +959,7 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
 		stateObject.data.QualifiedFlips = identity.QualifiedFlips
 		stateObject.data.Nickname = identity.Nickname
-		stateObject.data.Flips = identity.Flips
+		//stateObject.data.Flips = identity.Flips
 		stateObject.data.Code = identity.Code
 		stateObject.touch()
 	}

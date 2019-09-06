@@ -61,14 +61,14 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"`
+	Time           *big.Int    `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
 	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
 	Flags          BlockFlag
-	IpfsHash       []byte // ipfs hash of block body
+	IpfsHash       []byte          // ipfs hash of block body
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
@@ -142,7 +142,6 @@ type Vote struct {
 type Flip struct {
 	Tx   *Transaction
 	Data []byte
-	Pair uint8
 }
 
 type ActivityMonitor struct {
