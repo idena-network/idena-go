@@ -2,7 +2,6 @@ package ceremony
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
@@ -21,7 +20,6 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
-	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
@@ -36,9 +34,6 @@ const (
 	MinTotalScore = 0.75
 	MinShortScore = 0.5
 	MinLongScore  = 0.75
-
-	WordDictionarySize = 3300
-	WordPairsPerFlip   = 3
 )
 
 type ValidationCeremony struct {
@@ -381,10 +376,10 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
 
-	addFlips := func(candidateFlips [][]byte) {
-		for _, f := range candidateFlips {
-			flips = append(flips, f)
-			flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f)
+	addFlips := func(identityFlips []state.IdentityFlip) {
+		for _, f := range identityFlips {
+			flips = append(flips, f.Cid)
+			flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f.Cid)
 		}
 	}
 
@@ -486,34 +481,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	key := vc.flipper.GetFlipEncryptionKey()
 	_, proof := vc.epochDb.ReadFlipKeyWordPairs()
 
-	var pairs []uint8
-	myFlips := vc.appState.State.GetIdentity(vc.secStore.GetAddress()).Flips
-	for _, key := range myFlips {
-		localSavedPair := vc.epochDb.ReadFlipPair(key)
-		if localSavedPair != nil {
-			pairs = append(pairs, *localSavedPair)
-			continue
-		}
-		flip, err := vc.flipper.GetRawFlip(key)
-		if err != nil {
-			cid, _ := cid.Parse(key)
-			vc.log.Error(fmt.Sprintf("flip is missing, cid: %v", cid.String()))
-			pairs = append(pairs, 0)
-		} else {
-			pairs = append(pairs, flip.Pair)
-		}
-	}
-
-	ipfsAnswer := &attachments.ShortAnswerAttachment{
-		Answers: answers,
-		Proof:   proof,
-		Key:     crypto.FromECDSA(key.ExportECDSA()),
-		Pairs:   pairs,
-	}
-
-	payload, _ := rlp.EncodeToBytes(ipfsAnswer)
-
-	vc.sendTx(types.SubmitShortAnswersTx, payload)
+	vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, proof, key))
 	vc.shortAnswersSent = true
 }
 
@@ -847,7 +815,7 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	words, proof := vc.GeneratePairs(seed, WordDictionarySize, WordPairsPerFlip*int(identity.RequiredFlips))
+	words, proof := vc.GeneratePairs(seed, common.WordDictionarySize, identity.GetTotalWordPairsCount())
 	var wordsToPersist []uint32
 	for _, word := range words {
 		wordsToPersist = append(wordsToPersist, uint32(word))

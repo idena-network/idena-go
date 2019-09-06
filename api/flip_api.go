@@ -2,7 +2,7 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -37,29 +37,14 @@ type FlipSubmitArgs struct {
 	Pair uint8          `json:"pair"`
 }
 
-func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
-
-	//TODO: remove this after desktop updating
-	// temp code start
-	args := &FlipSubmitArgs{}
-	dec := json.NewDecoder(bytes.NewReader(*i))
-	if err := dec.Decode(args); err != nil {
-		fallbackDec := json.NewDecoder(bytes.NewReader(*i))
-		var s *hexutil.Bytes
-		if err = fallbackDec.Decode(&s); err != nil {
-			return FlipSubmitResponse{}, err
-		}
-		args.Hex = s
-	}
-	// temp code end
-
+func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.Hex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
 	rawFlip := *args.Hex
 
-	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip, args.Pair)
+	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -67,7 +52,7 @@ func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
 
 	addr := api.baseApi.getCurrentCoinbase()
 
-	tx, err := api.baseApi.getSignedTx(addr, nil, types.SubmitFlipTx, decimal.Zero, 0, 0, cid.Bytes(), nil)
+	tx, err := api.baseApi.getSignedTx(addr, nil, types.SubmitFlipTx, decimal.Zero, 0, 0, attachments.CreateFlipSubmitAttachment(cid.Bytes(), args.Pair), nil)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -76,7 +61,6 @@ func (api *FlipApi) Submit(i *json.RawMessage) (FlipSubmitResponse, error) {
 	flip := types.Flip{
 		Tx:   tx,
 		Data: encryptedFlip,
-		Pair: args.Pair,
 	}
 
 	if err := api.fp.AddNewFlip(flip, true); err != nil {

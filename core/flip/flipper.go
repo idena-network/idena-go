@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -53,7 +54,6 @@ type Flipper struct {
 type IpfsFlip struct {
 	Data   []byte
 	PubKey []byte
-	Pair   uint8
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState, bus eventbus.Bus) *Flipper {
@@ -91,7 +91,6 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	ipf := IpfsFlip{
 		Data:   flip.Data,
 		PubKey: pubKey,
-		Pair:   flip.Pair,
 	}
 
 	data, _ := rlp.EncodeToBytes(ipf)
@@ -110,7 +109,13 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return DuplicateFlipError
 	}
 
-	if bytes.Compare(c.Bytes(), flip.Tx.Payload) != 0 {
+	attachment := attachments.ParseFlipSubmitAttachment(flip.Tx)
+
+	if attachment == nil {
+		return errors.New("flip tx payload is invalid")
+	}
+
+	if bytes.Compare(c.Bytes(), attachment.Cid) != 0 {
 		return errors.Errorf("tx cid and flip cid mismatch, tx: %v", flip.Tx.Hash())
 	}
 
@@ -127,7 +132,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 
 	fp.bus.Publish(&events.NewFlipEvent{Flip: &flip})
 
-	fp.epochDb.WriteFlipCid(c.Bytes(), flip.Pair)
+	fp.epochDb.WriteFlipCid(c.Bytes())
 
 	if local {
 		if err := fp.ipfsProxy.Pin(key.Bytes()); err != nil {
@@ -142,7 +147,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 	return err
 }
 
-func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) {
+func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
 
 	encryptionKey := fp.GetFlipEncryptionKey()
 
@@ -155,7 +160,6 @@ func (fp *Flipper) PrepareFlip(hex []byte, pair uint8) (cid.Cid, []byte, error) 
 	ipf := IpfsFlip{
 		Data:   encrypted,
 		PubKey: fp.secStore.GetPubKey(),
-		Pair:   pair,
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)

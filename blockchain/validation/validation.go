@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"bytes"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -8,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
 
@@ -36,6 +38,8 @@ var (
 	InsufficientFlips    = errors.New("insufficient flips")
 	IsAlreadyOnline      = errors.New("identity is already online")
 	IsAlreadyOffline     = errors.New("identity is already offline")
+	DuplicatedFlip       = errors.New("duplicated flip")
+	DuplicatedFlipPair   = errors.New("flip with these words already exists")
 	validators           map[types.TxType]validator
 )
 
@@ -191,11 +195,36 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 		return NotCandidate
 	}
 
+	identity := appState.State.GetIdentity(sender)
 	god := appState.State.GodAddress()
-	noFlips := appState.State.GetRequiredFlips(sender) == appState.State.GetMadeFlips(sender)
+	noFlips := identity.RequiredFlips == uint8(len(identity.Flips))
 	if noFlips && sender != god ||
 		noFlips && sender == god && appState.ValidatorsCache.NetworkSize() > GodValidUntilNetworkSize {
 		return InsufficientFlips
+	}
+
+	attachment := attachments.ParseFlipSubmitAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+	_, err := cid.Parse(attachment.Cid)
+	if err != nil {
+		return InvalidPayload
+	}
+
+	// pair index should be less than total words count
+	if identity.GetTotalWordPairsCount() <= int(attachment.Pair) && sender != god {
+		return InvalidPayload
+	}
+
+	for _, flip := range identity.Flips {
+		if bytes.Compare(flip.Cid, attachment.Cid) == 0 {
+			return DuplicatedFlip
+		}
+		// TODO: enable when UI will be ready (fork)
+		//if flip.Pair == attachment.Pair {
+		//	return DuplicatedFlipPair
+		//}
 	}
 
 	return nil
@@ -244,26 +273,12 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 		return NotCandidate
 	}
 
-	attachment := attachments.ParseShortAnswerAttachment(tx)
-
-	if len(attachment.Pairs) != len(identity.Flips) {
-		return InvalidPayload
-	}
-
-	// TODO: restore
-	//s := mapset.NewSet()
-	//for _, item := range attachment.Pairs {
-	//	s.Add(item)
-	//}
-	//if s.Cardinality() != len(attachment.Pairs) {
-	//	return InvalidPayload
-	//}
-
 	// we do not check VRF proof until first validation
 	if appState.State.Epoch() == 0 {
 		return nil
 	}
 
+	attachment := attachments.ParseShortAnswerAttachment(tx)
 	seed := appState.State.FlipWordsSeed()
 	rawPubKey, _ := types.SenderPubKey(tx)
 	pubKey, err := crypto.UnmarshalPubkey(rawPubKey)

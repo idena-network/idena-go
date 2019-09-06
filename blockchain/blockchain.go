@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -614,7 +615,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		break
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
-		stateDB.AddFlip(sender, tx.Payload)
+		attachment := attachments.ParseFlipSubmitAttachment(tx)
+		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
 		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
@@ -1168,6 +1170,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 	}
 	return nil
 }
+
 func (chain *Blockchain) StartSync() {
 	chain.isSyncing = true
 	chain.txpool.StartSync()
