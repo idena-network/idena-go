@@ -109,6 +109,7 @@ func (s *AppState) ResetTo(height uint64) error {
 }
 
 func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
+	s.State.SetPredefinedGlobal(predefinedState)
 	s.State.SetPredefinedAccounts(predefinedState)
 	s.State.SetPredefinedIdentities(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)

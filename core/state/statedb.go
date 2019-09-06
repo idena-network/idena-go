@@ -381,6 +381,10 @@ func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
 
+func (s *StateDB) SetGlobalEpoch(epoch uint16) {
+	s.GetOrNewGlobalObject().SetEpoch(epoch)
+}
+
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
 	return s.GetOrNewGlobalObject().ValidationPeriod()
 }
@@ -937,6 +941,16 @@ func (s *StateDB) DropSnapshot(manifest *snapshot.Manifest) {
 	clearDb(pdb)
 }
 
+func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
+	stateObject := s.GetOrNewGlobalObject()
+	stateObject.data.Epoch = state.Global.Epoch
+	stateObject.data.ValidationPeriod = state.Global.ValidationPeriod
+	stateObject.data.WordsSeed = state.Global.WordsSeed
+	stateObject.data.GodAddress = state.Global.GodAddress
+	stateObject.data.LastSnapshot = state.Global.LastSnapshot
+	stateObject.data.NextValidationTime = state.Global.NextValidationTime
+}
+
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 	for _, acc := range state.Accounts {
 		stateObject := s.GetOrNewAccountObject(acc.Address)
@@ -948,6 +962,15 @@ func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 
 func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 	for _, identity := range state.Identities {
+
+		var flips []IdentityFlip
+		for _, item := range identity.Flips {
+			flips = append(flips, IdentityFlip{
+				Pair: item.Pair,
+				Cid:  item.Cid,
+			})
+		}
+
 		stateObject := s.GetOrNewIdentityObject(identity.Address)
 		stateObject.data.Birthday = identity.Birthday
 		stateObject.data.Generation = identity.Generation
@@ -959,16 +982,14 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
 		stateObject.data.QualifiedFlips = identity.QualifiedFlips
 		stateObject.data.Nickname = identity.Nickname
-		//stateObject.data.Flips = identity.Flips
 		stateObject.data.Code = identity.Code
-		stateObject.data.Flips = identity.Flips
+		stateObject.data.Flips = flips
 		stateObject.data.Invitees = identity.Invitees
 		stateObject.data.Inviter = identity.Inviter
+		stateObject.data.Penalty = identity.Penalty
 		stateObject.touch()
 	}
 }
-
-
 
 type readCloser struct {
 	r io.Reader

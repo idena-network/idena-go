@@ -162,6 +162,9 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	chain.appState.State.SetGodAddress(chain.config.GenesisConf.GodAddress)
 
+	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
+	blockNumber := uint64(1)
+
 	if network == Testnet {
 		data, err := Asset("stategen.out")
 		if err != nil {
@@ -172,18 +175,18 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			return nil, err
 		}
 		chain.appState.SetPredefinedState(predefinedState)
+		blockNumber = predefinedState.Block
+		seed = predefinedState.Seed
+	} else {
+		nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
+		if nextValidationTimestamp == 0 {
+			nextValidationTimestamp = time.Now().UTC().Unix()
+		}
+		chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
+		chain.appState.State.SetFlipWordsSeed(seed)
+
+		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}
-
-	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
-
-	nextValidationTimestamp := chain.config.GenesisConf.FirstCeremonyTime
-	if nextValidationTimestamp == 0 {
-		nextValidationTimestamp = time.Now().UTC().Unix()
-	}
-	chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
-	chain.appState.State.SetFlipWordsSeed(seed)
-
-	log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 
 	if err := chain.appState.Commit(nil); err != nil {
 		return nil, err
@@ -195,7 +198,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
 			Time:         big.NewInt(0),
-			Height:       1,
+			Height:       blockNumber,
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
 			BlockSeed:    seed,

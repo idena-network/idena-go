@@ -1,6 +1,7 @@
 package state
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"math/big"
 )
@@ -10,6 +11,11 @@ type StateAccount struct {
 	Nonce   uint32
 	Epoch   uint16
 	Balance *big.Int
+}
+
+type StateIdentityFlip struct {
+	Cid  []byte
+	Pair uint8
 }
 
 type StateIdentity struct {
@@ -23,11 +29,12 @@ type StateIdentity struct {
 	ShortFlipPoints uint32
 	PubKey          []byte `rlp:"nil"`
 	RequiredFlips   uint8
-	Flips           [][]byte `rlp:"nil"`
+	Flips           []StateIdentityFlip `rlp:"nil"`
 	Generation      uint32
 	Code            []byte   `rlp:"nil"`
 	Invitees        []TxAddr `rlp:"nil"`
 	Inviter         *TxAddr  `rlp:"nil"`
+	Penalty         *big.Int
 }
 
 type StateApprovedIdentity struct {
@@ -36,7 +43,19 @@ type StateApprovedIdentity struct {
 	Online   bool
 }
 
+type StateGlobal struct {
+	Epoch              uint16
+	NextValidationTime *big.Int
+	ValidationPeriod   ValidationPeriod
+	GodAddress         common.Address
+	WordsSeed          types.Seed `rlp:"nil"`
+	LastSnapshot       uint64
+}
+
 type PredefinedState struct {
+	Block              uint64
+	Seed               types.Seed
+	Global             StateGlobal
 	Accounts           []*StateAccount
 	Identities         []*StateIdentity
 	ApprovedIdentities []*StateApprovedIdentity
