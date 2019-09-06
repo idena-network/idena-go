@@ -90,7 +90,7 @@ func StartMobileNode(path string) string {
 	return "done"
 }
 
-func ProvideKey(path string, key string, password string) string {
+func ProvideMobileKey(path string, key string, password string) string {
 	c := config.MakeMobileConfig(path)
 	if err := c.ProvideNodeKey(key, password); err != nil {
 		return err.Error()
