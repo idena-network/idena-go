@@ -1,6 +1,7 @@
 package secstore
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/awnumar/memguard"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -67,4 +68,13 @@ func (s *SecStore) Destroy() {
 	if s.buffer != nil {
 		s.buffer.Destroy()
 	}
+}
+
+func (s *SecStore) ExportKey(password string) (string, error) {
+	key := s.buffer.Bytes()
+	encrypted, err := crypto.Encrypt(key, password)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(encrypted), nil
 }
