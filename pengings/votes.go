@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MaxKnownVotes = 100000
+	MaxKnownVotes = 10000
 )
 
 type Votes struct {
