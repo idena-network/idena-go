@@ -56,6 +56,19 @@ func main() {
 		appState.Initialize(head.Height())
 
 		snapshot := state.PredefinedState{}
+		snapshot.Block = head.Height()
+		snapshot.Seed = head.Seed()
+
+		globalObject := appState.State.GetOrNewGlobalObject()
+
+		snapshot.Global = state.StateGlobal{
+			LastSnapshot:       globalObject.LastSnapshot(),
+			NextValidationTime: globalObject.NextValidationTime(),
+			GodAddress:         globalObject.GodAddress(),
+			WordsSeed:          globalObject.FlipWordsSeed(),
+			ValidationPeriod:   globalObject.ValidationPeriod(),
+			Epoch:              globalObject.Epoch(),
+		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
 			if key == nil {
@@ -88,6 +101,15 @@ func main() {
 				log.Error(err.Error())
 				return false
 			}
+
+			var flips []state.StateIdentityFlip
+			for _, f := range data.Flips {
+				flips = append(flips, state.StateIdentityFlip{
+					Cid:  f.Cid,
+					Pair: f.Pair,
+				})
+			}
+
 			snapshot.Identities = append(snapshot.Identities, &state.StateIdentity{
 				Address:         addr,
 				State:           data.State,
@@ -101,6 +123,10 @@ func main() {
 				RequiredFlips:   data.RequiredFlips,
 				ShortFlipPoints: data.ShortFlipPoints,
 				Stake:           data.Stake,
+				Flips:           flips,
+				Invitees:        data.Invitees,
+				Inviter:         data.Inviter,
+				Penalty:         data.Penalty,
 			})
 			return false
 		})

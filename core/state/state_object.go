@@ -493,6 +493,10 @@ func (s *stateGlobal) IncEpoch() {
 	s.touch()
 }
 
+func (s *stateGlobal) LastSnapshot() uint64 {
+	return s.data.LastSnapshot
+}
+
 func (s *stateGlobal) SetLastSnapshot(height uint64) {
 	s.data.LastSnapshot = height
 	s.touch()
@@ -506,6 +510,10 @@ func (s *stateGlobal) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
+}
+
+func (s *stateGlobal) NextValidationTime() *big.Int {
+	return s.data.NextValidationTime
 }
 
 func (s *stateGlobal) SetNextValidationTime(unix int64) {
@@ -534,6 +542,11 @@ func (s *stateGlobal) SetFlipWordsSeed(seed types.Seed) {
 
 func (s *stateGlobal) FlipWordsSeed() types.Seed {
 	return s.data.WordsSeed
+}
+
+func (s *stateGlobal) SetEpoch(epoch uint16) {
+	s.data.Epoch = epoch
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.

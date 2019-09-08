@@ -123,11 +123,11 @@ func (s *IdentityStateDB) Remove(identity common.Address) {
 // Commit writes the state to the underlying in-memory trie database.
 func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
 	diff = s.Precommit(deleteEmptyObjects)
-	hash, version := s.CommitTree(s.tree.Version() + 1)
+	hash, version, err := s.CommitTree(s.tree.Version() + 1)
 	return hash, version, diff, err
 }
 
-func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int64) {
+func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int64, err error) {
 	hash, version, err := s.tree.SaveVersionAt(newVersion)
 	if version > MaxSavedStatesCount {
 
@@ -145,7 +145,7 @@ func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int
 	}
 
 	s.Clear()
-	return hash, version
+	return hash, version, err
 }
 
 func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
@@ -321,12 +321,13 @@ func (s *IdentityStateDB) AddDiff(height uint64, diff *IdentityStateDiff) {
 	}
 }
 
-func (s *IdentityStateDB) SaveForcedVersion(height uint64) {
+func (s *IdentityStateDB) SaveForcedVersion(height uint64) error {
 	if s.tree.Version() == int64(height) {
-		return
+		return nil
 	}
 	s.tree.SetVirtualVersion(int64(height) - 1)
-	s.CommitTree(int64(height))
+	_, _, err := s.CommitTree(int64(height))
+	return err
 }
 
 func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
