@@ -33,8 +33,8 @@ type FlipSubmitResponse struct {
 }
 
 type FlipSubmitArgs struct {
-	Hex  *hexutil.Bytes `json:"hex"`
-	Pair uint8          `json:"pair"`
+	Hex    *hexutil.Bytes `json:"hex"`
+	PairId uint8          `json:"pairId"`
 }
 
 func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
@@ -52,7 +52,7 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 
 	addr := api.baseApi.getCurrentCoinbase()
 
-	tx, err := api.baseApi.getSignedTx(addr, nil, types.SubmitFlipTx, decimal.Zero, 0, 0, attachments.CreateFlipSubmitAttachment(cid.Bytes(), args.Pair), nil)
+	tx, err := api.baseApi.getSignedTx(addr, nil, types.SubmitFlipTx, decimal.Zero, 0, 0, attachments.CreateFlipSubmitAttachment(cid.Bytes(), args.PairId), nil)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
