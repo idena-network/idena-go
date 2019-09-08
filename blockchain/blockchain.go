@@ -121,7 +121,17 @@ func (chain *Blockchain) InitializeChain() error {
 	head := chain.GetHead()
 	if head != nil {
 		chain.setCurrentHead(head)
-		if chain.genesis = chain.GetBlockHeaderByHeight(1); chain.genesis == nil {
+		genesisHeight := uint64(1)
+
+		if chain.config.Network == Testnet {
+			predefinedState, err := readPredefinedState()
+			if err != nil {
+				return err
+			}
+			genesisHeight = predefinedState.Block
+		}
+
+		if chain.genesis = chain.GetBlockHeaderByHeight(genesisHeight); chain.genesis == nil {
 			return errors.New("genesis block is not found")
 		}
 	} else {
@@ -166,12 +176,8 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	blockNumber := uint64(1)
 
 	if network == Testnet {
-		data, err := Asset("stategen.out")
+		predefinedState, err := readPredefinedState()
 		if err != nil {
-			return nil, err
-		}
-		predefinedState := new(state.PredefinedState)
-		if err := rlp.DecodeBytes(data, predefinedState); err != nil {
 			return nil, err
 		}
 
@@ -1298,4 +1304,16 @@ func (chain *Blockchain) SwitchToPreliminary() {
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+}
+
+func readPredefinedState() (*state.PredefinedState, error) {
+	data, err := Asset("stategen.out")
+	if err != nil {
+		return nil, err
+	}
+	predefinedState := new(state.PredefinedState)
+	if err := rlp.DecodeBytes(data, predefinedState); err != nil {
+		return nil, err
+	}
+	return predefinedState, nil
 }
