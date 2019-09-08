@@ -55,6 +55,11 @@ type IpfsFlip struct {
 	Data   []byte
 	PubKey []byte
 }
+type IpfsFlipOld struct {
+	Data   []byte
+	PubKey []byte
+	Pair   uint8
+}
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState, bus eventbus.Bus) *Flipper {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -256,8 +261,14 @@ func (fp *Flipper) Load(cids [][]byte) {
 
 		ipfsFlip := new(IpfsFlip)
 		if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
-			fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
-			continue
+			oldIpfsFlip := new(IpfsFlipOld)
+			if err2 := rlp.Decode(bytes.NewReader(data), oldIpfsFlip); err2 != nil {
+				fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
+				continue
+			} else {
+				ipfsFlip.Data = oldIpfsFlip.Data
+				ipfsFlip.PubKey = oldIpfsFlip.PubKey
+			}
 		}
 		fp.mutex.Lock()
 		fp.flips[common.Hash(rlp.Hash(key))] = ipfsFlip
@@ -320,7 +331,13 @@ func (fp *Flipper) GetRawFlip(flipCid []byte) (*IpfsFlip, error) {
 	}
 	ipfsFlip := new(IpfsFlip)
 	if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
-		return nil, err
+		oldIpfsFlip := new(IpfsFlipOld)
+		if err2 := rlp.Decode(bytes.NewReader(data), oldIpfsFlip); err2 != nil {
+			return nil, err
+		} else {
+			ipfsFlip.Data = oldIpfsFlip.Data
+			ipfsFlip.PubKey = oldIpfsFlip.PubKey
+		}
 	}
 	return ipfsFlip, nil
 }
