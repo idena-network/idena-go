@@ -625,7 +625,7 @@ func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
 	s.Precommit(deleteEmptyObjects)
-	return s.commitTree(s.tree.Version() + 1)
+	return s.CommitTree(s.tree.Version() + 1)
 }
 
 func (s *StateDB) SaveForcedVersion(height uint64) (root []byte, version int64, err error) {
@@ -633,10 +633,10 @@ func (s *StateDB) SaveForcedVersion(height uint64) (root []byte, version int64, 
 		return
 	}
 	s.tree.SetVirtualVersion(int64(height) - 1)
-	return s.commitTree(int64(height))
+	return s.CommitTree(int64(height))
 }
 
-func (s *StateDB) commitTree(newVersion int64) (root []byte, version int64, err error) {
+func (s *StateDB) CommitTree(newVersion int64) (root []byte, version int64, err error) {
 	hash, version, err := s.tree.SaveVersionAt(newVersion)
 	if version > MaxSavedStatesCount {
 

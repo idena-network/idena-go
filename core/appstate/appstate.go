@@ -98,12 +98,12 @@ func (s *AppState) Commit(block *types.Block) error {
 }
 
 func (s *AppState) CommitAt(height uint64) error {
-	_, _, err := s.State.SaveForcedVersion(height)
+	_, _, err := s.State.CommitTree(int64(height))
 	if err != nil {
 		return err
 	}
 
-	err = s.IdentityState.SaveForcedVersion(height)
+	_, _, err = s.IdentityState.CommitTree(int64(height))
 
 	if err != nil {
 		return err
