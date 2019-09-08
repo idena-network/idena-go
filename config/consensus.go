@@ -40,6 +40,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		FeeBurnRate:                    0.9,
 		FinalCommitteeReward:           big.NewInt(4e+18),
 		SnapshotRange:                  10000,
-		OfflinePenaltyBlocksCount:      5000,
+		OfflinePenaltyBlocksCount:      1800,
 	}
 }
