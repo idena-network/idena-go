@@ -21,7 +21,7 @@ func CalculateFee(networkSize int, tx *Transaction) *big.Int {
 func calcFeePerByte(networkSize int, txType TxType) *big.Int {
 	if txType == SubmitAnswersHashTx || txType == SubmitFlipTx ||
 		txType == SubmitShortAnswersTx || txType == SubmitLongAnswersTx || txType == EvidenceTx ||
-		txType == ActivationTx || txType == InviteTx {
+		txType == ActivationTx || txType == InviteTx || txType == OnlineStatusTx {
 		return big.NewInt(0)
 	}
 	if networkSize == 0 {
