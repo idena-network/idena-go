@@ -82,6 +82,7 @@ func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
 }
+
 func (s *AppState) Commit(block *types.Block) error {
 	_, _, err := s.State.Commit(true)
 	if err != nil {
@@ -91,6 +92,21 @@ func (s *AppState) Commit(block *types.Block) error {
 
 	if block != nil {
 		s.ValidatorsCache.RefreshIfUpdated(block)
+	}
+
+	return err
+}
+
+func (s *AppState) CommitAt(height uint64) error {
+	_, _, err := s.State.CommitTree(int64(height))
+	if err != nil {
+		return err
+	}
+
+	_, _, err = s.IdentityState.CommitTree(int64(height))
+
+	if err != nil {
+		return err
 	}
 
 	return err
@@ -109,6 +125,7 @@ func (s *AppState) ResetTo(height uint64) error {
 }
 
 func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
+	s.State.SetPredefinedGlobal(predefinedState)
 	s.State.SetPredefinedAccounts(predefinedState)
 	s.State.SetPredefinedIdentities(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)

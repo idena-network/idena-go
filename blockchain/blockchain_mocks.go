@@ -40,7 +40,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	cfg := &config.Config{
-		Network:   Testnet,
+		Network:   0x99,
 		Consensus: conf,
 		GenesisConf: &config.GenesisConf{
 			Alloc: alloc,

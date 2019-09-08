@@ -381,6 +381,10 @@ func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
 
+func (s *StateDB) SetGlobalEpoch(epoch uint16) {
+	s.GetOrNewGlobalObject().SetEpoch(epoch)
+}
+
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
 	return s.GetOrNewGlobalObject().ValidationPeriod()
 }
@@ -620,23 +624,36 @@ func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-
 	s.Precommit(deleteEmptyObjects)
+	return s.CommitTree(s.tree.Version() + 1)
+}
 
-	hash, version, err := s.tree.SaveVersion()
-	//TODO: snapshots
+func (s *StateDB) SaveForcedVersion(height uint64) (root []byte, version int64, err error) {
+	if s.tree.Version() == int64(height) {
+		return
+	}
+	s.tree.SetVirtualVersion(int64(height) - 1)
+	return s.CommitTree(int64(height))
+}
+
+func (s *StateDB) CommitTree(newVersion int64) (root []byte, version int64, err error) {
+	hash, version, err := s.tree.SaveVersionAt(newVersion)
 	if version > MaxSavedStatesCount {
-		if s.tree.ExistVersion(version - MaxSavedStatesCount) {
-			err = s.tree.DeleteVersion(version - MaxSavedStatesCount)
 
-			if err != nil {
-				panic(err)
+		versions := s.tree.AvailableVersions()
+
+		for i := 0; i < len(versions)-MaxSavedStatesCount; i++ {
+			if s.tree.ExistVersion(int64(versions[i])) {
+				err = s.tree.DeleteVersion(int64(versions[i]))
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
+
 	}
 
 	s.Clear()
-
 	return hash, version, err
 }
 
@@ -937,6 +954,16 @@ func (s *StateDB) DropSnapshot(manifest *snapshot.Manifest) {
 	clearDb(pdb)
 }
 
+func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
+	stateObject := s.GetOrNewGlobalObject()
+	stateObject.data.Epoch = state.Global.Epoch
+	stateObject.data.ValidationPeriod = state.Global.ValidationPeriod
+	stateObject.data.WordsSeed = state.Global.WordsSeed
+	stateObject.data.GodAddress = state.Global.GodAddress
+	stateObject.data.LastSnapshot = state.Global.LastSnapshot
+	stateObject.data.NextValidationTime = state.Global.NextValidationTime
+}
+
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 	for _, acc := range state.Accounts {
 		stateObject := s.GetOrNewAccountObject(acc.Address)
@@ -948,6 +975,15 @@ func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 
 func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 	for _, identity := range state.Identities {
+
+		var flips []IdentityFlip
+		for _, item := range identity.Flips {
+			flips = append(flips, IdentityFlip{
+				Pair: item.Pair,
+				Cid:  item.Cid,
+			})
+		}
+
 		stateObject := s.GetOrNewIdentityObject(identity.Address)
 		stateObject.data.Birthday = identity.Birthday
 		stateObject.data.Generation = identity.Generation
@@ -959,13 +995,14 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
 		stateObject.data.QualifiedFlips = identity.QualifiedFlips
 		stateObject.data.Nickname = identity.Nickname
-		//stateObject.data.Flips = identity.Flips
 		stateObject.data.Code = identity.Code
+		stateObject.data.Flips = flips
+		stateObject.data.Invitees = identity.Invitees
+		stateObject.data.Inviter = identity.Inviter
+		stateObject.data.Penalty = identity.Penalty
 		stateObject.touch()
 	}
 }
-
-
 
 type readCloser struct {
 	r io.Reader
