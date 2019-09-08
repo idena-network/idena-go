@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	MaxKnownBlocks   = 300
+	MaxKnownBlocks   = 100
 	MaxKnownFlips    = 100
-	MaxKwownTxs      = 2000
-	MaxKnownProofs   = 1000
-	MaxKnownVotes    = 100000
-	MaxKnownFlipKeys = 10000
+	MaxKwownTxs      = 1000
+	MaxKnownProofs   = 500
+	MaxKnownVotes    = 1000
+	MaxKnownFlipKeys = 1000
 
 	handshakeTimeout = 10 * time.Second
 )
