@@ -108,7 +108,7 @@ func (dt *OfflineDetector) VoteForOffline(block *types.Block) bool {
 			return true
 		}
 	} else {
-		return true
+		dt.activityMap[*addr] = time.Now().UTC()
 	}
 
 	return false
