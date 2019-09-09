@@ -184,7 +184,7 @@ func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, 
 					shouldBecomeOffline = true
 				}
 			} else {
-				shouldBecomeOffline = true
+				dt.activityMap[addr] = time.Now().UTC()
 			}
 
 			if shouldBecomeOffline {
