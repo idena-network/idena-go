@@ -16,6 +16,6 @@ func GetDefaultOfflineDetectionConfig() *OfflineDetectionConfig {
 		MaxSelfOffline:              1 * time.Hour,
 		OfflineProposeInterval:      1 * time.Hour,
 		OfflineVoteInterval:         45 * time.Minute,
-		IntervalBetweenOfflineRetry: 10 * time.Minute,
+		IntervalBetweenOfflineRetry: 5 * time.Minute,
 	}
 }

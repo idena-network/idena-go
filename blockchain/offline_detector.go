@@ -184,13 +184,7 @@ func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, 
 					shouldBecomeOffline = true
 				}
 			} else {
-				// if node without activity and already was in offlineProposals map
-				// we can turn it offline, otherwise we give IntervalBetweenOfflineRetry * 2 minutes to activate node
-				if _, ok := dt.offlineProposals[addr]; ok {
-					shouldBecomeOffline = true
-				} else {
-					dt.offlineProposals[addr] = time.Now().UTC().Add(dt.config.IntervalBetweenOfflineRetry)
-				}
+				dt.activityMap[addr] = time.Now().UTC()
 			}
 
 			if shouldBecomeOffline {
