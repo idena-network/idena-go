@@ -215,7 +215,7 @@ type FlipWordsResponse struct {
 	Words [2]int
 }
 
-func (api *FlipApi) FlipWords(hash string) (FlipWordsResponse, error) {
+func (api *FlipApi) Words(hash string) (FlipWordsResponse, error) {
 	c, err := cid.Parse(hash)
 	if err != nil {
 		return FlipWordsResponse{}, err
