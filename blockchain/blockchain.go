@@ -636,7 +636,10 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, fee)
 		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified {
-			stateDB.AddInvite(sender, 1)
+			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
+			if int(stateDB.GetInvites(sender)) < invites {
+				stateDB.AddInvite(sender, 1)
+			}
 		}
 		break
 	case types.SubmitFlipTx:

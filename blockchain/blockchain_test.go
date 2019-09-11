@@ -181,7 +181,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	appState.State.AddInvitee(inviter, invitee, common.Hash{})
 	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
 
-	appState.State.SetInvites(inviter, 5)
+	appState.State.SetInvites(inviter, 0)
 	appState.State.SetState(inviter, state.Verified)
 
 	appState.State.GetOrNewAccountObject(inviter).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
@@ -198,7 +198,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 
 	chain.ApplyTxOnState(chain.appState, signedTx)
 
-	require.Equal(t, uint8(6), appState.State.GetInvites(inviter))
+	require.Equal(t, uint8(1), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
 	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
 	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
