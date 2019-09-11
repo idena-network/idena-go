@@ -849,14 +849,14 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	}
 
 	identity := vc.appState.State.GetIdentity(author)
-	idx := -1
-	for i, item := range identity.Flips {
+	pairId := 0
+	for _, item := range identity.Flips {
 		if bytes.Compare(cid, item.Cid) == 0 {
-			idx = i
+			pairId = int(item.Pair)
 		}
 	}
 	seed := vc.appState.State.FlipWordsSeed().Bytes()
 	proof := vc.qualification.GetProof(author)
 
-	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), idx)
+	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
