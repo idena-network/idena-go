@@ -859,5 +859,9 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	seed := vc.appState.State.FlipWordsSeed().Bytes()
 	proof := vc.qualification.GetProof(author)
 
+	if len(proof) == 0 {
+		return 0, 0, errors.New("proof not ready")
+	}
+
 	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
