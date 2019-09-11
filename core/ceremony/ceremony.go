@@ -200,7 +200,7 @@ func (vc *ValidationCeremony) restoreState() {
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
 	}
-	vc.qualification.restoreAnswers()
+	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
 	vc.restoreFlipKeyWordPairs()
 }

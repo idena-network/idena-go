@@ -88,7 +88,7 @@ func (q *qualification) persist() {
 	q.hasNewAnswers = false
 }
 
-func (q *qualification) restoreAnswers() {
+func (q *qualification) restore() {
 	short, long := q.epochDb.ReadAnswers()
 
 	for _, item := range short {
