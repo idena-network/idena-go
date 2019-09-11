@@ -26,6 +26,7 @@ func NewQualification(epochDb *database.EpochDb) *qualification {
 		log:          log.New(),
 		shortAnswers: make(map[common.Address][]byte),
 		longAnswers:  make(map[common.Address][]byte),
+		proofs:       make(map[common.Address][]byte),
 	}
 }
 
