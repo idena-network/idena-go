@@ -156,9 +156,9 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 }
 
 type FlipAnswer struct {
-	Easy   bool         `json:"easy"`
-	Answer types.Answer `json:"answer"`
-	Hash   string       `json:"hash"`
+	WrongWords bool         `json:"wrongWords"`
+	Answer     types.Answer `json:"answer"`
+	Hash       string       `json:"hash"`
 }
 
 type SubmitAnswersArgs struct {
@@ -211,6 +211,21 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 	}, nil
 }
 
+type FlipWordsResponse struct {
+	Words [2]int
+}
+
+func (api *FlipApi) FlipWords(hash string) (FlipWordsResponse, error) {
+	c, err := cid.Parse(hash)
+	if err != nil {
+		return FlipWordsResponse{}, err
+	}
+	w1, w2, err := api.ceremony.GetFlipWords(c.Bytes())
+	return FlipWordsResponse{
+		Words: [2]int{w1, w2},
+	}, err
+}
+
 func prepareAnswers(answers []FlipAnswer, flips [][]byte) *types.Answers {
 	findAnswer := func(hash []byte) *FlipAnswer {
 		for _, h := range answers {
@@ -239,8 +254,8 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte) *types.Answers {
 		case types.Inappropriate:
 			result.Inappropriate(uint(i))
 		}
-		if answer.Easy {
-			result.Easy(uint(i))
+		if answer.WrongWords {
+			result.WrongWords(uint(i))
 		}
 	}
 

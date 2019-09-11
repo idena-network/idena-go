@@ -6,9 +6,9 @@ import (
 )
 
 type candidate struct {
-	Address     common.Address
-	Generation  uint32
-	Code        []byte
+	Address    common.Address
+	Generation uint32
+	Code       []byte
 }
 
 type FlipStatus byte
@@ -20,6 +20,7 @@ const (
 )
 
 type FlipQualification struct {
-	status FlipStatus
-	answer types.Answer
+	status     FlipStatus
+	answer     types.Answer
+	wrongWords bool
 }

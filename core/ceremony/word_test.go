@@ -81,6 +81,40 @@ func Test_CheckPair(t *testing.T) {
 	require.False(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, dictionarySize+100, nums[3]))
 }
 
+func Test_GetWords(t *testing.T) {
+	require := require.New(t)
+	secStore := &secstore.SecStore{}
+	vc := &ValidationCeremony{
+		secStore: secStore,
+	}
+
+	key, _ := crypto.GenerateKey()
+	secStore.AddKey(crypto.FromECDSA(key))
+	pk := secStore.GetPubKey()
+	wrongKey, _ := crypto.GenerateKey()
+	seed := []byte("data1")
+	dictionarySize := 3300
+	pairCount := 9
+	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount)
+
+	w1, w2, _ := GetWords(seed, proof, pk, dictionarySize, pairCount, 1)
+	require.Equal(nums[2], w1)
+	require.Equal(nums[3], w2)
+
+	w1, w2, _ = GetWords(seed, proof, pk, dictionarySize, pairCount, 8)
+	require.Equal(nums[16], w1)
+	require.Equal(nums[17], w2)
+
+	w1, w2, err := GetWords(seed, proof, pk, dictionarySize, pairCount, 15)
+	require.Error(err, "out of bounds pair index should throw error")
+
+	_, _, err = GetWords([]byte("data2"), proof, pk, dictionarySize, pairCount, 1)
+	require.EqualErrorf(err, "invalid VRF proof", "invalid proof should throw error")
+
+	_, _, err = GetWords(seed, proof, crypto.FromECDSAPub(&wrongKey.PublicKey), dictionarySize, pairCount, 1)
+	require.EqualErrorf(err, "invalid VRF proof", "invalid proof should throw error")
+}
+
 func Test_maxUniquePairs(t *testing.T) {
 	require.Equal(t, 0, maxUniquePairs(0))
 	require.Equal(t, 0, maxUniquePairs(1))
