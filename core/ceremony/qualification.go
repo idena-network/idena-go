@@ -7,14 +7,17 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"sync"
 )
 
 type qualification struct {
 	shortAnswers  map[common.Address][]byte
 	longAnswers   map[common.Address][]byte
+	proofs        map[common.Address][]byte
 	epochDb       *database.EpochDb
 	log           log.Logger
 	hasNewAnswers bool
+	lock          sync.RWMutex
 }
 
 func NewQualification(epochDb *database.EpochDb) *qualification {
@@ -23,11 +26,11 @@ func NewQualification(epochDb *database.EpochDb) *qualification {
 		log:          log.New(),
 		shortAnswers: make(map[common.Address][]byte),
 		longAnswers:  make(map[common.Address][]byte),
+		proofs:       make(map[common.Address][]byte),
 	}
 }
 
 func (q *qualification) addAnswers(short bool, sender common.Address, txPayload []byte) {
-
 	var m map[common.Address][]byte
 
 	if short {
@@ -44,7 +47,17 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 	q.hasNewAnswers = true
 }
 
-func (q *qualification) persistAnswers() {
+func (q *qualification) addProof(sender common.Address, bytes []byte) {
+	if _, ok := q.proofs[sender]; ok {
+		return
+	}
+
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	q.proofs[sender] = bytes
+}
+
+func (q *qualification) persist() {
 	if !q.hasNewAnswers {
 		return
 	}
@@ -62,13 +75,21 @@ func (q *qualification) persistAnswers() {
 			Ans:  v,
 		})
 	}
+	var proofs []database.DbProof
+	for k, v := range q.proofs {
+		proofs = append(proofs, database.DbProof{
+			Addr:  k,
+			Proof: v,
+		})
+	}
 
 	q.epochDb.WriteAnswers(short, long)
+	q.epochDb.WriteProofs(proofs)
 
 	q.hasNewAnswers = false
 }
 
-func (q *qualification) restoreAnswers() {
+func (q *qualification) restore() {
 	short, long := q.epochDb.ReadAnswers()
 
 	for _, item := range short {
@@ -78,13 +99,19 @@ func (q *qualification) restoreAnswers() {
 	for _, item := range long {
 		q.longAnswers[item.Addr] = item.Ans
 	}
+
+	proofs := q.epochDb.ReadProofs()
+
+	for _, item := range proofs {
+		q.proofs[item.Addr] = item.Proof
+	}
 }
 
 func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
 
 	data := make([]struct {
-		answer []types.Answer
-		easy   []bool
+		answer     []types.Answer
+		wrongWords []bool
 	}, totalFlipsCount)
 
 	for i := 0; i < len(flipsPerCandidate); i++ {
@@ -100,11 +127,11 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		answers := types.NewAnswersFromBits(uint(len(flips)), answerBytes)
 
 		for j := uint(0); j < uint(len(flips)); j++ {
-			answer, easy := answers.Answer(j)
+			answer, wrongWords := answers.Answer(j)
 			flipIdx := flips[j]
 
 			data[flipIdx].answer = append(data[flipIdx].answer, answer)
-			data[flipIdx].easy = append(data[flipIdx].easy, easy)
+			data[flipIdx].wrongWords = append(data[flipIdx].wrongWords, wrongWords)
 		}
 	}
 
@@ -112,6 +139,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 	for i := 0; i < len(data); i++ {
 		result[i] = qualifyOneFlip(data[i].answer)
+		result[i].wrongWords = qualifyWrongWords(data[i].wrongWords)
 	}
 
 	return result
@@ -186,6 +214,13 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 	}
 	return point, qualifiedFlipsCount, flipAnswers
+}
+
+func (q *qualification) GetProof(addr common.Address) []byte {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
+
+	return q.proofs[addr]
 }
 
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
@@ -267,4 +302,14 @@ func qualifyOneFlip(a []types.Answer) FlipQualification {
 		answer: types.None,
 		status: NotQualified,
 	}
+}
+
+func qualifyWrongWords(data []bool) bool {
+	wrongCount := 0
+	for _, item := range data {
+		if item {
+			wrongCount += 1
+		}
+	}
+	return float32(wrongCount)/float32(len(data)) >= 0.66
 }

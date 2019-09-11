@@ -20,6 +20,7 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
@@ -68,6 +69,8 @@ type ValidationCeremony struct {
 	epoch                  uint16
 	config                 *config.Config
 	applyEpochMutex        sync.Mutex
+	flipAuthorMap          map[common.Hash]common.Address
+	flipAuthorMapLock      sync.Mutex
 }
 
 type cacheValue struct {
@@ -129,7 +132,7 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 
 func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	vc.handleBlock(block)
-	vc.qualification.persistAnswers()
+	vc.qualification.persist()
 
 	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
@@ -197,7 +200,7 @@ func (vc *ValidationCeremony) restoreState() {
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
 	}
-	vc.qualification.restoreAnswers()
+	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
 	vc.restoreFlipKeyWordPairs()
 }
@@ -290,7 +293,9 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		return
 	}
 
-	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor = vc.getCandidatesAndFlips()
+	vc.flipAuthorMapLock.Lock()
+	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
+	vc.flipAuthorMapLock.Unlock()
 
 	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()), seed, false, nil)
 
@@ -318,7 +323,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 
 	if len(vc.candidates) < 100 {
 		var addrs []string
-		for _, c := range vc.getParticipantsAddrs() {
+		for _, c := range vc.getCandidatesAddresses() {
 			addrs = append(addrs, c.Hex())
 		}
 		vc.logInfoWithInteraction("Ceremony candidates", "addresses", addrs)
@@ -370,16 +375,18 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 	vc.keySent = true
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte) {
+func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
 	nonCandidates := make([]common.Address, 0)
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
+	flipAuthorMap := make(map[common.Hash]common.Address)
 
-	addFlips := func(identityFlips []state.IdentityFlip) {
+	addFlips := func(author common.Address, identityFlips []state.IdentityFlip) {
 		for _, f := range identityFlips {
 			flips = append(flips, f.Cid)
 			flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f.Cid)
+			flipAuthorMap[rlp.Hash(f.Cid)] = author
 		}
 	}
 
@@ -395,7 +402,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 			return false
 		}
 		if state.IsCeremonyCandidate(data) {
-			addFlips(data.Flips)
+			addFlips(addr, data.Flips)
 			m = append(m, &candidate{
 				Address:    addr,
 				Generation: data.Generation,
@@ -408,18 +415,12 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 		return false
 	})
 
-	return m, nonCandidates, flips, flipsPerAuthor
+	return m, nonCandidates, flips, flipsPerAuthor, flipAuthorMap
 }
 
-func (vc *ValidationCeremony) getParticipantsAddrs() []common.Address {
-	var candidates []*candidate
-	if vc.candidates != nil {
-		candidates = vc.candidates
-	} else {
-		candidates, _, _, _ = vc.getCandidatesAndFlips()
-	}
+func (vc *ValidationCeremony) getCandidatesAddresses() []common.Address {
 	var result []common.Address
-	for _, p := range candidates {
+	for _, p := range vc.candidates {
 		result = append(result, p.Address)
 	}
 	return result
@@ -458,6 +459,7 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 				continue
 			}
 			vc.qualification.addAnswers(true, sender, attachment.Answers)
+			vc.qualification.addProof(sender, attachment.Proof)
 		case types.SubmitLongAnswersTx:
 			vc.qualification.addAnswers(false, sender, tx.Payload)
 		case types.EvidenceTx:
@@ -494,7 +496,7 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	additional := vc.epochDb.GetConfirmedRespondents(*shortSessionStart, *shortSessionEnd)
 
-	candidates := vc.getParticipantsAddrs()
+	candidates := vc.getCandidatesAddresses()
 
 	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional, vc.appState.State.GetRequiredFlips)
 
@@ -581,7 +583,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 
 	stats := NewStats()
 	stats.FlipCids = vc.flips
-	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getParticipantsAddrs(), vc.epochDb.ReadEvidenceMaps())
+	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
 		approvedCandidatesSet.Add(item)
@@ -835,4 +837,31 @@ func (vc *ValidationCeremony) restoreFlipKeyWordPairs() {
 		words = append(words, int(persistedWord))
 	}
 	vc.flipKeyWordPairs = words
+}
+
+func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {
+	vc.flipAuthorMapLock.Lock()
+	defer vc.flipAuthorMapLock.Unlock()
+
+	author, ok := vc.flipAuthorMap[rlp.Hash(cid)]
+	if !ok {
+		return 0, 0, errors.New("flip author not found")
+	}
+
+	identity := vc.appState.State.GetIdentity(author)
+	pairId := 0
+	for _, item := range identity.Flips {
+		if bytes.Compare(cid, item.Cid) == 0 {
+			pairId = int(item.Pair)
+			break
+		}
+	}
+	seed := vc.appState.State.FlipWordsSeed().Bytes()
+	proof := vc.qualification.GetProof(author)
+
+	if len(proof) == 0 {
+		return 0, 0, errors.New("proof not ready")
+	}
+
+	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }

@@ -24,6 +24,7 @@ var (
 	FlipCidPrefix               = []byte("cid")
 	FlipKeyWordPairsPrefix      = []byte("word")
 	FlipKeyWordPairsProofPrefix = []byte("word-proof")
+	CandidateProofs             = []byte("candidate-proofs")
 )
 
 type EpochDb struct {
@@ -38,6 +39,11 @@ type shortAnswerDb struct {
 type DbAnswer struct {
 	Addr common.Address
 	Ans  []byte
+}
+
+type DbProof struct {
+	Addr  common.Address
+	Proof []byte
 }
 
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
@@ -237,4 +243,22 @@ func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {
 func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
 	key := append(AnswerHashPrefix, addr.Bytes()...)
 	return edb.db.Has(key)
+}
+
+func (edb *EpochDb) WriteProofs(proofs []DbProof) {
+
+	data, _ := rlp.EncodeToBytes(proofs)
+
+	edb.db.Set(CandidateProofs, data)
+}
+
+func (edb *EpochDb) ReadProofs() []DbProof {
+	data := edb.db.Get(CandidateProofs)
+	var proofs []DbProof
+	if data != nil {
+		if err := rlp.Decode(bytes.NewReader(data), &proofs); err != nil {
+			log.Error("invalid proofs rlp", "err", err)
+		}
+	}
+	return proofs
 }
