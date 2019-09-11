@@ -212,7 +212,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 }
 
 type FlipWordsResponse struct {
-	Words [2]int
+	Words [2]int `json:"words"`
 }
 
 func (api *FlipApi) Words(hash string) (FlipWordsResponse, error) {
