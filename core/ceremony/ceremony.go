@@ -853,6 +853,7 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	for _, item := range identity.Flips {
 		if bytes.Compare(cid, item.Cid) == 0 {
 			pairId = int(item.Pair)
+			break
 		}
 	}
 	seed := vc.appState.State.FlipWordsSeed().Bytes()
