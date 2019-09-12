@@ -631,11 +631,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		break
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
+		inviteePrevState := stateDB.GetIdentityState(*tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		stateDB.SubBalance(sender, fee)
 		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
-		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified {
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified &&
+			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
 			if int(stateDB.GetInvites(sender)) < invites {
 				stateDB.AddInvite(sender, 1)
