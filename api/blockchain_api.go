@@ -19,6 +19,7 @@ var (
 		types.ActivationTx:         "activation",
 		types.InviteTx:             "invite",
 		types.KillTx:               "kill",
+		types.KillInviteeTx:        "killInvitee",
 		types.SubmitFlipTx:         "submitFlip",
 		types.SubmitAnswersHashTx:  "submitAnswersHash",
 		types.SubmitShortAnswersTx: "submitShortAnswers",
