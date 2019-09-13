@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -165,6 +166,48 @@ func Test_ApplyKillTx(t *testing.T) {
 	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
 
 	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
+}
+
+func Test_ApplyKillInviteeTx(t *testing.T) {
+	chain, appState, _ := NewTestBlockchain(true, nil)
+
+	inviterKey, _ := crypto.GenerateKey()
+	inviter := crypto.PubkeyToAddress(inviterKey.PublicKey)
+	invitee := tests.GetRandAddr()
+	anotherInvitee := tests.GetRandAddr()
+
+	appState.State.SetInviter(invitee, inviter, common.Hash{})
+	appState.State.SetInviter(anotherInvitee, inviter, common.Hash{})
+	appState.State.AddInvitee(inviter, invitee, common.Hash{})
+	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
+
+	appState.State.SetInvites(inviter, 0)
+	appState.State.SetState(inviter, state.Verified)
+	appState.State.SetState(invitee, state.Candidate)
+
+	appState.State.GetOrNewAccountObject(inviter).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
+	appState.State.GetOrNewIdentityObject(invitee).SetStake(new(big.Int).Mul(big.NewInt(10), common.DnaBase))
+
+	tx := &types.Transaction{
+		Type:         types.KillInviteeTx,
+		AccountNonce: 1,
+		To:           &invitee,
+	}
+	signedTx, _ := types.SignTx(tx, inviterKey)
+
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+
+	chain.ApplyTxOnState(chain.appState, signedTx)
+
+	require.Equal(t, uint8(1), appState.State.GetInvites(inviter))
+	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
+	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
+	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
+	newBalance.Sub(newBalance, fee)
+	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
+
+	require.Equal(t, state.Killed, appState.State.GetIdentityState(invitee))
+	require.Nil(t, appState.State.GetInviter(invitee))
 }
 
 type testCase struct {

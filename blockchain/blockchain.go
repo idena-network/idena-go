@@ -629,6 +629,21 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(stateDB.GetStakeBalance(sender), fee))
 		stateDB.AddBalance(*tx.To, amount)
 		break
+	case types.KillInviteeTx:
+		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
+		inviteePrevState := stateDB.GetIdentityState(*tx.To)
+		stateDB.SetState(*tx.To, state.Killed)
+		appState.IdentityState.Remove(*tx.To)
+		stateDB.SubBalance(sender, fee)
+		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified &&
+			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
+			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
+			if int(stateDB.GetInvites(sender)) < invites {
+				stateDB.AddInvite(sender, 1)
+			}
+		}
+		break
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
@@ -763,7 +778,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.OnlineStatusTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.OnlineStatusTx {
 			flags |= types.IdentityUpdate
 		}
 	}
