@@ -56,3 +56,6 @@ Custom json configuration can be used if `--config` parameter is specified
   }
 }
 ```
+### Running `idena-go` on remote host
+
+To connect to the `idena-go` running on the remote host use `--rpcaddr=0.0.0.0` parameter
