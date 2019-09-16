@@ -244,21 +244,3 @@ func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
 	key := append(AnswerHashPrefix, addr.Bytes()...)
 	return edb.db.Has(key)
 }
-
-func (edb *EpochDb) WriteProofs(proofs []DbProof) {
-
-	data, _ := rlp.EncodeToBytes(proofs)
-
-	edb.db.Set(CandidateProofs, data)
-}
-
-func (edb *EpochDb) ReadProofs() []DbProof {
-	data := edb.db.Get(CandidateProofs)
-	var proofs []DbProof
-	if data != nil {
-		if err := rlp.Decode(bytes.NewReader(data), &proofs); err != nil {
-			log.Error("invalid proofs rlp", "err", err)
-		}
-	}
-	return proofs
-}

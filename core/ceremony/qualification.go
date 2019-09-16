@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
@@ -13,7 +14,6 @@ import (
 type qualification struct {
 	shortAnswers  map[common.Address][]byte
 	longAnswers   map[common.Address][]byte
-	proofs        map[common.Address][]byte
 	epochDb       *database.EpochDb
 	log           log.Logger
 	hasNewAnswers bool
@@ -26,7 +26,6 @@ func NewQualification(epochDb *database.EpochDb) *qualification {
 		log:          log.New(),
 		shortAnswers: make(map[common.Address][]byte),
 		longAnswers:  make(map[common.Address][]byte),
-		proofs:       make(map[common.Address][]byte),
 	}
 }
 
@@ -47,16 +46,6 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 	q.hasNewAnswers = true
 }
 
-func (q *qualification) addProof(sender common.Address, bytes []byte) {
-	if _, ok := q.proofs[sender]; ok {
-		return
-	}
-
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	q.proofs[sender] = bytes
-}
-
 func (q *qualification) persist() {
 	if !q.hasNewAnswers {
 		return
@@ -75,16 +64,8 @@ func (q *qualification) persist() {
 			Ans:  v,
 		})
 	}
-	var proofs []database.DbProof
-	for k, v := range q.proofs {
-		proofs = append(proofs, database.DbProof{
-			Addr:  k,
-			Proof: v,
-		})
-	}
 
 	q.epochDb.WriteAnswers(short, long)
-	q.epochDb.WriteProofs(proofs)
 
 	q.hasNewAnswers = false
 }
@@ -98,12 +79,6 @@ func (q *qualification) restore() {
 
 	for _, item := range long {
 		q.longAnswers[item.Addr] = item.Ans
-	}
-
-	proofs := q.epochDb.ReadProofs()
-
-	for _, item := range proofs {
-		q.proofs[item.Addr] = item.Proof
 	}
 }
 
@@ -151,8 +126,12 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	var answerBytes []byte
 	if shortSession {
 		hash := q.epochDb.GetAnswerHash(candidate)
-		answerBytes = q.shortAnswers[candidate]
-		if answerBytes != nil && hash != rlp.Hash(answerBytes) {
+		attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
+		if attachment == nil {
+			return 0, uint32(len(flipsToSolve)), nil
+		}
+		answerBytes = attachment.Answers
+		if answerBytes != nil && hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
 			return 0, uint32(len(flipsToSolve)), nil
 		}
 
@@ -220,7 +199,11 @@ func (q *qualification) GetProof(addr common.Address) []byte {
 	q.lock.RLock()
 	defer q.lock.RUnlock()
 
-	return q.proofs[addr]
+	attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[addr])
+	if attachment == nil {
+		return nil
+	}
+	return attachment.Proof
 }
 
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,

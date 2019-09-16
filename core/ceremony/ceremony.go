@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
@@ -14,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
@@ -166,13 +168,14 @@ func (vc *ValidationCeremony) GetLongFlipsToSolve() [][]byte {
 func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
 	vc.mutex.Lock()
 	prevAnswers := vc.epochDb.ReadOwnShortAnswersBits()
+	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
 	var hash [32]byte
 	if len(prevAnswers) == 0 {
 		vc.epochDb.WriteOwnShortAnswers(answers)
-		hash = rlp.Hash(answers.Bytes())
+		hash = rlp.Hash(append(answers.Bytes(), salt[:]...))
 	} else {
 		vc.log.Warn("Repeated short answers submitting")
-		hash = rlp.Hash(prevAnswers)
+		hash = rlp.Hash(append(prevAnswers, salt[:]...))
 	}
 	vc.mutex.Unlock()
 	return vc.sendTx(types.SubmitAnswersHashTx, hash[:])
@@ -458,8 +461,7 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 				log.Error("short answer attachment is invalid", "tx", tx.Hash())
 				continue
 			}
-			vc.qualification.addAnswers(true, sender, attachment.Answers)
-			vc.qualification.addProof(sender, attachment.Proof)
+			vc.qualification.addAnswers(true, sender, tx.Payload)
 		case types.SubmitLongAnswersTx:
 			vc.qualification.addAnswers(false, sender, tx.Payload)
 		case types.EvidenceTx:
@@ -482,8 +484,9 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 	key := vc.flipper.GetFlipEncryptionKey()
 	_, proof := vc.epochDb.ReadFlipKeyWordPairs()
+	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
 
-	vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, proof, key))
+	vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, proof, salt, key))
 	vc.shortAnswersSent = true
 }
 
@@ -864,4 +867,12 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	}
 
 	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
+}
+
+func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
+	seed := []byte(fmt.Sprintf("short-answers-salt-%v", epoch))
+	hash := common.Hash(rlp.Hash(seed))
+	sig := secStore.Sign(hash.Bytes())
+	sha := sha3.Sum256(sig)
+	return sha[:]
 }

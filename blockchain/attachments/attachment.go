@@ -12,13 +12,15 @@ type ShortAnswerAttachment struct {
 	Answers []byte
 	Proof   []byte
 	Key     []byte
+	Salt    []byte
 }
 
-func CreateShortAnswerAttachment(answers []byte, proof []byte, key *ecies.PrivateKey) []byte {
+func CreateShortAnswerAttachment(answers []byte, proof []byte, salt []byte, key *ecies.PrivateKey) []byte {
 	attachment := &ShortAnswerAttachment{
 		Answers: answers,
 		Proof:   proof,
 		Key:     crypto.FromECDSA(key.ExportECDSA()),
+		Salt:    salt,
 	}
 
 	payload, _ := rlp.EncodeToBytes(attachment)
@@ -27,8 +29,12 @@ func CreateShortAnswerAttachment(answers []byte, proof []byte, key *ecies.Privat
 }
 
 func ParseShortAnswerAttachment(tx *types.Transaction) *ShortAnswerAttachment {
+	return ParseShortAnswerBytesAttachment(tx.Payload)
+}
+
+func ParseShortAnswerBytesAttachment(payload []byte) *ShortAnswerAttachment {
 	var ipfsAnswer ShortAnswerAttachment
-	if err := rlp.Decode(bytes.NewReader(tx.Payload), &ipfsAnswer); err != nil {
+	if err := rlp.Decode(bytes.NewReader(payload), &ipfsAnswer); err != nil {
 		return nil
 	}
 	return &ipfsAnswer
