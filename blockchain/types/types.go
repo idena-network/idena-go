@@ -453,7 +453,7 @@ func (a *Answers) Inappropriate(flipIndex uint) {
 	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*2))
 }
 
-func (a *Answers) Easy(flipIndex uint) {
+func (a *Answers) WrongWords(flipIndex uint) {
 	if flipIndex >= a.FlipsCount {
 		panic("index is out of range")
 	}
@@ -465,7 +465,7 @@ func (a *Answers) Bytes() []byte {
 	return a.Bits.Bytes()
 }
 
-func (a *Answers) Answer(flipIndex uint) (answer Answer, easy bool) {
+func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 	answer = None
 	if a.Bits.Bit(int(flipIndex)) == 1 {
 		answer = Left
@@ -474,6 +474,6 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, easy bool) {
 	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1 {
 		answer = Inappropriate
 	}
-	easy = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
+	wrongWords = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
 	return
 }

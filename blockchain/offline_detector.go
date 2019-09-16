@@ -246,6 +246,15 @@ func (dt *OfflineDetector) processBlock(block *types.Block) {
 	if block.Header.Coinbase() != (common.Address{}) {
 		dt.activityMap[block.Header.Coinbase()] = time.Now().UTC()
 	}
+
+	for _, tx := range block.Body.Transactions {
+		sender, _ := types.Sender(tx)
+
+		switch tx.Type {
+		case types.OnlineStatusTx:
+			dt.activityMap[sender] = time.Now().UTC()
+		}
+	}
 }
 
 func (dt *OfflineDetector) processVote(vote *types.Vote) {
