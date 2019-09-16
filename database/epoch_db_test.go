@@ -1,7 +1,6 @@
 package database
 
 import (
-	"bytes"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
@@ -114,29 +113,6 @@ func TestEpochDb_Write_Read_FlipKeyWordPairs(t *testing.T) {
 	}
 	for i := 0; i < len(readProof); i++ {
 		require.Equal(t, proof[i], readProof[i])
-	}
-}
-
-func TestEpochDb_Write_Read_Proofs(t *testing.T) {
-	require := require.New(t)
-	mdb := db.NewMemDB()
-
-	edb := NewEpochDb(mdb, 1)
-
-	proofs := []DbProof{
-		{Addr: common.Address{0x1}, Proof: []byte{225, 111, 33, 5, 19}},
-		{Addr: common.Address{0x2}, Proof: []byte{1, 2, 38}},
-		{Addr: common.Address{0x3}, Proof: []byte{3, 4}},
-	}
-
-	edb.WriteProofs(proofs)
-
-	readProofs := edb.ReadProofs()
-
-	require.Equal(3, len(readProofs))
-	for i, item := range proofs {
-		require.Equal(item.Addr, readProofs[i].Addr)
-		require.Zero(bytes.Compare(item.Proof, readProofs[i].Proof))
 	}
 }
 

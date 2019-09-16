@@ -2,8 +2,11 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/tests"
@@ -159,12 +162,14 @@ func Test_qualifyCandidate(t *testing.T) {
 	long.Right(8)
 
 	shortAnswer := short.Bytes()
-	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
+	salt := []byte{0x1, 0x10, 0x25}
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, salt...)), time.Now())
 	epochDb.WriteAnswerHash(maliciousCandidate, rlp.Hash([]byte{0x0}), time.Now())
-
+	key, _ := crypto.GenerateKey()
+	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, salt, ecies.ImportECDSA(key))
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
-			candidate:          shortAnswer,
+			candidate:          attachment,
 			maliciousCandidate: shortAnswer,
 		},
 		longAnswers: map[common.Address][]byte{
@@ -211,16 +216,34 @@ func Test_qualifyCandidateWithFewFlips(t *testing.T) {
 	short.Right(1)
 
 	shortAnswer := short.Bytes()
-	epochDb.WriteAnswerHash(candidate, rlp.Hash(shortAnswer), time.Now())
+	salt := []byte{0x1, 0x10, 0x25, 0x28}
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, salt...)), time.Now())
+	key, _ := crypto.GenerateKey()
+	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, salt, ecies.ImportECDSA(key))
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
-			candidate: shortAnswer,
+			candidate: attachment,
 		},
 		epochDb: epochDb,
 	}
 	shortPoint, shortQualifiedFlipsCount, _ := q.qualifyCandidate(candidate, flipQualificationMap, shortFlipsToSolve, true, mapset.NewSet())
 
 	require.Equal(t, float32(1.5), shortPoint)
+	require.Equal(t, uint32(2), shortQualifiedFlipsCount)
+
+	// wrong salt
+	epochDb.Clear()
+	wrongSalt := []byte{0x1}
+	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, wrongSalt...)), time.Now())
+	q2 := qualification{
+		shortAnswers: map[common.Address][]byte{
+			candidate: attachment,
+		},
+		epochDb: epochDb,
+	}
+	shortPoint, shortQualifiedFlipsCount, _ = q2.qualifyCandidate(candidate, flipQualificationMap, shortFlipsToSolve, true, mapset.NewSet())
+
+	require.Equal(t, float32(0), shortPoint)
 	require.Equal(t, uint32(2), shortQualifiedFlipsCount)
 }
 
