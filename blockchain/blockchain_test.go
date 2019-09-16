@@ -40,25 +40,26 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	appState := chain.appState.Readonly(1)
 	chain.applyBlockRewards(fee, appState, block, chain.Head)
 
-	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
 
 	burnFee = burnFee.Mul(coef)
-	intBurn := math.ToInt(&burnFee)
+	intBurn := math.ToInt(burnFee)
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(fee, intBurn)
+
+
+	_, stake := chain.splitReward(big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward))
+
 
 	expectedBalance := big.NewInt(0)
 	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)
 	expectedBalance.Add(expectedBalance, intFeeReward)
-	expectedBalance.Sub(expectedBalance, intStake)
+	expectedBalance.Sub(expectedBalance, stake)
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
-	require.Equal(t, 0, intStake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
+	require.Equal(t, 0, stake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
 }
 
 func Test_ApplyInviteTx(t *testing.T) {

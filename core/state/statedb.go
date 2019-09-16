@@ -194,6 +194,11 @@ func (s *StateDB) Epoch() uint16 {
 	return stateObject.data.Epoch
 }
 
+func (s *StateDB) EpochBlock() uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.EpochBlock
+}
+
 func (s *StateDB) LastSnapshot() uint64 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.LastSnapshot
@@ -383,6 +388,10 @@ func (s *StateDB) IncEpoch() {
 
 func (s *StateDB) SetGlobalEpoch(epoch uint16) {
 	s.GetOrNewGlobalObject().SetEpoch(epoch)
+}
+
+func (s *StateDB) SetEpochBlock(height uint64) {
+	s.GetOrNewGlobalObject().SetEpochBlock(height)
 }
 
 func (s *StateDB) ValidationPeriod() ValidationPeriod {

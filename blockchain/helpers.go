@@ -42,7 +42,7 @@ func ConvertToInt(amount decimal.Decimal) *big.Int {
 	initial := decimal.NewFromBigInt(common.DnaBase, 0)
 	result := amount.Mul(initial)
 
-	return math.ToInt(&result)
+	return math.ToInt(result)
 }
 
 func ConvertToFloat(amount *big.Int) decimal.Decimal {

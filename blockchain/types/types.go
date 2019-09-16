@@ -480,7 +480,12 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 }
 
 type ValidationResult struct {
-	StrongFlips int
-	WeakFlips   int
-	
+	StrongFlips       int
+	WeakFlips         int
+	SuccessfulInvites int
+}
+
+type ValidationAuthors struct {
+	BadAuthors  map[common.Address]struct{}
+	GoodAuthors map[common.Address]*ValidationResult
 }
