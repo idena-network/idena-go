@@ -1,9 +1,12 @@
 package node
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/consensus"
@@ -19,6 +22,7 @@ import (
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"net"
@@ -185,22 +189,21 @@ func (node *Node) Start() {
 }
 
 func (node *Node) StartWithHeight(height uint64) {
+	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
 	config := node.config.P2P
 	config.Protocols = []p2p.Protocol{
 		{
-			Name:    "AppName",
+			Name:    "idena",
 			Version: 1,
 			Run:     node.pm.HandleNewPeer,
 			Length:  35,
 		},
 	}
-	//TODO: replace with secStore
-	config.PrivateKey = node.config.NodeKey()
+	config.PrivateKey = node.generateSyntheticP2PKey()
 	node.srv = &p2p.Server{
 		Config: *config,
 	}
-	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
 	if err := node.blockchain.InitializeChain(); err != nil {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
@@ -330,4 +333,11 @@ func (node *Node) apis() []rpc.API {
 			Public:    true,
 		},
 	}
+}
+
+func (node *Node) generateSyntheticP2PKey() *ecdsa.PrivateKey {
+	hash := common.Hash(rlp.Hash([]byte("node-p2p-key")))
+	sig := node.secStore.Sign(hash.Bytes())
+	p2pKey, _ := crypto.GenerateKeyFromSeed(bytes.NewReader(sig))
+	return p2pKey
 }
