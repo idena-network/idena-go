@@ -19,11 +19,12 @@ func Test_getAnswersCount(t *testing.T) {
 
 	ans := fillArray(10, 13, 4, 3)
 
-	resLeft, resRight, resInapp := getAnswersCount(ans)
+	resLeft, resRight, none, resInapp := getAnswersCount(ans)
 
 	require.Equal(uint(10), resLeft)
 	require.Equal(uint(13), resRight)
 	require.Equal(uint(4), resInapp)
+	require.Equal(uint(3), none)
 }
 
 func Test_qualifyOneFlip(t *testing.T) {
@@ -62,6 +63,11 @@ func Test_qualifyOneFlip(t *testing.T) {
 	ans = fillArray(4, 4, 4, 0)
 	q = qualifyOneFlip(ans)
 	require.Equal(NotQualified, q.status)
+	require.Equal(types.None, q.answer)
+
+	ans = fillArray(1, 1, 1, 10)
+	q = qualifyOneFlip(ans)
+	require.Equal(QualifiedByNone, q.status)
 	require.Equal(types.None, q.answer)
 }
 

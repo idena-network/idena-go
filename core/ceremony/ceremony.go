@@ -71,6 +71,7 @@ type ValidationCeremony struct {
 	applyEpochMutex        sync.Mutex
 	flipAuthorMap          map[common.Hash]common.Address
 	flipAuthorMapLock      sync.Mutex
+	authorIndexies         map[common.Address]int
 }
 
 type cacheValue struct {
@@ -294,7 +295,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	}
 
 	vc.flipAuthorMapLock.Lock()
-	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
+	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap, vc.authorIndexies = vc.getCandidatesAndFlips()
 	vc.flipAuthorMapLock.Unlock()
 
 	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()), seed, false, nil)
@@ -375,18 +376,22 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 	vc.keySent = true
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
+func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address, map[common.Address]int) {
 	nonCandidates := make([]common.Address, 0)
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
 	flipAuthorMap := make(map[common.Hash]common.Address)
 
+	authorIndexies := make(map[common.Address]int)
+
 	addFlips := func(author common.Address, identityFlips []state.IdentityFlip) {
 		for _, f := range identityFlips {
+			authorIndex := len(m)
 			flips = append(flips, f.Cid)
-			flipsPerAuthor[len(m)] = append(flipsPerAuthor[len(m)], f.Cid)
+			flipsPerAuthor[authorIndex] = append(flipsPerAuthor[authorIndex], f.Cid)
 			flipAuthorMap[rlp.Hash(f.Cid)] = author
+			authorIndexies[author] = authorIndex
 		}
 	}
 
@@ -415,7 +420,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 		return false
 	})
 
-	return m, nonCandidates, flips, flipsPerAuthor, flipAuthorMap
+	return m, nonCandidates, flips, flipsPerAuthor, flipAuthorMap, authorIndexies
 }
 
 func (vc *ValidationCeremony) getCandidatesAddresses() []common.Address {

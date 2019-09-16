@@ -17,6 +17,7 @@ const (
 	NotQualified    FlipStatus = 0
 	Qualified       FlipStatus = 1
 	WeaklyQualified FlipStatus = 2
+	QualifiedByNone FlipStatus = 3
 )
 
 type FlipQualification struct {
