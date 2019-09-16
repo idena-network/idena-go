@@ -203,6 +203,9 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 				answerPoint = 1
 				qualifiedFlipsCount += 1
 				break
+			case answer == types.None:
+				qualifiedFlipsCount += 1
+				break
 			case qual.answer != types.Inappropriate:
 				answerPoint = 0.5
 				qualifiedFlipsCount += 1

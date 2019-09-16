@@ -71,7 +71,6 @@ type ValidationCeremony struct {
 	applyEpochMutex        sync.Mutex
 	flipAuthorMap          map[common.Hash]common.Address
 	flipAuthorMapLock      sync.Mutex
-	authorIndexies         map[common.Address]int
 	validationAuthors      *types.ValidationAuthors
 }
 
@@ -297,7 +296,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	}
 
 	vc.flipAuthorMapLock.Lock()
-	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap, vc.authorIndexies = vc.getCandidatesAndFlips()
+	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
 	vc.flipAuthorMapLock.Unlock()
 
 	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()), seed, false, nil)
@@ -378,14 +377,12 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 	vc.keySent = true
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address, map[common.Address]int) {
+func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
 	nonCandidates := make([]common.Address, 0)
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
 	flipAuthorMap := make(map[common.Hash]common.Address)
-
-	authorIndexies := make(map[common.Address]int)
 
 	addFlips := func(author common.Address, identityFlips []state.IdentityFlip) {
 		for _, f := range identityFlips {
@@ -393,7 +390,6 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 			flips = append(flips, f.Cid)
 			flipsPerAuthor[authorIndex] = append(flipsPerAuthor[authorIndex], f.Cid)
 			flipAuthorMap[rlp.Hash(f.Cid)] = author
-			authorIndexies[author] = authorIndex
 		}
 	}
 
@@ -422,7 +418,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 		return false
 	})
 
-	return m, nonCandidates, flips, flipsPerAuthor, flipAuthorMap, authorIndexies
+	return m, nonCandidates, flips, flipsPerAuthor, flipAuthorMap
 }
 
 func (vc *ValidationCeremony) getCandidatesAddresses() []common.Address {
@@ -712,10 +708,10 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]struct{}, goodAuthors map[common.Address]*types.ValidationResult) {
 
 	badAuthors = make(map[common.Address]struct{})
-
-	nonQualified := make(map[common.Address]int)
 	goodAuthors = make(map[common.Address]*types.ValidationResult)
+
 	madeFlips := make(map[common.Address]int)
+	nonQualifiedFlips := make(map[common.Address]int)
 
 	for i, item := range qualifications {
 		cid := vc.flips[i]
@@ -724,22 +720,26 @@ func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification)
 			badAuthors[author] = struct{}{}
 		}
 		if item.status == NotQualified {
-			nonQualified[author] += 1
+			nonQualifiedFlips[author] += 1
 		}
 		madeFlips[author] += 1
 
 		if item.status == Qualified || item.status == WeaklyQualified {
-			if vr, ok := goodAuthors[author]; ok {
-				if item.status == Qualified {
-					vr.StrongFlips += 1
-				} else {
-					vr.WeakFlips += 1
-				}
+
+			vr, ok := goodAuthors[author]
+			if !ok {
+				vr = new(types.ValidationResult)
+				goodAuthors[author] = vr
+			}
+			if item.status == Qualified {
+				vr.StrongFlips += 1
+			} else {
+				vr.WeakFlips += 1
 			}
 		}
 	}
 
-	for author, nonQual := range nonQualified {
+	for author, nonQual := range nonQualifiedFlips {
 		if madeFlips[author] == nonQual {
 			badAuthors[author] = struct{}{}
 		}

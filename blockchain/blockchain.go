@@ -429,6 +429,10 @@ func (chain *Blockchain) addSuccessfullValidationReward(appState *appstate.AppSt
 		}
 	})
 
+	if normalizedAges == 0 {
+		return
+	}
+
 	successfullValidationRewardShare := successfullValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
@@ -453,6 +457,9 @@ func (chain *Blockchain) addFlipReward(appState *appstate.AppState, authors *typ
 	for _, author := range authors.GoodAuthors {
 		totalFlips += float32(author.WeakFlips + author.StrongFlips)
 	}
+	if totalFlips == 0 {
+		return
+	}
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
 
 	for addr, author := range authors.GoodAuthors {
@@ -469,6 +476,9 @@ func (chain *Blockchain) addInvitationReward(appState *appstate.AppState, author
 	totalInvites := float32(0)
 	for _, author := range authors.GoodAuthors {
 		totalInvites += float32(author.SuccessfulInvites)
+	}
+	if totalInvites == 0 {
+		return
 	}
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalInvites))
 
