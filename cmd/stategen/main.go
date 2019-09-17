@@ -68,6 +68,7 @@ func main() {
 			WordsSeed:          globalObject.FlipWordsSeed(),
 			ValidationPeriod:   globalObject.ValidationPeriod(),
 			Epoch:              globalObject.Epoch(),
+			EpochBlock:         globalObject.EpochBlock(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
@@ -85,6 +86,8 @@ func main() {
 			snapshot.Accounts = append(snapshot.Accounts, &state.StateAccount{
 				Address: addr,
 				Balance: data.Balance,
+				Epoch:   data.Epoch,
+				Nonce:   data.Nonce,
 			})
 			return false
 		})

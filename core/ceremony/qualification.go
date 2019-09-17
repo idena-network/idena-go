@@ -177,10 +177,15 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 			qualifiedFlipsCount += 1
 		case WeaklyQualified:
-			if qual.answer == answer {
+			switch {
+			case qual.answer == answer:
 				answerPoint = 1
 				qualifiedFlipsCount += 1
-			} else if qual.answer != types.Inappropriate {
+				break
+			case answer == types.None:
+				qualifiedFlipsCount += 1
+				break
+			case qual.answer != types.Inappropriate:
 				answerPoint = 0.5
 				qualifiedFlipsCount += 1
 			}
@@ -209,7 +214,7 @@ func (q *qualification) GetProof(addr common.Address) []byte {
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
 	answers *types.Answers, shortSession bool) FlipStatus {
 
-	if !shortSession || baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) {
+	if !shortSession || baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) || baseStatus == QualifiedByNone {
 		return baseStatus
 	}
 	shortAnswer, _ := answers.Answer(uint(flipsToSolveIdx))
@@ -219,7 +224,7 @@ func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus Flip
 	return baseStatus
 }
 
-func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {
+func getAnswersCount(a []types.Answer) (left uint, right uint, none uint, inappropriate uint) {
 	for k := 0; k < len(a); k++ {
 		if a[k] == types.Left {
 			left++
@@ -230,54 +235,63 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uin
 		if a[k] == types.Inappropriate {
 			inappropriate++
 		}
+		if a[k] == types.None {
+			none++
+		}
 	}
 
-	return left, right, inappropriate
+	return left, right, none, inappropriate
 }
 
 func qualifyOneFlip(a []types.Answer) FlipQualification {
-	left, right, inapp := getAnswersCount(a)
-	totalAnswersCount := len(a)
+	left, right, none, inapp := getAnswersCount(a)
+	totalAnswersCount := float32(len(a))
 
-	if float32(left)/float32(totalAnswersCount) >= 0.75 {
+	if float32(left)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Left,
 			status: Qualified,
 		}
 	}
 
-	if float32(right)/float32(totalAnswersCount) >= 0.75 {
+	if float32(right)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Right,
 			status: Qualified,
 		}
 	}
 
-	if float32(inapp)/float32(totalAnswersCount) >= 0.75 {
+	if float32(inapp)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Inappropriate,
 			status: Qualified,
 		}
 	}
 
-	if float32(left)/float32(totalAnswersCount) >= 0.66 {
+	if float32(left)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
 			answer: types.Left,
 			status: WeaklyQualified,
 		}
 	}
 
-	if float32(right)/float32(totalAnswersCount) >= 0.66 {
+	if float32(right)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
 			answer: types.Right,
 			status: WeaklyQualified,
 		}
 	}
 
-	if float32(inapp)/float32(totalAnswersCount) >= 0.5 {
+	if float32(inapp)/totalAnswersCount >= 0.5 {
 		return FlipQualification{
 			answer: types.Inappropriate,
 			status: WeaklyQualified,
+		}
+	}
+	if float32(none)/totalAnswersCount >= 0.66 {
+		return FlipQualification{
+			answer: types.None,
+			status: QualifiedByNone,
 		}
 	}
 

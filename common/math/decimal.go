@@ -9,7 +9,7 @@ func abs(n int64) int64 {
 	y := n >> 63
 	return (n ^ y) - y
 }
-func ToInt(value *decimal.Decimal) *big.Int {
+func ToInt(value decimal.Decimal) *big.Int {
 
 	m := value.Coefficient()
 	exp := value.Exponent()

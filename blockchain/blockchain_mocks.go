@@ -31,6 +31,13 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		StakeRewardRate:                0.2,
 		FeeBurnRate:                    0.9,
 		FinalCommitteeReward:           big.NewInt(6e+18),
+		SnapshotRange:                      10000,
+		OfflinePenaltyBlocksCount:          1800,
+		SuccessfullValidationRewardPercent: 0.24,
+		FlipRewardPercent:                  0.32,
+		ValidInvitationRewardPercent:       0.32,
+		FoundationPayoutsPercent:           0.1,
+		ZeroWalletPercent:                  0.02,
 	}
 }
 
