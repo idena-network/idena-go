@@ -67,7 +67,7 @@ type Blockchain struct {
 	ipfs            ipfs.Proxy
 	timing          *timing
 	bus             eventbus.Bus
-	applyNewEpochFn func(appState *appstate.AppState) int
+	applyNewEpochFn func(appState *appstate.AppState) (int, *types.ValidationAuthors)
 	isSyncing       bool
 }
 
@@ -97,7 +97,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) int) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) (int, *types.ValidationAuthors)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -336,23 +336,16 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
 	burnFee = burnFee.Mul(decimal.NewFromFloat32(chain.config.Consensus.FeeBurnRate))
-	intBurn := math.ToInt(&burnFee)
+	intBurn := math.ToInt(burnFee)
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(totalFee, intBurn)
 
-	// calculate stake
-	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
-	// calculate block reward
-	blockReward := big.NewInt(0)
-	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
+	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
 
-	// calculate total reward
-	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	// calculate penalty
-	balanceAdd, stakeAdd, penaltySub := calculatePenalty(totalReward, intStake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
+	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
 
 	// update state
 	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, balanceAdd)
@@ -390,15 +383,19 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize := chain.applyNewEpochFn(appState)
+	networkSize, authors := chain.applyNewEpochFn(appState)
 
 	setNewIdentitiesAttributes(appState, networkSize)
+
+	rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock())
 
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.GetEpochDuration(networkSize)))
 
 	appState.State.SetFlipWordsSeed(block.Seed())
+
+	appState.State.SetEpochBlock(block.Height())
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
@@ -492,7 +489,7 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
-		appState.State.SetPenalty(addr, math.ToInt(&res))
+		appState.State.SetPenalty(addr, math.ToInt(res))
 	}
 
 	appState.IdentityState.SetOnline(addr, false)
@@ -509,18 +506,13 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
 
-	stake := decimal.NewFromBigInt(totalReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
-
-	reward := big.NewInt(0)
-	reward.Sub(totalReward, intStake)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
 
 		// calculate penalty
-		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, intStake, appState.State.GetPenalty(addr))
+		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(addr))
 
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)

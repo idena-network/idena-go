@@ -74,6 +74,7 @@ type Global struct {
 	GodAddress         common.Address
 	WordsSeed          types.Seed `rlp:"nil"`
 	LastSnapshot       uint64
+	EpochBlock         uint64
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -547,6 +548,15 @@ func (s *stateGlobal) FlipWordsSeed() types.Seed {
 func (s *stateGlobal) SetEpoch(epoch uint16) {
 	s.data.Epoch = epoch
 	s.touch()
+}
+
+func (s *stateGlobal) SetEpochBlock(height uint64) {
+	s.data.EpochBlock = height
+	s.touch()
+}
+
+func (s *stateGlobal) EpochBlock() uint64 {
+	return s.data.EpochBlock
 }
 
 // EncodeRLP implements rlp.Encoder.
