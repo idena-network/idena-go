@@ -552,6 +552,7 @@ func (s *stateGlobal) SetEpoch(epoch uint16) {
 
 func (s *stateGlobal) SetEpochBlock(height uint64) {
 	s.data.EpochBlock = height
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.

@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -52,4 +53,13 @@ func ConvertToFloat(amount *big.Int) decimal.Decimal {
 	decimalAmount := decimal.NewFromBigInt(amount, 0)
 
 	return decimalAmount.Div(decimal.NewFromBigInt(common.DnaBase, 0))
+}
+
+func splitReward(totalReward *big.Int, conf *config.ConsensusConf) (reward, stake *big.Int) {
+	stakeD := decimal.NewFromBigInt(totalReward, 0).Mul(decimal.NewFromFloat32(conf.StakeRewardRate))
+	stake = math.ToInt(stakeD)
+
+	reward = big.NewInt(0)
+	reward = reward.Sub(totalReward, stake)
+	return reward, stake
 }

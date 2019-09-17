@@ -40,7 +40,6 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	appState := chain.appState.Readonly(1)
 	chain.applyBlockRewards(fee, appState, block, chain.Head)
 
-
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
 
@@ -49,9 +48,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(fee, intBurn)
 
-
-	_, stake := chain.splitReward(big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward))
-
+	_, stake := splitReward(big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward), chain.config.Consensus)
 
 	expectedBalance := big.NewInt(0)
 	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)

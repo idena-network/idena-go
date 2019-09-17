@@ -29,7 +29,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
-	math2 "math"
 	"math/big"
 	"time"
 )
@@ -343,7 +342,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate
 
 	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
 
-	reward, stake := chain.splitReward(totalReward)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	// calculate penalty
 	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
@@ -388,7 +387,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	setNewIdentitiesAttributes(appState, networkSize)
 
-	chain.rewardValidIdentities(appState, authors, block.Height()-appState.State.EpochBlock())
+	rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock())
 
 	appState.State.IncEpoch()
 
@@ -397,111 +396,6 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetFlipWordsSeed(block.Seed())
 
 	appState.State.SetEpochBlock(block.Height())
-}
-
-func (chain *Blockchain) rewardValidIdentities(appState *appstate.AppState, authors *types.ValidationAuthors, blocks uint64) {
-	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, chain.config.Consensus.FinalCommitteeReward)
-	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(blocks)))
-
-	chain.log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
-
-	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	chain.addSuccessfullValidationReward(appState, authors, totalRewardD)
-	chain.addFlipReward(appState, authors, totalRewardD)
-	chain.addInvitationReward(appState, authors, totalRewardD)
-	chain.addFoundationPayouts(appState, totalRewardD)
-	chain.addZeroWalletFund(appState, totalRewardD)
-}
-
-func (chain *Blockchain) addSuccessfullValidationReward(appState *appstate.AppState, authors *types.ValidationAuthors, totalReward decimal.Decimal) {
-	successfullValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(chain.config.Consensus.SuccessfullValidationRewardPercent))
-
-	epoch := appState.State.Epoch()
-
-	normalizedAges := float32(0)
-	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified:
-		case state.Newbie:
-			if _, ok := authors.BadAuthors[addr]; !ok {
-				normalizedAges += normalAge(epoch - identity.Birthday)
-			}
-		}
-	})
-
-	if normalizedAges == 0 {
-		return
-	}
-
-	successfullValidationRewardShare := successfullValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
-
-	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified:
-		case state.Newbie:
-			if _, ok := authors.BadAuthors[addr]; !ok {
-				normalAge := normalAge(epoch - identity.Birthday)
-				totalReward := successfullValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
-				reward, stake := chain.splitReward(math.ToInt(totalReward))
-				appState.State.AddBalance(addr, reward)
-				appState.State.AddStake(addr, stake)
-			}
-		}
-	})
-}
-
-func (chain *Blockchain) addFlipReward(appState *appstate.AppState, authors *types.ValidationAuthors, totalReward decimal.Decimal) {
-	flipRewardD := totalReward.Mul(decimal.NewFromFloat32(chain.config.Consensus.FlipRewardPercent))
-
-	totalFlips := float32(0)
-	for _, author := range authors.GoodAuthors {
-		totalFlips += float32(author.WeakFlips + author.StrongFlips)
-	}
-	if totalFlips == 0 {
-		return
-	}
-	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
-
-	for addr, author := range authors.GoodAuthors {
-		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(author.StrongFlips + author.WeakFlips)))
-		reward, stake := chain.splitReward(math.ToInt(totalReward))
-		appState.State.AddBalance(addr, reward)
-		appState.State.AddStake(addr, stake)
-	}
-}
-
-func (chain *Blockchain) addInvitationReward(appState *appstate.AppState, authors *types.ValidationAuthors, totalReward decimal.Decimal) {
-	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(chain.config.Consensus.ValidInvitationRewardPercent))
-
-	totalInvites := float32(0)
-	for _, author := range authors.GoodAuthors {
-		totalInvites += float32(author.SuccessfulInvites)
-	}
-	if totalInvites == 0 {
-		return
-	}
-	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalInvites))
-
-	for addr, author := range authors.GoodAuthors {
-		totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(float32(author.SuccessfulInvites)))
-		reward, stake := chain.splitReward(math.ToInt(totalReward))
-		appState.State.AddBalance(addr, reward)
-		appState.State.AddStake(addr, stake)
-	}
-}
-
-func (chain *Blockchain) addFoundationPayouts(appState *appstate.AppState, totalReward decimal.Decimal) {
-	payout := totalReward.Mul(decimal.NewFromFloat32(chain.config.Consensus.FoundationPayoutsPercent))
-	appState.State.AddBalance(appState.State.GodAddress(), math.ToInt(payout))
-}
-
-func (chain *Blockchain) addZeroWalletFund(appState *appstate.AppState, totalReward decimal.Decimal) {
-	payout := totalReward.Mul(decimal.NewFromFloat32(chain.config.Consensus.ZeroWalletPercent))
-	appState.State.AddBalance(common.Address{}, math.ToInt(payout))
-}
-
-func normalAge(age uint16) float32 {
-	return float32(math2.Pow(float64(age)+1, 1/3))
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
@@ -612,7 +506,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
 
-	reward, stake := chain.splitReward(totalReward)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
@@ -627,15 +521,6 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 			appState.State.SubPenalty(addr, penaltySub)
 		}
 	}
-}
-
-func (chain *Blockchain) splitReward(totalReward *big.Int) (reward, stake *big.Int) {
-	stakeD := decimal.NewFromBigInt(totalReward, 0).Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	stake = math.ToInt(stakeD)
-
-	reward = big.NewInt(0)
-	reward = reward.Sub(totalReward, stake)
-	return reward, stake
 }
 
 func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (totalFee *big.Int, err error) {
