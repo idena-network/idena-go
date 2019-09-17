@@ -47,9 +47,10 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	tx2 := generateTx(getAmount(88), addr1, 1, 0, key2)
 	tx3 := generateTx(getAmount(32), addr2, 2, 0, key1)
 
-	feeTx1 := types.CalculateCost(1, tx1)
-	feeTx2 := types.CalculateCost(1, tx2)
-	feeTx3 := types.CalculateCost(1, tx3)
+	feePerByte := big.NewInt(0).Div(big.NewInt(1e+18), big.NewInt(1000))
+	feeTx1 := types.CalculateCost(1, feePerByte, tx1)
+	feeTx2 := types.CalculateCost(1, feePerByte, tx2)
+	feeTx3 := types.CalculateCost(1, feePerByte, tx3)
 
 	spend1 := new(big.Int).Add(feeTx1, feeTx3)
 	receive1 := new(big.Int).Add(balance, getAmount(88))
@@ -61,20 +62,20 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.NoError(pool.Add(tx2))
 	require.NoError(pool.Add(tx3))
 
-	block := chain.ProposeBlock()
+	block, _ := chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 	require.Equal(appState.State.GetBalance(addr1), new(big.Int).Sub(receive1, spend1))
 	require.Equal(appState.State.GetBalance(addr2), new(big.Int).Sub(receive2, spend2))
 
 	//new epoch
-	block = chain.ProposeBlock()
+	block, _ = chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 
 	// new epoch started
 	tx1 = generateTx(getAmount(15), addr2, 1, 1, key1)
 	tx2 = generateTx(getAmount(10), addr1, 2, 1, key2) // wont be mined, nonce from future
 
-	spend1 = types.CalculateCost(2, tx1)
+	spend1 = types.CalculateCost(2, feePerByte, tx1)
 	receive1 = appState.State.GetBalance(addr1)
 
 	receive2 = new(big.Int).Add(appState.State.GetBalance(addr2), getAmount(15))
@@ -82,7 +83,7 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.NoError(pool.Add(tx1))
 	require.NoError(pool.Add(tx2))
 
-	block = chain.ProposeBlock()
+	block, _ = chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 
 	require.Equal(1, len(block.Body.Transactions))

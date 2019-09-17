@@ -75,6 +75,7 @@ type Global struct {
 	WordsSeed          types.Seed `rlp:"nil"`
 	LastSnapshot       uint64
 	EpochBlock         uint64
+	FeePerByte         *big.Int
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -557,6 +558,15 @@ func (s *stateGlobal) SetEpochBlock(height uint64) {
 
 func (s *stateGlobal) EpochBlock() uint64 {
 	return s.data.EpochBlock
+}
+
+func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
+	s.data.FeePerByte = fee
+	s.touch()
+}
+
+func (s *stateGlobal) FeePerByte() *big.Int {
+	return s.data.FeePerByte
 }
 
 // EncodeRLP implements rlp.Encoder.

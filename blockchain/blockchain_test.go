@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/tests"
@@ -36,9 +37,10 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	}
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
+	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
 	appState := chain.appState.Readonly(1)
-	chain.applyBlockRewards(fee, appState, block, chain.Head)
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
@@ -48,11 +50,14 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(fee, intBurn)
 
-	_, stake := splitReward(big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward), chain.config.Consensus)
+	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward.Add(totalReward, tips)
+	_, stake := splitReward(totalReward, chain.config.Consensus)
 
 	expectedBalance := big.NewInt(0)
 	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)
 	expectedBalance.Add(expectedBalance, intFeeReward)
+	expectedBalance.Add(expectedBalance, tips)
 	expectedBalance.Sub(expectedBalance, stake)
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
@@ -156,7 +161,8 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signed)
 
@@ -193,7 +199,8 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	}
 	signedTx, _ := types.SignTx(tx, inviterKey)
 
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signedTx)
 
@@ -256,4 +263,76 @@ func Test_CalculatePenalty(t *testing.T) {
 		}
 	}
 
+}
+
+func Test_applyNextBlockFee(t *testing.T) {
+	conf := GetDefaultConsensusConfig(false)
+	conf.FeePrevBlocks = 3
+	conf.MinFee = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
+	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+
+	loadCounter := 0
+	chain.blockSizesCache.Initialize(func(height uint64) (size int, present bool) {
+		loadCounter++
+		switch height {
+		case 1, 2:
+			return 0, true
+		case 3:
+			return 1000000, true
+		default:
+			return 0, false
+		}
+	})
+
+	appState := chain.appState.Readonly(1)
+
+	block := generateBlock(4, 10000) // block size 770008
+
+	require.Nil(t, chain.applyNextBlockFee(appState, block))
+	require.Equal(t, big.NewInt(16267038981119790), appState.State.FeePerByte())
+	require.Equal(t, 2, loadCounter)
+
+	block5 := generateBlock(5, 0)
+	require.NotNil(t, chain.applyNextBlockFee(appState, block5))
+	require.Equal(t, 3, loadCounter)
+
+	require.Nil(t, chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())))
+
+	require.Nil(t, chain.applyNextBlockFee(appState, block5))
+	require.Equal(t, big.NewInt(26461655721327077), appState.State.FeePerByte())
+	require.Equal(t, 3, loadCounter)
+	require.Nil(t, chain.blockSizesCache.Add(block5.Height(), len(block5.Body.Bytes())))
+
+	block = generateBlock(6, 0)
+	require.Nil(t, chain.applyNextBlockFee(appState, block))
+	require.Equal(t, chain.config.Consensus.MinFee, appState.State.FeePerByte())
+	require.Equal(t, 3, loadCounter)
+	require.Nil(t, chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())))
+}
+
+func generateBlock(height uint64, txsCount int) *types.Block {
+	txs := make([]*types.Transaction, 0)
+	for i := 0; i < txsCount; i++ {
+		tx := &types.Transaction{
+			Type: types.SendTx,
+		}
+		key, _ := crypto.GenerateKey()
+		signedTx, _ := types.SignTx(tx, key)
+		txs = append(txs, signedTx)
+	}
+	header := &types.ProposedHeader{
+		Height: height,
+		TxHash: types.DeriveSha(types.Transactions(txs)),
+	}
+
+	block := &types.Block{
+		Header: &types.Header{
+			ProposedHeader: header,
+		},
+		Body: &types.Body{
+			Transactions: txs,
+		},
+	}
+
+	return block
 }

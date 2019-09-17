@@ -108,8 +108,10 @@ func (engine *Engine) loop() {
 		var block *types.Block
 		if isProposer {
 			engine.process = "Propose block"
-			block = engine.proposeBlock(proposerHash, proposerProof)
-			if block != nil {
+			block, err := engine.proposeBlock(proposerHash, proposerProof)
+			if err != nil {
+				engine.log.Error("Failed to propose block", "err", err)
+			} else if block != nil {
 				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round)
 			}
 		}
@@ -121,7 +123,11 @@ func (engine *Engine) loop() {
 		proposer := engine.fmtProposer(proposerPubKey)
 
 		engine.log.Info("Selected proposer", "proposer", proposer)
-		emptyBlock := engine.chain.GenerateEmptyBlock()
+		emptyBlock, err := engine.chain.GenerateEmptyBlock()
+		if err != nil {
+			engine.log.Error("Failed to generate empty block", "err", err)
+			continue
+		}
 		if proposerPubKey == nil {
 			block = emptyBlock
 		} else {
@@ -134,8 +140,11 @@ func (engine *Engine) loop() {
 			}
 		}
 
-		blockHash := engine.reduction(round, block)
-		blockHash, cert, err := engine.binaryBa(blockHash)
+		blockHash, err := engine.reduction(round, block)
+		var cert *types.BlockCert
+		if err == nil {
+			blockHash, cert, err = engine.binaryBa(blockHash)
+		}
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
 
@@ -174,7 +183,7 @@ func (engine *Engine) loop() {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
 
-				engine.chain.WriteCertificate(blockHash, cert,  engine.chain.IsPermanentCert(block.Header))
+				engine.chain.WriteCertificate(blockHash, cert, engine.chain.IsPermanentCert(block.Header))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}
@@ -210,8 +219,11 @@ func (engine *Engine) completeRound(round uint64) {
 	engine.votes.CompleteRound(round)
 }
 
-func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
-	block := engine.chain.ProposeBlock()
+func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) (*types.Block, error) {
+	block, err := engine.chain.ProposeBlock()
+	if err != nil {
+		return nil, err
+	}
 
 	engine.log.Info("Proposed block", "block", block.Hash().Hex(), "txs", len(block.Body.Transactions))
 
@@ -221,7 +233,7 @@ func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block 
 	engine.proposals.AddProposedBlock(block, "")
 	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, block.Height())
 
-	return block
+	return block, nil
 }
 
 func (engine *Engine) getHighestProposerPubKey(round uint64) []byte {
@@ -239,7 +251,7 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
 	return block
 }
 
-func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
+func (engine *Engine) reduction(round uint64, block *types.Block) (common.Hash, error) {
 	engine.process = "Reduction started"
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
 
@@ -249,7 +261,10 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesTreshold(engine.appState.ValidatorsCache, false), engine.config.WaitForStepDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
-	emptyBlock := engine.chain.GenerateEmptyBlock()
+	emptyBlock, emptyBlockErr := engine.chain.GenerateEmptyBlock()
+	if emptyBlockErr != nil {
+		return common.Hash{}, emptyBlockErr
+	}
 
 	if err != nil {
 		hash = emptyBlock.Hash()
@@ -264,7 +279,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 		hash = emptyBlock.Hash()
 	}
 	engine.log.Info("Reduction completed", "block", hash.Hex(), "isEmpty", hash == emptyBlock.Hash())
-	return hash
+	return hash, nil
 }
 
 func (engine *Engine) completeBA() {
@@ -274,7 +289,10 @@ func (engine *Engine) completeBA() {
 func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, *types.BlockCert, error) {
 	defer engine.completeBA()
 	engine.log.Info("binaryBa started", "block", blockHash.Hex())
-	emptyBlock := engine.chain.GenerateEmptyBlock()
+	emptyBlock, err := engine.chain.GenerateEmptyBlock()
+	if err != nil {
+		return common.Hash{}, nil, err
+	}
 
 	emptyBlockHash := emptyBlock.Hash()
 

@@ -220,7 +220,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		if tx.Epoch > globalEpoch {
 			continue
 		}
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, true); err != nil {
 			txpool.Remove(tx)
 			continue
 		}
@@ -295,7 +295,7 @@ func (txpool *TxPool) createBuildingContext() *buildingContext {
 		}
 	}
 
-	return newBuildingContext(txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
+	return newBuildingContext(txpool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
 }
 
 func (txpool *TxPool) StartSync() {

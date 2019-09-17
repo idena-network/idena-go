@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/blockchain/cache"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -17,20 +18,20 @@ import (
 
 func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	return &config.ConsensusConf{
-		MaxSteps:                       150,
-		CommitteePercent:               0.3,
-		FinalCommitteeConsensusPercent: 0.7,
-		ThesholdBa:                     0.65,
-		ProposerTheshold:               0.5,
-		WaitBlockDelay:                 time.Minute,
-		WaitSortitionProofDelay:        time.Second * 5,
-		EstimatedBaVariance:            time.Second * 5,
-		WaitForStepDelay:               time.Second * 20,
-		Automine:                       automine,
-		BlockReward:                    big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
-		StakeRewardRate:                0.2,
-		FeeBurnRate:                    0.9,
-		FinalCommitteeReward:           big.NewInt(6e+18),
+		MaxSteps:                           150,
+		CommitteePercent:                   0.3,
+		FinalCommitteeConsensusPercent:     0.7,
+		ThesholdBa:                         0.65,
+		ProposerTheshold:                   0.5,
+		WaitBlockDelay:                     time.Minute,
+		WaitSortitionProofDelay:            time.Second * 5,
+		EstimatedBaVariance:                time.Second * 5,
+		WaitForStepDelay:                   time.Second * 20,
+		Automine:                           automine,
+		BlockReward:                        big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
+		StakeRewardRate:                    0.2,
+		FeeBurnRate:                        0.9,
+		FinalCommitteeReward:               big.NewInt(6e+18),
 		SnapshotRange:                      10000,
 		OfflinePenaltyBlocksCount:          1800,
 		SuccessfullValidationRewardPercent: 0.24,
@@ -38,6 +39,9 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		ValidInvitationRewardPercent:       0.32,
 		FoundationPayoutsPercent:           0.1,
 		ZeroWalletPercent:                  0.02,
+		FeeSensitivityCoef:                 10,
+		FeePrevBlocks:                      1,
+		MinFee:                             big.NewInt(1e+4),
 	}
 }
 
@@ -71,8 +75,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	bus := eventbus.New()
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
+	blockSizesCache := cache.NewBlockSizesCache(int(cfg.Consensus.FeePrevBlocks))
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, blockSizesCache)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())

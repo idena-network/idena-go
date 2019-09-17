@@ -406,6 +406,14 @@ func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
 	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
 }
 
+func (s *StateDB) SetFeePerByte(fee *big.Int) {
+	s.GetOrNewGlobalObject().SetFeePerByte(fee)
+}
+
+func (s *StateDB) FeePerByte() *big.Int {
+	return s.GetOrNewGlobalObject().FeePerByte()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
