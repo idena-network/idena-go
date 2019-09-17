@@ -50,6 +50,7 @@ type StateGlobal struct {
 	GodAddress         common.Address
 	WordsSeed          types.Seed `rlp:"nil"`
 	LastSnapshot       uint64
+	EpochBlock         uint64
 }
 
 type PredefinedState struct {
