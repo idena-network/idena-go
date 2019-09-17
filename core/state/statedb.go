@@ -971,6 +971,7 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.GodAddress = state.Global.GodAddress
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
+	stateObject.data.EpochBlock = state.Global.EpochBlock
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {

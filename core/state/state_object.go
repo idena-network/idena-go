@@ -555,6 +555,10 @@ func (s *stateGlobal) SetEpochBlock(height uint64) {
 	s.touch()
 }
 
+func (s *stateGlobal) EpochBlock() uint64 {
+	return s.data.EpochBlock
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateApprovedIdentity) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)
