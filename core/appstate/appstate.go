@@ -121,7 +121,12 @@ func (s *AppState) ResetTo(height uint64) error {
 		return errors.New("target tree version doesn't exist")
 	}
 	err = s.IdentityState.ResetTo(height)
-	return err
+	if err != nil {
+		return err
+	}
+
+	s.ValidatorsCache.Load()
+	return nil
 }
 
 func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
