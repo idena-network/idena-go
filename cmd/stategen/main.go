@@ -69,6 +69,7 @@ func main() {
 			ValidationPeriod:   globalObject.ValidationPeriod(),
 			Epoch:              globalObject.Epoch(),
 			EpochBlock:         globalObject.EpochBlock(),
+			FeePerByte:         globalObject.FeePerByte(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
