@@ -414,6 +414,14 @@ func (s *StateDB) FeePerByte() *big.Int {
 	return s.GetOrNewGlobalObject().FeePerByte()
 }
 
+func (s *StateDB) AddBlockSize(size uint32, limit int) {
+	s.GetOrNewGlobalObject().AddBlockSize(size, limit)
+}
+
+func (s *StateDB) BlockSizes() []uint32 {
+	return s.GetOrNewGlobalObject().BlockSizes()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -981,6 +989,7 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
 	stateObject.data.FeePerByte = state.Global.FeePerByte
+	stateObject.data.BlockSizes = state.Global.BlockSizes
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {

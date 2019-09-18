@@ -52,6 +52,7 @@ type StateGlobal struct {
 	LastSnapshot       uint64
 	EpochBlock         uint64
 	FeePerByte         *big.Int
+	BlockSizes         []uint32 `rlp:"nil"`
 }
 
 type PredefinedState struct {

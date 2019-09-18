@@ -62,13 +62,13 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.NoError(pool.Add(tx2))
 	require.NoError(pool.Add(tx3))
 
-	block, _ := chain.ProposeBlock()
+	block := chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 	require.Equal(appState.State.GetBalance(addr1), new(big.Int).Sub(receive1, spend1))
 	require.Equal(appState.State.GetBalance(addr2), new(big.Int).Sub(receive2, spend2))
 
 	//new epoch
-	block, _ = chain.ProposeBlock()
+	block = chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 
 	// new epoch started
@@ -83,7 +83,7 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.NoError(pool.Add(tx1))
 	require.NoError(pool.Add(tx2))
 
-	block, _ = chain.ProposeBlock()
+	block = chain.ProposeBlock()
 	require.NoError(chain.AddBlock(block, nil))
 
 	require.Equal(1, len(block.Body.Transactions))

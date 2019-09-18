@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
-	"github.com/idena-network/idena-go/blockchain/cache"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -147,8 +146,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
-	blockSizesCache := cache.NewBlockSizesCache(int(config.Consensus.FeePrevBlocks))
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockSizesCache)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)

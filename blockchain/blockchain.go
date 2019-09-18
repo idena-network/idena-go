@@ -6,7 +6,6 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
-	"github.com/idena-network/idena-go/blockchain/cache"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -64,7 +63,6 @@ type Blockchain struct {
 	txpool          *mempool.TxPool
 	appState        *appstate.AppState
 	offlineDetector *OfflineDetector
-	blockSizesCache *cache.BlockSizesCache
 	secretKey       *ecdsa.PrivateKey
 	ipfs            ipfs.Proxy
 	timing          *timing
@@ -84,7 +82,7 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore,
-	bus eventbus.Bus, offlineDetector *OfflineDetector, blockSizesCache *cache.BlockSizesCache) *Blockchain {
+	bus eventbus.Bus, offlineDetector *OfflineDetector) *Blockchain {
 	return &Blockchain{
 		repo:            database.NewRepo(db),
 		config:          config,
@@ -96,7 +94,6 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		bus:             bus,
 		secStore:        secStore,
 		offlineDetector: offlineDetector,
-		blockSizesCache: blockSizesCache,
 	}
 }
 
@@ -144,14 +141,6 @@ func (chain *Blockchain) InitializeChain() error {
 		}
 	}
 	chain.PreliminaryHead = chain.repo.ReadPreliminaryHead()
-
-	chain.blockSizesCache.Initialize(func(height uint64) (size int, ok bool) {
-		block := chain.GetBlockByHeight(height)
-		if block == nil {
-			return 0, false
-		}
-		return len(block.Body.Bytes()), true
-	})
 	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
 	log.Info("Coinbase address", "addr", chain.coinBaseAddress.Hex())
 	return nil
@@ -237,7 +226,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	return block, nil
 }
 
-func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) (*types.Block, error) {
+func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) *types.Block {
 	prevTimestamp := time.Unix(prevBlock.Time().Int64(), 0)
 
 	block := &types.Block{
@@ -254,16 +243,14 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block)
 
-	if _, _, _, err := chain.applyEmptyBlockOnState(checkState, block); err != nil {
-		return nil, err
-	}
+	chain.applyEmptyBlockOnState(checkState, block)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
 	block.Header.EmptyBlockHeader.IdentityRoot = checkState.IdentityState.Root()
-	return block, nil
+	return block
 }
 
-func (chain *Blockchain) GenerateEmptyBlock() (*types.Block, error) {
+func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	return chain.generateEmptyBlock(chain.appState.Readonly(chain.Head.Height()), chain.Head)
 }
 
@@ -298,13 +285,12 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityStateDiff, err error) {
 	var root, identityRoot common.Hash
 	if block.IsEmpty() {
-		root, identityRoot, diff, err = chain.applyEmptyBlockOnState(chain.appState, block)
+		root, identityRoot, diff = chain.applyEmptyBlockOnState(chain.appState, block)
 	} else {
-		root, identityRoot, diff, err = chain.applyBlockOnState(chain.appState, block, chain.Head)
-	}
-	if err != nil {
-		chain.appState.Reset()
-		return nil, err
+		if root, identityRoot, diff, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
+			chain.appState.Reset()
+			return nil, err
+		}
 	}
 
 	if root != block.Root() || identityRoot != block.IdentityRoot() {
@@ -314,10 +300,6 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 
 	if err := chain.appState.Commit(block); err != nil {
 		return nil, err
-	}
-
-	if err := chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())); err != nil {
-		chain.log.Error(fmt.Sprintf("Failed to add block size to cache: %v", err))
 	}
 
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
@@ -334,35 +316,22 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyNewEpoch(appState, block)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock)
 	chain.applyGlobalParams(appState, block)
-	if err := chain.applyNextBlockFee(appState, block); err != nil {
-		return common.Hash{}, common.Hash{}, nil, err
-	}
+	chain.applyNextBlockFee(appState, block)
 
 	diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), diff, nil
 }
 
-func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) error {
-	feePerByte, err := chain.calculateNextBlockFeePerByte(appState.State.FeePerByte(), block)
-	if err != nil {
-		return err
-	}
-	appState.State.SetFeePerByte(feePerByte)
-	return nil
-}
-
-func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
+func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyNewEpoch(appState, block)
 	chain.applyGlobalParams(appState, block)
-	if err = chain.applyNextBlockFee(appState, block); err != nil {
-		return common.Hash{}, common.Hash{}, nil, err
-	}
+	chain.applyNextBlockFee(appState, block)
 
 	diff = appState.Precommit()
 
-	return appState.State.Root(), appState.IdentityState.Root(), diff, nil
+	return appState.State.Root(), appState.IdentityState.Root(), diff
 }
 
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int, appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
@@ -704,16 +673,19 @@ func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *b
 	return types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
-func (chain *Blockchain) calculateNextBlockFeePerByte(feePerByte *big.Int, block *types.Block) (*big.Int, error) {
+func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
+	feePerByte := chain.calculateNextBlockFeePerByte(appState, block)
+	appState.State.SetFeePerByte(feePerByte)
+	appState.State.AddBlockSize(uint32(len(block.Body.Bytes())), int(chain.config.Consensus.FeePrevBlocks)-1)
+}
+
+func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppState, block *types.Block) *big.Int {
+	feePerByte := appState.State.FeePerByte()
 	if feePerByte == nil || feePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
 		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
 
-	averageSize, err := chain.calculateAverageSize(chain.config.Consensus.FeePrevBlocks, block)
-	if err != nil {
-		return nil, err
-	}
-
+	averageSize := chain.calculateAverageSize(appState, block)
 	k := chain.config.Consensus.FeeSensitivityCoef
 	maxBlockSize := mempool.BlockBodySize
 
@@ -729,24 +701,22 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(feePerByte *big.Int, block
 	if newFeePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
 		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
-	return newFeePerByte, nil
+	return newFeePerByte
 }
 
-func (chain *Blockchain) calculateAverageSize(prevBlockCount byte, block *types.Block) (decimal.Decimal, error) {
-	var totalSize, count int
-	for i := math.Max(1, block.Height()-uint64(prevBlockCount)+1); i < block.Height(); i++ {
-		size, err := chain.blockSizesCache.Get(i)
-		if err != nil {
-			return decimal.Zero, err
-		}
-		totalSize += size
-		count++
+func (chain *Blockchain) calculateAverageSize(appState *appstate.AppState, block *types.Block) decimal.Decimal {
+	prevBlockSizes := appState.State.BlockSizes()
+	var totalPrevSize int
+	for _, size := range prevBlockSizes {
+		totalPrevSize += int(size)
 	}
-	totalSize += len(block.Body.Bytes())
-	count++
-	averageSize := decimal.New(int64(totalSize), 0).Div(decimal.New(int64(count), 0))
 
-	return averageSize, nil
+	newBlockSize := len(block.Body.Bytes())
+	averageSize := decimal.
+		New(int64(totalPrevSize+newBlockSize), 0).
+		Div(decimal.New(int64(len(prevBlockSizes)+1), 0))
+
+	return averageSize
 }
 
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
@@ -768,7 +738,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 	return false, common.Hash{}, nil
 }
 
-func (chain *Blockchain) ProposeBlock() (*types.Block, error) {
+func (chain *Blockchain) ProposeBlock() *types.Block {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
@@ -819,18 +789,16 @@ func (chain *Blockchain) ProposeBlock() (*types.Block, error) {
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
 	chain.applyNewEpoch(checkState, block)
-	if err := chain.applyNextBlockFee(checkState, block); err != nil {
-		return nil, err
-	}
 	chain.applyBlockRewards(totalFee, totalTips, checkState, block, chain.Head)
 	chain.applyGlobalParams(checkState, block)
+	chain.applyNextBlockFee(checkState, block)
 
 	checkState.Precommit()
 
 	block.Header.ProposedHeader.Root = checkState.State.Root()
 	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
 
-	return block, nil
+	return block
 }
 
 func calculateTxBloom(block *types.Block) []byte {
@@ -977,9 +945,7 @@ func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header) error {
 
 	if block.IsEmpty() {
-		if emptyBlock, err := chain.generateEmptyBlock(checkState, prevBlock); err != nil {
-			return err
-		} else if emptyBlock.Hash() == block.Hash() {
+		if chain.generateEmptyBlock(checkState, prevBlock).Hash() == block.Hash() {
 			return nil
 		}
 		return errors.New("empty blocks' hashes mismatch")
@@ -1269,7 +1235,6 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Bl
 }
 
 func (chain *Blockchain) ResetTo(height uint64) error {
-	chain.blockSizesCache.Reset()
 	if err := chain.appState.ResetTo(height); err != nil {
 		return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
 	}

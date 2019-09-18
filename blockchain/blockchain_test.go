@@ -271,43 +271,21 @@ func Test_applyNextBlockFee(t *testing.T) {
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
 
-	loadCounter := 0
-	chain.blockSizesCache.Initialize(func(height uint64) (size int, present bool) {
-		loadCounter++
-		switch height {
-		case 1, 2:
-			return 0, true
-		case 3:
-			return 1000000, true
-		default:
-			return 0, false
-		}
-	})
-
 	appState := chain.appState.Readonly(1)
+	appState.State.AddBlockSize(0, int(conf.FeePrevBlocks))
+	appState.State.AddBlockSize(1000000, int(conf.FeePrevBlocks))
 
 	block := generateBlock(4, 10000) // block size 770008
-
-	require.Nil(t, chain.applyNextBlockFee(appState, block))
+	chain.applyNextBlockFee(appState, block)
 	require.Equal(t, big.NewInt(16267038981119790), appState.State.FeePerByte())
-	require.Equal(t, 2, loadCounter)
 
-	block5 := generateBlock(5, 0)
-	require.NotNil(t, chain.applyNextBlockFee(appState, block5))
-	require.Equal(t, 3, loadCounter)
-
-	require.Nil(t, chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())))
-
-	require.Nil(t, chain.applyNextBlockFee(appState, block5))
+	block = generateBlock(5, 0)
+	chain.applyNextBlockFee(appState, block)
 	require.Equal(t, big.NewInt(26461655721327077), appState.State.FeePerByte())
-	require.Equal(t, 3, loadCounter)
-	require.Nil(t, chain.blockSizesCache.Add(block5.Height(), len(block5.Body.Bytes())))
 
 	block = generateBlock(6, 0)
-	require.Nil(t, chain.applyNextBlockFee(appState, block))
+	chain.applyNextBlockFee(appState, block)
 	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
-	require.Equal(t, 3, loadCounter)
-	require.Nil(t, chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())))
 }
 
 func generateBlock(height uint64, txsCount int) *types.Block {

@@ -76,6 +76,7 @@ type Global struct {
 	LastSnapshot       uint64
 	EpochBlock         uint64
 	FeePerByte         *big.Int
+	BlockSizes         []uint32 `rlp:"nil"`
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -567,6 +568,21 @@ func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
 
 func (s *stateGlobal) FeePerByte() *big.Int {
 	return s.data.FeePerByte
+}
+
+func (s *stateGlobal) AddBlockSize(size uint32, limit int) {
+	if limit <= 0 {
+		return
+	}
+	s.data.BlockSizes = append(s.data.BlockSizes, size)
+	if len(s.data.BlockSizes) > limit {
+		s.data.BlockSizes = s.data.BlockSizes[1:]
+	}
+	s.touch()
+}
+
+func (s *stateGlobal) BlockSizes() []uint32 {
+	return s.data.BlockSizes
 }
 
 // EncodeRLP implements rlp.Encoder.

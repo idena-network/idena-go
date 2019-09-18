@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"github.com/idena-network/idena-go/blockchain/cache"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -75,9 +74,8 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	bus := eventbus.New()
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
-	blockSizesCache := cache.NewBlockSizesCache(int(cfg.Consensus.FeePrevBlocks))
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, blockSizesCache)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
