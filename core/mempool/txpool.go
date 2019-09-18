@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
+	"math/big"
 	"sort"
 	"sync"
 )
@@ -46,9 +47,10 @@ type TxPool struct {
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
+	minFeePerByte    *big.Int
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int, minFeePerByte *big.Int) *TxPool {
 	pool := &TxPool{
 		pending:          make(map[common.Hash]*types.Transaction),
 		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
@@ -59,6 +61,7 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 		appState:         appState,
 		log:              log.New(),
 		bus:              bus,
+		minFeePerByte:    minFeePerByte,
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -113,7 +116,7 @@ func (txpool *TxPool) Validate(tx *types.Transaction) error {
 	if appState == nil {
 		return errors.New("tx can't be validated")
 	}
-	return validation.ValidateTx(appState, tx, true)
+	return validation.ValidateTx(appState, tx, txpool.minFeePerByte, true)
 }
 
 func (txpool *TxPool) Add(tx *types.Transaction) error {
@@ -220,7 +223,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		if tx.Epoch > globalEpoch {
 			continue
 		}
-		if err := validation.ValidateTx(appState, tx, true); err != nil {
+		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
 			txpool.Remove(tx)
 			continue
 		}

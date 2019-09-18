@@ -268,7 +268,7 @@ func Test_CalculatePenalty(t *testing.T) {
 func Test_applyNextBlockFee(t *testing.T) {
 	conf := GetDefaultConsensusConfig(false)
 	conf.FeePrevBlocks = 3
-	conf.MinFee = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
+	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
 
 	loadCounter := 0
@@ -305,7 +305,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	block = generateBlock(6, 0)
 	require.Nil(t, chain.applyNextBlockFee(appState, block))
-	require.Equal(t, chain.config.Consensus.MinFee, appState.State.FeePerByte())
+	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
 	require.Equal(t, 3, loadCounter)
 	require.Nil(t, chain.blockSizesCache.Add(block.Height(), len(block.Body.Bytes())))
 }

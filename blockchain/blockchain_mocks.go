@@ -41,7 +41,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		ZeroWalletPercent:                  0.02,
 		FeeSensitivityCoef:                 10,
 		FeePrevBlocks:                      1,
-		MinFee:                             big.NewInt(1e+4),
+		MinFeePerByte:                      big.NewInt(1e+4),
 	}
 }
 
@@ -73,7 +73,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	bus := eventbus.New()
-	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
+	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 	blockSizesCache := cache.NewBlockSizesCache(int(cfg.Consensus.FeePrevBlocks))
 

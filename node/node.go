@@ -143,7 +143,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 	appState := appstate.NewAppState(db, bus)
 	votes := pengings.NewVotes(appState)
 
-	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
+	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, config.Consensus.MinFeePerByte)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)

@@ -42,6 +42,7 @@ var (
 	DuplicatedFlip       = errors.New("duplicated flip")
 	DuplicatedFlipPair   = errors.New("flip with these words already exists")
 	BigFee               = errors.New("current fee is greater than tx max fee")
+	InvalidMaxFee        = errors.New("invalid max fee")
 	validators           map[types.TxType]validator
 )
 
@@ -63,7 +64,7 @@ func init() {
 	}
 }
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -84,6 +85,11 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bo
 
 	if nonce >= tx.AccountNonce && epoch == globalEpoch && tx.Epoch == globalEpoch {
 		return errors.Errorf("invalid nonce, state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
+	}
+
+	minFee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
+	if minFee.Cmp(tx.MaxFeeOrZero()) == 1 {
+		return InvalidMaxFee
 	}
 
 	validator, ok := validators[tx.Type]

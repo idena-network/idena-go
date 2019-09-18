@@ -568,7 +568,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	fee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
 			return nil, nil, err
 		}
 		if fee, err = chain.ApplyTxOnState(appState, tx); err != nil {
@@ -705,8 +705,8 @@ func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *b
 }
 
 func (chain *Blockchain) calculateNextBlockFeePerByte(feePerByte *big.Int, block *types.Block) (*big.Int, error) {
-	if feePerByte == nil || feePerByte.Cmp(chain.config.Consensus.MinFee) == -1 {
-		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFee)
+	if feePerByte == nil || feePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
+		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
 
 	averageSize, err := chain.calculateAverageSize(chain.config.Consensus.FeePrevBlocks, block)
@@ -726,8 +726,8 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(feePerByte *big.Int, block
 		Mul(decimal.NewFromBigInt(feePerByte, 0))
 
 	newFeePerByte := math.ToInt(newFeePerByteD)
-	if newFeePerByte.Cmp(chain.config.Consensus.MinFee) == -1 {
-		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFee)
+	if newFeePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
+		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
 	return newFeePerByte, nil
 }
@@ -912,7 +912,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
 	for _, tx := range txs {
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
 			continue
 		}
 		if fee, err := chain.ApplyTxOnState(appState, tx); err == nil {

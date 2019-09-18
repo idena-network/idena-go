@@ -92,7 +92,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
-	pool := NewTxPool(appState, bus, -1, -1)
+	pool := NewTxPool(appState, bus, -1, -1, big.NewInt(0))
 	r := require.New(t)
 
 	key, _ = crypto.GenerateKey()
@@ -144,5 +144,5 @@ func getPool() *TxPool {
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
 
-	return NewTxPool(appState, bus, -1, -1)
+	return NewTxPool(appState, bus, -1, -1, big.NewInt(0))
 }
