@@ -1193,7 +1193,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		}
 	}
 	if wasReset {
-		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+		chain.log.Warn("Blockchain was reset", "new head", chain.Head.Height())
 	}
 	return nil
 }
