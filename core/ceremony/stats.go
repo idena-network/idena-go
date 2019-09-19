@@ -9,6 +9,7 @@ type Stats struct {
 	IdentitiesPerAddr map[common.Address]*IdentityStats
 	FlipsPerIdx       map[int]*FlipStats
 	FlipCids          [][]byte
+	Failed            bool
 }
 
 type IdentityStats struct {
