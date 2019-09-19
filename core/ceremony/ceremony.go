@@ -72,13 +72,13 @@ type ValidationCeremony struct {
 	applyEpochMutex        sync.Mutex
 	flipAuthorMap          map[common.Hash]common.Address
 	flipAuthorMapLock      sync.Mutex
-	validationAuthors      *types.ValidationAuthors
 	epochApplyingCache     map[uint64]epochApplyingCache
 }
 
 type epochApplyingCache struct {
 	epochApplyingResult map[common.Address]cacheValue
 	validationFailed    bool
+	validationAuthors   *types.ValidationAuthors
 }
 
 type cacheValue struct {
@@ -241,7 +241,6 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.evidenceSent = false
 	vc.validationStats = nil
 	vc.flipKeyWordPairs = nil
-	vc.validationAuthors = nil
 	vc.flipAuthorMap = nil
 	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
 }
@@ -589,14 +588,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
-			return vc.appState.ValidatorsCache.NetworkSize(), vc.validationAuthors, true
+			return vc.appState.ValidatorsCache.NetworkSize(), applyingCache.validationAuthors, true
 		}
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
 				applyOnState(addr, value)
 			}
-			return identitiesCount, vc.validationAuthors, false
+			return identitiesCount, applyingCache.validationAuthors, false
 		}
 	}
 
@@ -621,8 +620,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			Answer: item.answer,
 		}
 	}
-	vc.validationAuthors = new(types.ValidationAuthors)
-	vc.validationAuthors.BadAuthors, vc.validationAuthors.GoodAuthors = vc.analizeAuthors(flipQualification)
+	validationAuthors := new(types.ValidationAuthors)
+	validationAuthors.BadAuthors, validationAuthors.GoodAuthors = vc.analizeAuthors(flipQualification)
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
 
@@ -669,7 +668,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			newTotalQualifiedFlipsCount, missed)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-		incSuccessfulInvites(vc.validationAuthors, god, identity, newIdentityState)
+		incSuccessfulInvites(validationAuthors, god, identity, newIdentityState)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -701,9 +700,10 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		stats.Failed = true
 		vc.epochApplyingCache[height] = epochApplyingCache{
 			epochApplyingResult: epochApplyingValues,
+			validationAuthors:   validationAuthors,
 			validationFailed:    true,
 		}
-		return vc.appState.ValidatorsCache.NetworkSize(), vc.validationAuthors, true
+		return vc.appState.ValidatorsCache.NetworkSize(), validationAuthors, true
 	}
 
 	for addr, value := range epochApplyingValues {
@@ -728,10 +728,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	vc.epochApplyingCache[height] = epochApplyingCache{
 		epochApplyingResult: epochApplyingValues,
+		validationAuthors:   validationAuthors,
 		validationFailed:    false,
 	}
 
-	return identitiesCount, vc.validationAuthors, false
+	return identitiesCount, validationAuthors, false
 }
 
 func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity, newState state.IdentityState) {
