@@ -67,7 +67,7 @@ type Blockchain struct {
 	ipfs            ipfs.Proxy
 	timing          *timing
 	bus             eventbus.Bus
-	applyNewEpochFn func(appState *appstate.AppState) (int, *types.ValidationAuthors, bool)
+	applyNewEpochFn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)
 	isSyncing       bool
 }
 
@@ -97,7 +97,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) (int, *types.ValidationAuthors, bool)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -383,7 +383,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize, authors, failed := chain.applyNewEpochFn(appState)
+	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState)
 
 	setNewIdentitiesAttributes(appState, networkSize, failed)
 

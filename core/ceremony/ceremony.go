@@ -65,7 +65,6 @@ type ValidationCeremony struct {
 	chain                  *blockchain.Blockchain
 	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
-	epochApplyingResult    map[common.Address]cacheValue
 	validationStats        *Stats
 	flipKeyWordPairs       []int
 	epoch                  uint16
@@ -74,7 +73,12 @@ type ValidationCeremony struct {
 	flipAuthorMap          map[common.Hash]common.Address
 	flipAuthorMapLock      sync.Mutex
 	validationAuthors      *types.ValidationAuthors
-	validationFailed       bool
+	epochApplyingCache     map[uint64]epochApplyingCache
+}
+
+type epochApplyingCache struct {
+	epochApplyingResult map[common.Address]cacheValue
+	validationFailed    bool
 }
 
 type cacheValue struct {
@@ -90,18 +94,18 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool, config *config.Config) *ValidationCeremony {
 
 	vc := &ValidationCeremony{
-		flipper:             flipper,
-		appState:            appState,
-		bus:                 bus,
-		secStore:            secStore,
-		log:                 log.New(),
-		db:                  db,
-		mempool:             mempool,
-		keysPool:            keysPool,
-		epochApplyingResult: make(map[common.Address]cacheValue),
-		chain:               chain,
-		syncer:              syncer,
-		config:              config,
+		flipper:            flipper,
+		appState:           appState,
+		bus:                bus,
+		secStore:           secStore,
+		log:                log.New(),
+		db:                 db,
+		mempool:            mempool,
+		keysPool:           keysPool,
+		epochApplyingCache: make(map[uint64]epochApplyingCache),
+		chain:              chain,
+		syncer:             syncer,
+		config:             config,
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -235,13 +239,13 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.keySent = false
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
-	vc.epochApplyingResult = make(map[common.Address]cacheValue)
 	vc.validationStats = nil
 	vc.flipKeyWordPairs = nil
 	vc.validationAuthors = nil
 	vc.flipAuthorMap = nil
-	vc.validationFailed = false
+	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
 }
+
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 	vc.blockHandlers[vc.appState.State.ValidationPeriod()](block)
 }
@@ -568,7 +572,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
@@ -583,15 +587,17 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 		}
 	}
 
-	if vc.validationFailed {
-		return vc.appState.ValidatorsCache.NetworkSize(), vc.validationAuthors, true
-	}
-
-	if len(vc.epochApplyingResult) > 0 {
-		for addr, value := range vc.epochApplyingResult {
-			applyOnState(addr, value)
+	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
+		if applyingCache.validationFailed {
+			return vc.appState.ValidatorsCache.NetworkSize(), vc.validationAuthors, true
 		}
-		return identitiesCount, vc.validationAuthors, false
+
+		if len(applyingCache.epochApplyingResult) > 0 {
+			for addr, value := range applyingCache.epochApplyingResult {
+				applyOnState(addr, value)
+			}
+			return identitiesCount, vc.validationAuthors, false
+		}
 	}
 
 	vc.validationStats = NewStats()
@@ -625,6 +631,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	god := appState.State.GodAddress()
 
 	intermediateIdentitiesCount := 0
+	epochApplyingValues := make(map[common.Address]cacheValue)
+
 	for idx, candidate := range vc.candidates {
 		addr := candidate.Address
 		var shortScore, longScore, totalScore float32
@@ -670,7 +678,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 			birthday:                 identityBirthday,
 		}
 
-		vc.epochApplyingResult[addr] = value
+		epochApplyingValues[addr] = value
 
 		stats.IdentitiesPerAddr[addr] = &IdentityStats{
 			ShortPoint:        shortFlipPoint,
@@ -691,11 +699,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		stats.Failed = true
-		vc.validationFailed = true
+		vc.epochApplyingCache[height] = epochApplyingCache{
+			epochApplyingResult: epochApplyingValues,
+			validationFailed:    true,
+		}
 		return vc.appState.ValidatorsCache.NetworkSize(), vc.validationAuthors, true
 	}
 
-	for addr, value := range vc.epochApplyingResult {
+	for addr, value := range epochApplyingValues {
 		applyOnState(addr, value)
 	}
 
@@ -711,8 +722,13 @@ func (vc *ValidationCeremony) ApplyNewEpoch(appState *appstate.AppState) (identi
 			shortFlipPoint:           0,
 			birthday:                 identityBirthday,
 		}
-		vc.epochApplyingResult[addr] = value
+		epochApplyingValues[addr] = value
 		applyOnState(addr, value)
+	}
+
+	vc.epochApplyingCache[height] = epochApplyingCache{
+		epochApplyingResult: epochApplyingValues,
+		validationFailed:    false,
 	}
 
 	return identitiesCount, vc.validationAuthors, false
