@@ -65,12 +65,18 @@ func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
 	return appState, nil
 }
 
-func (s *AppState) Initialize(height uint64) {
-	s.State.Load(height)
-	s.IdentityState.Load(height)
+func (s *AppState) Initialize(height uint64) error {
+	if err := s.State.Load(height); err != nil {
+		return err
+	}
+	if err := s.IdentityState.Load(height); err != nil {
+		return err
+	}
 	s.ValidatorsCache = validators.NewValidatorsCache(s.IdentityState, s.State.GodAddress())
 	s.ValidatorsCache.Load()
 	s.NonceCache = state.NewNonceCache(s.State)
+
+	return nil
 }
 
 func (s *AppState) Precommit() *state.IdentityStateDiff {

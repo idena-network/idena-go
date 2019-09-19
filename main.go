@@ -76,6 +76,8 @@ func main() {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
+		log.Info("Idena node is starting", "version", version)
+
 		n, err := node.NewNode(cfg)
 		if err != nil {
 			return err

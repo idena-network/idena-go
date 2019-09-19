@@ -67,7 +67,7 @@ type Blockchain struct {
 	ipfs            ipfs.Proxy
 	timing          *timing
 	bus             eventbus.Bus
-	applyNewEpochFn func(appState *appstate.AppState) (int, *types.ValidationAuthors)
+	applyNewEpochFn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)
 	isSyncing       bool
 }
 
@@ -97,7 +97,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) (int, *types.ValidationAuthors)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -383,11 +383,13 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize, authors := chain.applyNewEpochFn(appState)
+	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState)
 
-	setNewIdentitiesAttributes(appState, networkSize)
+	setNewIdentitiesAttributes(appState, networkSize, failed)
 
-	rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock())
+	if !failed {
+		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock())
+	}
 
 	appState.State.IncEpoch()
 
@@ -398,28 +400,30 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetEpochBlock(block.Height())
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool) {
 	_, invites, flips := common.NetworkParams(networkSize)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified:
-			removeLinkWithInviter(appState.State, addr)
-			appState.State.SetInvites(addr, uint8(invites))
-			appState.State.SetRequiredFlips(addr, uint8(flips))
-			appState.IdentityState.Add(addr)
-		case state.Newbie:
-			appState.State.SetRequiredFlips(addr, uint8(flips))
-			appState.State.SetInvites(addr, 0)
-			appState.IdentityState.Add(addr)
-		case state.Killed, state.Undefined:
-			removeLinksWithInviterAndInvitees(appState.State, addr)
-			appState.State.SetInvites(addr, 0)
-			appState.State.SetRequiredFlips(addr, 0)
-			appState.IdentityState.Remove(addr)
-		default:
-			appState.State.SetInvites(addr, 0)
-			appState.State.SetRequiredFlips(addr, 0)
-			appState.IdentityState.Remove(addr)
+		if !validationFailed {
+			switch identity.State {
+			case state.Verified:
+				removeLinkWithInviter(appState.State, addr)
+				appState.State.SetInvites(addr, uint8(invites))
+				appState.State.SetRequiredFlips(addr, uint8(flips))
+				appState.IdentityState.Add(addr)
+			case state.Newbie:
+				appState.State.SetRequiredFlips(addr, uint8(flips))
+				appState.State.SetInvites(addr, 0)
+				appState.IdentityState.Add(addr)
+			case state.Killed, state.Undefined:
+				removeLinksWithInviterAndInvitees(appState.State, addr)
+				appState.State.SetInvites(addr, 0)
+				appState.State.SetRequiredFlips(addr, 0)
+				appState.IdentityState.Remove(addr)
+			default:
+				appState.State.SetInvites(addr, 0)
+				appState.State.SetRequiredFlips(addr, 0)
+				appState.IdentityState.Remove(addr)
+			}
 		}
 		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
@@ -1189,7 +1193,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		}
 	}
 	if wasReset {
-		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+		chain.log.Warn("Blockchain was reset", "new head", chain.Head.Height())
 	}
 	return nil
 }
