@@ -20,15 +20,15 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
 
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	addSuccessfullValidationReward(appState, config, authors, totalRewardD)
+	addSuccessfulValidationReward(appState, config, authors, totalRewardD)
 	addFlipReward(appState, config, authors, totalRewardD)
 	addInvitationReward(appState, config, authors, totalRewardD)
 	addFoundationPayouts(appState, config, totalRewardD)
 	addZeroWalletFund(appState, config, totalRewardD)
 }
 
-func addSuccessfullValidationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors, totalReward decimal.Decimal) {
-	successfullValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfullValidationRewardPercent))
+func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors, totalReward decimal.Decimal) {
+	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfullValidationRewardPercent))
 
 	epoch := appState.State.Epoch()
 
@@ -46,14 +46,14 @@ func addSuccessfullValidationReward(appState *appstate.AppState, config *config.
 		return
 	}
 
-	successfullValidationRewardShare := successfullValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
+	successfulValidationRewardShare := successfulValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		switch identity.State {
 		case state.Verified, state.Newbie:
 			if _, ok := authors.BadAuthors[addr]; !ok {
 				normalAge := normalAge(epoch - identity.Birthday)
-				totalReward := successfullValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
+				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)

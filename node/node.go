@@ -191,8 +191,8 @@ func (node *Node) Start() {
 func (node *Node) StartWithHeight(height uint64) {
 	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
-	config := node.config.P2P
-	config.Protocols = []p2p.Protocol{
+	cfg := node.config.P2P
+	cfg.Protocols = []p2p.Protocol{
 		{
 			Name:    "idena",
 			Version: 1,
@@ -200,9 +200,9 @@ func (node *Node) StartWithHeight(height uint64) {
 			Length:  35,
 		},
 	}
-	config.PrivateKey = node.generateSyntheticP2PKey()
+	cfg.PrivateKey = node.generateSyntheticP2PKey()
 	node.srv = &p2p.Server{
-		Config: *config,
+		Config: *cfg,
 	}
 
 	if err := node.blockchain.InitializeChain(); err != nil {
@@ -210,7 +210,14 @@ func (node *Node) StartWithHeight(height uint64) {
 		return
 	}
 
-	node.appState.Initialize(node.blockchain.Head.Height())
+	if err := node.appState.Initialize(node.blockchain.Head.Height()); err != nil {
+		node.log.Error("Cannot initialize state", "error", err.Error())
+	}
+
+	if err := node.blockchain.EnsureIntegrity(); err != nil {
+		node.log.Error("Failed to recover blockchain", "err", err)
+		return
+	}
 
 	if height > 0 && node.blockchain.Head.Height() > height {
 		if err := node.blockchain.ResetTo(height); err != nil {
@@ -226,7 +233,11 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
-	node.srv.Start()
+
+	// configure TCP
+	if err := node.srv.Start(); err != nil {
+		node.log.Error("Cannot start TCP endpoint", "error", err.Error())
+	}
 	node.pm.Start()
 
 	// Configure RPC
