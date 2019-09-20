@@ -358,10 +358,6 @@ func getTypedTxWithAmount(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txT
 	return signedTx
 }
 
-//func getAmount(amount int64) *big.Int {
-//	return new(big.Int).Mul(common.DnaBase, big.NewInt(amount))
-//}
-
 func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
 	return getTypedTxWithAmount(nonce, epoch, key, txType, new(big.Int))
 }
