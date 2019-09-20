@@ -181,7 +181,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 	err = pool.Add(tx7)
 	require.NoError(err)
 
-	app.State.SubBalance(addr, new(big.Int).Mul(common.DnaBase, big.NewInt(35)))
+	app.State.SubBalance(addr, getAmount(35))
 	app.State.IncEpoch()
 
 	app.Commit(nil)
