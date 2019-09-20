@@ -27,6 +27,8 @@ type ConsensusConf struct {
 	ValidInvitationRewardPercent       float32
 	FoundationPayoutsPercent           float32
 	ZeroWalletPercent                  float32
+	FeeSensitivityCoef                 float32
+	MinFeePerByte                      *big.Int
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -51,5 +53,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		ValidInvitationRewardPercent:       0.32,
 		FoundationPayoutsPercent:           0.1,
 		ZeroWalletPercent:                  0.02,
+		FeeSensitivityCoef:                 0.25,
+		MinFeePerByte:                      big.NewInt(1e+2),
 	}
 }

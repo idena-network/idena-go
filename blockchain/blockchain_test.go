@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/tests"
@@ -36,9 +37,10 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	}
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
+	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
 	appState := chain.appState.Readonly(1)
-	chain.applyBlockRewards(fee, appState, block, chain.Head)
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
@@ -48,11 +50,14 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(fee, intBurn)
 
-	_, stake := splitReward(big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward), chain.config.Consensus)
+	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward.Add(totalReward, tips)
+	_, stake := splitReward(totalReward, chain.config.Consensus)
 
 	expectedBalance := big.NewInt(0)
 	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)
 	expectedBalance.Add(expectedBalance, intFeeReward)
+	expectedBalance.Add(expectedBalance, tips)
 	expectedBalance.Sub(expectedBalance, stake)
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
@@ -156,7 +161,8 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signed)
 
@@ -193,7 +199,8 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	}
 	signedTx, _ := types.SignTx(tx, inviterKey)
 
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signedTx)
 
@@ -256,4 +263,51 @@ func Test_CalculatePenalty(t *testing.T) {
 		}
 	}
 
+}
+
+func Test_applyNextBlockFee(t *testing.T) {
+	conf := GetDefaultConsensusConfig(false)
+	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
+	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+
+	appState := chain.appState.Readonly(1)
+
+	block := generateBlock(4, 10000) // block size 770008
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, big.NewInt(10585842132568359), appState.State.FeePerByte())
+
+	block = generateBlock(5, 5000) // block size 385008
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, big.NewInt(10234318711227387), appState.State.FeePerByte())
+
+	block = generateBlock(6, 0)
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
+}
+
+func generateBlock(height uint64, txsCount int) *types.Block {
+	txs := make([]*types.Transaction, 0)
+	for i := 0; i < txsCount; i++ {
+		tx := &types.Transaction{
+			Type: types.SendTx,
+		}
+		key, _ := crypto.GenerateKey()
+		signedTx, _ := types.SignTx(tx, key)
+		txs = append(txs, signedTx)
+	}
+	header := &types.ProposedHeader{
+		Height: height,
+		TxHash: types.DeriveSha(types.Transactions(txs)),
+	}
+
+	block := &types.Block{
+		Header: &types.Header{
+			ProposedHeader: header,
+		},
+		Body: &types.Body{
+			Transactions: txs,
+		},
+	}
+
+	return block
 }

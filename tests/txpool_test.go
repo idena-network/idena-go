@@ -6,6 +6,8 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
+	_, app, pool := newBlockchain(true, alloc, -1, -1)
 
 	pool.Add(getTx(3, 0, key1))
 	pool.Add(getTx(1, 0, key1))
@@ -73,7 +75,7 @@ func TestTxPool_TxLimits(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, _, pool := blockchain.NewTestBlockchainWithTxLimits(true, alloc, 3, 2)
+	_, _, pool := newBlockchain(true, alloc, 3, 2)
 
 	tx := getTx(1, 0, key1)
 	err := pool.Add(tx)
@@ -112,7 +114,7 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 		Balance: balance,
 	}
 
-	chain, app, pool := blockchain.NewTestBlockchain(true, alloc)
+	chain, app, pool := newBlockchain(true, alloc, -1, -1)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -150,7 +152,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 		}
 	}
 
-	_, app, pool := blockchain.NewTestBlockchain(true, alloc)
+	_, app, pool := newBlockchain(true, alloc, -1, -1)
 
 	// Current epoch = 1
 	app.State.IncEpoch()
@@ -171,10 +173,10 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 
 	// Priority tx after size limit
 	addressIndex++
-	for i := 0; i < 10814; i++ {
+	for i := 0; i < 10596; i++ {
 		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx))
 	}
-	pool.Add(getTypedTx(10815, 1, keys[addressIndex], types.EvidenceTx))
+	pool.Add(getTypedTx(10597, 1, keys[addressIndex], types.EvidenceTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
@@ -213,7 +215,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	result := pool.BuildBlockTransactions()
 
 	// then
-	require.Equal(t, 10814, len(result))
+	require.Equal(t, 10596, len(result))
 	sender, _ := types.Sender(result[0])
 	require.Equal(t, addresses[5], sender)
 	require.Equal(t, uint32(3), result[0].AccountNonce)
@@ -278,4 +280,10 @@ func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.
 	signedTx, _ := types.SignTx(&tx, key)
 
 	return signedTx
+}
+
+func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.Blockchain, *appstate.AppState, *mempool.TxPool) {
+	conf := blockchain.GetDefaultConsensusConfig(false)
+	conf.MinFeePerByte = big.NewInt(0)
+	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
 }

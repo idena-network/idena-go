@@ -62,14 +62,14 @@ type EmptyBlockHeader struct {
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int `json:"timestamp"`
+	Time           *big.Int    `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash    // root of state tree
 	IdentityRoot   common.Hash    // root of approved identities tree
 	Coinbase       common.Address // address of proposer
 	Flags          BlockFlag
-	IpfsHash       []byte // ipfs hash of block body
+	IpfsHash       []byte          // ipfs hash of block body
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
@@ -111,7 +111,9 @@ type Transaction struct {
 	Type         TxType
 	To           *common.Address `rlp:"nil"`
 	Amount       *big.Int        `json:"value"`
-	Payload      []byte          `rlp:"nil"       json:"input"`
+	MaxFee       *big.Int
+	Tips         *big.Int
+	Payload      []byte `rlp:"nil"       json:"input"`
 
 	Signature []byte
 
@@ -317,6 +319,20 @@ func (tx *Transaction) AmountOrZero() *big.Int {
 		return big.NewInt(0)
 	}
 	return tx.Amount
+}
+
+func (tx *Transaction) MaxFeeOrZero() *big.Int {
+	if tx.MaxFee == nil {
+		return big.NewInt(0)
+	}
+	return tx.MaxFee
+}
+
+func (tx *Transaction) TipsOrZero() *big.Int {
+	if tx.Tips == nil {
+		return big.NewInt(0)
+	}
+	return tx.Tips
 }
 
 func (tx *Transaction) Hash() common.Hash {

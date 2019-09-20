@@ -20,6 +20,8 @@ func SignTx(tx *Transaction, prv *ecdsa.PrivateKey) (*Transaction, error) {
 		AccountNonce: tx.AccountNonce,
 		Epoch:        tx.Epoch,
 		Amount:       tx.Amount,
+		MaxFee:       tx.MaxFee,
+		Tips:         tx.Tips,
 		Payload:      tx.Payload,
 		To:           tx.To,
 		Type:         tx.Type,
@@ -56,6 +58,8 @@ func signatureHash(tx *Transaction) common.Hash {
 		tx.Type,
 		tx.To,
 		tx.Amount,
+		tx.MaxFee,
+		tx.Tips,
 		tx.Payload,
 	})
 }

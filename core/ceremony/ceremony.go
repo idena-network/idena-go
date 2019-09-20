@@ -549,7 +549,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 		rlp.DecodeBytes(existTx, signedTx)
 	} else {
 		addr := vc.secStore.GetAddress()
-		tx := blockchain.BuildTx(vc.appState, addr, nil, txType, decimal.Zero, 0, 0, payload)
+		tx := blockchain.BuildTx(vc.appState, addr, nil, txType, decimal.Zero, decimal.Zero, decimal.Zero, 0, 0, payload)
 		var err error
 		signedTx, err = vc.secStore.SignTx(tx)
 		if err != nil {

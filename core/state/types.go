@@ -51,6 +51,7 @@ type StateGlobal struct {
 	WordsSeed          types.Seed `rlp:"nil"`
 	LastSnapshot       uint64
 	EpochBlock         uint64
+	FeePerByte         *big.Int
 }
 
 type PredefinedState struct {
