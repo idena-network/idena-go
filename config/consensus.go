@@ -54,6 +54,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		FoundationPayoutsPercent:           0.1,
 		ZeroWalletPercent:                  0.02,
 		FeeSensitivityCoef:                 0.25,
-		MinFeePerByte:                      big.NewInt(1e+4),
+		MinFeePerByte:                      big.NewInt(1e+2),
 	}
 }
