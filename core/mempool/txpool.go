@@ -213,6 +213,10 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	pending := txpool.GetPendingTransaction()
 
+	sort.SliceStable(pending, func(i, j int) bool {
+		return pending[i].AccountNonce < pending[j].AccountNonce
+	})
+
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
 	minRemovedNonce := make(map[common.Address]uint32)
