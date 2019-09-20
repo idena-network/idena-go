@@ -327,7 +327,6 @@ func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, blo
 
 	chain.applyNewEpoch(appState, block)
 	chain.applyGlobalParams(appState, block)
-	chain.applyNextBlockFee(appState, block)
 
 	diff = appState.Precommit()
 
@@ -676,7 +675,6 @@ func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *b
 func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
 	feePerByte := chain.calculateNextBlockFeePerByte(appState, block)
 	appState.State.SetFeePerByte(feePerByte)
-	appState.State.AddBlockSize(uint32(len(block.Body.Bytes())), int(chain.config.Consensus.FeePrevBlocks)-1)
 }
 
 func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppState, block *types.Block) *big.Int {
@@ -685,12 +683,12 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
 
-	averageSize := chain.calculateAverageSize(appState, block)
+	blockSize := len(block.Body.Bytes())
 	k := chain.config.Consensus.FeeSensitivityCoef
 	maxBlockSize := mempool.BlockBodySize
 
 	// curBlockFee = prevBlockFee * (1 + k * (prevBlockGas / maxGas - 0.5))
-	newFeePerByteD := averageSize.
+	newFeePerByteD := decimal.New(int64(blockSize), 0).
 		Div(decimal.New(int64(maxBlockSize), 0)).
 		Sub(decimal.NewFromFloat(0.5)).
 		Mul(decimal.NewFromFloat32(k)).
@@ -702,21 +700,6 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
 	}
 	return newFeePerByte
-}
-
-func (chain *Blockchain) calculateAverageSize(appState *appstate.AppState, block *types.Block) decimal.Decimal {
-	prevBlockSizes := appState.State.BlockSizes()
-	var totalPrevSize int
-	for _, size := range prevBlockSizes {
-		totalPrevSize += int(size)
-	}
-
-	newBlockSize := len(block.Body.Bytes())
-	averageSize := decimal.
-		New(int64(totalPrevSize+newBlockSize), 0).
-		Div(decimal.New(int64(len(prevBlockSizes)+1), 0))
-
-	return averageSize
 }
 
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {

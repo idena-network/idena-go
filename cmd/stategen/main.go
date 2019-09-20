@@ -70,7 +70,6 @@ func main() {
 			Epoch:              globalObject.Epoch(),
 			EpochBlock:         globalObject.EpochBlock(),
 			FeePerByte:         globalObject.FeePerByte(),
-			BlockSizes:         globalObject.BlockSizes(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
