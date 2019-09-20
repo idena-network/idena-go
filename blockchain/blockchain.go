@@ -210,7 +210,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
-			Time:         big.NewInt(1),
+			Time:         big.NewInt(0),
 			Height:       blockNumber,
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
