@@ -269,7 +269,9 @@ func (fs *fastSync) postConsuming() error {
 		return err
 	}
 	err = fs.appState.State.RecoverSnapshot(fs.manifest, file)
+	file.Close()
 	if err != nil {
+		//TODO : add snapshot to ban list
 		return err
 	}
 

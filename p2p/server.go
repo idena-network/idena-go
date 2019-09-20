@@ -974,9 +974,6 @@ func (srv *Server) runPeer(p *Peer) {
 
 	// run the protocol
 	remoteRequested, err := p.run()
-
-	srv.log.Info("peerFeed event sent", "remoteRequested", remoteRequested, "err", err)
-
 	// Note: run waits for existing peers to be sent on srv.delpeer
 	// before returning, so this send should not select on srv.quit.
 	srv.delpeer <- peerDrop{p, err, remoteRequested}
