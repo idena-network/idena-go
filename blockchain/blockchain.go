@@ -687,7 +687,7 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 	k := chain.config.Consensus.FeeSensitivityCoef
 	maxBlockSize := mempool.BlockBodySize
 
-	// curBlockFee = prevBlockFee * (1 + k * (prevBlockGas / maxGas - 0.5))
+	// curBlockFee = prevBlockFee * (1 + k * (prevBlockSize / maxBlockSize - 0.5))
 	newFeePerByteD := decimal.New(int64(blockSize), 0).
 		Div(decimal.New(int64(maxBlockSize), 0)).
 		Sub(decimal.NewFromFloat(0.5)).
