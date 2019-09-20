@@ -132,6 +132,82 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestTxPool_ResetTo(t *testing.T) {
+	require := require.New(t)
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	key2, _ := crypto.GenerateKey()
+	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[addr] = config.GenesisAllocation{
+		Balance: getAmount(100),
+	}
+	alloc[addr2] = config.GenesisAllocation{
+		Balance: getAmount(20),
+	}
+
+	_, app, pool := newBlockchain(true, alloc, -1, -1)
+
+	tx1 := getTypedTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
+	err := pool.Add(tx1)
+	require.NoError(err)
+
+	tx2 := getTypedTxWithAmount(2, 1, key, types.SendTx, getAmount(60))
+	err = pool.Add(tx2)
+	require.NoError(err)
+
+	// will be removed because of balance
+	tx3 := getTypedTxWithAmount(3, 1, key, types.SendTx, getAmount(70))
+	err = pool.Add(tx3)
+	require.NoError(err)
+
+	// will be removed because of nonce hole
+	tx4 := getTypedTxWithAmount(4, 1, key, types.SendTx, getAmount(20))
+	err = pool.Add(tx4)
+	require.NoError(err)
+
+	tx5 := getTypedTxWithAmount(1, 1, key2, types.SendTx, getAmount(15))
+	err = pool.Add(tx5)
+	require.NoError(err)
+
+	// will be removed because of past epoch
+	tx6 := getTypedTxWithAmount(2, 0, key2, types.SendTx, getAmount(15))
+	err = pool.Add(tx6)
+	require.NoError(err)
+
+	// will be removed because mined
+	tx7 := getTypedTxWithAmount(1, 0, key2, types.SendTx, getAmount(15))
+	err = pool.Add(tx7)
+	require.NoError(err)
+
+	app.State.SubBalance(addr, getAmount(35))
+	app.State.IncEpoch()
+
+	app.Commit(nil)
+
+	pool.ResetTo(&types.Block{
+		Header: &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Height: 2,
+			},
+		},
+		Body: &types.Body{
+			Transactions: []*types.Transaction{tx7},
+		},
+	})
+
+	txs := pool.GetPendingTransaction()
+
+	require.Equal(3, len(txs))
+	require.Contains(txs, tx1)
+	require.Contains(txs, tx2)
+	require.Contains(txs, tx5)
+
+	require.Equal(uint32(2), app.NonceCache.GetNonce(addr, 1))
+	require.Equal(uint32(1), app.NonceCache.GetNonce(addr2, 1))
+}
+
 func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
 	alloc := make(map[common.Address]config.GenesisAllocation)
@@ -259,7 +335,7 @@ func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction
 	return getTypedTx(nonce, epoch, key, types.SendTx)
 }
 
-func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
+func getTypedTxWithAmount(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType, amount *big.Int) *types.Transaction {
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	to := &addr
@@ -273,13 +349,17 @@ func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.
 		AccountNonce: nonce,
 		Type:         txType,
 		To:           to,
-		Amount:       new(big.Int),
+		Amount:       amount,
 		Epoch:        epoch,
 	}
 
 	signedTx, _ := types.SignTx(&tx, key)
 
 	return signedTx
+}
+
+func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
+	return getTypedTxWithAmount(nonce, epoch, key, txType, new(big.Int))
 }
 
 func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.Blockchain, *appstate.AppState, *mempool.TxPool) {
