@@ -125,7 +125,6 @@ func (p *peer) RequestBlocksRange(batchId uint32, from uint64, to uint64) {
 }
 
 func (p *peer) broadcast() {
-	defer p.Log().Info("Peer exited from broadcast loop")
 	defer close(p.finished)
 	for {
 		if p.maxDelayMs > 0 {

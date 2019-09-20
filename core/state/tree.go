@@ -25,6 +25,7 @@ type Tree interface {
 	AvailableVersions() []int
 	SaveVersionAt(version int64) ([]byte, int64, error)
 	SetVirtualVersion(version int64)
+	ValidateTree() bool
 }
 
 func NewMutableTree(db dbm.DB) *MutableTree {
@@ -37,6 +38,10 @@ type MutableTree struct {
 	tree *iavl.MutableTree
 
 	lock sync.RWMutex
+}
+
+func (t *MutableTree) ValidateTree() bool {
+	return t.tree.ValidateTree()
 }
 
 func (t *MutableTree) SetVirtualVersion(version int64) {
@@ -155,6 +160,10 @@ func (t *MutableTree) AvailableVersions() []int {
 
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
+}
+
+func (t *ImmutableTree) ValidateTree() bool {
+	return t.tree.ValidateTree()
 }
 
 func (t *ImmutableTree) SaveVersionAt(version int64) ([]byte, int64, error) {

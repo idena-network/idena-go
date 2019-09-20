@@ -58,6 +58,6 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
-replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190904114916-53100aff08f6
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190919135148-89e4ad773677
 
 replace github.com/libp2p/go-libp2p-kad-dht => github.com/libp2p/go-libp2p-kad-dht v0.2.1-0.20190905000620-96d98235133f

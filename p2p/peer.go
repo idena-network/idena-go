@@ -233,18 +233,14 @@ loop:
 			break loop
 		}
 	}
-	p.log.Info("Closing peer")
 	close(p.closed)
 	p.rw.close(reason)
-	p.log.Info("Wait finish read and ping loops")
 	p.wg.Wait()
-	p.log.Info("Peer closed")
 	return remoteRequested, err
 }
 
 func (p *Peer) pingLoop() {
 	ping := time.NewTimer(pingInterval)
-	defer p.log.Debug("exited ping loop")
 	defer p.wg.Done()
 	defer ping.Stop()
 	for {
@@ -262,7 +258,6 @@ func (p *Peer) pingLoop() {
 }
 
 func (p *Peer) readLoop(errc chan<- error) {
-	defer p.log.Debug("exited read loop")
 	defer p.wg.Done()
 	for {
 		msg, err := p.rw.ReadMsg()

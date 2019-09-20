@@ -927,9 +927,14 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 		clearDb(pdb)
 		return err
 	}
+
 	if tree.WorkingHash() != manifest.Root {
 		clearDb(pdb)
 		return errors.New("wrong manifest root")
+	}
+	if !tree.ValidateTree() {
+		clearDb(pdb)
+		return errors.New("corrupted tree")
 	}
 	return nil
 }
