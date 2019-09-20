@@ -213,13 +213,27 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	pending := txpool.GetPendingTransaction()
 
-	sort.SliceStable(pending, func(i, j int) bool {
-		return pending[i].AccountNonce < pending[j].AccountNonce
-	})
-
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
-	minRemovedNonce := make(map[common.Address]uint32)
+	minErrorNonce := make(map[common.Address]uint32)
+
+	for _, tx := range pending {
+		if tx.Epoch != globalEpoch {
+			continue
+		}
+
+		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+			sender, _ := types.Sender(tx)
+			if n, ok := minErrorNonce[sender]; ok {
+				if tx.AccountNonce < n {
+					minErrorNonce[sender] = tx.AccountNonce
+				}
+			} else {
+				minErrorNonce[sender] = tx.AccountNonce
+			}
+			continue
+		}
+	}
 
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
@@ -232,14 +246,8 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 		sender, _ := types.Sender(tx)
 
-		if n, ok := minRemovedNonce[sender]; ok && tx.AccountNonce > n {
+		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
 			txpool.Remove(tx)
-			continue
-		}
-
-		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
-			txpool.Remove(tx)
-			minRemovedNonce[sender] = tx.AccountNonce
 			continue
 		}
 
