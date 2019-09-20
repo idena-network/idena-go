@@ -2,10 +2,13 @@ package mempool
 
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/appstate"
 )
 
 type buildingContext struct {
+	appState           *appstate.AppState
 	sortedTxs          []*types.Transaction
 	sortedPriorityTxs  []*types.Transaction
 	sortedTxsPerSender map[common.Address][]*types.Transaction
@@ -14,12 +17,16 @@ type buildingContext struct {
 	blockSize          int
 }
 
-func newBuildingContext(sortedTxs []*types.Transaction,
+func newBuildingContext(
+	appState *appstate.AppState,
+	sortedTxs []*types.Transaction,
 	sortedPriorityTxs []*types.Transaction,
 	sortedTxsPerSender map[common.Address][]*types.Transaction,
-	curNoncesPerSender map[common.Address]uint32) *buildingContext {
+	curNoncesPerSender map[common.Address]uint32,
+) *buildingContext {
 
 	ctx := &buildingContext{
+		appState:           appState,
 		sortedTxs:          sortedTxs,
 		sortedPriorityTxs:  sortedPriorityTxs,
 		sortedTxsPerSender: sortedTxsPerSender,
@@ -50,6 +57,9 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 		if currentNonce+1 != tx.AccountNonce {
 			break
 		}
+		if !ctx.checkFee(tx) {
+			break
+		}
 		sizeToAdd += tx.Size()
 		if ctx.blockSize+sizeToAdd > BlockBodySize {
 			break
@@ -73,15 +83,22 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 func (ctx *buildingContext) addTxsToBlock() {
 	txs := ctx.sortedTxs
 	for _, tx := range txs {
-		if ctx.blockSize+tx.Size() > BlockBodySize {
-			return
+		if !ctx.checkFee(tx) {
+			continue
 		}
 		sender, _ := types.Sender(tx)
 		if ctx.curNoncesPerSender[sender]+1 != tx.AccountNonce {
 			continue
 		}
+		if ctx.blockSize+tx.Size() > BlockBodySize {
+			return
+		}
 		ctx.blockTxs = append(ctx.blockTxs, tx)
 		ctx.blockSize += tx.Size()
 		ctx.curNoncesPerSender[sender] = tx.AccountNonce
 	}
+}
+
+func (ctx *buildingContext) checkFee(tx *types.Transaction) bool {
+	return validation.ValidateFee(ctx.appState, tx, false) == nil
 }

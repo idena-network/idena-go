@@ -174,7 +174,7 @@ func (engine *Engine) loop() {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
 
-				engine.chain.WriteCertificate(blockHash, cert,  engine.chain.IsPermanentCert(block.Header))
+				engine.chain.WriteCertificate(blockHash, cert, engine.chain.IsPermanentCert(block.Header))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}

@@ -62,6 +62,8 @@ type Transaction struct {
 	From      common.Address  `json:"from"`
 	To        *common.Address `json:"to"`
 	Amount    decimal.Decimal `json:"amount"`
+	Tips      decimal.Decimal `json:"tips"`
+	MaxFee    decimal.Decimal `json:"maxFee"`
 	Nonce     uint32          `json:"nonce"`
 	Epoch     uint16          `json:"epoch"`
 	Payload   hexutil.Bytes   `json:"payload"`
@@ -110,6 +112,8 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 		Epoch:     tx.Epoch,
 		Payload:   hexutil.Bytes(tx.Payload),
 		Amount:    blockchain.ConvertToFloat(tx.Amount),
+		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
+		Tips:      blockchain.ConvertToFloat(tx.Tips),
 		From:      sender,
 		Nonce:     tx.AccountNonce,
 		To:        tx.To,

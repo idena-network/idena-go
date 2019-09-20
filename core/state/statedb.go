@@ -406,6 +406,14 @@ func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
 	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
 }
 
+func (s *StateDB) SetFeePerByte(fee *big.Int) {
+	s.GetOrNewGlobalObject().SetFeePerByte(fee)
+}
+
+func (s *StateDB) FeePerByte() *big.Int {
+	return s.GetOrNewGlobalObject().FeePerByte()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -977,6 +985,7 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
+	stateObject.data.FeePerByte = state.Global.FeePerByte
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
