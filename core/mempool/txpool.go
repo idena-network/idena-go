@@ -215,6 +215,26 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
+	minErrorNonce := make(map[common.Address]uint32)
+
+	for _, tx := range pending {
+		if tx.Epoch != globalEpoch {
+			continue
+		}
+
+		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+			sender, _ := types.Sender(tx)
+			if n, ok := minErrorNonce[sender]; ok {
+				if tx.AccountNonce < n {
+					minErrorNonce[sender] = tx.AccountNonce
+				}
+			} else {
+				minErrorNonce[sender] = tx.AccountNonce
+			}
+			continue
+		}
+	}
+
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
@@ -223,11 +243,14 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		if tx.Epoch > globalEpoch {
 			continue
 		}
-		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+
+		sender, _ := types.Sender(tx)
+
+		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
 			txpool.Remove(tx)
 			continue
 		}
-		sender, _ := types.Sender(tx)
+
 		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
 }
