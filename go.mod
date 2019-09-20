@@ -27,6 +27,7 @@ require (
 	github.com/ipfs/go-unixfs v0.2.1
 	github.com/ipfs/interface-go-ipfs-core v0.2.2
 	github.com/jackpal/go-nat-pmp v1.0.1
+	github.com/jteeuwen/go-bindata v3.0.7+incompatible // indirect
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multihash v0.0.7

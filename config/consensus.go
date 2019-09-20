@@ -46,7 +46,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		StakeRewardRate:                    0.2,
 		FeeBurnRate:                        0.9,
 		FinalCommitteeReward:               big.NewInt(4e+18),
-		SnapshotRange:                      10000,
+		SnapshotRange:                      3000,
 		OfflinePenaltyBlocksCount:          1800,
 		SuccessfullValidationRewardPercent: 0.24,
 		FlipRewardPercent:                  0.32,
