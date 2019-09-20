@@ -97,10 +97,6 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	require.False(appState.IdentityState.IsApproved(addr2))
 }
 
-func getAmount(amount int64) *big.Int {
-	return new(big.Int).Mul(common.DnaBase, big.NewInt(amount))
-}
-
 func generateTx(amount *big.Int, to common.Address, nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
 
 	tx := types.Transaction{
