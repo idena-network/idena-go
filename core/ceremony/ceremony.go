@@ -67,6 +67,7 @@ type ValidationCeremony struct {
 	blockHandlers          map[state.ValidationPeriod]blockHandler
 	validationStats        *Stats
 	flipKeyWordPairs       []int
+	flipKeyWordProof       []byte
 	epoch                  uint16
 	config                 *config.Config
 	applyEpochMutex        sync.Mutex
@@ -205,13 +206,13 @@ func (vc *ValidationCeremony) GetValidationStats() *Stats {
 }
 
 func (vc *ValidationCeremony) restoreState() {
+	vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	timestamp := vc.epochDb.ReadShortSessionTime()
 	if timestamp != nil {
 		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
 	}
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
-	vc.restoreFlipKeyWordPairs()
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
@@ -492,11 +493,11 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	}
 
 	key := vc.flipper.GetFlipEncryptionKey()
-	_, proof := vc.epochDb.ReadFlipKeyWordPairs()
 	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
 
-	vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, proof, salt, key))
-	vc.shortAnswersSent = true
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, vc.flipKeyWordProof, salt, key)); err == nil {
+		vc.shortAnswersSent = true
+	}
 }
 
 func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
@@ -535,8 +536,9 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	bitmap.WriteTo(buf)
 
-	vc.sendTx(types.EvidenceTx, buf.Bytes())
-	vc.evidenceSent = true
+	if _, err := vc.sendTx(types.EvidenceTx, buf.Bytes()); err == nil {
+		vc.evidenceSent = true
+	}
 }
 
 func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash, error) {
@@ -924,26 +926,7 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	words, proof := vc.GeneratePairs(seed, common.WordDictionarySize, identity.GetTotalWordPairsCount())
-	var wordsToPersist []uint32
-	for _, word := range words {
-		wordsToPersist = append(wordsToPersist, uint32(word))
-	}
-	vc.epochDb.WriteFlipKeyWordPairs(wordsToPersist, proof)
-	vc.flipKeyWordPairs = words
-}
-
-func (vc *ValidationCeremony) restoreFlipKeyWordPairs() {
-	persistedWords, _ := vc.epochDb.ReadFlipKeyWordPairs()
-	if persistedWords == nil {
-		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
-		return
-	}
-	var words []int
-	for _, persistedWord := range persistedWords {
-		words = append(words, int(persistedWord))
-	}
-	vc.flipKeyWordPairs = words
+	vc.flipKeyWordPairs, vc.flipKeyWordProof = vc.GeneratePairs(seed, common.WordDictionarySize, identity.GetTotalWordPairsCount())
 }
 
 func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {

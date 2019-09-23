@@ -173,10 +173,11 @@ func Test_qualifyCandidate(t *testing.T) {
 	epochDb.WriteAnswerHash(maliciousCandidate, rlp.Hash([]byte{0x0}), time.Now())
 	key, _ := crypto.GenerateKey()
 	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, salt, ecies.ImportECDSA(key))
+	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, []byte{0x6}, ecies.ImportECDSA(key))
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
 			candidate:          attachment,
-			maliciousCandidate: shortAnswer,
+			maliciousCandidate: maliciousAttachment,
 		},
 		longAnswers: map[common.Address][]byte{
 			candidate: long.Bytes(),

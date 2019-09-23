@@ -127,11 +127,10 @@ func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
 	return edb.db.Get(OwnShortAnswerKey)
 }
 
-func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) error {
+func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) {
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, uint64(timestamp.Unix()))
 	edb.db.Set(ShortSessionTimeKey, b)
-	return nil
 }
 
 func (edb *EpochDb) ReadShortSessionTime() *time.Time {
@@ -217,22 +216,6 @@ func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])
 	}
-}
-
-func (edb *EpochDb) WriteFlipKeyWordPairs(words []uint32, proof []byte) {
-	wordsRlp, _ := rlp.EncodeToBytes(words)
-	edb.db.Set(FlipKeyWordPairsPrefix, wordsRlp)
-	edb.db.Set(FlipKeyWordPairsProofPrefix, proof)
-}
-
-func (edb *EpochDb) ReadFlipKeyWordPairs() (words []uint32, proof []byte) {
-	wordsRlp, proof := edb.db.Get(FlipKeyWordPairsPrefix), edb.db.Get(FlipKeyWordPairsProofPrefix)
-	if wordsRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(wordsRlp), &words); err != nil {
-			log.Error("invalid flip key words rlp", "err", err)
-		}
-	}
-	return words, proof
 }
 
 func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {
