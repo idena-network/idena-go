@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"errors"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/p2p"
 	"sync"
 )
@@ -75,66 +74,6 @@ func (ps *peerSet) Len() int {
 	return len(ps.peers)
 }
 
-// PeersWithoutBlock retrieves a list of peers that do not have a given block in
-// their set of known hashes.
-func (ps *peerSet) PeersWithoutBlock(hash common.Hash) []*peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownBlocks.Contains(hash) {
-			list = append(list, p)
-		}
-	}
-	return list
-}
-
-// PeersWithoutTx retrieves a list of peers that do not have a given transaction
-// in their set of known hashes.
-func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownTxs.Contains(hash) {
-			list = append(list, p)
-		}
-	}
-	return list
-}
-
-// PeersWithoutProof retrieves a list of peers that do not have a given proof hash
-// in their set of known hashes.
-func (ps *peerSet) PeersWithoutProof(hash common.Hash) []*peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownProofs.Contains(hash) {
-			list = append(list, p)
-		}
-	}
-	return list
-}
-
-// PeersWithoutTx retrieves a list of peers that do not have a given transaction
-// in their set of known hashes.
-func (ps *peerSet) PeersWithoutFlip(hash common.Hash) []*peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		if !p.knownFlips.Contains(hash) {
-			list = append(list, p)
-		}
-	}
-	return list
-}
-
 func (ps *peerSet) Peers() []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
@@ -156,28 +95,23 @@ func (ps *peerSet) Close() {
 	}
 	ps.closed = true
 }
-func (ps *peerSet) PeersWithoutVote(hash common.Hash) []*peer {
+
+func (ps *peerSet) SendWithoutMsg(msgcode uint64, payload interface{}) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
+	key := msgKey(payload)
 	for _, p := range ps.peers {
-		if !p.knownVotes.Contains(hash) {
-			list = append(list, p)
+		if _, ok := p.msgCache.Get(key); !ok {
+			p.markMessage(key)
+			p.sendMsg(msgcode, payload)
 		}
 	}
-	return list
 }
 
-func (ps *peerSet) PeersWithoutFlipKey(hash common.Hash) []*peer {
+func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-
-	list := make([]*peer, 0, len(ps.peers))
 	for _, p := range ps.peers {
-		if !p.knownFlipKeys.Contains(hash) {
-			list = append(list, p)
-		}
+		p.sendMsg(msgcode, payload)
 	}
-	return list
 }

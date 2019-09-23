@@ -85,7 +85,7 @@ func (fp *Flipper) Initialize() {
 	fp.epochDb = database.NewEpochDb(fp.db, fp.appState.State.Epoch())
 }
 
-func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
+func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
@@ -135,7 +135,7 @@ func (fp *Flipper) AddNewFlip(flip types.Flip, local bool) error {
 		return err
 	}
 
-	fp.bus.Publish(&events.NewFlipEvent{Flip: &flip})
+	fp.bus.Publish(&events.NewFlipEvent{Flip: flip})
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
 

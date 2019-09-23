@@ -99,6 +99,7 @@ type Block struct {
 	// caches
 	hash        atomic.Value
 	proposeHash atomic.Value
+	msgKey      atomic.Value
 }
 
 type Body struct {
@@ -118,8 +119,9 @@ type Transaction struct {
 	Signature []byte
 
 	// caches
-	hash atomic.Value
-	from atomic.Value
+	hash   atomic.Value
+	from   atomic.Value
+	msgKey atomic.Value
 }
 
 type BlockCert struct {
@@ -138,13 +140,15 @@ type Vote struct {
 	Signature []byte
 
 	// caches
-	hash atomic.Value
-	addr atomic.Value
+	hash   atomic.Value
+	addr   atomic.Value
+	msgKey atomic.Value
 }
 
 type Flip struct {
-	Tx   *Transaction
-	Data []byte
+	Tx     *Transaction
+	Data   []byte
+	msgKey atomic.Value
 }
 
 type ActivityMonitor struct {
@@ -189,6 +193,16 @@ func (b *Block) Root() common.Hash {
 
 func (b *Block) IdentityRoot() common.Hash {
 	return b.Header.IdentityRoot()
+}
+
+func (b *Block) MsgKey() string {
+	if key := b.msgKey.Load(); key != nil {
+		return key.(string)
+	}
+	hash := rlp.Hash(b)
+	key := string(hash[:])
+	b.msgKey.Store(key)
+	return key
 }
 
 func (h *Header) Hash() common.Hash {
@@ -314,6 +328,16 @@ func (v *Vote) VoterAddr() common.Address {
 	return addr
 }
 
+func (v *Vote) MsgKey() string {
+	if key := v.msgKey.Load(); key != nil {
+		return key.(string)
+	}
+	hash := rlp.Hash(v)
+	key := string(hash[:])
+	v.msgKey.Store(key)
+	return key
+}
+
 func (tx *Transaction) AmountOrZero() *big.Int {
 	if tx.Amount == nil {
 		return big.NewInt(0)
@@ -348,6 +372,16 @@ func (tx *Transaction) Hash() common.Hash {
 func (tx *Transaction) Size() int {
 	b, _ := rlp.EncodeToBytes(tx)
 	return len(b)
+}
+
+func (tx *Transaction) MsgKey() string {
+	if key := tx.msgKey.Load(); key != nil {
+		return key.(string)
+	}
+	hash := rlp.Hash(tx)
+	key := string(hash[:])
+	tx.msgKey.Store(key)
+	return key
 }
 
 // Len returns the length of s.
@@ -412,6 +446,16 @@ type FlipKey struct {
 
 func (k FlipKey) Hash() common.Hash {
 	return rlp.Hash(k)
+}
+
+func (f *Flip) MsgKey() string {
+	if key := f.msgKey.Load(); key != nil {
+		return key.(string)
+	}
+	hash := rlp.Hash(f)
+	key := string(hash[:])
+	f.msgKey.Store(key)
+	return key
 }
 
 type Answer byte
