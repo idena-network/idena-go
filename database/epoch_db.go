@@ -13,18 +13,15 @@ import (
 )
 
 var (
-	OwnShortAnswerKey           = []byte("own-short")
-	AnswerHashPrefix            = []byte("hash")
-	ShortSessionTimeKey         = []byte("time-short")
-	ShortAnswersKey             = []byte("answers-short")
-	LongShortAnswersKey         = []byte("answers-long")
-	TxOwnPrefix                 = []byte("tx")
-	EvidencePrefix              = []byte("evi")
-	LotterySeedKey              = []byte("ls")
-	FlipCidPrefix               = []byte("cid")
-	FlipKeyWordPairsPrefix      = []byte("word")
-	FlipKeyWordPairsProofPrefix = []byte("word-proof")
-	CandidateProofs             = []byte("candidate-proofs")
+	OwnShortAnswerKey   = []byte("own-short")
+	AnswerHashPrefix    = []byte("hash")
+	ShortSessionTimeKey = []byte("time-short")
+	ShortAnswersKey     = []byte("answers-short")
+	LongShortAnswersKey = []byte("answers-long")
+	TxOwnPrefix         = []byte("tx")
+	EvidencePrefix      = []byte("evi")
+	LotterySeedKey      = []byte("ls")
+	FlipCidPrefix       = []byte("cid")
 )
 
 type EpochDb struct {
