@@ -118,8 +118,8 @@ type Transaction struct {
 	Signature []byte
 
 	// caches
-	hash atomic.Value
-	from atomic.Value
+	hash   atomic.Value
+	from   atomic.Value
 }
 
 type BlockCert struct {
@@ -138,13 +138,13 @@ type Vote struct {
 	Signature []byte
 
 	// caches
-	hash atomic.Value
-	addr atomic.Value
+	hash   atomic.Value
+	addr   atomic.Value
 }
 
 type Flip struct {
-	Tx   *Transaction
-	Data []byte
+	Tx     *Transaction
+	Data   []byte
 }
 
 type ActivityMonitor struct {

@@ -58,7 +58,7 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, err
 	}
 
-	flip := types.Flip{
+	flip := &types.Flip{
 		Tx:   tx,
 		Data: encryptedFlip,
 	}
