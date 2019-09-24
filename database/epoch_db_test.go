@@ -93,29 +93,6 @@ func TestEpochDb_Write_Read_FlipPairs(t *testing.T) {
 	require.False(edb.HasFlipCid([]byte{0x4}))
 }
 
-func TestEpochDb_Write_Read_FlipKeyWordPairs(t *testing.T) {
-	mdb := db.NewMemDB()
-
-	edb := NewEpochDb(mdb, 1)
-
-	words := []uint32{3000, 2000, 10}
-	proof := []byte{225, 111, 33, 5, 19}
-
-	edb.WriteFlipKeyWordPairs(words, proof)
-
-	readWords, readProof := edb.ReadFlipKeyWordPairs()
-
-	require.Equal(t, 3, len(readWords))
-	require.Equal(t, 5, len(readProof))
-
-	for i := 0; i < len(readWords); i++ {
-		require.Equal(t, words[i], readWords[i])
-	}
-	for i := 0; i < len(readProof); i++ {
-		require.Equal(t, proof[i], readProof[i])
-	}
-}
-
 func TestEpochDb_GetAnswers(t *testing.T) {
 	require := require.New(t)
 
