@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/p2p"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"math"
@@ -14,7 +15,9 @@ import (
 )
 
 const (
-	handshakeTimeout = 10 * time.Second
+	handshakeTimeout  = 10 * time.Second
+	msgCacheAliveTime = 3 * time.Minute
+	msgCacheGcTime    = 5 * time.Minute
 )
 
 type peer struct {
@@ -45,7 +48,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayM
 		term:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		maxDelayMs:     maxDelayMs,
-		msgCache:       cache.New(3*time.Minute, 5*time.Minute),
+		msgCache:       cache.New(msgCacheAliveTime, msgCacheGcTime),
 	}
 }
 
@@ -132,8 +135,17 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	return nil
 }
 
-func (p *peer) markMessage(key string) {
+func (p *peer) markPayload(payload interface{}) {
+	p.markKey(msgKey(payload))
+}
+
+func (p *peer) markKey(key string) {
 	p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
+}
+
+func msgKey(data interface{}) string {
+	hash := rlp.Hash(data)
+	return string(hash[:])
 }
 
 func (p *peer) setHeight(newHeight uint64) {

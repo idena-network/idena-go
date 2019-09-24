@@ -96,13 +96,13 @@ func (ps *peerSet) Close() {
 	ps.closed = true
 }
 
-func (ps *peerSet) SendWithoutMsg(msgcode uint64, payload interface{}) {
+func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 	key := msgKey(payload)
 	for _, p := range ps.peers {
 		if _, ok := p.msgCache.Get(key); !ok {
-			p.markMessage(key)
+			p.markKey(key)
 			p.sendMsg(msgcode, payload)
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
@@ -175,7 +174,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		key := msgKey(query)
-		p.markMessage(key)
+		p.markPayload(key)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
 		if ok, _ := pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
@@ -186,7 +185,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markMessage(block.MsgKey())
+		p.markPayload(block)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
 		if ok, _ := pm.proposals.AddProposedBlock(block, p.id); ok {
@@ -197,7 +196,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(vote); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markMessage(vote.MsgKey())
+		p.markPayload(vote)
 		p.setPotentialHeight(vote.Header.Round - 1)
 		if pm.votes.AddVote(vote) {
 			pm.SendVote(vote)
@@ -207,7 +206,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(tx); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markMessage(tx.MsgKey())
+		p.markPayload(tx)
 		pm.txpool.Add(tx)
 	case GetBlockByHash:
 		var query getBlockBodyRequest
@@ -229,7 +228,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markMessage(f.MsgKey())
+		p.markPayload(f)
 		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
 			p.Log().Error("invalid flip", "err", err)
 		}
@@ -373,19 +372,14 @@ func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []
 }
 
 func (pm *ProtocolManager) proposeProof(payload *proposeProof, key string) {
-	pm.peers.SendWithoutMsg(ProposeProof, payload)
-}
-
-func msgKey(data interface{}) string {
-	hash := rlp.Hash(data)
-	return string(hash[:])
+	pm.peers.SendWithFilter(ProposeProof, payload)
 }
 
 func (pm *ProtocolManager) ProposeBlock(block *types.Block) {
-	pm.peers.SendWithoutMsg(ProposeBlock, block)
+	pm.peers.SendWithFilter(ProposeBlock, block)
 }
 func (pm *ProtocolManager) SendVote(vote *types.Vote) {
-	pm.peers.SendWithoutMsg(Vote, vote)
+	pm.peers.SendWithFilter(Vote, vote)
 }
 
 func errResp(code int, format string, v ...interface{}) error {
@@ -403,15 +397,15 @@ func (pm *ProtocolManager) broadcastLoop() {
 	}
 }
 func (pm *ProtocolManager) broadcastTx(tx *types.Transaction) {
-	pm.peers.SendWithoutMsg(NewTx, tx)
+	pm.peers.SendWithFilter(NewTx, tx)
 }
 
 func (pm *ProtocolManager) broadcastFlip(flip *types.Flip) {
-	pm.peers.SendWithoutMsg(NewFlip, flip)
+	pm.peers.SendWithFilter(NewFlip, flip)
 }
 
 func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey) {
-	pm.peers.SendWithoutMsg(FlipKey, flipKey)
+	pm.peers.SendWithFilter(FlipKey, flipKey)
 }
 
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
@@ -424,7 +418,7 @@ func (pm *ProtocolManager) syncTxPool(p *peer) {
 	pending := pm.txpool.GetPendingTransaction()
 	for _, tx := range pending {
 		p.sendMsg(NewTx, tx)
-		p.markMessage(msgKey(tx))
+		p.markPayload(tx)
 	}
 }
 
