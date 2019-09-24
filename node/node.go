@@ -25,6 +25,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"net"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 }
 
-type nodeCtx struct {
+type NodeCtx struct {
 	Node            *Node
 	AppState        *appstate.AppState
 	Ceremony        *ceremony.ValidationCeremony
@@ -112,14 +113,14 @@ func ProvideMobileKey(path string, cfg string, key string, password string) stri
 }
 
 func NewNode(config *config.Config) (*Node, error) {
-	nodeCtx, err := NewIndexerNode(config, eventbus.New())
+	nodeCtx, err := NewNodeWithInjections(config, eventbus.New(), collector.NewBlockStatsCollector())
 	if err != nil {
 		return nil, err
 	}
 	return nodeCtx.Node, err
 }
 
-func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
+func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCollector collector.BlockStatsCollector) (*NodeCtx, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -146,7 +147,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
@@ -173,7 +174,7 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
 	}
-	return &nodeCtx{
+	return &NodeCtx{
 		Node:            node,
 		AppState:        appState,
 		Ceremony:        ceremony,

@@ -25,6 +25,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -51,24 +52,25 @@ var (
 )
 
 type Blockchain struct {
-	repo            *database.Repo
-	secStore        *secstore.SecStore
-	Head            *types.Header
-	PreliminaryHead *types.Header
-	genesis         *types.Header
-	config          *config.Config
-	pubKey          []byte
-	coinBaseAddress common.Address
-	log             log.Logger
-	txpool          *mempool.TxPool
-	appState        *appstate.AppState
-	offlineDetector *OfflineDetector
-	secretKey       *ecdsa.PrivateKey
-	ipfs            ipfs.Proxy
-	timing          *timing
-	bus             eventbus.Bus
-	applyNewEpochFn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)
-	isSyncing       bool
+	repo                *database.Repo
+	secStore            *secstore.SecStore
+	Head                *types.Header
+	PreliminaryHead     *types.Header
+	genesis             *types.Header
+	config              *config.Config
+	pubKey              []byte
+	coinBaseAddress     common.Address
+	log                 log.Logger
+	txpool              *mempool.TxPool
+	appState            *appstate.AppState
+	offlineDetector     *OfflineDetector
+	secretKey           *ecdsa.PrivateKey
+	ipfs                ipfs.Proxy
+	timing              *timing
+	bus                 eventbus.Bus
+	applyNewEpochFn     func(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (int, *types.ValidationAuthors, bool)
+	blockStatsCollector collector.BlockStatsCollector
+	isSyncing           bool
 }
 
 func init() {
@@ -82,22 +84,23 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore,
-	bus eventbus.Bus, offlineDetector *OfflineDetector) *Blockchain {
+	bus eventbus.Bus, offlineDetector *OfflineDetector, blockStatsCollector collector.BlockStatsCollector) *Blockchain {
 	return &Blockchain{
-		repo:            database.NewRepo(db),
-		config:          config,
-		log:             log.New(),
-		txpool:          txpool,
-		appState:        appState,
-		ipfs:            ipfs,
-		timing:          NewTiming(config.Validation),
-		bus:             bus,
-		secStore:        secStore,
-		offlineDetector: offlineDetector,
+		repo:                database.NewRepo(db),
+		config:              config,
+		log:                 log.New(),
+		txpool:              txpool,
+		appState:            appState,
+		ipfs:                ipfs,
+		timing:              NewTiming(config.Validation),
+		bus:                 bus,
+		secStore:            secStore,
+		offlineDetector:     offlineDetector,
+		blockStatsCollector: blockStatsCollector,
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState) (int, *types.ValidationAuthors, bool)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (int, *types.ValidationAuthors, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -262,6 +265,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if err := chain.ValidateBlock(block, checkState); err != nil {
 		return err
 	}
+	chain.blockStatsCollector.EnableCollecting()
+	defer chain.blockStatsCollector.CompleteCollecting()
 	diff, err := chain.processBlock(block)
 	if err != nil {
 		return err
@@ -386,12 +391,13 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState)
+	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, chain.blockStatsCollector)
 
 	setNewIdentitiesAttributes(appState, networkSize, failed)
 
 	if !failed {
-		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock())
+		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(),
+			chain.blockStatsCollector)
 	}
 
 	appState.State.IncEpoch()
