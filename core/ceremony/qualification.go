@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
@@ -125,16 +126,14 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	var answerBytes []byte
 	if shortSession {
-		hash := q.epochDb.GetAnswerHash(candidate)
 		attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
-		if attachment == nil {
-			return 0, uint32(len(flipsToSolve)), nil
+		if attachment != nil {
+			hash := q.epochDb.GetAnswerHash(candidate)
+			answerBytes = attachment.Answers
+			if answerBytes != nil && hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
+				return 0, uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve))), nil
+			}
 		}
-		answerBytes = attachment.Answers
-		if answerBytes != nil && hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
-			return 0, uint32(len(flipsToSolve)), nil
-		}
-
 	} else {
 		answerBytes = q.longAnswers[candidate]
 	}
