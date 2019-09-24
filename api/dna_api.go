@@ -295,7 +295,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
 			FlipWords{
 				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
-				Used:  usedPairs.Contains(i),
+				Used:  usedPairs.Contains(uint8(i)),
 				Id:    i,
 			})
 	}
