@@ -173,12 +173,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		key := msgKey(query)
-		p.markPayload(key)
+		p.markPayload(query)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
 		if ok, _ := pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
-			pm.proposeProof(query, key)
+			pm.proposeProof(query)
 		}
 	case ProposeBlock:
 		block := new(types.Block)
@@ -368,10 +367,10 @@ func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []
 		PubKey: pubKey,
 		Proof:  proof,
 	}
-	pm.proposeProof(payload, msgKey(payload))
+	pm.proposeProof(payload)
 }
 
-func (pm *ProtocolManager) proposeProof(payload *proposeProof, key string) {
+func (pm *ProtocolManager) proposeProof(payload *proposeProof) {
 	pm.peers.SendWithFilter(ProposeProof, payload)
 }
 
