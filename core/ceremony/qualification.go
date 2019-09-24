@@ -126,21 +126,30 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	var answerBytes []byte
 	if shortSession {
-		attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
-		if attachment != nil {
-			hash := q.epochDb.GetAnswerHash(candidate)
-			answerBytes = attachment.Answers
-			if answerBytes != nil && hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
-				return 0, uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve))), nil
-			}
-		}
+		answerBytes = q.shortAnswers[candidate]
 	} else {
 		answerBytes = q.longAnswers[candidate]
 	}
+
 	// candidate didn't send answers
 	if answerBytes == nil {
 		return 0, 0, nil
 	}
+
+	if shortSession {
+		attachment := attachments.ParseShortAnswerBytesAttachment(answerBytes)
+		flipsCount := uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve)))
+		// can't parse
+		if attachment == nil {
+			return 0, flipsCount, nil
+		}
+		hash := q.epochDb.GetAnswerHash(candidate)
+		answerBytes = attachment.Answers
+		if answerBytes == nil || hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
+			return 0, flipsCount, nil
+		}
+	}
+
 	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
 	availableExtraFlips := 0
 
