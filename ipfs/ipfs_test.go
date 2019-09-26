@@ -22,13 +22,14 @@ func TestIpfsProxy_Cid(t *testing.T) {
 func TestIpfsProxy_Get_Cid(t *testing.T) {
 	require := require.New(t)
 
-	proxy, _ := NewIpfsProxy(&config.IpfsConfig{
-		SwarmKey:  "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
-		BootNodes: []string{},
-		IpfsPort:  4012,
-		DataDir:   "./datadir-ipfs",
+	proxy, err := NewIpfsProxy(&config.IpfsConfig{
+		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
+		BootNodes:   []string{},
+		IpfsPort:    4012,
+		DataDir:     "./datadir-ipfs",
+		GracePeriod: "20s",
 	})
-
+	require.NoError(err)
 	cid, _ := proxy.Cid([]byte{0x1})
 	cid2, _ := proxy.Cid([]byte{0x1})
 

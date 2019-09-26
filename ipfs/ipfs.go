@@ -376,6 +376,11 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		}
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
 		ipfsConfig.Swarm.DisableBandwidthMetrics = true
+		ipfsConfig.Routing.Type = cfg.Routing
+		ipfsConfig.Swarm.ConnMgr.GracePeriod = cfg.GracePeriod
+		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
+		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
+		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
 		return nil
 	}
 	var ipfsConfig *ipfsConf.Config

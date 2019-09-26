@@ -43,6 +43,7 @@ func main() {
 		config.MaxNetworkDelayFlag,
 		config.FastSyncFlag,
 		config.ForceFullSyncFlag,
+		config.ProfileFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {

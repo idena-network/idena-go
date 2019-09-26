@@ -14,6 +14,9 @@ const (
 	DefaultSwarmKey       = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
+	DefaultMaxPeers       = 50
+
+	LowPowerMaxPeers = 5
 )
 
 var (
@@ -91,5 +94,9 @@ var (
 	ForceFullSyncFlag = cli.Uint64Flag{
 		Name:  "forcefullsync",
 		Usage: "Force full sync on last blocks",
+	}
+	ProfileFlag = cli.StringFlag{
+		Name:  "profile",
+		Usage: "Configuration profile",
 	}
 )
