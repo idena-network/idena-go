@@ -847,10 +847,10 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 			return currentEpoch
 		}
 		return 0
-	case state.Newbie:
-	case state.Verified:
-	case state.Suspended:
-	case state.Zombie:
+	case state.Newbie,
+		state.Verified,
+		state.Suspended,
+		state.Zombie:
 		return identity.Birthday
 	}
 	return 0
