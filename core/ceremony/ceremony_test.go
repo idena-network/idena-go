@@ -340,3 +340,10 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	require.Equal(t, authors.GoodAuthors[god].SuccessfulInvites, 1)
 	require.NotContains(t, authors.GoodAuthors, badAuth)
 }
+
+func Test_determineIdentityBirthday(t *testing.T) {
+	identity := state.Identity{}
+	identity.Birthday = 1
+	identity.State = state.Newbie
+	require.Equal(t, uint16(1), determineIdentityBirthday(2, identity, state.Newbie))
+}
