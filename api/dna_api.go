@@ -305,9 +305,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		invitees = data.Invitees
 	}
 
-	age := uint16(0)
+	age := currentEpoch
 	if data.Birthday > 0 {
-		age = currentEpoch - data.Birthday
+		age -= data.Birthday
 	}
 
 	return Identity{
