@@ -22,6 +22,8 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
+	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
@@ -65,7 +67,7 @@ type ValidationCeremony struct {
 	chain                  *blockchain.Blockchain
 	syncer                 protocol.Syncer
 	blockHandlers          map[state.ValidationPeriod]blockHandler
-	validationStats        *Stats
+	validationStats        *statsTypes.ValidationStats
 	flipKeyWordPairs       []int
 	flipKeyWordProof       []byte
 	epoch                  uint16
@@ -199,10 +201,6 @@ func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 	networkSize := vc.appState.ValidatorsCache.NetworkSize()
 	return common.LongSessionFlipsCount(networkSize)
-}
-
-func (vc *ValidationCeremony) GetValidationStats() *Stats {
-	return vc.validationStats
 }
 
 func (vc *ValidationCeremony) restoreState() {
@@ -573,10 +571,11 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
+	defer collector.SetValidation(vc.validationStats)
 
 	applyOnState := func(addr common.Address, value cacheValue) {
 		appState.State.SetState(addr, value.state)
@@ -601,7 +600,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		}
 	}
 
-	vc.validationStats = NewStats()
+	vc.validationStats = statsTypes.NewValidationStats()
 	stats := vc.validationStats
 	stats.FlipCids = vc.flips
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(), vc.epochDb.ReadEvidenceMaps())
@@ -617,8 +616,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
 		flipQualificationMap[i] = item
-		stats.FlipsPerIdx[i] = &FlipStats{
-			Status: item.status,
+		stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
+			Status: byte(item.status),
 			Answer: item.answer,
 		}
 	}
@@ -681,7 +680,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		epochApplyingValues[addr] = value
 
-		stats.IdentitiesPerAddr[addr] = &IdentityStats{
+		stats.IdentitiesPerAddr[addr] = &statsTypes.IdentityStats{
 			ShortPoint:        shortFlipPoint,
 			ShortFlips:        shortQualifiedFlipsCount,
 			LongPoint:         longFlipPoint,
@@ -794,7 +793,7 @@ func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification)
 	return badAuthors, goodAuthors
 }
 
-func addFlipAnswersToStats(answers map[int]FlipAnswerStats, isShort bool, stats *Stats) {
+func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort bool, stats *statsTypes.ValidationStats) {
 	for flipIdx, answer := range answers {
 		flipStats, _ := stats.FlipsPerIdx[flipIdx]
 		if isShort {

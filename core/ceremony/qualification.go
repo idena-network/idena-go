@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"sync"
 )
 
@@ -121,7 +122,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
-	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]FlipAnswerStats) {
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]statsTypes.FlipAnswerStats) {
 
 	var answerBytes []byte
 	if shortSession {
@@ -153,7 +154,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
-	flipAnswers = make(map[int]FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
+	flipAnswers = make(map[int]statsTypes.FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
@@ -191,7 +192,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 		point += answerPoint
-		flipAnswers[flipIdx] = FlipAnswerStats{
+		flipAnswers[flipIdx] = statsTypes.FlipAnswerStats{
 			Respondent: candidate,
 			Answer:     answer,
 			Point:      answerPoint,
