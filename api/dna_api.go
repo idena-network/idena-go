@@ -340,24 +340,21 @@ type Epoch struct {
 
 func (api *DnaApi) Epoch() Epoch {
 	s := api.baseApi.engine.GetAppState()
-
 	var res string
 	switch s.State.ValidationPeriod() {
 	case state.NonePeriod:
 		res = "None"
-		break
 	case state.FlipLotteryPeriod:
 		res = "FlipLottery"
-		break
+		if api.ceremony.ShortSessionStarted() {
+			res = "ShortSession"
+		}
 	case state.ShortSessionPeriod:
 		res = "ShortSession"
-		break
 	case state.LongSessionPeriod:
 		res = "LongSession"
-		break
 	case state.AfterLongSessionPeriod:
 		res = "AfterLongSession"
-		break
 	}
 
 	return Epoch{

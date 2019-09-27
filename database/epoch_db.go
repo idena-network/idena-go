@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"encoding/binary"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/ipfs"
@@ -15,7 +14,6 @@ import (
 var (
 	OwnShortAnswerKey   = []byte("own-short")
 	AnswerHashPrefix    = []byte("hash")
-	ShortSessionTimeKey = []byte("time-short")
 	ShortAnswersKey     = []byte("answers-short")
 	LongShortAnswersKey = []byte("answers-long")
 	TxOwnPrefix         = []byte("tx")
@@ -122,22 +120,6 @@ func (edb *EpochDb) WriteOwnShortAnswers(answers *types.Answers) {
 
 func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
 	return edb.db.Get(OwnShortAnswerKey)
-}
-
-func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(timestamp.Unix()))
-	edb.db.Set(ShortSessionTimeKey, b)
-}
-
-func (edb *EpochDb) ReadShortSessionTime() *time.Time {
-	data := edb.db.Get(ShortSessionTimeKey)
-	if data == nil {
-		return nil
-	}
-	timeSeconds := int64(binary.LittleEndian.Uint64(data))
-	t := time.Unix(timeSeconds, 0)
-	return &t
 }
 
 func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
