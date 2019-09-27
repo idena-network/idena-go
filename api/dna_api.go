@@ -335,7 +335,7 @@ type Epoch struct {
 	Epoch                  uint16     `json:"epoch"`
 	NextValidation         time.Time  `json:"nextValidation"`
 	CurrentPeriod          string     `json:"currentPeriod"`
-	CurrentValidationStart *time.Time `json:"currentValidationStart"`
+	CurrentValidationStart time.Time `json:"currentValidationStart"`
 }
 
 func (api *DnaApi) Epoch() Epoch {

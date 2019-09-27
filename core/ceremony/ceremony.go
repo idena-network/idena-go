@@ -157,7 +157,7 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) ShortSessionBeginTime() *time.Time {
+func (vc *ValidationCeremony) ShortSessionBeginTime() time.Time {
 	return vc.appState.EvidenceMap.GetShortSessionBeginningTime()
 }
 
@@ -210,11 +210,7 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 
 func (vc *ValidationCeremony) restoreState() {
 	vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
-
-	if vc.appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
-		t := vc.appState.State.NextValidationTime()
-		vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.GetShortSessionDuration())
-	}
+	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
 	vc.startValidationShortSessionTimer()
@@ -231,9 +227,11 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 		vc.validationStartCtxCancel = cancel
 		go func() {
 			timer := time.NewTimer(diff)
+			vc.log.Info("Short session timer has been created", "time", vc.appState.State.NextValidationTime())
 			select {
 			case <-timer.C:
 				vc.startShortSession()
+				vc.log.Info("Timer triggered")
 			case <-ctx.Done():
 				return
 			}
@@ -255,6 +253,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Reset()
 	vc.appState.EvidenceMap.Clear()
+	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	if vc.validationStartCtxCancel != nil {
 		vc.validationStartCtxCancel()
 	}
@@ -304,20 +303,18 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) startShortSession() {
-	if vc.shortSessionStarted {
-		return
-	}
 	vc.validationStartMutex.Lock()
 	defer vc.validationStartMutex.Unlock()
 
+	if vc.shortSessionStarted {
+		return
+	}
 	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
 		return
 	}
 
-	t := vc.appState.State.NextValidationTime()
-	vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.GetShortSessionDuration())
 	if vc.shouldInteractWithNetwork() {
-		vc.logInfoWithInteraction("Short session started", "at", t.String())
+		vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	}
 	vc.broadcastFlipKey()
 	vc.shortSessionStarted = true
@@ -549,7 +546,7 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	shortSessionStart, shortSessionEnd := vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime()
 
-	additional := vc.epochDb.GetConfirmedRespondents(*shortSessionStart, *shortSessionEnd)
+	additional := vc.epochDb.GetConfirmedRespondents(shortSessionStart, shortSessionEnd)
 
 	candidates := vc.getCandidatesAddresses()
 
