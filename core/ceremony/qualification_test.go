@@ -198,7 +198,7 @@ func Test_qualifyCandidate(t *testing.T) {
 	require.Equal(t, uint32(6), longQualifiedFlipsCount)
 
 	require.Equal(t, float32(0), mShortPoint)
-	require.Equal(t, uint32(len(shortFlipsToSolve)), mShortQualifiedFlipsCount)
+	require.Equal(t, uint32(5), mShortQualifiedFlipsCount)
 }
 
 func Test_qualifyCandidateWithFewFlips(t *testing.T) {
