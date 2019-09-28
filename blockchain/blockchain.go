@@ -663,6 +663,10 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
 		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
+	case types.ChangeGodAddressTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		appState.State.SetGodAddress(*tx.To)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
