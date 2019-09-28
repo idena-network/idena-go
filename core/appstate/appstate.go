@@ -97,7 +97,7 @@ func (s *AppState) Commit(block *types.Block) error {
 	_, _, _, err = s.IdentityState.Commit(true)
 
 	if block != nil {
-		s.ValidatorsCache.RefreshIfUpdated(block)
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block)
 	}
 
 	return err

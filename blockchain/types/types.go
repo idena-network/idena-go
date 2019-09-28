@@ -21,6 +21,7 @@ const (
 	EvidenceTx           uint16 = 0x8
 	OnlineStatusTx       uint16 = 0x9
 	KillInviteeTx        uint16 = 0xA
+	ChangeGodAddressTx   uint16 = 0xB
 )
 
 const (
@@ -118,8 +119,8 @@ type Transaction struct {
 	Signature []byte
 
 	// caches
-	hash   atomic.Value
-	from   atomic.Value
+	hash atomic.Value
+	from atomic.Value
 }
 
 type BlockCert struct {
@@ -138,13 +139,13 @@ type Vote struct {
 	Signature []byte
 
 	// caches
-	hash   atomic.Value
-	addr   atomic.Value
+	hash atomic.Value
+	addr atomic.Value
 }
 
 type Flip struct {
-	Tx     *Transaction
-	Data   []byte
+	Tx   *Transaction
+	Data []byte
 }
 
 type ActivityMonitor struct {

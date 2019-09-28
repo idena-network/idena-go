@@ -43,6 +43,7 @@ var (
 	DuplicatedFlipPair   = errors.New("flip with these words already exists")
 	BigFee               = errors.New("current fee is greater than tx max fee")
 	InvalidMaxFee        = errors.New("invalid max fee")
+	InvalidSender        = errors.New("invalid sender")
 	validators           map[types.TxType]validator
 )
 
@@ -61,6 +62,7 @@ func init() {
 		types.SubmitLongAnswersTx:  validateSubmitLongAnswersTx,
 		types.EvidenceTx:           validateEvidenceTx,
 		types.OnlineStatusTx:       validateOnlineStatusTx,
+		types.ChangeGodAddressTx:   validateChangeGodAddressTx,
 	}
 }
 
@@ -452,9 +454,6 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
 	}
-	if appState.State.GetIdentityState(sender) <= state.Candidate {
-		return NotIdentity
-	}
 
 	return nil
 }
@@ -477,5 +476,26 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, m
 	if inviter == nil || inviter.Address != sender {
 		return InvalidRecipient
 	}
+	return nil
+}
+
+func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	sender, _ := types.Sender(tx)
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+	if sender != appState.State.GodAddress() {
+		return InvalidSender
+	}
+	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+
 	return nil
 }

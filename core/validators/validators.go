@@ -73,7 +73,8 @@ func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
 	return v.onlineNodesSet.Clone()
 }
 
-func (v *ValidatorsCache) RefreshIfUpdated(block *types.Block) {
+func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block) {
+	v.god = godAddress
 	shouldUpdate := block.Header.Flags().HasFlag(types.IdentityUpdate)
 
 	if !shouldUpdate {
