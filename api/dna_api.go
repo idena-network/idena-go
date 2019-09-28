@@ -335,29 +335,26 @@ type Epoch struct {
 	Epoch                  uint16     `json:"epoch"`
 	NextValidation         time.Time  `json:"nextValidation"`
 	CurrentPeriod          string     `json:"currentPeriod"`
-	CurrentValidationStart *time.Time `json:"currentValidationStart"`
+	CurrentValidationStart time.Time `json:"currentValidationStart"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
 	s := api.baseApi.engine.GetAppState()
-
 	var res string
 	switch s.State.ValidationPeriod() {
 	case state.NonePeriod:
 		res = "None"
-		break
 	case state.FlipLotteryPeriod:
 		res = "FlipLottery"
-		break
+		if api.ceremony.ShortSessionStarted() {
+			res = "ShortSession"
+		}
 	case state.ShortSessionPeriod:
 		res = "ShortSession"
-		break
 	case state.LongSessionPeriod:
 		res = "LongSession"
-		break
 	case state.AfterLongSessionPeriod:
 		res = "AfterLongSession"
-		break
 	}
 
 	return Epoch{

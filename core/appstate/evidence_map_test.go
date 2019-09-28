@@ -20,7 +20,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	bus := eventbus.New()
 	em := NewEvidenceMap(bus)
 	now := time.Now().UTC().Add(-29 * time.Second)
-	em.SetShortSessionTime(&now, time.Minute*1)
+	em.SetShortSessionTime(now, time.Minute*1)
 
 	const candidatesCount = 10000
 	const txCandidate = 1

@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -42,40 +43,43 @@ const (
 )
 
 type ValidationCeremony struct {
-	bus                    eventbus.Bus
-	db                     dbm.DB
-	appState               *appstate.AppState
-	flipper                *flip.Flipper
-	secStore               *secstore.SecStore
-	log                    log.Logger
-	flips                  [][]byte
-	flipsPerAuthor         map[int][][]byte
-	shortFlipsPerCandidate [][]int
-	longFlipsPerCandidate  [][]int
-	shortFlipsToSolve      [][]byte
-	longFlipsToSolve       [][]byte
-	keySent                bool
-	shortAnswersSent       bool
-	evidenceSent           bool
-	candidates             []*candidate
-	nonCandidates          []common.Address
-	mutex                  sync.Mutex
-	epochDb                *database.EpochDb
-	qualification          *qualification
-	mempool                *mempool.TxPool
-	keysPool               *mempool.KeysPool
-	chain                  *blockchain.Blockchain
-	syncer                 protocol.Syncer
-	blockHandlers          map[state.ValidationPeriod]blockHandler
-	validationStats        *statsTypes.ValidationStats
-	flipKeyWordPairs       []int
-	flipKeyWordProof       []byte
-	epoch                  uint16
-	config                 *config.Config
-	applyEpochMutex        sync.Mutex
-	flipAuthorMap          map[common.Hash]common.Address
-	flipAuthorMapLock      sync.Mutex
-	epochApplyingCache     map[uint64]epochApplyingCache
+	bus                      eventbus.Bus
+	db                       dbm.DB
+	appState                 *appstate.AppState
+	flipper                  *flip.Flipper
+	secStore                 *secstore.SecStore
+	log                      log.Logger
+	flips                    [][]byte
+	flipsPerAuthor           map[int][][]byte
+	shortFlipsPerCandidate   [][]int
+	longFlipsPerCandidate    [][]int
+	shortFlipsToSolve        [][]byte
+	longFlipsToSolve         [][]byte
+	keySent                  bool
+	shortAnswersSent         bool
+	evidenceSent             bool
+	shortSessionStarted      bool
+	candidates               []*candidate
+	nonCandidates            []common.Address
+	mutex                    sync.Mutex
+	epochDb                  *database.EpochDb
+	qualification            *qualification
+	mempool                  *mempool.TxPool
+	keysPool                 *mempool.KeysPool
+	chain                    *blockchain.Blockchain
+	syncer                   protocol.Syncer
+	blockHandlers            map[state.ValidationPeriod]blockHandler
+	validationStats          *statsTypes.ValidationStats
+	flipKeyWordPairs         []int
+	flipKeyWordProof         []byte
+	epoch                    uint16
+	config                   *config.Config
+	applyEpochMutex          sync.Mutex
+	flipAuthorMap            map[common.Hash]common.Address
+	flipAuthorMapLock        sync.Mutex
+	epochApplyingCache       map[uint64]epochApplyingCache
+	validationStartCtxCancel context.CancelFunc
+	validationStartMutex     sync.Mutex
 }
 
 type epochApplyingCache struct {
@@ -148,11 +152,12 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	// completeEpoch if finished
 	if block.Header.Flags().HasFlag(types.ValidationFinished) {
 		vc.completeEpoch()
+		vc.startValidationShortSessionTimer()
 		vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	}
 }
 
-func (vc *ValidationCeremony) ShortSessionBeginTime() *time.Time {
+func (vc *ValidationCeremony) ShortSessionBeginTime() time.Time {
 	return vc.appState.EvidenceMap.GetShortSessionBeginningTime()
 }
 
@@ -205,12 +210,33 @@ func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
 
 func (vc *ValidationCeremony) restoreState() {
 	vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
-	timestamp := vc.epochDb.ReadShortSessionTime()
-	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
-	}
+	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
+	vc.startValidationShortSessionTimer()
+}
+
+func (vc *ValidationCeremony) startValidationShortSessionTimer() {
+	if vc.validationStartCtxCancel != nil || !vc.shouldInteractWithNetwork() {
+		return
+	}
+	t := time.Now().UTC()
+	if t.Before(vc.appState.State.NextValidationTime()) {
+		diff := vc.appState.State.NextValidationTime().Sub(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		vc.validationStartCtxCancel = cancel
+		go func() {
+			timer := time.NewTimer(diff)
+			vc.log.Info("Short session timer has been created", "time", vc.appState.State.NextValidationTime())
+			select {
+			case <-timer.C:
+				vc.startShortSession()
+				vc.log.Info("Timer triggered")
+			case <-ctx.Done():
+				return
+			}
+		}()
+	}
 }
 
 func (vc *ValidationCeremony) completeEpoch() {
@@ -227,7 +253,10 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Reset()
 	vc.appState.EvidenceMap.Clear()
-
+	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
+	if vc.validationStartCtxCancel != nil {
+		vc.validationStartCtxCancel()
+	}
 	vc.candidates = nil
 	vc.flips = nil
 	vc.flipsPerAuthor = nil
@@ -238,9 +267,11 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.keySent = false
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
+	vc.shortSessionStarted = false
 	vc.validationStats = nil
 	vc.flipKeyWordPairs = nil
 	vc.flipAuthorMap = nil
+	vc.validationStartCtxCancel = nil
 	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
 }
 
@@ -264,19 +295,29 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
-	timestamp := vc.epochDb.ReadShortSessionTime()
-	if timestamp != nil {
-		vc.appState.EvidenceMap.SetShortSessionTime(timestamp, vc.config.Validation.GetShortSessionDuration())
-	} else if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		t := time.Now().UTC()
-		vc.epochDb.WriteShortSessionTime(t)
-		vc.appState.EvidenceMap.SetShortSessionTime(&t, vc.config.Validation.GetShortSessionDuration())
-		if vc.shouldInteractWithNetwork() {
-			vc.logInfoWithInteraction("Short session started", "at", t.String())
-		}
+	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
+		vc.startShortSession()
 	}
 	vc.broadcastFlipKey()
 	vc.processCeremonyTxs(block)
+}
+
+func (vc *ValidationCeremony) startShortSession() {
+	vc.validationStartMutex.Lock()
+	defer vc.validationStartMutex.Unlock()
+
+	if vc.shortSessionStarted {
+		return
+	}
+	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
+		return
+	}
+
+	if vc.shouldInteractWithNetwork() {
+		vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
+	}
+	vc.broadcastFlipKey()
+	vc.shortSessionStarted = true
 }
 
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
@@ -505,7 +546,7 @@ func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
 
 	shortSessionStart, shortSessionEnd := vc.appState.EvidenceMap.GetShortSessionBeginningTime(), vc.appState.EvidenceMap.GetShortSessionEndingTime()
 
-	additional := vc.epochDb.GetConfirmedRespondents(*shortSessionStart, *shortSessionEnd)
+	additional := vc.epochDb.GetConfirmedRespondents(shortSessionStart, shortSessionEnd)
 
 	candidates := vc.getCandidatesAddresses()
 
@@ -961,4 +1002,8 @@ func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
 	sig := secStore.Sign(hash.Bytes())
 	sha := sha3.Sum256(sig)
 	return sha[:]
+}
+
+func (vc *ValidationCeremony) ShortSessionStarted() bool {
+	return vc.shortSessionStarted
 }
