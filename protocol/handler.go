@@ -35,7 +35,7 @@ const (
 )
 const (
 	DecodeErr              = 1
-	MaxTimestampLagSeconds = 30
+	MaxTimestampLagSeconds = 15
 )
 
 var (
