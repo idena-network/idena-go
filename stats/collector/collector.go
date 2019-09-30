@@ -21,7 +21,7 @@ type BlockStatsCollector interface {
 	SetTotalInvitationsReward(amount *big.Int)
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
-	AddValidationReward(addr common.Address, balance *big.Int, stake *big.Int)
+	AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int)
 	AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int)
 	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
@@ -71,7 +71,7 @@ func (c collectorStub) SetTotalZeroWalletFund(amount *big.Int) {
 	// do nothing
 }
 
-func (c collectorStub) AddValidationReward(addr common.Address, balance *big.Int, stake *big.Int) {
+func (c collectorStub) AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int) {
 	// do nothing
 }
 

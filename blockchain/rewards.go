@@ -58,12 +58,13 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 		switch identity.State {
 		case state.Verified, state.Newbie:
 			if _, ok := authors.BadAuthors[addr]; !ok {
-				normalAge := normalAge(epoch - identity.Birthday)
+				age := epoch - identity.Birthday
+				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
-				collector.AddValidationReward(addr, reward, stake)
+				collector.AddValidationReward(addr, age, reward, stake)
 			}
 		}
 	})
