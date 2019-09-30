@@ -722,8 +722,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for i, item := range flipQualification {
 		flipQualificationMap[i] = item
 		stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
-			Status: byte(item.status),
-			Answer: item.answer,
+			Status:     byte(item.status),
+			Answer:     item.answer,
+			WrongWords: item.wrongWords,
 		}
 	}
 	validationAuthors := new(types.ValidationAuthors)
