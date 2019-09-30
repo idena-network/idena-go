@@ -381,6 +381,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	if penaltySub != nil {
 		appState.State.SubPenalty(block.Header.Coinbase(), penaltySub)
 	}
+	chain.blockStatsCollector.AddProposerReward(block.Header.ProposedHeader.Coinbase, reward, stake)
 
 	chain.rewardFinalCommittee(appState, block, prevBlock)
 }
@@ -558,6 +559,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		if penaltySub != nil {
 			appState.State.SubPenalty(addr, penaltySub)
 		}
+		chain.blockStatsCollector.AddFinalCommitteeReward(addr, reward, stake)
 	}
 }
 

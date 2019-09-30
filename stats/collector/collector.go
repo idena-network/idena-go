@@ -26,6 +26,9 @@ type BlockStatsCollector interface {
 	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
+
+	AddProposerReward(addr common.Address, balance *big.Int, stake *big.Int)
+	AddFinalCommitteeReward(addr common.Address, balance *big.Int, stake *big.Int)
 }
 
 type collectorStub struct {
@@ -88,6 +91,14 @@ func (c collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int
 }
 
 func (c collectorStub) AddZeroWalletFund(addr common.Address, balance *big.Int) {
+	// do nothing
+}
+
+func (c collectorStub) AddProposerReward(addr common.Address, balance *big.Int, stake *big.Int) {
+	// do nothing
+}
+
+func (c collectorStub) AddFinalCommitteeReward(addr common.Address, balance *big.Int, stake *big.Int) {
 	// do nothing
 }
 
