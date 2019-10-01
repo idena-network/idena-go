@@ -380,6 +380,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	appState.State.AddStake(block.Header.Coinbase(), stakeAdd)
 	if penaltySub != nil {
 		appState.State.SubPenalty(block.Header.Coinbase(), penaltySub)
+		chain.blockStatsCollector.AfterSubPenalty(block.Header.ProposedHeader.Coinbase, penaltySub, appState)
 	}
 	chain.blockStatsCollector.AddProposerReward(block.Header.ProposedHeader.Coinbase, reward, stake)
 
@@ -414,7 +415,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, chain.blockStatsCollector)
 
-	setNewIdentitiesAttributes(appState, networkSize, failed)
+	setNewIdentitiesAttributes(appState, networkSize, failed, chain.blockStatsCollector)
 
 	if !failed {
 		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(),
@@ -434,7 +435,9 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool,
+	collector collector.BlockStatsCollector) {
+
 	_, invites, flips := common.NetworkParams(networkSize)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
@@ -459,6 +462,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, va
 				appState.IdentityState.Remove(addr)
 			}
 		}
+		collector.BeforeClearPenalty(addr, appState)
 		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
 		appState.State.ResetValidationTxBits(addr)
@@ -528,6 +532,7 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
+		chain.blockStatsCollector.BeforeSetPenalty(addr, appState)
 		appState.State.SetPenalty(addr, math.ToInt(res))
 	}
 
@@ -558,6 +563,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		appState.State.AddStake(addr, stakeAdd)
 		if penaltySub != nil {
 			appState.State.SubPenalty(addr, penaltySub)
+			chain.blockStatsCollector.AfterSubPenalty(addr, penaltySub, appState)
 		}
 		chain.blockStatsCollector.AddFinalCommitteeReward(addr, reward, stake)
 	}
