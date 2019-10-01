@@ -16,7 +16,7 @@ const (
 	DefaultStoreCertRange = 2000
 	DefaultMaxPeers       = 50
 
-	LowPowerMaxPeers = 5
+	LowPowerMaxPeers = 6
 )
 
 var (

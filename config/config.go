@@ -151,6 +151,7 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 func applyProfile(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
 		cfg.P2P.MaxPeers = LowPowerMaxPeers
+		cfg.P2P.DialRatio = 2
 		cfg.IpfsConf.LowWater = 5
 		cfg.IpfsConf.HighWater = 10
 		cfg.IpfsConf.GracePeriod = "1m0s"

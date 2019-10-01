@@ -161,6 +161,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			if batch, ok := peerBatches[response.BatchId]; ok {
 				for _, b := range response.Blocks {
 					batch.headers <- b
+					p.setHeight(b.Header.Height())
 				}
 				pm.batchedLock.Lock()
 				delete(peerBatches, response.BatchId)
@@ -301,6 +302,7 @@ func (pm *ProtocolManager) registerPeer(peer *peer) {
 }
 func (pm *ProtocolManager) unregister(peer *peer) {
 	pm.peers.Unregister(peer.id)
+	peer.Log().Info("Peer disconnected")
 	close(peer.term)
 }
 
