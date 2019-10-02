@@ -141,7 +141,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
 	appState := appstate.NewAppState(db, bus)
-	votes := pengings.NewVotes(appState)
+	votes := pengings.NewVotes(appState, bus)
 
 	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, config.Consensus.MinFeePerByte)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
@@ -173,6 +173,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 		ceremony:        ceremony,
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
+		votes:           votes,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -229,6 +230,7 @@ func (node *Node) StartWithHeight(height uint64) {
 
 	node.txpool.Initialize(node.blockchain.Head, node.secStore.GetAddress())
 	node.flipKeyPool.Initialize(node.blockchain.Head)
+	node.votes.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
