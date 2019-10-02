@@ -34,6 +34,9 @@ type BlockStatsCollector interface {
 	AfterSubPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState)
 	BeforeClearPenalty(addr common.Address, appState *appstate.AppState)
 	BeforeSetPenalty(addr common.Address, appState *appstate.AppState)
+
+	AddMintedCoins(amount *big.Int)
+	AddBurntCoins(amount *big.Int)
 }
 
 type collectorStub struct {
@@ -120,5 +123,13 @@ func (c *collectorStub) BeforeClearPenalty(addr common.Address, appState *appsta
 }
 
 func (c *collectorStub) BeforeSetPenalty(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func (c *collectorStub) AddMintedCoins(amount *big.Int) {
+	// do nothing
+}
+
+func (c *collectorStub) AddBurntCoins(amount *big.Int) {
 	// do nothing
 }

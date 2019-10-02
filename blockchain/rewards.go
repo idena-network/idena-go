@@ -64,6 +64,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
+				collector.AddMintedCoins(reward)
+				collector.AddMintedCoins(stake)
 				collector.AddValidationReward(addr, age, reward, stake)
 			}
 		}
@@ -95,6 +97,8 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		reward, stake := splitReward(math.ToInt(totalReward), config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
+		collector.AddMintedCoins(reward)
+		collector.AddMintedCoins(stake)
 		collector.AddFlipsReward(addr, reward, stake)
 	}
 }
@@ -141,6 +145,8 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
+				collector.AddMintedCoins(reward)
+				collector.AddMintedCoins(stake)
 				collector.AddInvitationsReward(addr, reward, stake)
 			}
 		}
@@ -153,6 +159,7 @@ func addFoundationPayouts(appState *appstate.AppState, config *config.ConsensusC
 	total := math.ToInt(payout)
 	godAddress := appState.State.GodAddress()
 	appState.State.AddBalance(godAddress, total)
+	collector.AddMintedCoins(total)
 	collector.SetTotalFoundationPayouts(total)
 	collector.AddFoundationPayout(godAddress, total)
 }
@@ -163,6 +170,7 @@ func addZeroWalletFund(appState *appstate.AppState, config *config.ConsensusConf
 	total := math.ToInt(payout)
 	zeroAddress := common.Address{}
 	appState.State.AddBalance(zeroAddress, total)
+	collector.AddMintedCoins(total)
 	collector.SetTotalZeroWalletFund(total)
 	collector.AddZeroWalletFund(zeroAddress, total)
 }
