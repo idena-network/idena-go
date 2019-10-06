@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"sort"
@@ -20,6 +21,7 @@ type ForkResolver struct {
 	log            log.Logger
 	triedPeers     mapset.Set
 	applicableFork *applicableFork
+	statsCollector collector.StatsCollector
 }
 
 type applicableFork struct {
@@ -27,13 +29,15 @@ type applicableFork struct {
 	blocks       []types.BlockBundle
 }
 
-func NewForkResolver(forkDetectors []ForkDetector, downloader *protocol.Downloader, chain *blockchain.Blockchain) *ForkResolver {
+func NewForkResolver(forkDetectors []ForkDetector, downloader *protocol.Downloader, chain *blockchain.Blockchain,
+	statsCollector collector.StatsCollector) *ForkResolver {
 	return &ForkResolver{
-		forkDetectors: forkDetectors,
-		downloader:    downloader,
-		chain:         chain,
-		log:           log.New(),
-		triedPeers:    mapset.NewSet(),
+		forkDetectors:  forkDetectors,
+		downloader:     downloader,
+		chain:          chain,
+		log:            log.New(),
+		triedPeers:     mapset.NewSet(),
+		statsCollector: statsCollector,
 	}
 }
 
@@ -155,7 +159,7 @@ func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []types.BlockB
 		return err
 	}
 	for _, bundle := range fork {
-		if err := resolver.chain.AddBlock(bundle.Block, nil); err != nil {
+		if err := resolver.chain.AddBlock(bundle.Block, nil, resolver.statsCollector); err != nil {
 			return err
 		}
 		resolver.chain.WriteCertificate(bundle.Block.Hash(), bundle.Cert, false)

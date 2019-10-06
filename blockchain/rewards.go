@@ -14,25 +14,27 @@ import (
 	"math/big"
 )
 
-func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors, blocks uint64, collector collector.BlockStatsCollector) {
+func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
+	blocks uint64, statsCollector collector.StatsCollector) {
+
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(blocks)))
 
-	collector.SetAuthors(authors)
-	collector.SetTotalReward(totalReward)
+	collector.SetAuthors(statsCollector, authors)
+	collector.SetTotalReward(statsCollector, totalReward)
 
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
 
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	addSuccessfulValidationReward(appState, config, authors, totalRewardD, collector)
-	addFlipReward(appState, config, authors, totalRewardD, collector)
-	addInvitationReward(appState, config, authors, totalRewardD, collector)
-	addFoundationPayouts(appState, config, totalRewardD, collector)
-	addZeroWalletFund(appState, config, totalRewardD, collector)
+	addSuccessfulValidationReward(appState, config, authors, totalRewardD, statsCollector)
+	addFlipReward(appState, config, authors, totalRewardD, statsCollector)
+	addInvitationReward(appState, config, authors, totalRewardD, statsCollector)
+	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
+	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
-	authors *types.ValidationAuthors, totalReward decimal.Decimal, collector collector.BlockStatsCollector) {
+	authors *types.ValidationAuthors, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfulValidationRewardPercent))
 
 	epoch := appState.State.Epoch()
@@ -51,7 +53,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 		return
 	}
 
-	collector.SetTotalValidationReward(math.ToInt(successfulValidationRewardD))
+	collector.SetTotalValidationReward(statsCollector, math.ToInt(successfulValidationRewardD))
 	successfulValidationRewardShare := successfulValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
@@ -64,16 +66,18 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
-				collector.AddMintedCoins(reward)
-				collector.AddMintedCoins(stake)
-				collector.AddValidationReward(addr, age, reward, stake)
+				collector.AfterBalanceUpdate(statsCollector, addr, appState)
+				collector.AddMintedCoins(statsCollector, reward)
+				collector.AddMintedCoins(statsCollector, stake)
+				collector.AddValidationReward(statsCollector, addr, age, reward, stake)
+				collector.AfterAddStake(statsCollector, addr, stake)
 			}
 		}
 	})
 }
 
 func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
-	totalReward decimal.Decimal, collector collector.BlockStatsCollector) {
+	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	flipRewardD := totalReward.Mul(decimal.NewFromFloat32(config.FlipRewardPercent))
 
 	totalFlips := float32(0)
@@ -86,7 +90,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 	if totalFlips == 0 {
 		return
 	}
-	collector.SetTotalFlipsReward(math.ToInt(flipRewardD))
+	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD))
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
 
 	for addr, author := range authors.GoodAuthors {
@@ -97,9 +101,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		reward, stake := splitReward(math.ToInt(totalReward), config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
-		collector.AddMintedCoins(reward)
-		collector.AddMintedCoins(stake)
-		collector.AddFlipsReward(addr, reward, stake)
+		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.AddMintedCoins(statsCollector, reward)
+		collector.AddMintedCoins(statsCollector, stake)
+		collector.AddFlipsReward(statsCollector, addr, reward, stake)
+		collector.AfterAddStake(statsCollector, addr, stake)
 	}
 }
 
@@ -117,7 +123,7 @@ func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
-	totalReward decimal.Decimal, collector collector.BlockStatsCollector) {
+	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
 	totalWeight := float32(0)
@@ -132,7 +138,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	if totalWeight == 0 {
 		return
 	}
-	collector.SetTotalInvitationsReward(math.ToInt(invitationRewardD))
+	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD))
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 
 	for addr, author := range authors.GoodAuthors {
@@ -145,34 +151,38 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				reward, stake := splitReward(math.ToInt(totalReward), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
-				collector.AddMintedCoins(reward)
-				collector.AddMintedCoins(stake)
-				collector.AddInvitationsReward(addr, reward, stake)
+				collector.AfterBalanceUpdate(statsCollector, addr, appState)
+				collector.AddMintedCoins(statsCollector, reward)
+				collector.AddMintedCoins(statsCollector, stake)
+				collector.AddInvitationsReward(statsCollector, addr, reward, stake)
+				collector.AfterAddStake(statsCollector, addr, stake)
 			}
 		}
 	}
 }
 
 func addFoundationPayouts(appState *appstate.AppState, config *config.ConsensusConf, totalReward decimal.Decimal,
-	collector collector.BlockStatsCollector) {
+	statsCollector collector.StatsCollector) {
 	payout := totalReward.Mul(decimal.NewFromFloat32(config.FoundationPayoutsPercent))
 	total := math.ToInt(payout)
 	godAddress := appState.State.GodAddress()
 	appState.State.AddBalance(godAddress, total)
-	collector.AddMintedCoins(total)
-	collector.SetTotalFoundationPayouts(total)
-	collector.AddFoundationPayout(godAddress, total)
+	collector.AfterBalanceUpdate(statsCollector, godAddress, appState)
+	collector.AddMintedCoins(statsCollector, total)
+	collector.SetTotalFoundationPayouts(statsCollector, total)
+	collector.AddFoundationPayout(statsCollector, godAddress, total)
 }
 
 func addZeroWalletFund(appState *appstate.AppState, config *config.ConsensusConf, totalReward decimal.Decimal,
-	collector collector.BlockStatsCollector) {
+	statsCollector collector.StatsCollector) {
 	payout := totalReward.Mul(decimal.NewFromFloat32(config.ZeroWalletPercent))
 	total := math.ToInt(payout)
 	zeroAddress := common.Address{}
 	appState.State.AddBalance(zeroAddress, total)
-	collector.AddMintedCoins(total)
-	collector.SetTotalZeroWalletFund(total)
-	collector.AddZeroWalletFund(zeroAddress, total)
+	collector.AfterBalanceUpdate(statsCollector, zeroAddress, appState)
+	collector.AddMintedCoins(statsCollector, total)
+	collector.SetTotalZeroWalletFund(statsCollector, total)
+	collector.AddZeroWalletFund(statsCollector, zeroAddress, total)
 }
 
 func normalAge(age uint16) float32 {

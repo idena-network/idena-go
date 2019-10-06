@@ -15,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	math2 "math"
@@ -51,13 +52,15 @@ type Engine struct {
 	timeDrift         time.Duration
 	synced            bool
 	nextBlockDetector *nextBlockDetector
+	statsCollector    collector.StatsCollector
 }
 
 func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossipHandler, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
 	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader,
-	offlineDetector *blockchain.OfflineDetector) *Engine {
+	offlineDetector *blockchain.OfflineDetector,
+	statsCollector collector.StatsCollector) *Engine {
 	return &Engine{
 		chain:             chain,
 		pm:                gossipHandler,
@@ -72,6 +75,7 @@ func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossip
 		forkResolver:      NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
 		offlineDetector:   offlineDetector,
 		nextBlockDetector: newNextBlockDetector(gossipHandler, downloader, chain),
+		statsCollector:    statsCollector,
 	}
 }
 
@@ -218,7 +222,7 @@ func (engine *Engine) loop() {
 			hash, finalCert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
 		}
 		if blockHash == emptyBlock.Hash() {
-			if err := engine.chain.AddBlock(emptyBlock, nil); err != nil {
+			if err := engine.chain.AddBlock(emptyBlock, nil, engine.statsCollector); err != nil {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
@@ -228,7 +232,7 @@ func (engine *Engine) loop() {
 		} else {
 			block, err := engine.getBlockByHash(round, blockHash)
 			if err == nil {
-				if err := engine.chain.AddBlock(block, nil); err != nil {
+				if err := engine.chain.AddBlock(block, nil, engine.statsCollector); err != nil {
 					engine.log.Error("Add block", "err", err)
 					continue
 				}

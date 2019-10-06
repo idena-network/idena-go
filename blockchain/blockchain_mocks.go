@@ -12,7 +12,6 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/secstore"
-	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/tendermint/tm-db"
 	"math/big"
 	"time"
@@ -82,7 +81,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, collector.NewBlockStatsCollector())
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())

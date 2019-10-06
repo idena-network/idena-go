@@ -67,7 +67,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &authors, 100, collector.NewBlockStatsCollector())
+	rewardValidIdentities(appState, conf, &authors, 100, collector.NewStatsCollector())
 
 	appState.Commit(nil)
 

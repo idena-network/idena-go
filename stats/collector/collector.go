@@ -8,7 +8,7 @@ import (
 	"math/big"
 )
 
-type BlockStatsCollector interface {
+type StatsCollector interface {
 	EnableCollecting()
 	CompleteCollecting()
 
@@ -35,14 +35,19 @@ type BlockStatsCollector interface {
 	BeforeClearPenalty(addr common.Address, appState *appstate.AppState)
 	BeforeSetPenalty(addr common.Address, appState *appstate.AppState)
 
+	AfterBalanceUpdate(addr common.Address, appState *appstate.AppState)
+
 	AddMintedCoins(amount *big.Int)
 	AddBurntCoins(amount *big.Int)
+
+	AfterKillIdentity(addr common.Address, appState *appstate.AppState)
+	AfterAddStake(addr common.Address, amount *big.Int)
 }
 
 type collectorStub struct {
 }
 
-func NewBlockStatsCollector() BlockStatsCollector {
+func NewStatsCollector() StatsCollector {
 	return &collectorStub{}
 }
 
@@ -54,60 +59,165 @@ func (c *collectorStub) SetValidation(validation *statsTypes.ValidationStats) {
 	// do nothing
 }
 
+func SetValidation(c StatsCollector, validation *statsTypes.ValidationStats) {
+	if c == nil {
+		return
+	}
+	c.SetValidation(validation)
+}
+
 func (c *collectorStub) SetAuthors(authors *types.ValidationAuthors) {
 	// do nothing
+}
+
+func SetAuthors(c StatsCollector, authors *types.ValidationAuthors) {
+	if c == nil {
+		return
+	}
+	c.SetAuthors(authors)
 }
 
 func (c *collectorStub) SetTotalReward(amount *big.Int) {
 	// do nothing
 }
 
+func SetTotalReward(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalReward(amount)
+}
+
 func (c *collectorStub) SetTotalValidationReward(amount *big.Int) {
 	// do nothing
+}
+
+func SetTotalValidationReward(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalValidationReward(amount)
 }
 
 func (c *collectorStub) SetTotalFlipsReward(amount *big.Int) {
 	// do nothing
 }
 
+func SetTotalFlipsReward(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalFlipsReward(amount)
+}
+
 func (c *collectorStub) SetTotalInvitationsReward(amount *big.Int) {
 	// do nothing
+}
+
+func SetTotalInvitationsReward(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalInvitationsReward(amount)
 }
 
 func (c *collectorStub) SetTotalFoundationPayouts(amount *big.Int) {
 	// do nothing
 }
 
+func SetTotalFoundationPayouts(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalFoundationPayouts(amount)
+}
+
 func (c *collectorStub) SetTotalZeroWalletFund(amount *big.Int) {
 	// do nothing
+}
+
+func SetTotalZeroWalletFund(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalZeroWalletFund(amount)
 }
 
 func (c *collectorStub) AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int) {
 	// do nothing
 }
 
+func AddValidationReward(c StatsCollector, addr common.Address, age uint16, balance *big.Int, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddValidationReward(addr, age, balance, stake)
+}
+
 func (c *collectorStub) AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int) {
 	// do nothing
+}
+
+func AddFlipsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddFlipsReward(addr, balance, stake)
 }
 
 func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int) {
 	// do nothing
 }
 
+func AddInvitationsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddInvitationsReward(addr, balance, stake)
+}
+
 func (c *collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int) {
 	// do nothing
+}
+
+func AddFoundationPayout(c StatsCollector, addr common.Address, balance *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddFoundationPayout(addr, balance)
 }
 
 func (c *collectorStub) AddZeroWalletFund(addr common.Address, balance *big.Int) {
 	// do nothing
 }
 
+func AddZeroWalletFund(c StatsCollector, addr common.Address, balance *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddZeroWalletFund(addr, balance)
+}
+
 func (c *collectorStub) AddProposerReward(addr common.Address, balance *big.Int, stake *big.Int) {
 	// do nothing
 }
 
+func AddProposerReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddProposerReward(addr, balance, stake)
+}
+
 func (c *collectorStub) AddFinalCommitteeReward(addr common.Address, balance *big.Int, stake *big.Int) {
 	// do nothing
+}
+
+func AddFinalCommitteeReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddFinalCommitteeReward(addr, balance, stake)
 }
 
 func (c *collectorStub) CompleteCollecting() {
@@ -118,18 +228,86 @@ func (c *collectorStub) AfterSubPenalty(addr common.Address, amount *big.Int, ap
 	// do nothing
 }
 
+func AfterSubPenalty(c StatsCollector, addr common.Address, amount *big.Int, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.AfterSubPenalty(addr, amount, appState)
+}
+
 func (c *collectorStub) BeforeClearPenalty(addr common.Address, appState *appstate.AppState) {
 	// do nothing
+}
+
+func BeforeClearPenalty(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeforeClearPenalty(addr, appState)
 }
 
 func (c *collectorStub) BeforeSetPenalty(addr common.Address, appState *appstate.AppState) {
 	// do nothing
 }
 
+func BeforeSetPenalty(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeforeSetPenalty(addr, appState)
+}
+
+func (c *collectorStub) AfterBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func AfterBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.AfterBalanceUpdate(addr, appState)
+}
+
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {
 	// do nothing
 }
 
+func AddMintedCoins(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddMintedCoins(amount)
+}
+
 func (c *collectorStub) AddBurntCoins(amount *big.Int) {
 	// do nothing
+}
+
+func AddBurntCoins(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddBurntCoins(amount)
+}
+
+func (c *collectorStub) AfterKillIdentity(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func AfterKillIdentity(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.AfterKillIdentity(addr, appState)
+}
+
+func (c *collectorStub) AfterAddStake(addr common.Address, amount *big.Int) {
+	// do nothing
+}
+
+func AfterAddStake(c StatsCollector, addr common.Address, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AfterAddStake(addr, amount)
 }
