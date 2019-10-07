@@ -79,7 +79,7 @@ func main() {
 
 		log.Info("Idena node is starting", "version", version)
 
-		n, err := node.NewNode(cfg)
+		n, err := node.NewNode(cfg, version)
 		if err != nil {
 			return err
 		}
