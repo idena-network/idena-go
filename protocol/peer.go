@@ -125,6 +125,8 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	if err := msg.Decode(&handShake); err != nil {
 		return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
 	}
+	p.appVersion = handShake.AppVersion
+	p.protocol = handShake.Protocol
 	if handShake.GenesisBlock != genesis {
 		return errors.New(fmt.Sprintf("bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
 	}
@@ -135,8 +137,6 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	if diff > MaxTimestampLagSeconds {
 		return errors.New(fmt.Sprintf("time difference is too big (%v sec)", diff))
 	}
-	p.appVersion = handShake.AppVersion
-	p.protocol = handShake.Protocol
 	return nil
 }
 

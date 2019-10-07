@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -282,7 +283,11 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 	peer := pm.makePeer(p, rw, pm.config.MaxDelay)
 	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis(), pm.appVersion); err != nil {
-		p.Log().Info("Idena handshake failed", "err", err)
+		current := semver.New(pm.appVersion)
+		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major >= current.Major || other.Minor >= current.Minor {
+			p.Log().Info("Idena handshake failed", "err", err)
+		}
+
 		return err
 	}
 	pm.registerPeer(peer)
