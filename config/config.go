@@ -304,6 +304,7 @@ func applyIpfsFlags(ctx *cli.Context, cfg *Config) {
 
 	if ctx.IsSet(IpfsPortFlag.Name) {
 		cfg.IpfsConf.IpfsPort = ctx.Int(IpfsPortFlag.Name)
+		cfg.IpfsConf.StaticPort = true
 	}
 
 	if ctx.IsSet(IpfsBootNodeFlag.Name) {

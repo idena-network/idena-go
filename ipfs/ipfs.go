@@ -28,15 +28,17 @@ import (
 	"github.com/whyrusleeping/go-logging"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 )
 
 const (
-	DefaultBufSize = 1048576
-	CidLength      = 36
+	CidLength        = 36
+	ZeroPeersTimeout = 2 * time.Minute
 )
 
 var (
@@ -67,61 +69,126 @@ type Proxy interface {
 }
 
 type ipfsProxy struct {
-	node     *core.IpfsNode
-	log      log.Logger
-	port     int
-	peerId   string
-	cidCache *cache.Cache
+	node                 *core.IpfsNode
+	log                  log.Logger
+	cidCache             *cache.Cache
+	rwLock               sync.RWMutex
+	cfg                  *config.IpfsConfig
+	nodeCtx              context.Context
+	nodeCtxCancel        context.CancelFunc
+	lastPeersUpdatedTime time.Time
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 	logging.SetLevel(0, "core")
 
-	datadir, _ := filepath.Abs(cfg.DataDir)
-	err := loadPlugins(datadir)
+	err := loadPlugins(cfg)
 
-	if err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-
-	_, err = configureIpfs(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	logger := log.New()
 
-	node, err := core.NewNode(context.Background(), getNodeConfig(datadir))
+	node, ctx, cancelCtx, err := createNode(cfg)
 	if err != nil {
 		return nil, err
 	}
-	peerId := node.PeerHost.ID().Pretty()
-	logger.Info("Ipfs initialized", "peerId", peerId)
-	go watchPeers(node)
+
+	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().Pretty())
 
 	c := cache.New(2*time.Minute, 5*time.Minute)
+	p := &ipfsProxy{
+		node:                 node,
+		log:                  logger,
+		cfg:                  cfg,
+		cidCache:             c,
+		nodeCtx:              ctx,
+		nodeCtxCancel:        cancelCtx,
+		lastPeersUpdatedTime: time.Now().UTC(),
+	}
 
-	return &ipfsProxy{
-		node:     node,
-		log:      logger,
-		peerId:   peerId,
-		port:     cfg.IpfsPort,
-		cidCache: c,
-	}, nil
+	go p.watchPeers()
+	return p, nil
 }
 
-func watchPeers(node *core.IpfsNode) {
-	api, _ := coreapi.NewCoreAPI(node)
+func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, context.CancelFunc, error) {
+	dataDir, _ := filepath.Abs(cfg.DataDir)
+
+	if ln, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.IpfsPort)); err == nil {
+		ln.Close()
+	} else {
+		return nil, nil, func() {}, errors.Errorf("cannot start IPFS node on port %v, err: %v", cfg.IpfsPort, err.Error())
+	}
+
+	_, err := configureIpfs(cfg)
+	if err != nil {
+		return nil, nil, func() {}, err
+	}
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+
+	node, err := core.NewNode(ctx, getNodeConfig(dataDir))
+	if err != nil {
+		return nil, nil, func() {}, err
+	}
+
+	return node, ctx, cancelCtx, nil
+}
+
+func (p *ipfsProxy) changePort() {
+	p.rwLock.Lock()
+	defer p.rwLock.Unlock()
+
+	p.log.Info("Start changing IPFS port", "current", p.cfg.IpfsPort)
+
+	p.nodeCtxCancel()
+
+	c, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	select {
+	case <-c.Done():
+		p.log.Error("timeout while stopping IPFS")
+	case <-p.nodeCtx.Done():
+	}
+
+	for {
+		p.cfg.IpfsPort += 1
+
+		node, ctx, cancelCtx, err := createNode(p.cfg)
+
+		if err != nil {
+			continue
+		}
+
+		p.node = node
+		p.nodeCtx = ctx
+		p.nodeCtxCancel = cancelCtx
+		p.log.Info("Finish changing IPFS port", "new", p.cfg.IpfsPort)
+		break
+	}
+
+}
+
+func (p *ipfsProxy) watchPeers() {
+	api, _ := coreapi.NewCoreAPI(p.node)
 	logger := log.New("component", "ipfs watch")
 
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		info, err := api.Swarm().Peers(ctx)
-		cancel()
+		if !p.cfg.StaticPort && time.Now().UTC().Sub(p.lastPeersUpdatedTime) > ZeroPeersTimeout {
+			p.changePort()
+			api, _ = coreapi.NewCoreAPI(p.node)
+			p.lastPeersUpdatedTime = time.Now().UTC()
+		}
+		info, err := api.Swarm().Peers(context.Background())
 		if err != nil {
 			logger.Info("peers info", "err", err)
 		}
+		if len(info) > 0 {
+			p.lastPeersUpdatedTime = time.Now().UTC()
+		}
+		logger.Trace("last time with non-peers", "time", p.lastPeersUpdatedTime)
 		for index, i := range info {
 			logger.Trace(strconv.Itoa(index), "id", i.ID().String(), "addr", i.Address().String())
 		}
@@ -133,6 +200,9 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
 	}
+
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -155,6 +225,8 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 }
 
 func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error) {
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -192,6 +264,8 @@ func (p *ipfsProxy) Get(key []byte) ([]byte, error) {
 }
 
 func (p *ipfsProxy) get(path path.Path) ([]byte, error) {
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -232,6 +306,8 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 		return nil
 	}
 
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	f, err := api.Unixfs().Get(ctx, path.IpfsPath(c))
@@ -253,6 +329,8 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 }
 
 func (p *ipfsProxy) Pin(key []byte) error {
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	c, err := cid.Cast(key)
@@ -276,6 +354,8 @@ func (p *ipfsProxy) Pin(key []byte) error {
 }
 
 func (p *ipfsProxy) Unpin(key []byte) error {
+	p.rwLock.RLock()
+	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	c, err := cid.Cast(key)
@@ -299,11 +379,11 @@ func (p *ipfsProxy) Unpin(key []byte) error {
 }
 
 func (p *ipfsProxy) Port() int {
-	return p.port
+	return p.cfg.IpfsPort
 }
 
 func (p *ipfsProxy) PeerId() string {
-	return p.peerId
+	return p.node.PeerHost.ID().Pretty()
 }
 
 func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
@@ -453,8 +533,9 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 	}
 }
 
-func loadPlugins(ipfsPath string) error {
-	pluginPath := filepath.Join(ipfsPath, "plugins")
+func loadPlugins(cfg *config.IpfsConfig) error {
+	dataDir, _ := filepath.Abs(cfg.DataDir)
+	pluginPath := filepath.Join(dataDir, "plugins")
 
 	var plugins *loader.PluginLoader
 	plugins, err := loader.NewPluginLoader(pluginPath)
