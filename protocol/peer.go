@@ -32,6 +32,8 @@ type peer struct {
 	term            chan struct{}
 	finished        chan struct{}
 	msgCache        *cache.Cache
+	appVersion      string
+	protocol        uint16
 }
 
 type request struct {
@@ -78,7 +80,7 @@ func (p *peer) broadcast() {
 	}
 }
 
-func (p *peer) Handshake(network types.Network, height uint64, genesis common.Hash) error {
+func (p *peer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
 	errc := make(chan error, 2)
 	var handShake handshakeData
 
@@ -89,6 +91,8 @@ func (p *peer) Handshake(network types.Network, height uint64, genesis common.Ha
 			Height:       height,
 			GenesisBlock: genesis,
 			Timestamp:    uint64(time.Now().UTC().Unix()),
+			AppVersion:   appVersion,
+			Protocol:     Version,
 		})
 	}()
 	go func() {
@@ -131,7 +135,8 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	if diff > MaxTimestampLagSeconds {
 		return errors.New(fmt.Sprintf("time difference is too big (%v sec)", diff))
 	}
-
+	p.appVersion = handShake.AppVersion
+	p.protocol = handShake.Protocol
 	return nil
 }
 

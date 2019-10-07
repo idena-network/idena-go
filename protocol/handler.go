@@ -38,6 +38,10 @@ const (
 	MaxTimestampLagSeconds = 15
 )
 
+const (
+	Version = 1
+)
+
 var (
 	batchId = uint32(1)
 )
@@ -63,6 +67,7 @@ type ProtocolManager struct {
 	bus           eventbus.Bus
 	config        *p2p.Config
 	wrongTime     bool
+	appVersion    string
 }
 
 type getBlockBodyRequest struct {
@@ -92,10 +97,11 @@ type handshakeData struct {
 	Height       uint64
 	GenesisBlock common.Hash
 	Timestamp    uint64
+	Protocol     uint16
+	AppVersion   string
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus,
-	flipKeyPool *mempool.KeysPool, config *p2p.Config) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, config *p2p.Config, appVersion string) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
 		peers:         newPeerSet(),
@@ -111,6 +117,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		bus:           bus,
 		flipKeyPool:   flipKeyPool,
 		config:        config,
+		appVersion:    appVersion,
 	}
 }
 
@@ -274,7 +281,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 	peer := pm.makePeer(p, rw, pm.config.MaxDelay)
-	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis()); err != nil {
+	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis(), pm.appVersion); err != nil {
 		p.Log().Info("Idena handshake failed", "err", err)
 		return err
 	}
@@ -284,7 +291,7 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 	go pm.syncFlipKeyPool(peer)
 	pm.sendManifest(peer)
 	defer pm.unregister(peer)
-	p.Log().Info("Peer successfully connected", "peerId", p.ID())
+	p.Log().Info("Peer successfully connected", "peerId", p.ID(), "app", peer.appVersion, "proto", peer.protocol)
 	return pm.runListening(peer)
 }
 

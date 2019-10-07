@@ -88,7 +88,7 @@ func StartMobileNode(path string, cfg string) string {
 		return err.Error()
 	}
 
-	n, err := NewNode(c)
+	n, err := NewNode(c, "mobile")
 
 	if err != nil {
 		return err.Error()
@@ -112,15 +112,15 @@ func ProvideMobileKey(path string, cfg string, key string, password string) stri
 	return "done"
 }
 
-func NewNode(config *config.Config) (*Node, error) {
-	nodeCtx, err := NewNodeWithInjections(config, eventbus.New(), collector.NewBlockStatsCollector())
+func NewNode(config *config.Config, appVersion string) (*Node, error) {
+	nodeCtx, err := NewNodeWithInjections(config, eventbus.New(), collector.NewBlockStatsCollector(), appVersion)
 	if err != nil {
 		return nil, err
 	}
 	return nodeCtx.Node, err
 }
 
-func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCollector collector.BlockStatsCollector) (*NodeCtx, error) {
+func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCollector collector.BlockStatsCollector, appVersion string) (*NodeCtx, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -150,7 +150,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P, appVersion)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
