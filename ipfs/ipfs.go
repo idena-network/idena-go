@@ -178,6 +178,7 @@ func (p *ipfsProxy) watchPeers() {
 	for {
 		if !p.cfg.StaticPort && time.Now().UTC().Sub(p.lastPeersUpdatedTime) > ZeroPeersTimeout {
 			p.changePort()
+			api, _ = coreapi.NewCoreAPI(p.node)
 			p.lastPeersUpdatedTime = time.Now().UTC()
 		}
 		info, err := api.Swarm().Peers(context.Background())
