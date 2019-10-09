@@ -896,6 +896,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
+	chain.SaveTxs(block.Body.Transactions)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
@@ -1349,6 +1350,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 	return chain.repo.ReadPreliminaryHead()
 }
+
 func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.IdentityStateDiff) {
 	if !diff.Empty() {
 		chain.repo.WriteIdentityStateDiff(height, diff.Bytes())
@@ -1367,6 +1369,20 @@ func (chain *Blockchain) SwitchToPreliminary() {
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+}
+
+func (chain *Blockchain) SaveTxs(txs []*types.Transaction) {
+	for _, tx := range txs {
+		sender, _ := types.Sender(tx)
+		if sender != chain.coinBaseAddress {
+			continue
+		}
+		chain.repo.SaveTx(sender, tx)
+	}
+}
+
+func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.Transaction, []byte) {
+	return chain.repo.GetSavedTxs(address, count, token)
 }
 
 func readPredefinedState() (*state.PredefinedState, error) {
