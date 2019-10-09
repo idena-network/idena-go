@@ -1374,10 +1374,9 @@ func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 func (chain *Blockchain) SaveTxs(txs []*types.Transaction) {
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
-		if sender != chain.coinBaseAddress {
-			continue
+		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
+			chain.repo.SaveTx(chain.coinBaseAddress, tx)
 		}
-		chain.repo.SaveTx(sender, tx)
 	}
 }
 
