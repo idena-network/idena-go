@@ -29,6 +29,7 @@ type ConsensusConf struct {
 	ZeroWalletPercent                  float32
 	FeeSensitivityCoef                 float32
 	MinFeePerByte                      *big.Int
+	MinBlockDistance                   time.Duration
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -55,5 +56,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		ZeroWalletPercent:                  0.02,
 		FeeSensitivityCoef:                 0.25,
 		MinFeePerByte:                      big.NewInt(1e+2),
+		MinBlockDistance:                   time.Second * 20,
 	}
 }
