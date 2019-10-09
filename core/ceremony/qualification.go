@@ -123,7 +123,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
-	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]statsTypes.FlipAnswerStats) {
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]statsTypes.FlipAnswerStats, noQual bool) {
 
 	var answerBytes []byte
 	if shortSession {
@@ -134,7 +134,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	// candidate didn't send answers
 	if answerBytes == nil {
-		return 0, 0, nil
+		return 0, 0, nil, false
 	}
 
 	if shortSession {
@@ -142,12 +142,12 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		flipsCount := uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve)))
 		// can't parse
 		if attachment == nil {
-			return 0, flipsCount, nil
+			return 0, flipsCount, nil, false
 		}
 		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = attachment.Answers
 		if answerBytes == nil || hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
-			return 0, flipsCount, nil
+			return 0, flipsCount, nil, false
 		}
 	}
 
@@ -206,7 +206,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			Point:      answerPoint,
 		}
 	}
-	return point, qualifiedFlipsCount, flipAnswers
+	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0
 }
 
 func (q *qualification) GetProof(addr common.Address) []byte {
