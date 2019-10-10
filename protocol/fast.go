@@ -137,6 +137,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 				return b.Header.Height(), err
 			}
 			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
+			fs.chain.SaveTxs(txs)
 		}
 	}
 	return 0, nil

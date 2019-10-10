@@ -175,7 +175,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 func Test_getNotApprovedFlips(t *testing.T) {
 	// given
 	vc := ValidationCeremony{}
-	_, app, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
+	_, app, _, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
 	var candidates []*candidate
 	var flipsPerAuthor map[int][][]byte
 	var flips [][]byte

@@ -16,7 +16,7 @@ import (
 )
 
 func Test_ApplyBlockRewards(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 
 	header := &types.ProposedHeader{
 		Height:         2,
@@ -65,7 +65,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 }
 
 func Test_ApplyInviteTx(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 	stateDb := chain.appState.State
 
 	key, _ := crypto.GenerateKey()
@@ -98,7 +98,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 }
 
 func Test_ApplyActivateTx(t *testing.T) {
-	chain, appState, _ := NewTestBlockchain(false, nil)
+	chain, appState, _, _ := NewTestBlockchain(false, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -132,7 +132,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 func Test_ApplyKillTx(t *testing.T) {
 	require := require.New(t)
-	chain, appState, _ := NewTestBlockchain(true, nil)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -173,7 +173,7 @@ func Test_ApplyKillTx(t *testing.T) {
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
-	chain, appState, _ := NewTestBlockchain(true, nil)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	inviterKey, _ := crypto.GenerateKey()
 	inviter := crypto.PubkeyToAddress(inviterKey.PublicKey)
@@ -268,7 +268,7 @@ func Test_CalculatePenalty(t *testing.T) {
 func Test_applyNextBlockFee(t *testing.T) {
 	conf := GetDefaultConsensusConfig(false)
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
-	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
 
 	appState := chain.appState.Readonly(1)
 
@@ -283,6 +283,62 @@ func Test_applyNextBlockFee(t *testing.T) {
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, block)
 	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
+}
+
+func TestBlockchain_SaveTxs(t *testing.T) {
+	require := require.New(t)
+
+	chain, _, _, key := NewTestBlockchain(true, nil)
+
+	txs := []*types.Transaction{
+		tests.GetTx(1, 1, key),
+		tests.GetTx(2, 1, key),
+		tests.GetTx(3, 1, key),
+		tests.GetTx(4, 1, key),
+		tests.GetTx(5, 1, key),
+		tests.GetTx(6, 1, key),
+		tests.GetTx(7, 1, key),
+		tests.GetTx(8, 1, key),
+		tests.GetTx(9, 1, key),
+		tests.GetTx(10, 1, key),
+		tests.GetTx(11, 1, key),
+		tests.GetTx(1, 2, key),
+		tests.GetTx(2, 2, key),
+	}
+
+	for _, transaction := range txs {
+		chain.SaveTxs([]*types.Transaction{transaction})
+	}
+
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	data, token := chain.ReadTxs(addr, 5, nil)
+
+	require.Equal(5, len(data))
+	require.Equal(uint32(2), data[0].AccountNonce)
+	require.Equal(uint32(1), data[1].AccountNonce)
+	require.Equal(uint32(11), data[2].AccountNonce)
+	require.Equal(uint32(10), data[3].AccountNonce)
+	require.Equal(uint32(9), data[4].AccountNonce)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 4, token)
+
+	require.Equal(4, len(data))
+	require.Equal(uint32(8), data[0].AccountNonce)
+	require.Equal(uint32(7), data[1].AccountNonce)
+	require.Equal(uint32(6), data[2].AccountNonce)
+	require.Equal(uint32(5), data[3].AccountNonce)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 10, token)
+
+	require.Equal(4, len(data))
+	require.Equal(uint32(4), data[0].AccountNonce)
+	require.Equal(uint32(3), data[1].AccountNonce)
+	require.Equal(uint32(2), data[2].AccountNonce)
+	require.Equal(uint32(1), data[3].AccountNonce)
+	require.Nil(token)
 }
 
 func generateBlock(height uint64, txsCount int) *types.Block {

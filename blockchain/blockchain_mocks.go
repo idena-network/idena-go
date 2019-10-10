@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -44,7 +45,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
@@ -81,13 +82,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	appState.Initialize(chain.Head.Height())
 	txPool.Initialize(chain.Head, secStore.GetAddress())
 
-	return chain, appState, txPool
+	return chain, appState, txPool, key
 }
 
-func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, -1, -1)
-}
-
-func NewTestBlockchainWithTxLimits(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
 }

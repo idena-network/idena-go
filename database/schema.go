@@ -1,7 +1,6 @@
 package database
 
 var (
-
 	SnapshotDbPrefix = []byte("snpsht")
 
 	// headBlockKey tracks the latest know full block's hash.
@@ -15,6 +14,8 @@ var (
 
 	transactionIndexPrefix = []byte("ti")
 
+	ownTransactionIndexPrefix = []byte("oti")
+
 	certPrefix = []byte("c")
 
 	flipEncryptionPrefix = []byte("key")
@@ -25,7 +26,7 @@ var (
 
 	identityStateDiffPrefix = []byte("id-diff")
 
-	preliminaryHeadKey =[]byte("preliminary-head")
+	preliminaryHeadKey = []byte("preliminary-head")
 
 	activityMonitorKey = []byte("activity")
 )

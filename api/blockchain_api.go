@@ -102,24 +102,11 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 		idx = api.bc.GetTxIndex(hash)
 	}
 
-	sender, _ := types.Sender(tx)
-
 	var blockHash common.Hash
 	if idx != nil {
 		blockHash = idx.BlockHash
 	}
-	return &Transaction{
-		Epoch:     tx.Epoch,
-		Payload:   hexutil.Bytes(tx.Payload),
-		Amount:    blockchain.ConvertToFloat(tx.Amount),
-		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
-		Tips:      blockchain.ConvertToFloat(tx.Tips),
-		From:      sender,
-		Nonce:     tx.AccountNonce,
-		To:        tx.To,
-		Type:      txTypeMap[tx.Type],
-		BlockHash: blockHash,
-	}
+	return convertToTransaction(tx, blockHash)
 }
 
 func (api *BlockchainApi) Mempool() []common.Hash {
@@ -152,6 +139,58 @@ func (api *BlockchainApi) Syncing() Syncing {
 		CurrentBlock: current,
 		HighestBlock: highest,
 		WrongTime:    api.pm.WrongTime(),
+	}
+}
+
+type TransactionsArgs struct {
+	Address common.Address `json:"address"`
+	Count   int            `json:"count"`
+	Token   hexutil.Bytes  `json:"token"`
+}
+
+type Transactions struct {
+	Transactions []*Transaction `json:"transactions"`
+	Token        *hexutil.Bytes `json:"token"`
+}
+
+func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
+
+	txs, nextToken := api.bc.ReadTxs(args.Address, args.Count, args.Token)
+
+	var list []*Transaction
+	for _, item := range txs {
+		var blockHash common.Hash
+		if idx := api.bc.GetTxIndex(item.Hash()); idx != nil {
+			blockHash = idx.BlockHash
+		}
+		list = append(list, convertToTransaction(item, blockHash))
+	}
+
+	var token *hexutil.Bytes
+	if nextToken != nil {
+		b := hexutil.Bytes(nextToken)
+		token = &b
+	}
+
+	return Transactions{
+		Transactions: list,
+		Token:        token,
+	}
+}
+
+func convertToTransaction(tx *types.Transaction, blockHash common.Hash) *Transaction {
+	sender, _ := types.Sender(tx)
+	return &Transaction{
+		Epoch:     tx.Epoch,
+		Payload:   hexutil.Bytes(tx.Payload),
+		Amount:    blockchain.ConvertToFloat(tx.Amount),
+		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
+		Tips:      blockchain.ConvertToFloat(tx.Tips),
+		From:      sender,
+		Nonce:     tx.AccountNonce,
+		To:        tx.To,
+		Type:      txTypeMap[tx.Type],
+		BlockHash: blockHash,
 	}
 }
 
