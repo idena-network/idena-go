@@ -41,7 +41,7 @@ const (
 
 const (
 	ProposerRole            uint8 = 0x1
-	EmptyBlockTimeIncrement       = time.Second * 10
+	EmptyBlockTimeIncrement       = time.Second * 20
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
 )

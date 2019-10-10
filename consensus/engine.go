@@ -79,6 +79,14 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 	return engine.appState.Readonly(engine.chain.Head.Height())
 }
 
+func (engine *Engine) alignTime() {
+	now := time.Now().UTC()
+	diff := engine.config.MinBlockDistance - now.Sub(time.Unix(engine.chain.Head.Time().Int64(), 0))
+	if diff > 0 {
+		time.Sleep(diff)
+	}
+}
+
 func (engine *Engine) loop() {
 	for {
 		if err := engine.chain.EnsureIntegrity(); err != nil {
@@ -96,6 +104,9 @@ func (engine *Engine) loop() {
 			continue
 		}
 		head := engine.chain.Head
+
+		engine.alignTime()
+
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers",
 			engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
