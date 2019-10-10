@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"sort"
 )
 
 var (
@@ -151,6 +152,31 @@ type TransactionsArgs struct {
 type Transactions struct {
 	Transactions []*Transaction `json:"transactions"`
 	Token        *hexutil.Bytes `json:"token"`
+}
+
+// sorted by epoch \ nonce desc (the newest transactions are first)
+func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transactions {
+	txs := api.pool.GetPendingByAddress(args.Address)
+
+	sort.SliceStable(txs, func(i, j int) bool {
+		if txs[i].Epoch > txs[j].Epoch {
+			return true
+		}
+		if txs[i].Epoch < txs[j].Epoch {
+			return false
+		}
+		return txs[i].AccountNonce > txs[j].AccountNonce
+	})
+
+	var list []*Transaction
+	for _, item := range txs {
+		list = append(list, convertToTransaction(item, common.Hash{}))
+	}
+
+	return Transactions{
+		Transactions: list,
+		Token:        nil,
+	}
 }
 
 func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
