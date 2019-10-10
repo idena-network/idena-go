@@ -169,6 +169,18 @@ func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 	return list
 }
 
+func (txpool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
+	var list []*types.Transaction
+
+	for _, tx := range txpool.pendingPerAddr[address] {
+		list = append(list, tx)
+	}
+	return list
+}
+
 func (txpool *TxPool) GetTx(hash common.Hash) *types.Transaction {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
