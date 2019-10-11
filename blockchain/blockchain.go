@@ -6,6 +6,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -664,8 +665,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
-		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
+		attachment := attachments.ParseOnlineStatusAttachment(tx)
+		appState.IdentityState.SetOnline(sender, attachment.Online)
 	case types.ChangeGodAddressTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
@@ -682,7 +683,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 }
 
 func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	return types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
+	return fee.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
 func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
@@ -716,7 +717,7 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 }
 
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	return types.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
+	return fee.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
 func getSeedData(prevBlock *types.Header) []byte {

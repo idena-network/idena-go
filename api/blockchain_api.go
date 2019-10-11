@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -223,7 +224,7 @@ func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerBy
 		Type:      txTypeMap[tx.Type],
 		BlockHash: blockHash,
 		Timestamp: timestamp,
-		UsedFee:   blockchain.ConvertToFloat(types.CalculateFee(1, feePerByte, tx)),
+		UsedFee:   blockchain.ConvertToFloat(fee.CalculateFee(1, feePerByte, tx)),
 	}
 }
 
