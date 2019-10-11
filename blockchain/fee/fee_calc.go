@@ -15,6 +15,9 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 	if tx.Signature == nil {
 		size += SignatureAdditionalSize
 	}
+	if networkSize == 0 || feePerByte == nil {
+		feePerByte = big.NewInt(0)
+	}
 	if tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitFlipTx ||
 		tx.Type == types.SubmitShortAnswersTx || tx.Type == types.SubmitLongAnswersTx || tx.Type == types.EvidenceTx ||
 		tx.Type == types.ActivationTx || tx.Type == types.InviteTx {
@@ -27,9 +30,6 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 		} else {
 			feePerByte = big.NewInt(0)
 		}
-	}
-	if networkSize == 0 || feePerByte == nil {
-		feePerByte = big.NewInt(0)
 	}
 
 	return new(big.Int).Mul(feePerByte, big.NewInt(int64(size)))
