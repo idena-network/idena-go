@@ -204,8 +204,11 @@ func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
 }
 
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
-	networkSize := vc.appState.ValidatorsCache.NetworkSize()
-	return common.LongSessionFlipsCount(networkSize)
+	count := uint(len(vc.flips) * common.LongSessionTesters / len(vc.candidates))
+	if count == 0 {
+		count = 1
+	}
+	return count
 }
 
 func (vc *ValidationCeremony) restoreState() {
