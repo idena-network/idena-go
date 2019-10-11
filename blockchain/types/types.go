@@ -74,6 +74,7 @@ type ProposedHeader struct {
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
+	FeePerByte     *big.Int
 
 	SeedProof []byte
 }
@@ -156,6 +157,13 @@ type ActivityMonitor struct {
 type AddrActivity struct {
 	Addr common.Address
 	Time time.Time
+}
+
+type SavedTransaction struct {
+	Tx         *Transaction
+	FeePerByte *big.Int
+	BlockHash  common.Hash
+	Timestamp  uint64
 }
 
 func (b *Block) Hash() common.Hash {
@@ -242,6 +250,14 @@ func (h *Header) Time() *big.Int {
 		return h.EmptyBlockHeader.Time
 	} else {
 		return h.ProposedHeader.Time
+	}
+}
+
+func (h *Header) FeePerByte() *big.Int {
+	if h.EmptyBlockHeader != nil {
+		return nil
+	} else {
+		return h.ProposedHeader.FeePerByte
 	}
 }
 

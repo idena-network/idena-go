@@ -285,59 +285,79 @@ func Test_applyNextBlockFee(t *testing.T) {
 	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
 }
 
+type txWithTimestamp struct {
+	tx        *types.Transaction
+	timestamp uint64
+}
+
 func TestBlockchain_SaveTxs(t *testing.T) {
 	require := require.New(t)
 
 	chain, _, _, key := NewTestBlockchain(true, nil)
 
-	txs := []*types.Transaction{
-		tests.GetTx(1, 1, key),
-		tests.GetTx(2, 1, key),
-		tests.GetTx(3, 1, key),
-		tests.GetTx(4, 1, key),
-		tests.GetTx(5, 1, key),
-		tests.GetTx(6, 1, key),
-		tests.GetTx(7, 1, key),
-		tests.GetTx(8, 1, key),
-		tests.GetTx(9, 1, key),
-		tests.GetTx(10, 1, key),
-		tests.GetTx(11, 1, key),
-		tests.GetTx(1, 2, key),
-		tests.GetTx(2, 2, key),
-	}
-
-	for _, transaction := range txs {
-		chain.SaveTxs([]*types.Transaction{transaction})
-	}
-
+	key2, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	txs := []txWithTimestamp{
+		{tx: tests.GetFullTx(1, 1, key, types.SendTx, nil, &addr), timestamp: 10},
+		{tx: tests.GetFullTx(2, 1, key, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(4, 1, key, types.SendTx, nil, &addr), timestamp: 30},
+		{tx: tests.GetFullTx(5, 1, key, types.SendTx, nil, &addr), timestamp: 35},
+		{tx: tests.GetFullTx(6, 1, key, types.SendTx, nil, &addr), timestamp: 50},
+		{tx: tests.GetFullTx(7, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(10, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(1, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+		{tx: tests.GetFullTx(2, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+
+		{tx: tests.GetFullTx(1, 1, key2, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(8, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(10, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(4, 1, key2, types.SendTx, nil, &addr), timestamp: 456},
+	}
+
+	for _, item := range txs {
+		header := &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Time:       new(big.Int).SetUint64(item.timestamp),
+				FeePerByte: big.NewInt(1),
+			},
+		}
+		chain.SaveTxs(header, []*types.Transaction{item.tx})
+	}
 
 	data, token := chain.ReadTxs(addr, 5, nil)
 
 	require.Equal(5, len(data))
-	require.Equal(uint32(2), data[0].AccountNonce)
-	require.Equal(uint32(1), data[1].AccountNonce)
-	require.Equal(uint32(11), data[2].AccountNonce)
-	require.Equal(uint32(10), data[3].AccountNonce)
-	require.Equal(uint32(9), data[4].AccountNonce)
+	require.Equal(uint32(2), data[0].Tx.AccountNonce)
+	require.Equal(uint32(1), data[1].Tx.AccountNonce)
+	require.Equal(uint32(10), data[2].Tx.AccountNonce)
+	require.Equal(uint32(9), data[3].Tx.AccountNonce)
+	require.Equal(uint32(4), data[4].Tx.AccountNonce)
+	require.Equal(uint64(456), data[4].Timestamp)
 	require.NotNil(token)
 
 	data, token = chain.ReadTxs(addr, 4, token)
 
 	require.Equal(4, len(data))
-	require.Equal(uint32(8), data[0].AccountNonce)
-	require.Equal(uint32(7), data[1].AccountNonce)
-	require.Equal(uint32(6), data[2].AccountNonce)
-	require.Equal(uint32(5), data[3].AccountNonce)
+	require.Equal(uint32(10), data[0].Tx.AccountNonce)
+	require.Equal(uint32(9), data[1].Tx.AccountNonce)
+	require.Equal(uint32(8), data[2].Tx.AccountNonce)
+	require.Equal(uint32(7), data[3].Tx.AccountNonce)
 	require.NotNil(token)
 
 	data, token = chain.ReadTxs(addr, 10, token)
 
-	require.Equal(4, len(data))
-	require.Equal(uint32(4), data[0].AccountNonce)
-	require.Equal(uint32(3), data[1].AccountNonce)
-	require.Equal(uint32(2), data[2].AccountNonce)
-	require.Equal(uint32(1), data[3].AccountNonce)
+	require.Equal(6, len(data))
+	require.Equal(uint32(6), data[0].Tx.AccountNonce)
+	require.Equal(uint32(5), data[1].Tx.AccountNonce)
+	require.Equal(uint32(4), data[2].Tx.AccountNonce)
+	require.Equal(uint32(2), data[3].Tx.AccountNonce)
+	require.Equal(uint32(1), data[4].Tx.AccountNonce)
+	require.Equal(uint32(1), data[5].Tx.AccountNonce)
+	require.Equal(uint64(20), data[4].Timestamp)
+	require.Equal(uint64(10), data[5].Timestamp)
 	require.Nil(token)
 }
 

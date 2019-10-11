@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tm-db"
+	"math/big"
 	"time"
 )
 
@@ -65,9 +66,9 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
-func savedTxKey(sender common.Address, nonce uint32, epoch uint16, hash common.Hash) []byte {
+func savedTxKey(sender common.Address, timestamp uint64, nonce uint32, hash common.Hash) []byte {
 	key := append(ownTransactionIndexPrefix, sender[:]...)
-	key = append(key, encodeUint16Number(epoch)...)
+	key = append(key, encodeUint64Number(timestamp)...)
 	key = append(key, encodeUint32Number(nonce)...)
 	return append(key, hash[:]...)
 }
@@ -359,19 +360,26 @@ func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
 	r.db.Set(activityMonitorKey, data)
 }
 
-func (r *Repo) SaveTx(address common.Address, transaction *types.Transaction) {
-	data, err := rlp.EncodeToBytes(transaction)
+func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp uint64, feePerByte *big.Int, transaction *types.Transaction) {
+	s := &types.SavedTransaction{
+		Tx:         transaction,
+		FeePerByte: feePerByte,
+		BlockHash:  blockHash,
+		Timestamp:  timestamp,
+	}
+	data, err := rlp.EncodeToBytes(s)
 	if err != nil {
-		log.Crit("failed to RLP encode transaction", "err", err)
+		log.Crit("failed to RLP encode saved transaction", "err", err)
 		return
 	}
-	r.db.Set(savedTxKey(address, transaction.AccountNonce, transaction.Epoch, transaction.Hash()), data)
+
+	r.db.Set(savedTxKey(address, timestamp, transaction.AccountNonce, transaction.Hash()), data)
 }
 
-func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs []*types.Transaction, nextToken []byte) {
+func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs []*types.SavedTransaction, nextToken []byte) {
 
 	if token == nil {
-		token = savedTxKey(address, uint32(math.MaxUint32), uint16(math.MaxUint16), common.BytesToHash(common.MaxHash))
+		token = savedTxKey(address, uint64(math.MaxUint64), uint32(math.MaxUint32), common.BytesToHash(common.MaxHash))
 	} else {
 		token = append(token, common.MaxHash...)
 	}
@@ -383,7 +391,7 @@ func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs
 		if len(txs) == count {
 			return txs, key[:len(key)-common.HashLength]
 		}
-		tx := new(types.Transaction)
+		tx := new(types.SavedTransaction)
 		if err := rlp.DecodeBytes(value, tx); err != nil {
 			log.Error("cannot parse tx", "key", key)
 		}
