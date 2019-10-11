@@ -47,7 +47,7 @@ func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType 
 	if maxFee == decimal.Zero {
 		tx := blockchain.BuildTx(api.getAppState(), from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
 		txFee := fee.CalculateFee(api.getAppState().ValidatorsCache.NetworkSize(), api.getAppState().State.FeePerByte(), tx)
-		maxFee = decimal.NewFromBigInt(new(big.Int).Mul(txFee, big.NewInt(2)), 0)
+		maxFee = blockchain.ConvertToFloat(new(big.Int).Mul(txFee, big.NewInt(2)))
 	}
 
 	tx := blockchain.BuildTx(api.getAppState(), from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
