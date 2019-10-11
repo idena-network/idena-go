@@ -177,6 +177,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 	blockNumber := uint64(1)
+	var feePerByte *big.Int
 
 	if network == Testnet {
 		predefinedState, err := readPredefinedState()
@@ -186,6 +187,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 		blockNumber = predefinedState.Block
 		seed = predefinedState.Seed
+		feePerByte = predefinedState.Global.FeePerByte
 
 		err = chain.appState.CommitAt(blockNumber - 1)
 		if err != nil {
@@ -219,6 +221,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			IdentityRoot: chain.appState.IdentityState.Root(),
 			BlockSeed:    seed,
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
+			FeePerByte:   feePerByte,
 		},
 	}, Body: &types.Body{}}
 
@@ -761,6 +764,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
 		IpfsHash:       cidBytes,
+		FeePerByte:     chain.appState.State.FeePerByte(),
 	}
 
 	block := &types.Block{
@@ -896,7 +900,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
-	chain.SaveTxs(block.Body.Transactions)
+	chain.SaveTxs(block.Header, block.Body.Transactions)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
@@ -947,6 +951,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	if err := chain.ValidateHeader(block.Header, prevBlock); err != nil {
 		return err
+	}
+
+	if checkState.State.FeePerByte().Cmp(block.Header.ProposedHeader.FeePerByte) != 0 {
+		return errors.New("fee rate is invalid")
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
@@ -1371,16 +1379,16 @@ func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
 }
 
-func (chain *Blockchain) SaveTxs(txs []*types.Transaction) {
+func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
 		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
-			chain.repo.SaveTx(chain.coinBaseAddress, tx)
+			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
 		}
 	}
 }
 
-func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.Transaction, []byte) {
+func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
 	return chain.repo.GetSavedTxs(address, count, token)
 }
 
