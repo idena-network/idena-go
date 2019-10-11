@@ -69,6 +69,8 @@ type Transaction struct {
 	Epoch     uint16          `json:"epoch"`
 	Payload   hexutil.Bytes   `json:"payload"`
 	BlockHash common.Hash     `json:"blockHash"`
+	UsedFee   decimal.Decimal `json:"usedFee"`
+	Timestamp uint64          `json:"timestamp"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -104,10 +106,17 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 	}
 
 	var blockHash common.Hash
+	var feePerByte *big.Int
+	var timestamp uint64
 	if idx != nil {
 		blockHash = idx.BlockHash
+		block := api.bc.GetBlock(blockHash)
+		if block != nil {
+			feePerByte = block.Header.FeePerByte()
+			timestamp = block.Header.Time().Uint64()
+		}
 	}
-	return convertToTransaction(tx, blockHash)
+	return convertToTransaction(tx, blockHash, feePerByte, timestamp)
 }
 
 func (api *BlockchainApi) Mempool() []common.Hash {
@@ -170,7 +179,7 @@ func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transaction
 
 	var list []*Transaction
 	for _, item := range txs {
-		list = append(list, convertToTransaction(item, common.Hash{}))
+		list = append(list, convertToTransaction(item, common.Hash{}, nil, 0))
 	}
 
 	return Transactions{
@@ -185,11 +194,7 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 
 	var list []*Transaction
 	for _, item := range txs {
-		var blockHash common.Hash
-		if idx := api.bc.GetTxIndex(item.Hash()); idx != nil {
-			blockHash = idx.BlockHash
-		}
-		list = append(list, convertToTransaction(item, blockHash))
+		list = append(list, convertToTransaction(item.Tx, item.BlockHash, item.FeePerByte, item.Timestamp))
 	}
 
 	var token *hexutil.Bytes
@@ -204,11 +209,11 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 	}
 }
 
-func convertToTransaction(tx *types.Transaction, blockHash common.Hash) *Transaction {
+func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp uint64) *Transaction {
 	sender, _ := types.Sender(tx)
 	return &Transaction{
 		Epoch:     tx.Epoch,
-		Payload:   hexutil.Bytes(tx.Payload),
+		Payload:   tx.Payload,
 		Amount:    blockchain.ConvertToFloat(tx.Amount),
 		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
 		Tips:      blockchain.ConvertToFloat(tx.Tips),
@@ -217,6 +222,8 @@ func convertToTransaction(tx *types.Transaction, blockHash common.Hash) *Transac
 		To:        tx.To,
 		Type:      txTypeMap[tx.Type],
 		BlockHash: blockHash,
+		Timestamp: timestamp,
+		UsedFee:   blockchain.ConvertToFloat(types.CalculateFee(1, feePerByte, tx)),
 	}
 }
 

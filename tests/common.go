@@ -33,6 +33,15 @@ func GetTypesTxWithAmount(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txT
 		to = nil
 	}
 
+	return GetFullTx(nonce, epoch, key, txType, amount, to)
+}
+
+func GetTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
+	return GetTypesTxWithAmount(nonce, epoch, key, txType, new(big.Int))
+}
+
+func GetFullTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType, amount *big.Int, to *common.Address) *types.Transaction {
+
 	tx := types.Transaction{
 		AccountNonce: nonce,
 		Type:         txType,
@@ -44,8 +53,4 @@ func GetTypesTxWithAmount(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txT
 	signedTx, _ := types.SignTx(&tx, key)
 
 	return signedTx
-}
-
-func GetTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
-	return GetTypesTxWithAmount(nonce, epoch, key, txType, new(big.Int))
 }
