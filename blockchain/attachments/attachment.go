@@ -61,3 +61,23 @@ func ParseFlipSubmitAttachment(tx *types.Transaction) *FlipSubmitAttachment {
 	}
 	return &attachment
 }
+
+type OnlineStatusAttachment struct {
+	Online bool
+}
+
+func CreateOnlineStatusAttachment(online bool) []byte {
+	attachment := &OnlineStatusAttachment{
+		Online: online,
+	}
+	payload, _ := rlp.EncodeToBytes(attachment)
+	return payload
+}
+
+func ParseOnlineStatusAttachment(tx *types.Transaction) *OnlineStatusAttachment {
+	var attachment OnlineStatusAttachment
+	if err := rlp.Decode(bytes.NewReader(tx.Payload), &attachment); err != nil {
+		return nil
+	}
+	return &attachment
+}

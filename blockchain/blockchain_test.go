@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
@@ -162,7 +163,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	signed, _ := types.SignTx(tx, key)
 
 	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signed)
 
@@ -200,7 +201,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	signedTx, _ := types.SignTx(tx, inviterKey)
 
 	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signedTx)
 

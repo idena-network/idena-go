@@ -3,6 +3,7 @@ package validation
 import (
 	"bytes"
 	"github.com/idena-network/idena-go/blockchain/attachments"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -89,7 +90,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 		return errors.Errorf("invalid nonce, state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
 	}
 
-	minFee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
+	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
 	if minFee.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return InvalidMaxFee
 	}
@@ -110,7 +111,7 @@ func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *t
 	if mempoolTx {
 		cost = calculateMaxCost(tx)
 	} else {
-		cost = types.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
 	}
 	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
@@ -122,7 +123,7 @@ func ValidateFee(appState *appstate.AppState, tx *types.Transaction, mempoolTx b
 	if mempoolTx {
 		return nil
 	}
-	fee := types.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	fee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
 	if fee.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return BigFee
 	}
@@ -417,12 +418,16 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 		return InvalidRecipient
 	}
 
-	shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
+	attachment := attachments.ParseOnlineStatusAttachment(tx)
 
-	if shouldBecomeOnline && appState.ValidatorsCache.IsOnlineIdentity(sender) {
+	if attachment == nil {
+		return InvalidPayload
+	}
+
+	if attachment.Online && appState.ValidatorsCache.IsOnlineIdentity(sender) {
 		return IsAlreadyOnline
 	}
-	if !shouldBecomeOnline && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
+	if !attachment.Online && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
 		return IsAlreadyOffline
 	}
 
@@ -438,13 +443,13 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
 		return err
 	}
-	var fee *big.Int
+	var txFee *big.Int
 	if mempoolTx {
-		fee = tx.MaxFeeOrZero()
+		txFee = tx.MaxFeeOrZero()
 	} else {
-		fee = types.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+		txFee = fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
 	}
-	if fee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(fee) < 0 {
+	if txFee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(txFee) < 0 {
 		return InsufficientFunds
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
