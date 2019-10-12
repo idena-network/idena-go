@@ -7,6 +7,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -148,7 +149,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 
 func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, []byte{0x1}, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(true), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -159,7 +160,7 @@ func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 
 func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(false), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -332,9 +333,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 }
 
 type Epoch struct {
-	Epoch                  uint16     `json:"epoch"`
-	NextValidation         time.Time  `json:"nextValidation"`
-	CurrentPeriod          string     `json:"currentPeriod"`
+	Epoch                  uint16    `json:"epoch"`
+	NextValidation         time.Time `json:"nextValidation"`
+	CurrentPeriod          string    `json:"currentPeriod"`
 	CurrentValidationStart time.Time `json:"currentValidationStart"`
 }
 
