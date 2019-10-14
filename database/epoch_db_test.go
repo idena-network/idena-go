@@ -122,3 +122,16 @@ func TestEpochDb_HasAnswerHash(t *testing.T) {
 	edb.WriteAnswerHash(addr, common.Hash{0x1}, time.Now())
 	require.True(edb.HasAnswerHash(addr))
 }
+
+func TestEpochDb_HasSuccessfulOwnTx(t *testing.T) {
+	require := require.New(t)
+
+	mdb := db.NewMemDB()
+
+	edb := NewEpochDb(mdb, 1)
+
+	edb.WriteSuccessfulOwnTx(common.Hash{0x1})
+
+	require.True(edb.HasSuccessfulOwnTx(common.Hash{0x1}))
+	require.False(edb.HasSuccessfulOwnTx(common.Hash{0x2}))
+}

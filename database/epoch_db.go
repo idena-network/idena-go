@@ -12,14 +12,15 @@ import (
 )
 
 var (
-	OwnShortAnswerKey   = []byte("own-short")
-	AnswerHashPrefix    = []byte("hash")
-	ShortAnswersKey     = []byte("answers-short")
-	LongShortAnswersKey = []byte("answers-long")
-	TxOwnPrefix         = []byte("tx")
-	EvidencePrefix      = []byte("evi")
-	LotterySeedKey      = []byte("ls")
-	FlipCidPrefix       = []byte("cid")
+	OwnShortAnswerKey     = []byte("own-short")
+	AnswerHashPrefix      = []byte("hash")
+	ShortAnswersKey       = []byte("answers-short")
+	LongShortAnswersKey   = []byte("answers-long")
+	TxOwnPrefix           = []byte("tx")
+	SuccessfulTxOwnPrefix = []byte("s-tx")
+	EvidencePrefix        = []byte("evi")
+	LotterySeedKey        = []byte("ls")
+	FlipCidPrefix         = []byte("cid")
 )
 
 type EpochDb struct {
@@ -172,6 +173,16 @@ func (edb *EpochDb) RemoveOwnTx(txType uint16) {
 func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
 	return edb.db.Get(key)
+}
+
+func (edb *EpochDb) WriteSuccessfulOwnTx(txHash common.Hash) {
+	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
+	edb.db.Set(key, []byte{})
+}
+
+func (edb *EpochDb) HasSuccessfulOwnTx(txHash common.Hash) bool {
+	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
+	return edb.db.Has(key)
 }
 
 func (edb *EpochDb) WriteLotterySeed(seed []byte) {
