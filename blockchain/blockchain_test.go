@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
@@ -16,7 +17,7 @@ import (
 )
 
 func Test_ApplyBlockRewards(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 
 	header := &types.ProposedHeader{
 		Height:         2,
@@ -65,7 +66,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 }
 
 func Test_ApplyInviteTx(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 	stateDb := chain.appState.State
 
 	key, _ := crypto.GenerateKey()
@@ -98,7 +99,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 }
 
 func Test_ApplyActivateTx(t *testing.T) {
-	chain, appState, _ := NewTestBlockchain(false, nil)
+	chain, appState, _, _ := NewTestBlockchain(false, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -132,7 +133,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 func Test_ApplyKillTx(t *testing.T) {
 	require := require.New(t)
-	chain, appState, _ := NewTestBlockchain(true, nil)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -162,7 +163,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	signed, _ := types.SignTx(tx, key)
 
 	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signed)
 
@@ -173,7 +174,7 @@ func Test_ApplyKillTx(t *testing.T) {
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
-	chain, appState, _ := NewTestBlockchain(true, nil)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	inviterKey, _ := crypto.GenerateKey()
 	inviter := crypto.PubkeyToAddress(inviterKey.PublicKey)
@@ -200,7 +201,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	signedTx, _ := types.SignTx(tx, inviterKey)
 
 	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signedTx)
 
@@ -268,7 +269,7 @@ func Test_CalculatePenalty(t *testing.T) {
 func Test_applyNextBlockFee(t *testing.T) {
 	conf := GetDefaultConsensusConfig(false)
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
-	chain, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
 
 	appState := chain.appState.Readonly(1)
 
@@ -283,6 +284,82 @@ func Test_applyNextBlockFee(t *testing.T) {
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, block)
 	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
+}
+
+type txWithTimestamp struct {
+	tx        *types.Transaction
+	timestamp uint64
+}
+
+func TestBlockchain_SaveTxs(t *testing.T) {
+	require := require.New(t)
+
+	chain, _, _, key := NewTestBlockchain(true, nil)
+
+	key2, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	txs := []txWithTimestamp{
+		{tx: tests.GetFullTx(1, 1, key, types.SendTx, nil, &addr), timestamp: 10},
+		{tx: tests.GetFullTx(2, 1, key, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(4, 1, key, types.SendTx, nil, &addr), timestamp: 30},
+		{tx: tests.GetFullTx(5, 1, key, types.SendTx, nil, &addr), timestamp: 35},
+		{tx: tests.GetFullTx(6, 1, key, types.SendTx, nil, &addr), timestamp: 50},
+		{tx: tests.GetFullTx(7, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(10, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(1, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+		{tx: tests.GetFullTx(2, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+
+		{tx: tests.GetFullTx(1, 1, key2, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(8, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(10, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(4, 1, key2, types.SendTx, nil, &addr), timestamp: 456},
+	}
+
+	for _, item := range txs {
+		header := &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Time:       new(big.Int).SetUint64(item.timestamp),
+				FeePerByte: big.NewInt(1),
+			},
+		}
+		chain.SaveTxs(header, []*types.Transaction{item.tx})
+	}
+
+	data, token := chain.ReadTxs(addr, 5, nil)
+
+	require.Equal(5, len(data))
+	require.Equal(uint32(2), data[0].Tx.AccountNonce)
+	require.Equal(uint32(1), data[1].Tx.AccountNonce)
+	require.Equal(uint32(10), data[2].Tx.AccountNonce)
+	require.Equal(uint32(9), data[3].Tx.AccountNonce)
+	require.Equal(uint32(4), data[4].Tx.AccountNonce)
+	require.Equal(uint64(456), data[4].Timestamp)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 4, token)
+
+	require.Equal(4, len(data))
+	require.Equal(uint32(10), data[0].Tx.AccountNonce)
+	require.Equal(uint32(9), data[1].Tx.AccountNonce)
+	require.Equal(uint32(8), data[2].Tx.AccountNonce)
+	require.Equal(uint32(7), data[3].Tx.AccountNonce)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 10, token)
+
+	require.Equal(6, len(data))
+	require.Equal(uint32(6), data[0].Tx.AccountNonce)
+	require.Equal(uint32(5), data[1].Tx.AccountNonce)
+	require.Equal(uint32(4), data[2].Tx.AccountNonce)
+	require.Equal(uint32(2), data[3].Tx.AccountNonce)
+	require.Equal(uint32(1), data[4].Tx.AccountNonce)
+	require.Equal(uint32(1), data[5].Tx.AccountNonce)
+	require.Equal(uint64(20), data[4].Timestamp)
+	require.Equal(uint64(10), data[5].Timestamp)
+	require.Nil(token)
 }
 
 func generateBlock(height uint64, txsCount int) *types.Block {

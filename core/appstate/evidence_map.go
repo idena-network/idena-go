@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ShortSessionFlipKeyDeadline = time.Second * 30
+	ShortSessionFlipKeyDeadline = time.Second * 25
 )
 
 type EvidenceMap struct {

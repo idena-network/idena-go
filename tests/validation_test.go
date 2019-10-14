@@ -11,7 +11,7 @@ import (
 )
 
 func Test_BigFeeTx(t *testing.T) {
-	_, appState, _ := blockchain.NewTestBlockchain(true, nil)
+	_, appState, _, _ := blockchain.NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
@@ -39,7 +39,7 @@ func Test_BigFeeTx(t *testing.T) {
 }
 
 func Test_InvalidMaxFeeTx(t *testing.T) {
-	_, appState, _ := blockchain.NewTestBlockchain(true, nil)
+	_, appState, _, _ := blockchain.NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)

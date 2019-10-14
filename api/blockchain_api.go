@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -11,6 +12,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"sort"
 )
 
 var (
@@ -68,6 +70,8 @@ type Transaction struct {
 	Epoch     uint16          `json:"epoch"`
 	Payload   hexutil.Bytes   `json:"payload"`
 	BlockHash common.Hash     `json:"blockHash"`
+	UsedFee   decimal.Decimal `json:"usedFee"`
+	Timestamp uint64          `json:"timestamp"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -102,24 +106,18 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 		idx = api.bc.GetTxIndex(hash)
 	}
 
-	sender, _ := types.Sender(tx)
-
 	var blockHash common.Hash
+	var feePerByte *big.Int
+	var timestamp uint64
 	if idx != nil {
 		blockHash = idx.BlockHash
+		block := api.bc.GetBlock(blockHash)
+		if block != nil {
+			feePerByte = block.Header.FeePerByte()
+			timestamp = block.Header.Time().Uint64()
+		}
 	}
-	return &Transaction{
-		Epoch:     tx.Epoch,
-		Payload:   hexutil.Bytes(tx.Payload),
-		Amount:    blockchain.ConvertToFloat(tx.Amount),
-		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
-		Tips:      blockchain.ConvertToFloat(tx.Tips),
-		From:      sender,
-		Nonce:     tx.AccountNonce,
-		To:        tx.To,
-		Type:      txTypeMap[tx.Type],
-		BlockHash: blockHash,
-	}
+	return convertToTransaction(tx, blockHash, feePerByte, timestamp)
 }
 
 func (api *BlockchainApi) Mempool() []common.Hash {
@@ -152,6 +150,81 @@ func (api *BlockchainApi) Syncing() Syncing {
 		CurrentBlock: current,
 		HighestBlock: highest,
 		WrongTime:    api.pm.WrongTime(),
+	}
+}
+
+type TransactionsArgs struct {
+	Address common.Address `json:"address"`
+	Count   int            `json:"count"`
+	Token   hexutil.Bytes  `json:"token"`
+}
+
+type Transactions struct {
+	Transactions []*Transaction `json:"transactions"`
+	Token        *hexutil.Bytes `json:"token"`
+}
+
+// sorted by epoch \ nonce desc (the newest transactions are first)
+func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transactions {
+	txs := api.pool.GetPendingByAddress(args.Address)
+
+	sort.SliceStable(txs, func(i, j int) bool {
+		if txs[i].Epoch > txs[j].Epoch {
+			return true
+		}
+		if txs[i].Epoch < txs[j].Epoch {
+			return false
+		}
+		return txs[i].AccountNonce > txs[j].AccountNonce
+	})
+
+	var list []*Transaction
+	for _, item := range txs {
+		list = append(list, convertToTransaction(item, common.Hash{}, nil, 0))
+	}
+
+	return Transactions{
+		Transactions: list,
+		Token:        nil,
+	}
+}
+
+func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
+
+	txs, nextToken := api.bc.ReadTxs(args.Address, args.Count, args.Token)
+
+	var list []*Transaction
+	for _, item := range txs {
+		list = append(list, convertToTransaction(item.Tx, item.BlockHash, item.FeePerByte, item.Timestamp))
+	}
+
+	var token *hexutil.Bytes
+	if nextToken != nil {
+		b := hexutil.Bytes(nextToken)
+		token = &b
+	}
+
+	return Transactions{
+		Transactions: list,
+		Token:        token,
+	}
+}
+
+func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp uint64) *Transaction {
+	sender, _ := types.Sender(tx)
+	return &Transaction{
+		Epoch:     tx.Epoch,
+		Payload:   tx.Payload,
+		Amount:    blockchain.ConvertToFloat(tx.Amount),
+		MaxFee:    blockchain.ConvertToFloat(tx.MaxFee),
+		Tips:      blockchain.ConvertToFloat(tx.Tips),
+		From:      sender,
+		Nonce:     tx.AccountNonce,
+		To:        tx.To,
+		Type:      txTypeMap[tx.Type],
+		BlockHash: blockHash,
+		Timestamp: timestamp,
+		UsedFee:   blockchain.ConvertToFloat(fee.CalculateFee(1, feePerByte, tx)),
 	}
 }
 

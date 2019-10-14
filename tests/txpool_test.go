@@ -29,13 +29,13 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
 
-	pool.Add(getTx(3, 0, key1))
-	pool.Add(getTx(1, 0, key1))
-	pool.Add(getTx(2, 0, key1))
-	pool.Add(getTx(6, 0, key2))
-	pool.Add(getTx(5, 0, key2))
+	pool.Add(GetTx(3, 0, key1))
+	pool.Add(GetTx(1, 0, key1))
+	pool.Add(GetTx(2, 0, key1))
+	pool.Add(GetTx(6, 0, key2))
+	pool.Add(GetTx(5, 0, key2))
 
 	result := pool.BuildBlockTransactions()
 
@@ -48,12 +48,12 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	app.State.IncEpoch()
 	app.Commit(nil)
 
-	pool.Add(getTx(3, 0, key1))
-	pool.Add(getTx(1, 0, key1))
-	pool.Add(getTx(2, 0, key1))
-	pool.Add(getTx(6, 1, key2))
-	pool.Add(getTx(5, 1, key2))
-	pool.Add(getTx(1, 1, key2))
+	pool.Add(GetTx(3, 0, key1))
+	pool.Add(GetTx(1, 0, key1))
+	pool.Add(GetTx(2, 0, key1))
+	pool.Add(GetTx(6, 1, key2))
+	pool.Add(GetTx(5, 1, key2))
+	pool.Add(GetTx(1, 1, key2))
 
 	result = pool.BuildBlockTransactions()
 
@@ -75,32 +75,32 @@ func TestTxPool_TxLimits(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, _, pool := newBlockchain(true, alloc, 3, 2)
+	_, _, pool, _ := newBlockchain(true, alloc, 3, 2)
 
-	tx := getTx(1, 0, key1)
+	tx := GetTx(1, 0, key1)
 	err := pool.Add(tx)
 	require.Nil(t, err)
 
-	err = pool.Add(getTx(2, 1, key1))
+	err = pool.Add(GetTx(2, 1, key1))
 	require.Nil(t, err)
 
-	err = pool.Add(getTx(3, 2, key1))
+	err = pool.Add(GetTx(3, 2, key1))
 	require.NotNil(t, err)
 
-	err = pool.Add(getTx(4, 3, key2))
+	err = pool.Add(GetTx(4, 3, key2))
 	require.Nil(t, err)
 
 	// total limit
-	err = pool.Add(getTx(5, 4, key2))
+	err = pool.Add(GetTx(5, 4, key2))
 	require.NotNil(t, err)
 
 	// remove unknown tx
-	pool.Remove(getTx(1, 2, key2))
-	err = pool.Add(getTx(6, 5, key2))
+	pool.Remove(GetTx(1, 2, key2))
+	err = pool.Add(GetTx(6, 5, key2))
 	require.NotNil(t, err)
 
 	pool.Remove(tx)
-	err = pool.Add(getTx(7, 5, key2))
+	err = pool.Add(GetTx(7, 5, key2))
 	require.Nil(t, err)
 }
 
@@ -114,7 +114,7 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 		Balance: balance,
 	}
 
-	chain, app, pool := newBlockchain(true, alloc, -1, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -125,10 +125,10 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	chain.Head.ProposedHeader.Height++
 
 	app.Commit(nil)
-	err := pool.Add(getTx(1, 1, key))
+	err := pool.Add(GetTx(1, 1, key))
 	require.NoError(t, err)
 
-	err = pool.Add(getTx(1, 0, key))
+	err = pool.Add(GetTx(1, 0, key))
 	require.Error(t, err)
 }
 
@@ -147,37 +147,37 @@ func TestTxPool_ResetTo(t *testing.T) {
 		Balance: getAmount(20),
 	}
 
-	_, app, pool := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
 
-	tx1 := getTypedTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
+	tx1 := GetTypesTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
 	err := pool.Add(tx1)
 	require.NoError(err)
 
-	tx2 := getTypedTxWithAmount(2, 1, key, types.SendTx, getAmount(60))
+	tx2 := GetTypesTxWithAmount(2, 1, key, types.SendTx, getAmount(60))
 	err = pool.Add(tx2)
 	require.NoError(err)
 
 	// will be removed because of balance
-	tx3 := getTypedTxWithAmount(3, 1, key, types.SendTx, getAmount(70))
+	tx3 := GetTypesTxWithAmount(3, 1, key, types.SendTx, getAmount(70))
 	err = pool.Add(tx3)
 	require.NoError(err)
 
 	// will be removed because of nonce hole
-	tx4 := getTypedTxWithAmount(4, 1, key, types.SendTx, getAmount(20))
+	tx4 := GetTypesTxWithAmount(4, 1, key, types.SendTx, getAmount(20))
 	err = pool.Add(tx4)
 	require.NoError(err)
 
-	tx5 := getTypedTxWithAmount(1, 1, key2, types.SendTx, getAmount(15))
+	tx5 := GetTypesTxWithAmount(1, 1, key2, types.SendTx, getAmount(15))
 	err = pool.Add(tx5)
 	require.NoError(err)
 
 	// will be removed because of past epoch
-	tx6 := getTypedTxWithAmount(2, 0, key2, types.SendTx, getAmount(15))
+	tx6 := GetTypesTxWithAmount(2, 0, key2, types.SendTx, getAmount(15))
 	err = pool.Add(tx6)
 	require.NoError(err)
 
 	// will be removed because mined
-	tx7 := getTypedTxWithAmount(1, 0, key2, types.SendTx, getAmount(15))
+	tx7 := GetTypesTxWithAmount(1, 0, key2, types.SendTx, getAmount(15))
 	err = pool.Add(tx7)
 	require.NoError(err)
 
@@ -228,7 +228,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 		}
 	}
 
-	_, app, pool := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
 
 	// Current epoch = 1
 	app.State.IncEpoch()
@@ -237,55 +237,55 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	addressIndex := 0
 	// Prev epoch
 	app.State.SetEpoch(addresses[addressIndex], 0)
-	pool.Add(getTypedTx(1, 0, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(1, 0, keys[addressIndex], types.SendTx))
 
 	// Current epoch and wrong start nonce
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx))
 
 	// Priority tx after size limit
 	addressIndex++
 	for i := 0; i < 10596; i++ {
-		pool.Add(getTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx))
+		pool.Add(GetTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx))
 	}
-	pool.Add(getTypedTx(10597, 1, keys[addressIndex], types.EvidenceTx))
+	pool.Add(GetTypedTx(10597, 1, keys[addressIndex], types.EvidenceTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 3)
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 4)
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(7, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(7, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 2)
-	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.EvidenceTx))
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(5, 1, keys[addressIndex], types.SubmitLongAnswersTx))
-	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(8, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx))
+	pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SubmitLongAnswersTx))
+	pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(8, 1, keys[addressIndex], types.SendTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(2, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(3, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx))
+	pool.Add(GetTypedTx(2, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
-	pool.Add(getTypedTx(1, 1, keys[addressIndex], types.SendTx))
-	pool.Add(getTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx))
+	pool.Add(GetTypedTx(1, 1, keys[addressIndex], types.SendTx))
+	pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx))
 
 	// when
 	result := pool.BuildBlockTransactions()
@@ -331,38 +331,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	}
 }
 
-func getTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {
-	return getTypedTx(nonce, epoch, key, types.SendTx)
-}
-
-func getTypedTxWithAmount(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType, amount *big.Int) *types.Transaction {
-
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-	to := &addr
-
-	if txType == types.EvidenceTx || txType == types.SubmitShortAnswersTx ||
-		txType == types.SubmitLongAnswersTx || txType == types.SubmitAnswersHashTx || txType == types.SubmitFlipTx {
-		to = nil
-	}
-
-	tx := types.Transaction{
-		AccountNonce: nonce,
-		Type:         txType,
-		To:           to,
-		Amount:       amount,
-		Epoch:        epoch,
-	}
-
-	signedTx, _ := types.SignTx(&tx, key)
-
-	return signedTx
-}
-
-func getTypedTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.TxType) *types.Transaction {
-	return getTypedTxWithAmount(nonce, epoch, key, txType, new(big.Int))
-}
-
-func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.Blockchain, *appstate.AppState, *mempool.TxPool) {
+func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	conf := blockchain.GetDefaultConsensusConfig(false)
 	conf.MinFeePerByte = big.NewInt(0)
 	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)

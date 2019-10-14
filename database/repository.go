@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tm-db"
+	"math/big"
 	"time"
 )
 
@@ -25,8 +27,19 @@ func NewRepo(db dbm.DB) *Repo {
 	}
 }
 
-// encodeBlockNumber encodes a block number as big endian uint64
-func encodeBlockNumber(number uint64) []byte {
+func encodeUint16Number(number uint16) []byte {
+	enc := make([]byte, 2)
+	binary.BigEndian.PutUint16(enc, number)
+	return enc
+}
+
+func encodeUint32Number(number uint32) []byte {
+	enc := make([]byte, 4)
+	binary.BigEndian.PutUint32(enc, number)
+	return enc
+}
+
+func encodeUint64Number(number uint64) []byte {
 	enc := make([]byte, 8)
 	binary.BigEndian.PutUint64(enc, number)
 	return enc
@@ -42,7 +55,7 @@ func certKey(hash common.Hash) []byte {
 }
 
 func headerHashKey(number uint64) []byte {
-	return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
+	return append(append(headerPrefix, encodeUint64Number(number)...), headerHashSuffix...)
 }
 
 func finalConsensusKey(hash common.Hash) []byte {
@@ -53,8 +66,15 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
+func savedTxKey(sender common.Address, timestamp uint64, nonce uint32, hash common.Hash) []byte {
+	key := append(ownTransactionIndexPrefix, sender[:]...)
+	key = append(key, encodeUint64Number(timestamp)...)
+	key = append(key, encodeUint32Number(nonce)...)
+	return append(key, hash[:]...)
+}
+
 func identityStateDiffKey(height uint64) []byte {
-	return append(identityStateDiffPrefix, encodeBlockNumber(height)...)
+	return append(identityStateDiffPrefix, encodeUint64Number(height)...)
 }
 
 func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
@@ -142,7 +162,7 @@ func (r *Repo) SetHead(height uint64) {
 func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 	data, err := rlp.EncodeToBytes(index)
 	if err != nil {
-		log.Crit("failed to RLP encode tranction index", "err", err)
+		log.Crit("failed to RLP encode transaction index", "err", err)
 		return
 	}
 	r.db.Set(txIndexKey(txHash), data)
@@ -338,4 +358,45 @@ func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
 		return
 	}
 	r.db.Set(activityMonitorKey, data)
+}
+
+func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp uint64, feePerByte *big.Int, transaction *types.Transaction) {
+	s := &types.SavedTransaction{
+		Tx:         transaction,
+		FeePerByte: feePerByte,
+		BlockHash:  blockHash,
+		Timestamp:  timestamp,
+	}
+	data, err := rlp.EncodeToBytes(s)
+	if err != nil {
+		log.Crit("failed to RLP encode saved transaction", "err", err)
+		return
+	}
+
+	r.db.Set(savedTxKey(address, timestamp, transaction.AccountNonce, transaction.Hash()), data)
+}
+
+func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs []*types.SavedTransaction, nextToken []byte) {
+
+	if token == nil {
+		token = savedTxKey(address, uint64(math.MaxUint64), uint32(math.MaxUint32), common.BytesToHash(common.MaxHash))
+	} else {
+		token = append(token, common.MaxHash...)
+	}
+
+	it := r.db.ReverseIterator(savedTxKey(address, 0, 0, common.BytesToHash(common.MinHash[:])), token)
+
+	for ; it.Valid(); it.Next() {
+		key, value := it.Key(), it.Value()
+		if len(txs) == count {
+			return txs, key[:len(key)-common.HashLength]
+		}
+		tx := new(types.SavedTransaction)
+		if err := rlp.DecodeBytes(value, tx); err != nil {
+			log.Error("cannot parse tx", "key", key)
+		}
+		txs = append(txs, tx)
+	}
+
+	return txs, nil
 }

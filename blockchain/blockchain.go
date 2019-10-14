@@ -6,6 +6,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -41,7 +42,7 @@ const (
 
 const (
 	ProposerRole            uint8 = 0x1
-	EmptyBlockTimeIncrement       = time.Second * 10
+	EmptyBlockTimeIncrement       = time.Second * 20
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
 )
@@ -177,6 +178,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 	blockNumber := uint64(1)
+	var feePerByte *big.Int
 
 	if network == Testnet {
 		predefinedState, err := readPredefinedState()
@@ -186,6 +188,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 		blockNumber = predefinedState.Block
 		seed = predefinedState.Seed
+		feePerByte = predefinedState.Global.FeePerByte
 
 		err = chain.appState.CommitAt(blockNumber - 1)
 		if err != nil {
@@ -219,6 +222,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			IdentityRoot: chain.appState.IdentityState.Root(),
 			BlockSeed:    seed,
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
+			FeePerByte:   feePerByte,
 		},
 	}, Body: &types.Body{}}
 
@@ -661,8 +665,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
-		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
+		attachment := attachments.ParseOnlineStatusAttachment(tx)
+		appState.IdentityState.SetOnline(sender, attachment.Online)
 	case types.ChangeGodAddressTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
@@ -679,7 +683,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 }
 
 func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	return types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
+	return fee.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
 func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
@@ -713,7 +717,7 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 }
 
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	return types.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
+	return fee.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
 func getSeedData(prevBlock *types.Header) []byte {
@@ -761,6 +765,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
 		IpfsHash:       cidBytes,
+		FeePerByte:     chain.appState.State.FeePerByte(),
 	}
 
 	block := &types.Block{
@@ -896,6 +901,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
+	chain.SaveTxs(block.Header, block.Body.Transactions)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
@@ -946,6 +952,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	if err := chain.ValidateHeader(block.Header, prevBlock); err != nil {
 		return err
+	}
+
+	if checkState.State.FeePerByte().Cmp(block.Header.ProposedHeader.FeePerByte) != 0 {
+		return errors.New("fee rate is invalid")
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
@@ -1349,6 +1359,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 	return chain.repo.ReadPreliminaryHead()
 }
+
 func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.IdentityStateDiff) {
 	if !diff.Empty() {
 		chain.repo.WriteIdentityStateDiff(height, diff.Bytes())
@@ -1367,6 +1378,19 @@ func (chain *Blockchain) SwitchToPreliminary() {
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+}
+
+func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
+	for _, tx := range txs {
+		sender, _ := types.Sender(tx)
+		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
+			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
+		}
+	}
+}
+
+func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
+	return chain.repo.GetSavedTxs(address, count, token)
 }
 
 func readPredefinedState() (*state.PredefinedState, error) {

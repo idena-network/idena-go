@@ -204,8 +204,11 @@ func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
 }
 
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
-	networkSize := vc.appState.ValidatorsCache.NetworkSize()
-	return common.LongSessionFlipsCount(networkSize)
+	count := uint(len(vc.flips) * common.LongSessionTesters / len(vc.candidates))
+	if count == 0 {
+		count = 1
+	}
+	return count
 }
 
 func (vc *ValidationCeremony) restoreState() {
@@ -678,26 +681,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		addr := candidate.Address
 		var shortScore, longScore, totalScore float32
 		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
-		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
+		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 		addFlipAnswersToStats(shortFlipAnswers, true, stats)
 
 		longFlipsToSolve := vc.longFlipsPerCandidate[idx]
-		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
+		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
 		addFlipAnswersToStats(longFlipAnswers, false, stats)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
 		approved := approvedCandidatesSet.Contains(addr)
 		missed := !approved
+		fullQual := !noQualShort && !noQualLong
 
 		if shortQualifiedFlipsCount > 0 {
 			shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
-		} else {
+		} else if fullQual {
 			missed = true
 		}
 		if longQualifiedFlipsCount > 0 {
 			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
-		} else {
+		} else if fullQual {
 			missed = true
 		}
 		newTotalQualifiedFlipsCount := shortQualifiedFlipsCount + totalQualifiedFlipsCount
@@ -707,7 +711,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		identity := appState.State.GetIdentity(addr)
 		newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-			newTotalQualifiedFlipsCount, missed)
+			newTotalQualifiedFlipsCount, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		incSuccessfulInvites(validationAuthors, god, identity, newIdentityState)
@@ -754,8 +758,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	for _, addr := range vc.nonCandidates {
 		identity := appState.State.GetIdentity(addr)
-		newIdentityState := determineNewIdentityState(identity, 0, 0, 0,
-			0, true)
+		newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		value := cacheValue{
@@ -896,7 +899,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed bool) state.IdentityState {
+func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -915,11 +918,19 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 	case state.Invite:
 		return state.Killed
 	case state.Candidate:
+		if noQualShort || nonQualLong && shortScore >= MinShortScore {
+			return state.Candidate
+		}
 		if missed || shortScore < MinShortScore || longScore < MinLongScore {
 			return state.Killed
 		}
 		return state.Newbie
 	case state.Newbie:
+		if noQualShort ||
+			nonQualLong && totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
+			nonQualLong && totalQualifiedFlips <= 10 && shortScore >= MinShortScore {
+			return state.Newbie
+		}
 		if missed {
 			return state.Killed
 		}
@@ -931,6 +942,9 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		}
 		return state.Killed
 	case state.Verified:
+		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Verified
+		}
 		if missed {
 			return state.Suspended
 		}
@@ -939,6 +953,9 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		}
 		return state.Killed
 	case state.Suspended:
+		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Suspended
+		}
 		if missed {
 			return state.Zombie
 		}
@@ -947,6 +964,9 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		}
 		return state.Killed
 	case state.Zombie:
+		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Zombie
+		}
 		if missed {
 			return state.Killed
 		}

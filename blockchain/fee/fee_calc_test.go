@@ -1,6 +1,7 @@
-package types
+package fee
 
 import (
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
@@ -9,8 +10,8 @@ import (
 )
 
 func TestCalculateFee(t *testing.T) {
-	tx := &Transaction{
-		Type: SendTx,
+	tx := &types.Transaction{
+		Type: types.SendTx,
 	}
 	// tx size = 10
 	fee1 := big.NewInt(77e+15)
@@ -21,7 +22,7 @@ func TestCalculateFee(t *testing.T) {
 	require.Equal(t, 0, fee2.Cmp(CalculateFee(200, new(big.Int).Div(common.DnaBase, big.NewInt(200)), tx)))
 
 	key, _ := crypto.GenerateKey()
-	signed, _ := SignTx(tx, key)
+	signed, _ := types.SignTx(tx, key)
 
 	// signed
 	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), signed)))
@@ -29,8 +30,8 @@ func TestCalculateFee(t *testing.T) {
 }
 
 func TestCalculateCost(t *testing.T) {
-	tx := &Transaction{
-		Type:   SendTx,
+	tx := &types.Transaction{
+		Type:   types.SendTx,
 		Amount: big.NewInt(1e+18),
 		Tips:   big.NewInt(1e+18),
 	}
@@ -42,8 +43,8 @@ func TestCalculateCost(t *testing.T) {
 
 func TestCalculateCostForInvitation(t *testing.T) {
 	// tx size = 17
-	tx := &Transaction{
-		Type:   InviteTx,
+	tx := &types.Transaction{
+		Type:   types.InviteTx,
 		Amount: big.NewInt(1e+18),
 	}
 	const networkSize = 100

@@ -80,102 +80,164 @@ func Test_determineNewIdentityState(t *testing.T) {
 		totalQualifiedFlips uint32
 		missed              bool
 		expected            state.IdentityState
+		noQualShort         bool
+		noQualLong          bool
 	}
 
 	cases := []data{
 		{
 			state.Killed,
 			0, 0, 0, 0, true,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Invite,
 			1, 1, 1, 110, false,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Candidate,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
-			state.Newbie,
+			state.Newbie,false,false,
 		},
 		{
 			state.Candidate,
 			MinShortScore, MinLongScore, MinTotalScore, 11, true,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
-			state.Verified,
+			state.Verified,false,false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Newbie,
+			state.Newbie,false,false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, true,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Newbie,
 			0.4, 0.8, 1, 11, false,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 8, false,
-			state.Newbie,
+			state.Newbie,false,false,
 		},
 		{
 			state.Verified,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Verified,
 			0, 0, 0, 0, true,
-			state.Suspended,
+			state.Suspended,false,false,
 		},
 		{
 			state.Verified,
 			0, 0, 0, 0, false,
-			state.Killed,
+			state.Killed,false,false,
 		},
 		{
 			state.Suspended,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Verified,
+			state.Verified,false,false,
 		},
 		{
 			state.Suspended,
 			1, 0.8, 0, 10, true,
-			state.Zombie,
+			state.Zombie,false,false,
 		},
 		{
 			state.Zombie,
 			MinShortScore, 0, MinTotalScore, 10, false,
-			state.Verified,
+			state.Verified,false,false,
 		},
 		{
 			state.Zombie,
 			1, 0, 0, 10, true,
-			state.Killed,
+			state.Killed,false,false,
+		},
+		{
+			state.Candidate,
+			MinShortScore, 0, 0, 5, false,
+			state.Candidate,true,false,
+		},
+		{
+			state.Candidate,
+			MinShortScore-0.1, 0, 0, 5, false,
+			state.Killed,false,true,
+		},
+		{
+			state.Newbie,
+			MinShortScore, 0, 0.1, 5, false,
+			state.Newbie,true,false,
+		},
+		{
+			state.Newbie,
+			MinShortScore, 0, 0.1, 5, false,
+			state.Newbie,false,true,
+		},
+		{
+			state.Newbie,
+			MinShortScore, 0, 0.1, 11, false,
+			state.Killed,false,true,
+		},
+		{
+			state.Newbie,
+			MinShortScore-0.1, 0, 0.1, 9, false,
+			state.Killed,false,true,
+		},
+		{
+			state.Verified,
+			MinShortScore-0.1, 0, 0.1, 10, false,
+			state.Verified,true,false,
+		},
+		{
+			state.Verified,
+			MinShortScore-0.1, 0, 1.1, 10, false,
+			state.Killed,false,true,
+		},
+		{
+			state.Suspended,
+			MinShortScore-0.1, 0, 0.1, 10, false,
+			state.Suspended,true,false,
+		},
+		{
+			state.Suspended,
+			MinShortScore-0.1, 0, 1.1, 10, false,
+			state.Killed,false,true,
+		},
+		{
+			state.Zombie,
+			MinShortScore-0.1, 0, 0.1, 10, false,
+			state.Zombie,true,false,
+		},
+		{
+			state.Zombie,
+			MinShortScore, 0, 0.1, 10, false,
+			state.Killed,false,true,
 		},
 	}
 
 	require := require.New(t)
 
 	for _, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed))
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong))
 	}
 }
 
 func Test_getNotApprovedFlips(t *testing.T) {
 	// given
 	vc := ValidationCeremony{}
-	_, app, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
+	_, app, _, _ := blockchain.NewTestBlockchain(false, make(map[common.Address]config.GenesisAllocation))
 	var candidates []*candidate
 	var flipsPerAuthor map[int][][]byte
 	var flips [][]byte
