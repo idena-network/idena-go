@@ -861,7 +861,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
-		!flags.HasFlag(types.ValidationFinished) {
+		!flags.HasFlag(types.ValidationFinished) && !flags.HasFlag(types.FlipLotteryStarted){
 		flags |= types.Snapshot
 	}
 
