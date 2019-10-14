@@ -46,7 +46,7 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayM
 		rw:             rw,
 		Peer:           p,
 		id:             fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		queuedRequests: make(chan *request, 500),
+		queuedRequests: make(chan *request, 10000),
 		term:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		maxDelayMs:     maxDelayMs,
