@@ -607,8 +607,12 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	err := vc.mempool.Add(signedTx)
 
 	if err != nil {
-		vc.log.Error(err.Error())
-		vc.epochDb.RemoveOwnTx(txType)
+		if !vc.epochDb.HasSuccessfulOwnTx(signedTx.Hash()) {
+			vc.log.Error(err.Error())
+			vc.epochDb.RemoveOwnTx(txType)
+		}
+	} else{
+		vc.epochDb.WriteSuccessfulOwnTx(signedTx.Hash())
 	}
 	vc.logInfoWithInteraction("Broadcast ceremony tx", "type", txType, "hash", signedTx.Hash().Hex())
 
