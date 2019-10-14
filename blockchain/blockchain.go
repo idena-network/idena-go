@@ -976,8 +976,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
 
-	if chain.calculateFlags(checkState, block) != persistentFlags {
-		return errors.New("flags are invalid")
+	if expexted := chain.calculateFlags(checkState, block); expexted != persistentFlags {
+		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expexted, persistentFlags)
 	}
 
 	if root, identityRoot, _, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
@@ -997,6 +997,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	}
 
 	return nil
+}
+
+func (chain *Blockchain) ValidateBlockCertOnHead(block *types.Header, cert *types.BlockCert) error {
+	return chain.ValidateBlockCert(chain.Head, block, cert, chain.appState.ValidatorsCache)
 }
 
 func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
@@ -1233,7 +1237,7 @@ func (chain *Blockchain) Genesis() common.Hash {
 	return chain.genesis.Hash()
 }
 
-func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Block) error {
+func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.BlockBundle) error {
 	checkState, err := chain.appState.ForCheckWithNewCache(startHeight)
 	if err != nil {
 		return err
@@ -1241,23 +1245,48 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []*types.Bl
 	prevBlock := chain.GetBlockHeaderByHeight(startHeight)
 
 	for _, b := range blocks {
-		if err := chain.validateBlock(checkState, b, prevBlock); err != nil {
+		if err := chain.validateBlock(checkState, b.Block, prevBlock); err != nil {
 			return err
 		}
-		if err := checkState.Commit(b); err != nil {
+		if b.Block.Header.Flags().HasFlag(types.IdentityUpdate) {
+			if b.Cert.Empty() {
+				return errors.New("Block cert is missing")
+			}
+		}
+		if ! b.Cert.Empty() {
+			if err := chain.ValidateBlockCert(prevBlock, b.Block.Header, b.Cert, checkState.ValidatorsCache); err != nil {
+				return err
+			}
+		}
+		if err := checkState.Commit(b.Block); err != nil {
 			return err
 		}
-		prevBlock = b.Header
+		prevBlock = b.Block.Header
+	}
+
+	if blocks[len(blocks)-1].Cert == nil {
+		return errors.New("last block of the fork should have a certificate")
 	}
 
 	return nil
 }
 
 func (chain *Blockchain) ResetTo(height uint64) error {
+	prevHead := chain.Head.Height()
 	if err := chain.appState.ResetTo(height); err != nil {
 		return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
 	}
 	chain.setHead(height)
+
+	for h := height + 1; h <= prevHead; h++ {
+		hash := chain.repo.ReadCanonicalHash(h)
+		if hash == (common.Hash{}) {
+			continue
+		}
+		chain.repo.RemoveHeader(hash)
+		chain.repo.RemoveCanonicalHash(h)
+	}
+
 	return nil
 }
 
@@ -1419,4 +1448,67 @@ func readPredefinedState() (*state.PredefinedState, error) {
 		return nil, err
 	}
 	return predefinedState, nil
+}
+
+func (chain *Blockchain) ReadBlockForForkedPeer(blocks []common.Hash) []types.BlockBundle {
+	commonHeight := uint64(1)
+	needBlocks := uint64(0)
+	for i := 0; i < len(blocks); i++ {
+		header := chain.repo.ReadBlockHeader(blocks[i])
+		needBlocks++
+		if header != nil {
+			commonHeight = header.Height()
+			break
+		}
+	}
+	result := make([]types.BlockBundle, 0)
+	if commonHeight == 1 {
+		return result
+	}
+	for h := commonHeight + 1; h < commonHeight+needBlocks+1 && h <= chain.Head.Height(); h++ {
+		block := chain.GetBlockByHeight(h)
+		if block == nil {
+			break
+		}
+		result = append(result, types.BlockBundle{
+			Block: block,
+			Cert:  chain.GetCertificate(block.Hash()),
+		})
+	}
+	if len(result) == 0 {
+		return result
+	}
+	lastBlock := result[len(result)-1]
+	if lastBlock.Cert != nil {
+		return result
+	}
+	for i := uint64(1); i <= chain.config.Blockchain.StoreCertRange; i++ {
+		block := chain.GetBlockByHeight(lastBlock.Block.Height() + i)
+		if block == nil {
+			result = make([]types.BlockBundle, 0)
+			break
+		}
+		cert := chain.GetCertificate(block.Hash())
+		result = append(result, types.BlockBundle{
+			Block: block,
+			Cert:  cert,
+		})
+		if cert != nil {
+			break
+		}
+	}
+	return result
+}
+
+func (chain *Blockchain) GetTopBlockHashes(count int) [] common.Hash {
+	result := make([]common.Hash, 0, count)
+	head := chain.Head.Height()
+	for i := uint64(0); i < uint64(count); i++ {
+		hash := chain.repo.ReadCanonicalHash(head - i)
+		if hash == (common.Hash{}) {
+			break
+		}
+		result = append(result, hash)
+	}
+	return result
 }

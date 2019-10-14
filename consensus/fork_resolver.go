@@ -5,9 +5,9 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
-	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/pkg/errors"
 	"sort"
 	"time"
 )
@@ -23,7 +23,7 @@ type ForkResolver struct {
 
 type applicableFork struct {
 	commonHeight uint64
-	blocks       []*types.Block
+	blocks       []types.BlockBundle
 }
 
 func NewForkResolver(forkDetectors []ForkDetector, downloader *protocol.Downloader, chain *blockchain.Blockchain) *ForkResolver {
@@ -55,107 +55,88 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	resolver.log.Info("Start loading fork", "peerId", peerId)
 
 	resolver.triedPeers.Add(peerId)
-	batchSize := uint64(5)
 
-	to := resolver.chain.Head.Height() + 2
-	from := to - batchSize
-	oldestBlock := math.Max(2, to-100)
+	lastBlocksHashes := resolver.chain.GetTopBlockHashes(100)
 
-	forkBlocks := make([]*types.Block, 0)
-	commonHeight := uint64(1)
+	blocks := resolver.downloader.SeekForkedBlocks(lastBlocksHashes, peerId)
+	resolver.processBlocks(blocks, peerId)
+}
 
-	for commonHeight == 1 {
-		blocks := resolver.downloader.PeekBlocks(from, to, []string{peerId})
-		batchBlocks := make([]*types.Block, 0)
-		for {
-			block, ok := <-blocks
-			if !ok {
-				// all requested blocks have been consumed or a timeout has been reached
-				break
-			}
-			existingBlock := resolver.chain.GetBlockByHeight(block.Height())
-			if existingBlock == nil || existingBlock.Hash() != block.Hash() {
-				batchBlocks = append(batchBlocks, block)
-			} else {
-				commonHeight = block.Height()
-			}
-		}
-		forkBlocks = append(forkBlocks, batchBlocks...)
-
-		to = from - 1
-		if to < oldestBlock {
-			resolver.log.Warn("no common block has been found", "peerId", peerId)
+func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId string) error {
+	forkBlocks := make([]types.BlockBundle, 0)
+	for {
+		bundle, ok := <-blocks
+		if !ok {
+			// all requested blocks have been consumed or a timeout has been reached
 			break
 		}
-		from = math.Max(oldestBlock, to-batchSize)
+		forkBlocks = append(forkBlocks, bundle)
 	}
-	if commonHeight > 1 {
-		resolver.log.Info("common block is found", "peerId", peerId)
-		forkBlocks = sortAndFilterBlocks(forkBlocks, commonHeight)
-		if resolver.isForkBigger(forkBlocks) {
-			if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
-				resolver.log.Warn("unacceptable fork", "peerId", peerId, "err", err)
-			} else {
-				resolver.log.Info("applicable fork is detected", "peerId", peerId, "commonHeight", commonHeight)
-				resolver.applicableFork = &applicableFork{
-					commonHeight: commonHeight,
-					blocks:       forkBlocks,
-				}
-			}
+	if len(forkBlocks) == 0 {
+		return errors.Errorf("common height is not found, peerId=%v", peerId)
+	}
+
+	resolver.log.Info("common block is found", "peerId", peerId)
+	forkBlocks = sortBlocks(forkBlocks)
+	if err := resolver.checkForkSize(forkBlocks); err == nil {
+		commonHeight := forkBlocks[0].Block.Height() - 1
+		if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
+			return errors.Errorf("unacceptable fork, peerId=%v, err=%v", peerId, err)
 		} else {
-			resolver.log.Warn("fork is smaller", "peerId", peerId)
+			resolver.log.Info("applicable fork is detected", "peerId", peerId, "commonHeight", commonHeight)
+			resolver.applicableFork = &applicableFork{
+				commonHeight: commonHeight,
+				blocks:       forkBlocks,
+			}
 		}
 	} else {
-		resolver.log.Warn("Common height is not found", "peerId", peerId)
+		return errors.Errorf("fork is smaller, peerId=%v, err=%v", peerId, err)
 	}
+	return nil
 }
 
-func sortAndFilterBlocks(blocks []*types.Block, minHeight uint64) []*types.Block {
-
+func sortBlocks(blocks []types.BlockBundle) []types.BlockBundle {
 	sort.SliceStable(blocks, func(i, j int) bool {
-		return blocks[i].Height() < blocks[j].Height()
+		return blocks[i].Block.Height() < blocks[j].Block.Height()
 	})
-
-	result := make([]*types.Block, 0)
-	for _, b := range blocks {
-		if b.Height() > minHeight {
-			result = append(result, b)
-		}
-	}
-	return result
+	return blocks
 }
 
-func (resolver *ForkResolver) isForkBigger(fork []*types.Block) bool {
+func (resolver *ForkResolver) checkForkSize(fork []types.BlockBundle) error {
 
 	if len(fork) == 0 {
-		return false
+		return errors.New("fork is empty")
 	}
-	forkLastBlock := fork[len(fork)-1]
+	forkLastBlock := fork[len(fork)-1].Block
 
 	if forkLastBlock.Height() > resolver.chain.Head.Height() {
-		return true
+		return nil
 	}
 
-	firstForkBlockHeight := fork[0].Height()
+	firstForkBlockHeight := fork[0].Block.Height()
 
 	forkProposedBlocks := 0
 	ownProposedBlocks := 0
 
 	for j, i := 0, firstForkBlockHeight; i <= forkLastBlock.Height(); i, j = i+1, j+1 {
-		if !fork[j].IsEmpty() {
+		if !fork[j].Block.IsEmpty() {
 			forkProposedBlocks++
 		}
 		if !resolver.chain.GetBlockByHeight(i).IsEmpty() {
 			ownProposedBlocks++
 		}
 	}
-	if forkProposedBlocks > ownProposedBlocks {
-		return true
+	if forkProposedBlocks < ownProposedBlocks {
+		return errors.New("fork has less proposed blocks")
 	}
-	return bytes.Compare(fork[0].Seed().Bytes(), resolver.chain.GetBlockByHeight(firstForkBlockHeight).Seed().Bytes()) > 0
+	forkHasBestSeed := bytes.Compare(fork[0].Block.Seed().Bytes(), resolver.chain.GetBlockByHeight(firstForkBlockHeight).Seed().Bytes()) > 0
+	if forkHasBestSeed {
+		return nil
+	}
+	return errors.New("fork has worse seed")
 }
 
-func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []*types.Block) error {
+func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []types.BlockBundle) error {
 
 	defer func() {
 		resolver.applicableFork = nil
@@ -169,10 +150,11 @@ func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []*types.Block
 	if err := resolver.chain.ResetTo(commonHeight); err != nil {
 		return err
 	}
-	for _, block := range fork {
-		if err := resolver.chain.AddBlock(block, nil); err != nil {
+	for _, bundle := range fork {
+		if err := resolver.chain.AddBlock(bundle.Block, nil); err != nil {
 			return err
 		}
+		resolver.chain.WriteCertificate(bundle.Block.Hash(), bundle.Cert, false)
 	}
 
 	return nil

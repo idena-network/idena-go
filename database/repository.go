@@ -122,6 +122,10 @@ func (r *Repo) WriteBlockHeader(header *types.Header) {
 	r.db.Set(headerKey(header.Hash()), data)
 }
 
+func (r *Repo) RemoveHeader(hash common.Hash) {
+	r.db.Delete(headerKey(hash))
+}
+
 func (r *Repo) WriteCertificate(hash common.Hash, cert *types.BlockCert) {
 	data, err := rlp.EncodeToBytes(cert)
 	if err != nil {
@@ -133,6 +137,11 @@ func (r *Repo) WriteCertificate(hash common.Hash, cert *types.BlockCert) {
 func (r *Repo) WriteCanonicalHash(height uint64, hash common.Hash) {
 	key := headerHashKey(height)
 	r.db.Set(key, hash.Bytes())
+}
+
+func (r *Repo) RemoveCanonicalHash(height uint64) {
+	key := headerHashKey(height)
+	r.db.Delete(key)
 }
 
 func (r *Repo) ReadCanonicalHash(height uint64) common.Hash {

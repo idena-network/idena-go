@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
@@ -59,7 +60,7 @@ func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	}
 	for peerId, height := range knownHeights {
 		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
-			if err, batch := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
+			if batch, err := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
 				continue
 			} else {
 				return batch
@@ -201,12 +202,12 @@ func (fs *fullSync) GetBlock(header *types.Header) (*types.Block, error) {
 	}
 }
 
-func (fs *fullSync) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.Block {
+func (fs *fullSync) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle {
 	var batches []*batch
-	blocks := make(chan *types.Block, len(peers))
+	blocks := make(chan *types.BlockBundle, len(peers))
 
 	for _, peerId := range peers {
-		if err, batch := fs.pm.GetBlocksRange(peerId, fromBlock, toBlock); err != nil {
+		if batch, err := fs.pm.GetBlocksRange(peerId, fromBlock, toBlock); err != nil {
 			continue
 		} else {
 			batches = append(batches, batch)
@@ -220,13 +221,13 @@ func (fs *fullSync) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *
 				select {
 				case header := <-batch.headers:
 					if block, err := fs.GetBlock(header.Header); err != nil {
-						fs.log.Warn("fail to retrieve block while peeking", "err", err)
+						fs.log.Warn("fail to retrieve block while seeking", "err", err)
 						continue
 					} else {
-						blocks <- block
+						blocks <- &types.BlockBundle{Block: block, Cert: header.Cert}
 					}
 				case <-timeout:
-					fs.log.Warn("timeout was reached while peeking block")
+					fs.log.Warn("timeout was reached while seeking block")
 					continue
 				}
 			}
@@ -234,5 +235,36 @@ func (fs *fullSync) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *
 		close(blocks)
 	}()
 
+	return blocks
+}
+
+func (fs *fullSync) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle {
+	blocks := make(chan types.BlockBundle, 100)
+	batch, err := fs.pm.GetForkBlockRange(peerId, ownBlocks)
+	if err != nil {
+		close(blocks)
+		return blocks
+	}
+	go func() {
+		defer close(blocks)
+		for {
+			timeout := time.After(time.Second * 10)
+			select {
+			case header, ok := <-batch.headers:
+				if !ok {
+					return
+				}
+				if block, err := fs.GetBlock(header.Header); err != nil {
+					fs.log.Warn("fail to retrieve block while seeking", "err", err)
+					return
+				} else {
+					blocks <- types.BlockBundle{Block: block, Cert: header.Cert}
+				}
+			case <-timeout:
+				fs.log.Warn("timeout was reached while seeking block")
+				continue
+			}
+		}
+	}()
 	return blocks
 }
