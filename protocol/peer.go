@@ -140,12 +140,12 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	return nil
 }
 
-func (p *peer) markPayload(payload interface{}) {
-	p.markKey(msgKey(payload))
+func (p *peer) markPayload(payload interface{}) error {
+	return p.markKey(msgKey(payload))
 }
 
-func (p *peer) markKey(key string) {
-	p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
+func (p *peer) markKey(key string) error {
+	return p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
 }
 
 func msgKey(data interface{}) string {

@@ -182,7 +182,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(query)
+		if err := p.markPayload(query); err != nil {
+			return nil
+		}
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
 		if ok, _ := pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
@@ -193,7 +195,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(block)
+		if err := p.markPayload(block); err != nil {
+			return nil
+		}
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
 		if ok, _ := pm.proposals.AddProposedBlock(block, p.id, time.Now().UTC()); ok {
@@ -204,7 +208,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(vote); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(vote)
+		if err := p.markPayload(vote); err != nil {
+			return nil
+		}
 		p.setPotentialHeight(vote.Header.Round - 1)
 		if pm.votes.AddVote(vote) {
 			pm.SendVote(vote)
@@ -214,7 +220,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(tx); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(tx)
+		if err := p.markPayload(tx); err != nil {
+			return nil
+		}
 		pm.txpool.Add(tx)
 	case GetBlockByHash:
 		var query getBlockBodyRequest
@@ -236,7 +244,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(f)
+		if err := p.markPayload(f); err != nil {
+			return nil
+		}
 		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
 			p.Log().Error("invalid flip", "err", err)
 		}
