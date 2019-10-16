@@ -1,9 +1,12 @@
 package node
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/consensus"
@@ -19,8 +22,10 @@ import (
 	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"net"
 	"os"
 	"path/filepath"
@@ -63,7 +68,7 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 }
 
-type nodeCtx struct {
+type NodeCtx struct {
 	Node            *Node
 	AppState        *appstate.AppState
 	Ceremony        *ceremony.ValidationCeremony
@@ -83,7 +88,7 @@ func StartMobileNode(path string, cfg string) string {
 		return err.Error()
 	}
 
-	n, err := NewNode(c)
+	n, err := NewNode(c, "mobile")
 
 	if err != nil {
 		return err.Error()
@@ -107,15 +112,15 @@ func ProvideMobileKey(path string, cfg string, key string, password string) stri
 	return "done"
 }
 
-func NewNode(config *config.Config) (*Node, error) {
-	nodeCtx, err := NewIndexerNode(config, eventbus.New())
+func NewNode(config *config.Config, appVersion string) (*Node, error) {
+	nodeCtx, err := NewNodeWithInjections(config, eventbus.New(), collector.NewBlockStatsCollector(), appVersion)
 	if err != nil {
 		return nil, err
 	}
 	return nodeCtx.Node, err
 }
 
-func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
+func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCollector collector.BlockStatsCollector, appVersion string) (*NodeCtx, error) {
 
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
@@ -136,16 +141,16 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
 	appState := appstate.NewAppState(db, bus)
-	votes := pengings.NewVotes(appState)
+	votes := pengings.NewVotes(appState, bus)
 
-	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
+	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, config.Consensus.MinFeePerByte)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P)
+	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P, appVersion)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
@@ -168,8 +173,9 @@ func NewIndexerNode(config *config.Config, bus eventbus.Bus) (*nodeCtx, error) {
 		ceremony:        ceremony,
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
+		votes:           votes,
 	}
-	return &nodeCtx{
+	return &NodeCtx{
 		Node:            node,
 		AppState:        appState,
 		Ceremony:        ceremony,
@@ -185,29 +191,35 @@ func (node *Node) Start() {
 }
 
 func (node *Node) StartWithHeight(height uint64) {
+	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
-	config := node.config.P2P
-	config.Protocols = []p2p.Protocol{
+	cfg := node.config.P2P
+	cfg.Protocols = []p2p.Protocol{
 		{
-			Name:    "AppName",
+			Name:    "idena",
 			Version: 1,
 			Run:     node.pm.HandleNewPeer,
 			Length:  35,
 		},
 	}
-	//TODO: replace with secStore
-	config.PrivateKey = node.config.NodeKey()
+	cfg.PrivateKey = node.generateSyntheticP2PKey()
 	node.srv = &p2p.Server{
-		Config: *config,
+		Config: *cfg,
 	}
-	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
 	if err := node.blockchain.InitializeChain(); err != nil {
 		node.log.Error("Cannot initialize blockchain", "error", err.Error())
 		return
 	}
 
-	node.appState.Initialize(node.blockchain.Head.Height())
+	if err := node.appState.Initialize(node.blockchain.Head.Height()); err != nil {
+		node.log.Error("Cannot initialize state", "error", err.Error())
+	}
+
+	if err := node.blockchain.EnsureIntegrity(); err != nil {
+		node.log.Error("Failed to recover blockchain", "err", err)
+		return
+	}
 
 	if height > 0 && node.blockchain.Head.Height() > height {
 		if err := node.blockchain.ResetTo(height); err != nil {
@@ -218,12 +230,17 @@ func (node *Node) StartWithHeight(height uint64) {
 
 	node.txpool.Initialize(node.blockchain.Head, node.secStore.GetAddress())
 	node.flipKeyPool.Initialize(node.blockchain.Head)
+	node.votes.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
-	node.srv.Start()
+
+	// configure TCP
+	if err := node.srv.Start(); err != nil {
+		node.log.Error("Cannot start TCP endpoint", "error", err.Error())
+	}
 	node.pm.Start()
 
 	// Configure RPC
@@ -330,4 +347,11 @@ func (node *Node) apis() []rpc.API {
 			Public:    true,
 		},
 	}
+}
+
+func (node *Node) generateSyntheticP2PKey() *ecdsa.PrivateKey {
+	hash := common.Hash(rlp.Hash([]byte("node-p2p-key")))
+	sig := node.secStore.Sign(hash.Bytes())
+	p2pKey, _ := crypto.GenerateKeyFromSeed(bytes.NewReader(sig))
+	return p2pKey
 }

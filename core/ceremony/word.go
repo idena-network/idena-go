@@ -5,6 +5,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/pkg/errors"
 	"math/big"
 )
 
@@ -49,6 +50,31 @@ func CheckPair(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pai
 		}
 	}
 	return false
+}
+
+func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, pairIndex int) (word1, word2 int, err error) {
+	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
+	if err != nil {
+		return 0, 0, err
+	}
+	verifier, err := p256.NewVRFVerifier(pubKey)
+	if err != nil {
+		return 0, 0, err
+	}
+	hash, err := verifier.ProofToHash(seed, proof)
+	if err != nil {
+		return 0, 0, err
+	}
+	rnd := generatePseudoRndSeed(hash, dictionarySize)
+	pairs := mapset.NewSet()
+	for i := 0; i < pairCount; i++ {
+		var val1, val2 int
+		val1, val2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
+		if i == pairIndex {
+			return val1, val2, nil
+		}
+	}
+	return 0, 0, errors.New("index is not found")
 }
 
 func maxUniquePairs(dictionarySize int) int {

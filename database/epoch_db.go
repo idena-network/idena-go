@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"encoding/binary"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/ipfs"
@@ -13,17 +12,15 @@ import (
 )
 
 var (
-	OwnShortAnswerKey           = []byte("own-short")
-	AnswerHashPrefix            = []byte("hash")
-	ShortSessionTimeKey         = []byte("time-short")
-	ShortAnswersKey             = []byte("answers-short")
-	LongShortAnswersKey         = []byte("answers-long")
-	TxOwnPrefix                 = []byte("tx")
-	EvidencePrefix              = []byte("evi")
-	LotterySeedKey              = []byte("ls")
-	FlipCidPrefix               = []byte("cid")
-	FlipKeyWordPairsPrefix      = []byte("word")
-	FlipKeyWordPairsProofPrefix = []byte("word-proof")
+	OwnShortAnswerKey     = []byte("own-short")
+	AnswerHashPrefix      = []byte("hash")
+	ShortAnswersKey       = []byte("answers-short")
+	LongShortAnswersKey   = []byte("answers-long")
+	TxOwnPrefix           = []byte("tx")
+	SuccessfulTxOwnPrefix = []byte("s-tx")
+	EvidencePrefix        = []byte("evi")
+	LotterySeedKey        = []byte("ls")
+	FlipCidPrefix         = []byte("cid")
 )
 
 type EpochDb struct {
@@ -38,6 +35,11 @@ type shortAnswerDb struct {
 type DbAnswer struct {
 	Addr common.Address
 	Ans  []byte
+}
+
+type DbProof struct {
+	Addr  common.Address
+	Proof []byte
 }
 
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
@@ -121,23 +123,6 @@ func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
 	return edb.db.Get(OwnShortAnswerKey)
 }
 
-func (edb *EpochDb) WriteShortSessionTime(timestamp time.Time) error {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(timestamp.Unix()))
-	edb.db.Set(ShortSessionTimeKey, b)
-	return nil
-}
-
-func (edb *EpochDb) ReadShortSessionTime() *time.Time {
-	data := edb.db.Get(ShortSessionTimeKey)
-	if data == nil {
-		return nil
-	}
-	timeSeconds := int64(binary.LittleEndian.Uint64(data))
-	t := time.Unix(timeSeconds, 0)
-	return &t
-}
-
 func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
 
 	shortRlp, _ := rlp.EncodeToBytes(short)
@@ -190,6 +175,16 @@ func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	return edb.db.Get(key)
 }
 
+func (edb *EpochDb) WriteSuccessfulOwnTx(txHash common.Hash) {
+	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
+	edb.db.Set(key, []byte{})
+}
+
+func (edb *EpochDb) HasSuccessfulOwnTx(txHash common.Hash) bool {
+	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
+	return edb.db.Has(key)
+}
+
 func (edb *EpochDb) WriteLotterySeed(seed []byte) {
 	edb.db.Set(LotterySeedKey, seed)
 }
@@ -211,22 +206,6 @@ func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])
 	}
-}
-
-func (edb *EpochDb) WriteFlipKeyWordPairs(words []uint32, proof []byte) {
-	wordsRlp, _ := rlp.EncodeToBytes(words)
-	edb.db.Set(FlipKeyWordPairsPrefix, wordsRlp)
-	edb.db.Set(FlipKeyWordPairsProofPrefix, proof)
-}
-
-func (edb *EpochDb) ReadFlipKeyWordPairs() (words []uint32, proof []byte) {
-	wordsRlp, proof := edb.db.Get(FlipKeyWordPairsPrefix), edb.db.Get(FlipKeyWordPairsProofPrefix)
-	if wordsRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(wordsRlp), &words); err != nil {
-			log.Error("invalid flip key words rlp", "err", err)
-		}
-	}
-	return words, proof
 }
 
 func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {

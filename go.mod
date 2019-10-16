@@ -27,6 +27,7 @@ require (
 	github.com/ipfs/go-unixfs v0.2.1
 	github.com/ipfs/interface-go-ipfs-core v0.2.2
 	github.com/jackpal/go-nat-pmp v1.0.1
+	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multihash v0.0.7
@@ -58,6 +59,6 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
-replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190904114916-53100aff08f6
+replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190919135148-89e4ad773677
 
 replace github.com/libp2p/go-libp2p-kad-dht => github.com/libp2p/go-libp2p-kad-dht v0.2.1-0.20190905000620-96d98235133f

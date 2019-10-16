@@ -20,6 +20,8 @@ const (
 	SubmitLongAnswersTx  uint16 = 0x7
 	EvidenceTx           uint16 = 0x8
 	OnlineStatusTx       uint16 = 0x9
+	KillInviteeTx        uint16 = 0xA
+	ChangeGodAddressTx   uint16 = 0xB
 )
 
 const (
@@ -72,6 +74,7 @@ type ProposedHeader struct {
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
+	FeePerByte     *big.Int
 
 	SeedProof []byte
 }
@@ -110,7 +113,9 @@ type Transaction struct {
 	Type         TxType
 	To           *common.Address `rlp:"nil"`
 	Amount       *big.Int        `json:"value"`
-	Payload      []byte          `rlp:"nil"       json:"input"`
+	MaxFee       *big.Int
+	Tips         *big.Int
+	Payload      []byte `rlp:"nil"       json:"input"`
 
 	Signature []byte
 
@@ -152,6 +157,13 @@ type ActivityMonitor struct {
 type AddrActivity struct {
 	Addr common.Address
 	Time time.Time
+}
+
+type SavedTransaction struct {
+	Tx         *Transaction
+	FeePerByte *big.Int
+	BlockHash  common.Hash
+	Timestamp  uint64
 }
 
 func (b *Block) Hash() common.Hash {
@@ -241,6 +253,14 @@ func (h *Header) Time() *big.Int {
 	}
 }
 
+func (h *Header) FeePerByte() *big.Int {
+	if h.EmptyBlockHeader != nil {
+		return nil
+	} else {
+		return h.ProposedHeader.FeePerByte
+	}
+}
+
 func (h *Header) IpfsHash() []byte {
 	if h.EmptyBlockHeader != nil {
 		return nil
@@ -316,6 +336,20 @@ func (tx *Transaction) AmountOrZero() *big.Int {
 		return big.NewInt(0)
 	}
 	return tx.Amount
+}
+
+func (tx *Transaction) MaxFeeOrZero() *big.Int {
+	if tx.MaxFee == nil {
+		return big.NewInt(0)
+	}
+	return tx.MaxFee
+}
+
+func (tx *Transaction) TipsOrZero() *big.Int {
+	if tx.Tips == nil {
+		return big.NewInt(0)
+	}
+	return tx.Tips
 }
 
 func (tx *Transaction) Hash() common.Hash {
@@ -453,7 +487,7 @@ func (a *Answers) Inappropriate(flipIndex uint) {
 	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*2))
 }
 
-func (a *Answers) Easy(flipIndex uint) {
+func (a *Answers) WrongWords(flipIndex uint) {
 	if flipIndex >= a.FlipsCount {
 		panic("index is out of range")
 	}
@@ -465,7 +499,7 @@ func (a *Answers) Bytes() []byte {
 	return a.Bits.Bytes()
 }
 
-func (a *Answers) Answer(flipIndex uint) (answer Answer, easy bool) {
+func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 	answer = None
 	if a.Bits.Bit(int(flipIndex)) == 1 {
 		answer = Left
@@ -474,6 +508,17 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, easy bool) {
 	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1 {
 		answer = Inappropriate
 	}
-	easy = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
+	wrongWords = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
 	return
+}
+
+type ValidationResult struct {
+	StrongFlips       int
+	WeakFlips         int
+	SuccessfulInvites int
+}
+
+type ValidationAuthors struct {
+	BadAuthors  map[common.Address]struct{}
+	GoodAuthors map[common.Address]*ValidationResult
 }

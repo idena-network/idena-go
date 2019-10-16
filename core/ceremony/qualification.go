@@ -2,11 +2,15 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	statsTypes "github.com/idena-network/idena-go/stats/types"
+	"sync"
 )
 
 type qualification struct {
@@ -15,6 +19,7 @@ type qualification struct {
 	epochDb       *database.EpochDb
 	log           log.Logger
 	hasNewAnswers bool
+	lock          sync.RWMutex
 }
 
 func NewQualification(epochDb *database.EpochDb) *qualification {
@@ -27,7 +32,6 @@ func NewQualification(epochDb *database.EpochDb) *qualification {
 }
 
 func (q *qualification) addAnswers(short bool, sender common.Address, txPayload []byte) {
-
 	var m map[common.Address][]byte
 
 	if short {
@@ -44,7 +48,7 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 	q.hasNewAnswers = true
 }
 
-func (q *qualification) persistAnswers() {
+func (q *qualification) persist() {
 	if !q.hasNewAnswers {
 		return
 	}
@@ -68,7 +72,7 @@ func (q *qualification) persistAnswers() {
 	q.hasNewAnswers = false
 }
 
-func (q *qualification) restoreAnswers() {
+func (q *qualification) restore() {
 	short, long := q.epochDb.ReadAnswers()
 
 	for _, item := range short {
@@ -83,8 +87,8 @@ func (q *qualification) restoreAnswers() {
 func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
 
 	data := make([]struct {
-		answer []types.Answer
-		easy   []bool
+		answer     []types.Answer
+		wrongWords []bool
 	}, totalFlipsCount)
 
 	for i := 0; i < len(flipsPerCandidate); i++ {
@@ -100,11 +104,11 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		answers := types.NewAnswersFromBits(uint(len(flips)), answerBytes)
 
 		for j := uint(0); j < uint(len(flips)); j++ {
-			answer, easy := answers.Answer(j)
+			answer, wrongWords := answers.Answer(j)
 			flipIdx := flips[j]
 
 			data[flipIdx].answer = append(data[flipIdx].answer, answer)
-			data[flipIdx].easy = append(data[flipIdx].easy, easy)
+			data[flipIdx].wrongWords = append(data[flipIdx].wrongWords, wrongWords)
 		}
 	}
 
@@ -112,29 +116,41 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 	for i := 0; i < len(data); i++ {
 		result[i] = qualifyOneFlip(data[i].answer)
+		result[i].wrongWords = qualifyWrongWords(data[i].wrongWords)
 	}
 
 	return result
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
-	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]FlipAnswerStats) {
+	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]statsTypes.FlipAnswerStats, noQual bool) {
 
 	var answerBytes []byte
 	if shortSession {
-		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = q.shortAnswers[candidate]
-		if answerBytes != nil && hash != rlp.Hash(answerBytes) {
-			return 0, uint32(len(flipsToSolve)), nil
-		}
-
 	} else {
 		answerBytes = q.longAnswers[candidate]
 	}
+
 	// candidate didn't send answers
 	if answerBytes == nil {
-		return 0, 0, nil
+		return 0, 0, nil, false
 	}
+
+	if shortSession {
+		attachment := attachments.ParseShortAnswerBytesAttachment(answerBytes)
+		flipsCount := uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve)))
+		// can't parse
+		if attachment == nil {
+			return 0, flipsCount, nil, false
+		}
+		hash := q.epochDb.GetAnswerHash(candidate)
+		answerBytes = attachment.Answers
+		if answerBytes == nil || hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
+			return 0, flipsCount, nil, false
+		}
+	}
+
 	answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
 	availableExtraFlips := 0
 
@@ -146,7 +162,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
-	flipAnswers = make(map[int]FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
+	flipAnswers = make(map[int]statsTypes.FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
@@ -170,28 +186,44 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 			qualifiedFlipsCount += 1
 		case WeaklyQualified:
-			if qual.answer == answer {
+			switch {
+			case qual.answer == answer:
 				answerPoint = 1
 				qualifiedFlipsCount += 1
-			} else if qual.answer != types.Inappropriate {
+				break
+			case answer == types.None:
+				qualifiedFlipsCount += 1
+				break
+			case qual.answer != types.Inappropriate:
 				answerPoint = 0.5
 				qualifiedFlipsCount += 1
 			}
 		}
 		point += answerPoint
-		flipAnswers[flipIdx] = FlipAnswerStats{
+		flipAnswers[flipIdx] = statsTypes.FlipAnswerStats{
 			Respondent: candidate,
 			Answer:     answer,
 			Point:      answerPoint,
 		}
 	}
-	return point, qualifiedFlipsCount, flipAnswers
+	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0
+}
+
+func (q *qualification) GetProof(addr common.Address) []byte {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
+
+	attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[addr])
+	if attachment == nil {
+		return nil
+	}
+	return attachment.Proof
 }
 
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
 	answers *types.Answers, shortSession bool) FlipStatus {
 
-	if !shortSession || baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) {
+	if !shortSession || baseStatus == NotQualified || !notApprovedFlips.Contains(flipIdx) || baseStatus == QualifiedByNone {
 		return baseStatus
 	}
 	shortAnswer, _ := answers.Answer(uint(flipsToSolveIdx))
@@ -201,7 +233,7 @@ func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus Flip
 	return baseStatus
 }
 
-func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uint) {
+func getAnswersCount(a []types.Answer) (left uint, right uint, none uint, inappropriate uint) {
 	for k := 0; k < len(a); k++ {
 		if a[k] == types.Left {
 			left++
@@ -212,54 +244,63 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, inappropriate uin
 		if a[k] == types.Inappropriate {
 			inappropriate++
 		}
+		if a[k] == types.None {
+			none++
+		}
 	}
 
-	return left, right, inappropriate
+	return left, right, none, inappropriate
 }
 
 func qualifyOneFlip(a []types.Answer) FlipQualification {
-	left, right, inapp := getAnswersCount(a)
-	totalAnswersCount := len(a)
+	left, right, none, inapp := getAnswersCount(a)
+	totalAnswersCount := float32(len(a))
 
-	if float32(left)/float32(totalAnswersCount) >= 0.75 {
+	if float32(left)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Left,
 			status: Qualified,
 		}
 	}
 
-	if float32(right)/float32(totalAnswersCount) >= 0.75 {
+	if float32(right)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Right,
 			status: Qualified,
 		}
 	}
 
-	if float32(inapp)/float32(totalAnswersCount) >= 0.75 {
+	if float32(inapp)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Inappropriate,
 			status: Qualified,
 		}
 	}
 
-	if float32(left)/float32(totalAnswersCount) >= 0.66 {
+	if float32(left)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
 			answer: types.Left,
 			status: WeaklyQualified,
 		}
 	}
 
-	if float32(right)/float32(totalAnswersCount) >= 0.66 {
+	if float32(right)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
 			answer: types.Right,
 			status: WeaklyQualified,
 		}
 	}
 
-	if float32(inapp)/float32(totalAnswersCount) >= 0.5 {
+	if float32(inapp)/totalAnswersCount >= 0.5 {
 		return FlipQualification{
 			answer: types.Inappropriate,
 			status: WeaklyQualified,
+		}
+	}
+	if float32(none)/totalAnswersCount >= 0.66 {
+		return FlipQualification{
+			answer: types.None,
+			status: QualifiedByNone,
 		}
 	}
 
@@ -267,4 +308,14 @@ func qualifyOneFlip(a []types.Answer) FlipQualification {
 		answer: types.None,
 		status: NotQualified,
 	}
+}
+
+func qualifyWrongWords(data []bool) bool {
+	wrongCount := 0
+	for _, item := range data {
+		if item {
+			wrongCount += 1
+		}
+	}
+	return float32(wrongCount)/float32(len(data)) >= 0.66
 }

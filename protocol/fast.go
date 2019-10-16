@@ -137,6 +137,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 				return b.Header.Height(), err
 			}
 			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
+			fs.chain.SaveTxs(b.Header, txs)
 		}
 	}
 	return 0, nil
@@ -269,7 +270,9 @@ func (fs *fastSync) postConsuming() error {
 		return err
 	}
 	err = fs.appState.State.RecoverSnapshot(fs.manifest, file)
+	file.Close()
 	if err != nil {
+		//TODO : add snapshot to ban list
 		return err
 	}
 

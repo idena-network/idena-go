@@ -21,6 +21,7 @@ import (
 
 const (
 	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
+	LowPowerProfile   = "lowpower"
 )
 
 type Config struct {
@@ -142,8 +143,37 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	applyFlags(ctx, cfg)
 	return cfg, nil
+}
+
+func applyProfile(ctx *cli.Context, cfg *Config) {
+	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
+		cfg.P2P.MaxPeers = LowPowerMaxPeers
+		cfg.P2P.DialRatio = 2
+		cfg.IpfsConf.LowWater = 5
+		cfg.IpfsConf.HighWater = 10
+		cfg.IpfsConf.GracePeriod = "1m0s"
+		cfg.IpfsConf.ReproviderInterval = "0"
+		cfg.IpfsConf.Routing = "dhtclient"
+	} else {
+		if cfg.IpfsConf.LowWater == 0 {
+			cfg.IpfsConf.LowWater = 50
+		}
+		if cfg.IpfsConf.HighWater == 0 {
+			cfg.IpfsConf.HighWater = 100
+		}
+		if cfg.IpfsConf.GracePeriod == "" {
+			cfg.IpfsConf.GracePeriod = "20s"
+		}
+		if cfg.IpfsConf.ReproviderInterval == "" {
+			cfg.IpfsConf.ReproviderInterval = "12h"
+		}
+		if cfg.IpfsConf.Routing == "" {
+			cfg.IpfsConf.Routing = "dht"
+		}
+	}
 }
 
 func MakeConfigFromFile(file string) (*Config, error) {
@@ -169,7 +199,7 @@ func getDefaultConfig(dataDir string) *Config {
 		Network: 0x1, // testnet
 		P2P: &p2p.Config{
 			ListenAddr:     fmt.Sprintf(":%d", DefaultPort),
-			MaxPeers:       50,
+			MaxPeers:       DefaultMaxPeers,
 			NAT:            nat.Any(),
 			BootstrapNodes: bootNodes,
 		},
@@ -201,7 +231,7 @@ func applyFlags(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(DataDirFlag.Name) {
 		cfg.DataDir = ctx.String(DataDirFlag.Name)
 	}
-
+	applyProfile(ctx, cfg)
 	applyP2PFlags(ctx, cfg)
 	applyConsensusFlags(ctx, cfg)
 	applyRpcFlags(ctx, cfg)
@@ -274,6 +304,7 @@ func applyIpfsFlags(ctx *cli.Context, cfg *Config) {
 
 	if ctx.IsSet(IpfsPortFlag.Name) {
 		cfg.IpfsConf.IpfsPort = ctx.Int(IpfsPortFlag.Name)
+		cfg.IpfsConf.StaticPort = true
 	}
 
 	if ctx.IsSet(IpfsBootNodeFlag.Name) {

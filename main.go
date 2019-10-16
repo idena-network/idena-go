@@ -43,6 +43,7 @@ func main() {
 		config.MaxNetworkDelayFlag,
 		config.FastSyncFlag,
 		config.ForceFullSyncFlag,
+		config.ProfileFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -76,7 +77,9 @@ func main() {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
-		n, err := node.NewNode(cfg)
+		log.Info("Idena node is starting", "version", version)
+
+		n, err := node.NewNode(cfg, version)
 		if err != nil {
 			return err
 		}

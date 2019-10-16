@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
+	"math/big"
 	"sort"
 	"sync"
 )
@@ -46,9 +47,10 @@ type TxPool struct {
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
+	minFeePerByte    *big.Int
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int, minFeePerByte *big.Int) *TxPool {
 	pool := &TxPool{
 		pending:          make(map[common.Hash]*types.Transaction),
 		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
@@ -59,6 +61,7 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 		appState:         appState,
 		log:              log.New(),
 		bus:              bus,
+		minFeePerByte:    minFeePerByte,
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -113,7 +116,7 @@ func (txpool *TxPool) Validate(tx *types.Transaction) error {
 	if appState == nil {
 		return errors.New("tx can't be validated")
 	}
-	return validation.ValidateTx(appState, tx, true)
+	return validation.ValidateTx(appState, tx, txpool.minFeePerByte, true)
 }
 
 func (txpool *TxPool) Add(tx *types.Transaction) error {
@@ -166,6 +169,18 @@ func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
 	return list
 }
 
+func (txpool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+
+	var list []*types.Transaction
+
+	for _, tx := range txpool.pendingPerAddr[address] {
+		list = append(list, tx)
+	}
+	return list
+}
+
 func (txpool *TxPool) GetTx(hash common.Hash) *types.Transaction {
 	txpool.mutex.Lock()
 	defer txpool.mutex.Unlock()
@@ -212,6 +227,26 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	appState := txpool.appState.Readonly(txpool.head.Height())
 
+	minErrorNonce := make(map[common.Address]uint32)
+
+	for _, tx := range pending {
+		if tx.Epoch != globalEpoch {
+			continue
+		}
+
+		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+			sender, _ := types.Sender(tx)
+			if n, ok := minErrorNonce[sender]; ok {
+				if tx.AccountNonce < n {
+					minErrorNonce[sender] = tx.AccountNonce
+				}
+			} else {
+				minErrorNonce[sender] = tx.AccountNonce
+			}
+			continue
+		}
+	}
+
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
 			txpool.Remove(tx)
@@ -220,11 +255,14 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		if tx.Epoch > globalEpoch {
 			continue
 		}
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
+
+		sender, _ := types.Sender(tx)
+
+		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
 			txpool.Remove(tx)
 			continue
 		}
-		sender, _ := types.Sender(tx)
+
 		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
 }
@@ -295,7 +333,7 @@ func (txpool *TxPool) createBuildingContext() *buildingContext {
 		}
 	}
 
-	return newBuildingContext(txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
+	return newBuildingContext(txpool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
 }
 
 func (txpool *TxPool) StartSync() {

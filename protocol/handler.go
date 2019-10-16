@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -35,7 +36,11 @@ const (
 )
 const (
 	DecodeErr              = 1
-	MaxTimestampLagSeconds = 30
+	MaxTimestampLagSeconds = 15
+)
+
+const (
+	Version = 1
 )
 
 var (
@@ -63,6 +68,7 @@ type ProtocolManager struct {
 	bus           eventbus.Bus
 	config        *p2p.Config
 	wrongTime     bool
+	appVersion    string
 }
 
 type getBlockBodyRequest struct {
@@ -92,10 +98,11 @@ type handshakeData struct {
 	Height       uint64
 	GenesisBlock common.Hash
 	Timestamp    uint64
+	Protocol     uint16
+	AppVersion   string
 }
 
-func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus,
-	flipKeyPool *mempool.KeysPool, config *p2p.Config) *ProtocolManager {
+func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, config *p2p.Config, appVersion string) *ProtocolManager {
 	return &ProtocolManager{
 		bcn:           chain,
 		peers:         newPeerSet(),
@@ -111,6 +118,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		bus:           bus,
 		flipKeyPool:   flipKeyPool,
 		config:        config,
+		appVersion:    appVersion,
 	}
 }
 
@@ -150,18 +158,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	defer msg.Discard()
 	switch msg.Code {
-	case GetHead:
-		header := pm.bcn.GetHead()
-		p.SendHeader(header, Head)
-	case Head:
-		var response types.Header
-		if err := msg.Decode(&response); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		pm.heads <- &peerHead{
-			peer:   p,
-			height: response.Height(),
-		}
+
 	case BlocksRange:
 		var response blockRange
 		if err := msg.Decode(&response); err != nil {
@@ -172,6 +169,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			if batch, ok := peerBatches[response.BatchId]; ok {
 				for _, b := range response.Blocks {
 					batch.headers <- b
+					p.setHeight(b.Header.Height())
 				}
 				pm.batchedLock.Lock()
 				delete(peerBatches, response.BatchId)
@@ -180,44 +178,44 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 
 	case ProposeProof:
-		var query proposeProof
-		if err := msg.Decode(&query); err != nil {
+		query := new(proposeProof)
+		if err := msg.Decode(query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markProof(&query)
+		p.markPayload(query)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
 		if ok, _ := pm.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
-			pm.ProposeProof(query.Round, query.Hash, query.Proof, query.PubKey)
+			pm.proposeProof(query)
 		}
 	case ProposeBlock:
-		var block types.Block
-		if err := msg.Decode(&block); err != nil {
+		block := new(types.Block)
+		if err := msg.Decode(block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markHeader(block.Header)
+		p.markPayload(block)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
-		if ok, _ := pm.proposals.AddProposedBlock(&block, p.id); ok {
-			pm.ProposeBlock(&block)
+		if ok, _ := pm.proposals.AddProposedBlock(block, p.id); ok {
+			pm.ProposeBlock(block)
 		}
 	case Vote:
-		var vote types.Vote
-		if err := msg.Decode(&vote); err != nil {
+		vote := new(types.Vote)
+		if err := msg.Decode(vote); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markVote(&vote)
+		p.markPayload(vote)
 		p.setPotentialHeight(vote.Header.Round - 1)
-		if pm.votes.AddVote(&vote) {
-			pm.SendVote(&vote)
+		if pm.votes.AddVote(vote) {
+			pm.SendVote(vote)
 		}
 	case NewTx:
-		var tx types.Transaction
-		if err := msg.Decode(&tx); err != nil {
+		tx := new(types.Transaction)
+		if err := msg.Decode(tx); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markTx(&tx)
-		pm.txpool.Add(&tx)
+		p.markPayload(tx)
+		pm.txpool.Add(tx)
 	case GetBlockByHash:
 		var query getBlockBodyRequest
 		if err := msg.Decode(&query); err != nil {
@@ -225,7 +223,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		block := pm.bcn.GetBlock(query.Hash)
 		if block != nil {
-			p.ProposeBlockAsync(block)
+			p.sendMsg(ProposeBlock, block)
 		}
 	case GetBlocksRange:
 		var query getBlocksRangeRequest
@@ -234,22 +232,20 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		pm.provideBlocks(p, query.BatchId, query.From, query.To)
 	case NewFlip:
-		var f types.Flip
-		if err := msg.Decode(&f); err != nil {
+		f := new(types.Flip)
+		if err := msg.Decode(f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markFlip(&f)
+		p.markPayload(f)
 		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
 			p.Log().Error("invalid flip", "err", err)
 		}
 	case FlipKey:
-		var flipKey types.FlipKey
-		if err := msg.Decode(&flipKey); err != nil {
+		flipKey := new(types.FlipKey)
+		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markFlipKey(&flipKey)
-
-		pm.flipKeyPool.Add(&flipKey)
+		pm.flipKeyPool.Add(flipKey)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
 		if err := msg.Decode(manifest); err != nil {
@@ -278,8 +274,7 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 			break
 		}
 	}
-
-	p.SendBlockRangeAsync(&blockRange{
+	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
 	})
@@ -287,8 +282,12 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 	peer := pm.makePeer(p, rw, pm.config.MaxDelay)
-	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis()); err != nil {
-		p.Log().Info("Idena handshake failed", "err", err)
+	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis(), pm.appVersion); err != nil {
+		current := semver.New(pm.appVersion)
+		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major >= current.Major || other.Minor >= current.Minor {
+			p.Log().Info("Idena handshake failed", "err", err)
+		}
+
 		return err
 	}
 	pm.registerPeer(peer)
@@ -297,7 +296,7 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 	go pm.syncFlipKeyPool(peer)
 	pm.sendManifest(peer)
 	defer pm.unregister(peer)
-	p.Log().Info("Peer successfully connected", "peerId", p.ID())
+	p.Log().Info("Peer successfully connected", "peerId", p.ID(), "app", peer.appVersion, "proto", peer.protocol)
 	return pm.runListening(peer)
 }
 
@@ -315,33 +314,8 @@ func (pm *ProtocolManager) registerPeer(peer *peer) {
 }
 func (pm *ProtocolManager) unregister(peer *peer) {
 	pm.peers.Unregister(peer.id)
+	peer.Log().Info("Peer disconnected")
 	close(peer.term)
-}
-func (pm *ProtocolManager) GetBestHeight() (uint64, string, error) {
-	peers := pm.peers.Peers()
-	if len(peers) == 0 {
-		return 0, "", nil
-	}
-	for _, peer := range peers {
-		peer.RequestLastBlock()
-	}
-	timeout := time.After(time.Second * 10)
-	var best *peerHead
-waiting:
-	for i := 0; i < len(peers); i++ {
-		select {
-		case head := <-pm.heads:
-			if best == nil || best.height < head.height {
-				best = head
-			}
-		case <-timeout:
-			break waiting
-		}
-	}
-	if best == nil {
-		return 0, "", errors.New("timeout")
-	}
-	return best.height, best.peer.id, nil
 }
 
 func (pm *ProtocolManager) GetKnownHeights() map[string]uint64 {
@@ -392,30 +366,33 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 	}
 	id := atomic.AddUint32(&batchId, 1)
 	peerBatches[id] = b
-	peer.RequestBlocksRange(id, from, to)
+	peer.sendMsg(GetBlocksRange, &getBlocksRangeRequest{
+		BatchId: batchId,
+		From:    from,
+		To:      to,
+	})
 	return nil, b
 }
 
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
-	msg := &proposeProof{
+	payload := &proposeProof{
 		Round:  round,
 		Hash:   hash,
 		PubKey: pubKey,
 		Proof:  proof,
 	}
-	for _, peer := range pm.peers.PeersWithoutProof(hash) {
-		peer.SendProofAsync(msg)
-	}
+	pm.proposeProof(payload)
 }
+
+func (pm *ProtocolManager) proposeProof(payload *proposeProof) {
+	pm.peers.SendWithFilter(ProposeProof, payload)
+}
+
 func (pm *ProtocolManager) ProposeBlock(block *types.Block) {
-	for _, peer := range pm.peers.PeersWithoutBlock(block.Hash()) {
-		peer.ProposeBlockAsync(block)
-	}
+	pm.peers.SendWithFilter(ProposeBlock, block)
 }
 func (pm *ProtocolManager) SendVote(vote *types.Vote) {
-	for _, peer := range pm.peers.PeersWithoutVote(vote.Hash()) {
-		peer.SendVoteAsync(vote)
-	}
+	pm.peers.SendWithFilter(Vote, vote)
 }
 
 func errResp(code int, format string, v ...interface{}) error {
@@ -426,50 +403,35 @@ func (pm *ProtocolManager) broadcastLoop() {
 	for {
 		select {
 		case tx := <-pm.txChan:
-			pm.BroadcastTx(tx)
+			pm.broadcastTx(tx)
 		case key := <-pm.flipKeyChan:
-			pm.BroadcastFlipKey(key)
+			pm.broadcastFlipKey(key)
 		}
 	}
 }
-func (pm *ProtocolManager) BroadcastTx(transaction *types.Transaction) {
-	for _, peer := range pm.peers.PeersWithoutTx(transaction.Hash()) {
-		peer.SendTxAsync(transaction)
-	}
+func (pm *ProtocolManager) broadcastTx(tx *types.Transaction) {
+	pm.peers.SendWithFilter(NewTx, tx)
 }
 
 func (pm *ProtocolManager) broadcastFlip(flip *types.Flip) {
-	for _, peer := range pm.peers.PeersWithoutFlip(flip.Tx.Hash()) {
-		peer.SendFlipAsync(flip)
-	}
+	pm.peers.SendWithFilter(NewFlip, flip)
 }
 
-func (pm *ProtocolManager) BroadcastFlipKey(flipKey *types.FlipKey) {
-	for _, peer := range pm.peers.PeersWithoutFlipKey(flipKey.Hash()) {
-		peer.SendKeyPackageAsync(flipKey)
-	}
+func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey) {
+	pm.peers.SendWithFilter(FlipKey, flipKey)
 }
 
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
-	for _, peer := range pm.peers.Peers() {
-		peer.RequestBlockByHash(hash)
-	}
-}
-
-func (pm *ProtocolManager) HasPeers() bool {
-	return len(pm.peers.peers) > 0
-}
-func (pm *ProtocolManager) PeersCount() int {
-	return len(pm.peers.peers)
-}
-func (pm *ProtocolManager) Peers() []*peer {
-	return pm.peers.Peers()
+	pm.peers.Send(GetBlockByHash, &getBlockBodyRequest{
+		Hash: hash,
+	})
 }
 
 func (pm *ProtocolManager) syncTxPool(p *peer) {
 	pending := pm.txpool.GetPendingTransaction()
 	for _, tx := range pending {
-		p.SendTxAsync(tx)
+		p.sendMsg(NewTx, tx)
+		p.markPayload(tx)
 	}
 }
 
@@ -478,13 +440,13 @@ func (pm *ProtocolManager) sendManifest(p *peer) {
 	if manifest == nil {
 		return
 	}
-	p.SendSnapshotManifest(manifest)
+	p.sendMsg(SnapshotManifest, manifest)
 }
 
 func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {
 	keys := pm.flipKeyPool.GetFlipKeys()
 	for _, key := range keys {
-		p.SendKeyPackageAsync(key)
+		p.sendMsg(FlipKey, key)
 	}
 }
 func (pm *ProtocolManager) PotentialForwardPeers(round uint64) []string {
@@ -495,4 +457,14 @@ func (pm *ProtocolManager) PotentialForwardPeers(round uint64) []string {
 		}
 	}
 	return result
+}
+
+func (pm *ProtocolManager) HasPeers() bool {
+	return len(pm.peers.peers) > 0
+}
+func (pm *ProtocolManager) PeersCount() int {
+	return len(pm.peers.peers)
+}
+func (pm *ProtocolManager) Peers() []*peer {
+	return pm.peers.Peers()
 }

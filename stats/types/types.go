@@ -1,14 +1,15 @@
-package ceremony
+package types
 
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 )
 
-type Stats struct {
+type ValidationStats struct {
 	IdentitiesPerAddr map[common.Address]*IdentityStats
 	FlipsPerIdx       map[int]*FlipStats
 	FlipCids          [][]byte
+	Failed            bool
 }
 
 type IdentityStats struct {
@@ -25,7 +26,7 @@ type IdentityStats struct {
 type FlipStats struct {
 	ShortAnswers []FlipAnswerStats
 	LongAnswers  []FlipAnswerStats
-	Status       FlipStatus
+	Status       byte
 	Answer       types.Answer
 }
 
@@ -35,8 +36,8 @@ type FlipAnswerStats struct {
 	Point      float32
 }
 
-func NewStats() *Stats {
-	return &Stats{
+func NewValidationStats() *ValidationStats {
+	return &ValidationStats{
 		IdentitiesPerAddr: make(map[common.Address]*IdentityStats),
 		FlipsPerIdx:       make(map[int]*FlipStats),
 	}

@@ -3,6 +3,7 @@ package tests
 import (
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
@@ -41,15 +42,16 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	valConf := &config.ValidationConfig{}
 	valConf.ValidationInterval = time.Minute * 1
 
-	chain, appState, pool := blockchain.NewTestBlockchainWithConfig(true, conf, valConf, alloc, -1, -1)
+	chain, appState, pool, _ := blockchain.NewTestBlockchainWithConfig(true, conf, valConf, alloc, -1, -1)
 
 	tx1 := generateTx(getAmount(12), addr2, 1, 0, key1)
 	tx2 := generateTx(getAmount(88), addr1, 1, 0, key2)
 	tx3 := generateTx(getAmount(32), addr2, 2, 0, key1)
 
-	feeTx1 := types.CalculateCost(1, tx1)
-	feeTx2 := types.CalculateCost(1, tx2)
-	feeTx3 := types.CalculateCost(1, tx3)
+	feePerByte := big.NewInt(0).Div(big.NewInt(1e+18), big.NewInt(1000))
+	feeTx1 := fee.CalculateCost(1, feePerByte, tx1)
+	feeTx2 := fee.CalculateCost(1, feePerByte, tx2)
+	feeTx3 := fee.CalculateCost(1, feePerByte, tx3)
 
 	spend1 := new(big.Int).Add(feeTx1, feeTx3)
 	receive1 := new(big.Int).Add(balance, getAmount(88))
@@ -74,7 +76,7 @@ func TestTransactions_EpochChanging(t *testing.T) {
 	tx1 = generateTx(getAmount(15), addr2, 1, 1, key1)
 	tx2 = generateTx(getAmount(10), addr1, 2, 1, key2) // wont be mined, nonce from future
 
-	spend1 = types.CalculateCost(2, tx1)
+	spend1 = fee.CalculateCost(2, feePerByte, tx1)
 	receive1 = appState.State.GetBalance(addr1)
 
 	receive2 = new(big.Int).Add(appState.State.GetBalance(addr2), getAmount(15))
@@ -94,10 +96,6 @@ func TestTransactions_EpochChanging(t *testing.T) {
 
 	require.True(appState.IdentityState.IsApproved(addr1))
 	require.False(appState.IdentityState.IsApproved(addr2))
-}
-
-func getAmount(amount int64) *big.Int {
-	return new(big.Int).Mul(common.DnaBase, big.NewInt(amount))
 }
 
 func generateTx(amount *big.Int, to common.Address, nonce uint32, epoch uint16, key *ecdsa.PrivateKey) *types.Transaction {

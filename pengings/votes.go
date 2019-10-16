@@ -4,12 +4,15 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/events"
 	"sync"
 )
 
 const (
 	MaxKnownVotes = 10000
+	VotesLag      = 1
 )
 
 type Votes struct {
@@ -17,18 +20,37 @@ type Votes struct {
 	votesByHash  *sync.Map
 	knownVotes   mapset.Set
 	state        *appstate.AppState
+	head         *types.Header
+	bus          eventbus.Bus
 }
 
-func NewVotes(state *appstate.AppState) *Votes {
-	return &Votes{
+func NewVotes(state *appstate.AppState, bus eventbus.Bus) *Votes {
+	v := &Votes{
 		votesByRound: &sync.Map{},
 		votesByHash:  &sync.Map{},
 		knownVotes:   mapset.NewSet(),
 		state:        state,
+		bus:          bus,
 	}
+	v.bus.Subscribe(events.AddBlockEventID,
+		func(e eventbus.Event) {
+			newBlockEvent := e.(*events.NewBlockEvent)
+			v.head = newBlockEvent.Block.Header
+		})
+	return v
+}
+
+func (votes *Votes) Initialize(head *types.Header) {
+	votes.head = head
 }
 
 func (votes *Votes) AddVote(vote *types.Vote) bool {
+
+	minRound := votes.head.Height() - VotesLag
+
+	if vote.Header.Round < minRound {
+		return false
+	}
 
 	if votes.knownVotes.Contains(vote.Hash()) {
 		return false

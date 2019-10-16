@@ -6,6 +6,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -25,6 +26,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -40,7 +42,7 @@ const (
 
 const (
 	ProposerRole            uint8 = 0x1
-	EmptyBlockTimeIncrement       = time.Second * 10
+	EmptyBlockTimeIncrement       = time.Second * 20
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
 )
@@ -51,24 +53,25 @@ var (
 )
 
 type Blockchain struct {
-	repo            *database.Repo
-	secStore        *secstore.SecStore
-	Head            *types.Header
-	PreliminaryHead *types.Header
-	genesis         *types.Header
-	config          *config.Config
-	pubKey          []byte
-	coinBaseAddress common.Address
-	log             log.Logger
-	txpool          *mempool.TxPool
-	appState        *appstate.AppState
-	offlineDetector *OfflineDetector
-	secretKey       *ecdsa.PrivateKey
-	ipfs            ipfs.Proxy
-	timing          *timing
-	bus             eventbus.Bus
-	applyNewEpochFn func(appState *appstate.AppState) int
-	isSyncing       bool
+	repo                *database.Repo
+	secStore            *secstore.SecStore
+	Head                *types.Header
+	PreliminaryHead     *types.Header
+	genesis             *types.Header
+	config              *config.Config
+	pubKey              []byte
+	coinBaseAddress     common.Address
+	log                 log.Logger
+	txpool              *mempool.TxPool
+	appState            *appstate.AppState
+	offlineDetector     *OfflineDetector
+	secretKey           *ecdsa.PrivateKey
+	ipfs                ipfs.Proxy
+	timing              *timing
+	bus                 eventbus.Bus
+	applyNewEpochFn     func(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (int, *types.ValidationAuthors, bool)
+	blockStatsCollector collector.BlockStatsCollector
+	isSyncing           bool
 }
 
 func init() {
@@ -82,22 +85,23 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState, ipfs ipfs.Proxy, secStore *secstore.SecStore,
-	bus eventbus.Bus, offlineDetector *OfflineDetector) *Blockchain {
+	bus eventbus.Bus, offlineDetector *OfflineDetector, blockStatsCollector collector.BlockStatsCollector) *Blockchain {
 	return &Blockchain{
-		repo:            database.NewRepo(db),
-		config:          config,
-		log:             log.New(),
-		txpool:          txpool,
-		appState:        appState,
-		ipfs:            ipfs,
-		timing:          NewTiming(config.Validation),
-		bus:             bus,
-		secStore:        secStore,
-		offlineDetector: offlineDetector,
+		repo:                database.NewRepo(db),
+		config:              config,
+		log:                 log.New(),
+		txpool:              txpool,
+		appState:            appState,
+		ipfs:                ipfs,
+		timing:              NewTiming(config.Validation),
+		bus:                 bus,
+		secStore:            secStore,
+		offlineDetector:     offlineDetector,
+		blockStatsCollector: blockStatsCollector,
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(appState *appstate.AppState) int) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (int, *types.ValidationAuthors, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -174,6 +178,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	seed := types.Seed(crypto.Keccak256Hash(append([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6}, common.ToBytes(network)...)))
 	blockNumber := uint64(1)
+	var feePerByte *big.Int
 
 	if network == Testnet {
 		predefinedState, err := readPredefinedState()
@@ -183,6 +188,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 		blockNumber = predefinedState.Block
 		seed = predefinedState.Seed
+		feePerByte = predefinedState.Global.FeePerByte
 
 		err = chain.appState.CommitAt(blockNumber - 1)
 		if err != nil {
@@ -210,12 +216,13 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
-			Time:         big.NewInt(1),
+			Time:         big.NewInt(0),
 			Height:       blockNumber,
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
 			BlockSeed:    seed,
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
+			FeePerByte:   feePerByte,
 		},
 	}, Body: &types.Body{}}
 
@@ -262,6 +269,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if err := chain.ValidateBlock(block, checkState); err != nil {
 		return err
 	}
+	chain.blockStatsCollector.EnableCollecting()
+	defer chain.blockStatsCollector.CompleteCollecting()
 	diff, err := chain.processBlock(block)
 	if err != nil {
 		return err
@@ -295,26 +304,28 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 
 	if root != block.Root() || identityRoot != block.IdentityRoot() {
 		chain.appState.Reset()
-		return nil, errors.Errorf("Invalid block root. Exptected=%x, blockroot=%x", root, block.Root())
+		return nil, errors.Errorf("Invalid block root. Expected=%x, blockroot=%x", root, block.Root())
 	}
 
 	if err := chain.appState.Commit(block); err != nil {
 		return nil, err
 	}
+
 	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
 
 	return diff, nil
 }
 
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
-	var totalFee *big.Int
-	if totalFee, err = chain.processTxs(appState, block); err != nil {
+	var totalFee, totalTips *big.Int
+	if totalFee, totalTips, err = chain.processTxs(appState, block); err != nil {
 		return
 	}
 
 	chain.applyNewEpoch(appState, block)
-	chain.applyBlockRewards(totalFee, appState, block, prevBlock)
+	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock)
 	chain.applyGlobalParams(appState, block)
+	chain.applyNextBlockFee(appState, block)
 
 	diff = appState.Precommit()
 
@@ -331,28 +342,22 @@ func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, blo
 	return appState.State.Root(), appState.IdentityState.Root(), diff
 }
 
-func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
+func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int, appState *appstate.AppState, block *types.Block, prevBlock *types.Header) {
 
 	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
 	burnFee = burnFee.Mul(decimal.NewFromFloat32(chain.config.Consensus.FeeBurnRate))
-	intBurn := math.ToInt(&burnFee)
+	intBurn := math.ToInt(burnFee)
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(totalFee, intBurn)
 
-	// calculate stake
-	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
-	// calculate block reward
-	blockReward := big.NewInt(0)
-	blockReward = blockReward.Sub(chain.config.Consensus.BlockReward, intStake)
+	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward.Add(totalReward, totalTips)
 
-	// calculate total reward
-	totalReward := big.NewInt(0).Add(blockReward, intFeeReward)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	// calculate penalty
-	balanceAdd, stakeAdd, penaltySub := calculatePenalty(totalReward, intStake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
+	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
 
 	// update state
 	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, balanceAdd)
@@ -390,39 +395,48 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize := chain.applyNewEpochFn(appState)
+	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, chain.blockStatsCollector)
 
-	setNewIdentitiesAttributes(appState, networkSize)
+	setNewIdentitiesAttributes(appState, networkSize, failed)
+
+	if !failed {
+		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(),
+			chain.blockStatsCollector)
+	}
 
 	appState.State.IncEpoch()
 
 	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.GetEpochDuration(networkSize)))
 
 	appState.State.SetFlipWordsSeed(block.Seed())
+
+	appState.State.SetEpochBlock(block.Height())
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool) {
 	_, invites, flips := common.NetworkParams(networkSize)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified:
-			removeLinkWithInviter(appState.State, addr)
-			appState.State.SetInvites(addr, uint8(invites))
-			appState.State.SetRequiredFlips(addr, uint8(flips))
-			appState.IdentityState.Add(addr)
-		case state.Newbie:
-			appState.State.SetRequiredFlips(addr, uint8(flips))
-			appState.State.SetInvites(addr, 0)
-			appState.IdentityState.Add(addr)
-		case state.Killed, state.Undefined:
-			removeLinksWithInviterAndInvitees(appState.State, addr)
-			appState.State.SetInvites(addr, 0)
-			appState.State.SetRequiredFlips(addr, 0)
-			appState.IdentityState.Remove(addr)
-		default:
-			appState.State.SetInvites(addr, 0)
-			appState.State.SetRequiredFlips(addr, 0)
-			appState.IdentityState.Remove(addr)
+		if !validationFailed {
+			switch identity.State {
+			case state.Verified:
+				removeLinkWithInviter(appState.State, addr)
+				appState.State.SetInvites(addr, uint8(invites))
+				appState.State.SetRequiredFlips(addr, uint8(flips))
+				appState.IdentityState.Add(addr)
+			case state.Newbie:
+				appState.State.SetRequiredFlips(addr, uint8(flips))
+				appState.State.SetInvites(addr, 0)
+				appState.IdentityState.Add(addr)
+			case state.Killed, state.Undefined:
+				removeLinksWithInviterAndInvitees(appState.State, addr)
+				appState.State.SetInvites(addr, 0)
+				appState.State.SetRequiredFlips(addr, 0)
+				appState.IdentityState.Remove(addr)
+			default:
+				appState.State.SetInvites(addr, 0)
+				appState.State.SetRequiredFlips(addr, 0)
+				appState.IdentityState.Remove(addr)
+			}
 		}
 		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
@@ -492,7 +506,7 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
-		appState.State.SetPenalty(addr, math.ToInt(&res))
+		appState.State.SetPenalty(addr, math.ToInt(res))
 	}
 
 	appState.IdentityState.SetOnline(addr, false)
@@ -509,18 +523,13 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
 
-	stake := decimal.NewFromBigInt(totalReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
-
-	reward := big.NewInt(0)
-	reward.Sub(totalReward, intStake)
+	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
 
 		// calculate penalty
-		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, intStake, appState.State.GetPenalty(addr))
+		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(addr))
 
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)
@@ -531,22 +540,24 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	}
 }
 
-func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (totalFee *big.Int, err error) {
+func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block) (totalFee *big.Int, totalTips *big.Int, err error) {
 	totalFee = new(big.Int)
+	totalTips = new(big.Int)
 	fee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
-			return nil, err
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
+			return nil, nil, err
 		}
 		if fee, err = chain.ApplyTxOnState(appState, tx); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		totalFee.Add(totalFee, fee)
+		totalTips.Add(totalTips, tx.TipsOrZero())
 	}
 
-	return totalFee, nil
+	return totalFee, totalTips, nil
 }
 
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.Transaction) (*big.Int, error) {
@@ -570,12 +581,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	}
 
 	if currentNonce+1 != tx.AccountNonce {
-		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v exptectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+		return nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v expectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
 			currentNonce+1, tx.AccountNonce))
 	}
 
-	fee := chain.getTxFee(tx)
-	totalCost := chain.getTxCost(tx)
+	feePerByte := appState.State.FeePerByte()
+	fee := chain.getTxFee(feePerByte, tx)
+	totalCost := chain.getTxCost(feePerByte, tx)
 
 	switch tx.Type {
 	case types.ActivationTx:
@@ -602,9 +614,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		}
 		break
 	case types.SendTx:
-		amount := tx.AmountOrZero()
 		stateDB.SubBalance(sender, totalCost)
-		stateDB.AddBalance(*tx.To, amount)
+		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 		break
 	case types.InviteTx:
 		if sender != stateDB.GodAddress() {
@@ -615,7 +626,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		generation, code := stateDB.GeneticCode(sender)
 
 		stateDB.SetState(*tx.To, state.Invite)
-		stateDB.AddBalance(*tx.To, new(big.Int).Sub(totalCost, fee))
+		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
 
 		stateDB.SetInviter(*tx.To, sender, tx.Hash())
@@ -626,17 +637,40 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(sender)
 		amount := tx.AmountOrZero()
 		stateDB.SubBalance(sender, amount)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(stateDB.GetStakeBalance(sender), fee))
 		stateDB.AddBalance(*tx.To, amount)
 		break
+	case types.KillInviteeTx:
+		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
+		inviteePrevState := stateDB.GetIdentityState(*tx.To)
+		stateDB.SetState(*tx.To, state.Killed)
+		appState.IdentityState.Remove(*tx.To)
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified &&
+			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
+			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
+			if int(stateDB.GetInvites(sender)) < invites {
+				stateDB.AddInvite(sender, 1)
+			}
+		}
+		break
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
 		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
-		shouldBecomeOnline := len(tx.Payload) > 0 && tx.Payload[0] != 0
-		appState.IdentityState.SetOnline(sender, shouldBecomeOnline)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		attachment := attachments.ParseOnlineStatusAttachment(tx)
+		appState.IdentityState.SetOnline(sender, attachment.Online)
+	case types.ChangeGodAddressTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		appState.State.SetGodAddress(*tx.To)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -648,12 +682,42 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	return fee, nil
 }
 
-func (chain *Blockchain) getTxFee(tx *types.Transaction) *big.Int {
-	return types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *big.Int {
+	return fee.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
-func (chain *Blockchain) getTxCost(tx *types.Transaction) *big.Int {
-	return types.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), tx)
+func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
+	feePerByte := chain.calculateNextBlockFeePerByte(appState, block)
+	appState.State.SetFeePerByte(feePerByte)
+}
+
+func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppState, block *types.Block) *big.Int {
+	feePerByte := appState.State.FeePerByte()
+	if feePerByte == nil || feePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
+		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
+	}
+
+	blockSize := len(block.Body.Bytes())
+	k := chain.config.Consensus.FeeSensitivityCoef
+	maxBlockSize := mempool.BlockBodySize
+
+	// curBlockFee = prevBlockFee * (1 + k * (prevBlockSize / maxBlockSize - 0.5))
+	newFeePerByteD := decimal.New(int64(blockSize), 0).
+		Div(decimal.New(int64(maxBlockSize), 0)).
+		Sub(decimal.NewFromFloat(0.5)).
+		Mul(decimal.NewFromFloat32(k)).
+		Add(decimal.New(1, 0)).
+		Mul(decimal.NewFromBigInt(feePerByte, 0))
+
+	newFeePerByte := math.ToInt(newFeePerByteD)
+	if newFeePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
+		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
+	}
+	return newFeePerByte
+}
+
+func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
+	return fee.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
 
 func getSeedData(prevBlock *types.Header) []byte {
@@ -677,7 +741,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	txs := chain.txpool.BuildBlockTransactions()
 	checkState := chain.appState.Readonly(chain.Head.Height())
 
-	filteredTxs, totalFee := chain.filterTxs(checkState, txs)
+	filteredTxs, totalFee, totalTips := chain.filterTxs(checkState, txs)
 	body := &types.Body{
 		Transactions: filteredTxs,
 	}
@@ -701,6 +765,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		Coinbase:       chain.coinBaseAddress,
 		IpfsHash:       cidBytes,
+		FeePerByte:     chain.appState.State.FeePerByte(),
 	}
 
 	block := &types.Block{
@@ -722,8 +787,9 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
 	chain.applyNewEpoch(checkState, block)
-	chain.applyBlockRewards(totalFee, checkState, block, chain.Head)
+	chain.applyBlockRewards(totalFee, totalTips, checkState, block, chain.Head)
 	chain.applyGlobalParams(checkState, block)
+	chain.applyNextBlockFee(checkState, block)
 
 	checkState.Precommit()
 
@@ -763,7 +829,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.OnlineStatusTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.OnlineStatusTx {
 			flags |= types.IdentityUpdate
 		}
 	}
@@ -795,7 +861,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
-		!flags.HasFlag(types.ValidationFinished) {
+		!flags.HasFlag(types.ValidationFinished) && !flags.HasFlag(types.FlipLotteryStarted){
 		flags |= types.Snapshot
 	}
 
@@ -806,20 +872,22 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	return flags
 }
 
-func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction) ([]*types.Transaction, *big.Int) {
+func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction) ([]*types.Transaction, *big.Int, *big.Int) {
 	var result []*types.Transaction
 
 	totalFee := new(big.Int)
+	totalTips := new(big.Int)
 	for _, tx := range txs {
-		if err := validation.ValidateTx(appState, tx, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
 			continue
 		}
 		if fee, err := chain.ApplyTxOnState(appState, tx); err == nil {
 			totalFee.Add(totalFee, fee)
+			totalTips.Add(totalTips, tx.TipsOrZero())
 			result = append(result, tx)
 		}
 	}
-	return result, totalFee
+	return result, totalFee, totalTips
 }
 
 func (chain *Blockchain) insertHeader(header *types.Header) {
@@ -833,6 +901,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
+	chain.SaveTxs(block.Header, block.Body.Transactions)
 	chain.repo.WriteHead(block.Header)
 
 	if err == nil {
@@ -885,6 +954,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return err
 	}
 
+	if checkState.State.FeePerByte().Cmp(block.Header.ProposedHeader.FeePerByte) != 0 {
+		return errors.New("fee rate is invalid")
+	}
+
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
 
 	if !checkIfProposer(proposerAddr, checkState) {
@@ -910,7 +983,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	if root, identityRoot, _, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
 		return err
 	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
-		return errors.Errorf("invalid block roots. Exptected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
+		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
 	cid, _ := chain.ipfs.Cid(block.Body.Bytes())
@@ -1182,7 +1255,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		}
 	}
 	if wasReset {
-		chain.log.Warn("blockchain was reseted", "new head", chain.Head.Height())
+		chain.log.Warn("Blockchain was reset", "new head", chain.Head.Height())
 	}
 	return nil
 }
@@ -1286,6 +1359,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 	return chain.repo.ReadPreliminaryHead()
 }
+
 func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.IdentityStateDiff) {
 	if !diff.Empty() {
 		chain.repo.WriteIdentityStateDiff(height, diff.Bytes())
@@ -1304,6 +1378,19 @@ func (chain *Blockchain) SwitchToPreliminary() {
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+}
+
+func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
+	for _, tx := range txs {
+		sender, _ := types.Sender(tx)
+		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
+			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
+		}
+	}
+}
+
+func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
+	return chain.repo.GetSavedTxs(address, count, token)
 }
 
 func readPredefinedState() (*state.PredefinedState, error) {

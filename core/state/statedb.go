@@ -194,6 +194,11 @@ func (s *StateDB) Epoch() uint16 {
 	return stateObject.data.Epoch
 }
 
+func (s *StateDB) EpochBlock() uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.EpochBlock
+}
+
 func (s *StateDB) LastSnapshot() uint64 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.LastSnapshot
@@ -385,6 +390,10 @@ func (s *StateDB) SetGlobalEpoch(epoch uint16) {
 	s.GetOrNewGlobalObject().SetEpoch(epoch)
 }
 
+func (s *StateDB) SetEpochBlock(height uint64) {
+	s.GetOrNewGlobalObject().SetEpochBlock(height)
+}
+
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
 	return s.GetOrNewGlobalObject().ValidationPeriod()
 }
@@ -395,6 +404,14 @@ func (s *StateDB) FlipWordsSeed() types.Seed {
 
 func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
 	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
+}
+
+func (s *StateDB) SetFeePerByte(fee *big.Int) {
+	s.GetOrNewGlobalObject().SetFeePerByte(fee)
+}
+
+func (s *StateDB) FeePerByte() *big.Int {
+	return s.GetOrNewGlobalObject().FeePerByte()
 }
 
 //
@@ -927,9 +944,14 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 		clearDb(pdb)
 		return err
 	}
+
 	if tree.WorkingHash() != manifest.Root {
 		clearDb(pdb)
 		return errors.New("wrong manifest root")
+	}
+	if !tree.ValidateTree() {
+		clearDb(pdb)
+		return errors.New("corrupted tree")
 	}
 	return nil
 }
@@ -962,6 +984,8 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.GodAddress = state.Global.GodAddress
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
+	stateObject.data.EpochBlock = state.Global.EpochBlock
+	stateObject.data.FeePerByte = state.Global.FeePerByte
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {

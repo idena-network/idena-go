@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	ShortSessionFlipKeyDeadline = time.Second * 30
+	ShortSessionFlipKeyDeadline = time.Second * 25
 )
 
 type EvidenceMap struct {
 	answersSet           mapset.Set
 	keysSet              mapset.Set
 	bus                  eventbus.Bus
-	shortSessionTime     *time.Time
+	shortSessionTime     time.Time
 	shortSessionDuration time.Duration
 	mutex                *sync.Mutex
 }
@@ -42,14 +42,14 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 	}
 
 	//TODO : m.shortSessionTime == nil ?
-	if m.shortSessionTime == nil || m.shortSessionTime != nil && time.Now().UTC().Sub(*m.shortSessionTime) < m.shortSessionDuration {
+	if time.Now().UTC().Sub(m.shortSessionTime) < m.shortSessionDuration {
 		sender, _ := types.Sender(tx)
 		m.answersSet.Add(sender)
 	}
 }
 
 func (m *EvidenceMap) NewFlipsKey(author common.Address) {
-	if m.shortSessionTime == nil || time.Now().UTC().Sub(*m.shortSessionTime) < ShortSessionFlipKeyDeadline {
+	if time.Now().UTC().Sub(m.shortSessionTime) < ShortSessionFlipKeyDeadline {
 		m.keysSet.Add(author)
 	}
 }
@@ -106,33 +106,26 @@ func (m *EvidenceMap) ContainsKey(candidate common.Address) bool {
 	return m.keysSet.Contains(candidate)
 }
 
-func (m *EvidenceMap) SetShortSessionTime(timestamp *time.Time, shortSessionDuration time.Duration) {
+func (m *EvidenceMap) SetShortSessionTime(timestamp time.Time, shortSessionDuration time.Duration) {
 	m.shortSessionTime = timestamp
 	m.shortSessionDuration = shortSessionDuration
 }
 
-func (m *EvidenceMap) GetShortSessionBeginningTime() *time.Time {
+func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time {
 	return m.shortSessionTime
 }
 
-func (m *EvidenceMap) GetShortSessionEndingTime() *time.Time {
-	if m.shortSessionTime == nil {
-		return nil
-	}
+func (m *EvidenceMap) GetShortSessionEndingTime() time.Time {
 	endTime := m.shortSessionTime.Add(m.shortSessionDuration)
-	return &endTime
+	return endTime
 }
 
 func (m *EvidenceMap) IsCompleted() bool {
 	endTime := m.GetShortSessionEndingTime()
-	if endTime == nil {
-		return false
-	}
-	return time.Now().UTC().After(*endTime)
+	return time.Now().UTC().After(endTime)
 }
 
 func (m *EvidenceMap) Clear() {
-	m.shortSessionTime = nil
 	m.answersSet = mapset.NewSet()
 	m.keysSet = mapset.NewSet()
 }

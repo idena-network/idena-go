@@ -16,19 +16,19 @@ func TestAnswers_Answer(t *testing.T) {
 	answers.Inappropriate(3)
 
 	answers.Left(9)
-	answers.Easy(9)
+	answers.WrongWords(9)
 
-	answer, easy := answers.Answer(0)
-	require.True(answer == Right && !easy)
+	answer, wrongWords := answers.Answer(0)
+	require.True(answer == Right && !wrongWords)
 
-	answer, easy = answers.Answer(3)
-	require.True(answer == Inappropriate && !easy)
+	answer, wrongWords = answers.Answer(3)
+	require.True(answer == Inappropriate && !wrongWords)
 
-	answer, easy = answers.Answer(9)
-	require.True(answer == Left && easy)
+	answer, wrongWords = answers.Answer(9)
+	require.True(answer == Left && wrongWords)
 
-	answer, easy = answers.Answer(10)
-	require.True(answer == None && !easy)
+	answer, wrongWords = answers.Answer(10)
+	require.True(answer == None && !wrongWords)
 }
 
 func TestBlockFlag_HasFlag(t *testing.T) {

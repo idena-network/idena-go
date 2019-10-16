@@ -1,11 +1,14 @@
 package blockchain
 
 import (
+	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -14,7 +17,7 @@ import (
 )
 
 func Test_ApplyBlockRewards(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 
 	header := &types.ProposedHeader{
 		Height:         2,
@@ -35,33 +38,35 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	}
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
+	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
 	appState := chain.appState.Readonly(1)
-	chain.applyBlockRewards(fee, appState, block, chain.Head)
-
-	stake := decimal.NewFromBigInt(chain.config.Consensus.BlockReward, 0)
-	stake = stake.Mul(decimal.NewFromFloat32(chain.config.Consensus.StakeRewardRate))
-	intStake := math.ToInt(&stake)
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
 
 	burnFee = burnFee.Mul(coef)
-	intBurn := math.ToInt(&burnFee)
+	intBurn := math.ToInt(burnFee)
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(fee, intBurn)
+
+	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward.Add(totalReward, tips)
+	_, stake := splitReward(totalReward, chain.config.Consensus)
 
 	expectedBalance := big.NewInt(0)
 	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)
 	expectedBalance.Add(expectedBalance, intFeeReward)
-	expectedBalance.Sub(expectedBalance, intStake)
+	expectedBalance.Add(expectedBalance, tips)
+	expectedBalance.Sub(expectedBalance, stake)
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
-	require.Equal(t, 0, intStake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
+	require.Equal(t, 0, stake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
 }
 
 func Test_ApplyInviteTx(t *testing.T) {
-	chain, _, _ := NewTestBlockchain(false, nil)
+	chain, _, _, _ := NewTestBlockchain(false, nil)
 	stateDb := chain.appState.State
 
 	key, _ := crypto.GenerateKey()
@@ -94,7 +99,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 }
 
 func Test_ApplyActivateTx(t *testing.T) {
-	chain, appState, _ := NewTestBlockchain(false, nil)
+	chain, appState, _, _ := NewTestBlockchain(false, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -128,7 +133,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 func Test_ApplyKillTx(t *testing.T) {
 	require := require.New(t)
-	chain, appState, _ := NewTestBlockchain(true, nil)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -157,7 +162,8 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	fee := types.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), tx)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
 
 	chain.ApplyTxOnState(chain.appState, signed)
 
@@ -165,6 +171,49 @@ func Test_ApplyKillTx(t *testing.T) {
 	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
 
 	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
+}
+
+func Test_ApplyKillInviteeTx(t *testing.T) {
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
+
+	inviterKey, _ := crypto.GenerateKey()
+	inviter := crypto.PubkeyToAddress(inviterKey.PublicKey)
+	invitee := tests.GetRandAddr()
+	anotherInvitee := tests.GetRandAddr()
+
+	appState.State.SetInviter(invitee, inviter, common.Hash{})
+	appState.State.SetInviter(anotherInvitee, inviter, common.Hash{})
+	appState.State.AddInvitee(inviter, invitee, common.Hash{})
+	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
+
+	appState.State.SetInvites(inviter, 0)
+	appState.State.SetState(inviter, state.Verified)
+	appState.State.SetState(invitee, state.Candidate)
+
+	appState.State.GetOrNewAccountObject(inviter).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
+	appState.State.GetOrNewIdentityObject(invitee).SetStake(new(big.Int).Mul(big.NewInt(10), common.DnaBase))
+
+	tx := &types.Transaction{
+		Type:         types.KillInviteeTx,
+		AccountNonce: 1,
+		To:           &invitee,
+	}
+	signedTx, _ := types.SignTx(tx, inviterKey)
+
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+
+	chain.ApplyTxOnState(chain.appState, signedTx)
+
+	require.Equal(t, uint8(1), appState.State.GetInvites(inviter))
+	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
+	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
+	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
+	newBalance.Sub(newBalance, fee)
+	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
+
+	require.Equal(t, state.Killed, appState.State.GetIdentityState(invitee))
+	require.Nil(t, appState.State.GetInviter(invitee))
 }
 
 type testCase struct {
@@ -215,4 +264,127 @@ func Test_CalculatePenalty(t *testing.T) {
 		}
 	}
 
+}
+
+func Test_applyNextBlockFee(t *testing.T) {
+	conf := GetDefaultConsensusConfig(false)
+	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
+	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+
+	appState := chain.appState.Readonly(1)
+
+	block := generateBlock(4, 10000) // block size 770008
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, big.NewInt(10585842132568359), appState.State.FeePerByte())
+
+	block = generateBlock(5, 5000) // block size 385008
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, big.NewInt(10234318711227387), appState.State.FeePerByte())
+
+	block = generateBlock(6, 0)
+	chain.applyNextBlockFee(appState, block)
+	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
+}
+
+type txWithTimestamp struct {
+	tx        *types.Transaction
+	timestamp uint64
+}
+
+func TestBlockchain_SaveTxs(t *testing.T) {
+	require := require.New(t)
+
+	chain, _, _, key := NewTestBlockchain(true, nil)
+
+	key2, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	txs := []txWithTimestamp{
+		{tx: tests.GetFullTx(1, 1, key, types.SendTx, nil, &addr), timestamp: 10},
+		{tx: tests.GetFullTx(2, 1, key, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(4, 1, key, types.SendTx, nil, &addr), timestamp: 30},
+		{tx: tests.GetFullTx(5, 1, key, types.SendTx, nil, &addr), timestamp: 35},
+		{tx: tests.GetFullTx(6, 1, key, types.SendTx, nil, &addr), timestamp: 50},
+		{tx: tests.GetFullTx(7, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(10, 1, key, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(1, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+		{tx: tests.GetFullTx(2, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+
+		{tx: tests.GetFullTx(1, 1, key2, types.SendTx, nil, &addr), timestamp: 20},
+		{tx: tests.GetFullTx(8, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(10, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
+		{tx: tests.GetFullTx(4, 1, key2, types.SendTx, nil, &addr), timestamp: 456},
+	}
+
+	for _, item := range txs {
+		header := &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Time:       new(big.Int).SetUint64(item.timestamp),
+				FeePerByte: big.NewInt(1),
+			},
+		}
+		chain.SaveTxs(header, []*types.Transaction{item.tx})
+	}
+
+	data, token := chain.ReadTxs(addr, 5, nil)
+
+	require.Equal(5, len(data))
+	require.Equal(uint32(2), data[0].Tx.AccountNonce)
+	require.Equal(uint32(1), data[1].Tx.AccountNonce)
+	require.Equal(uint32(10), data[2].Tx.AccountNonce)
+	require.Equal(uint32(9), data[3].Tx.AccountNonce)
+	require.Equal(uint32(4), data[4].Tx.AccountNonce)
+	require.Equal(uint64(456), data[4].Timestamp)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 4, token)
+
+	require.Equal(4, len(data))
+	require.Equal(uint32(10), data[0].Tx.AccountNonce)
+	require.Equal(uint32(9), data[1].Tx.AccountNonce)
+	require.Equal(uint32(8), data[2].Tx.AccountNonce)
+	require.Equal(uint32(7), data[3].Tx.AccountNonce)
+	require.NotNil(token)
+
+	data, token = chain.ReadTxs(addr, 10, token)
+
+	require.Equal(6, len(data))
+	require.Equal(uint32(6), data[0].Tx.AccountNonce)
+	require.Equal(uint32(5), data[1].Tx.AccountNonce)
+	require.Equal(uint32(4), data[2].Tx.AccountNonce)
+	require.Equal(uint32(2), data[3].Tx.AccountNonce)
+	require.Equal(uint32(1), data[4].Tx.AccountNonce)
+	require.Equal(uint32(1), data[5].Tx.AccountNonce)
+	require.Equal(uint64(20), data[4].Timestamp)
+	require.Equal(uint64(10), data[5].Timestamp)
+	require.Nil(token)
+}
+
+func generateBlock(height uint64, txsCount int) *types.Block {
+	txs := make([]*types.Transaction, 0)
+	for i := 0; i < txsCount; i++ {
+		tx := &types.Transaction{
+			Type: types.SendTx,
+		}
+		key, _ := crypto.GenerateKey()
+		signedTx, _ := types.SignTx(tx, key)
+		txs = append(txs, signedTx)
+	}
+	header := &types.ProposedHeader{
+		Height: height,
+		TxHash: types.DeriveSha(types.Transactions(txs)),
+	}
+
+	block := &types.Block{
+		Header: &types.Header{
+			ProposedHeader: header,
+		},
+		Body: &types.Body{
+			Transactions: txs,
+		},
+	}
+
+	return block
 }

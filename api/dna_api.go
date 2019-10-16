@@ -7,6 +7,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -65,6 +66,7 @@ type SendTxArgs struct {
 	From    common.Address  `json:"from"`
 	To      *common.Address `json:"to"`
 	Amount  decimal.Decimal `json:"amount"`
+	MaxFee  decimal.Decimal `json:"maxFee"`
 	Payload *hexutil.Bytes  `json:"payload"`
 	BaseTxArgs
 }
@@ -97,7 +99,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), &receiver, types.InviteTx, args.Amount, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), &receiver, types.InviteTx, args.Amount, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
 
 	if err != nil {
 		return Invite{}, err
@@ -136,7 +138,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		coinbase := api.baseApi.getCurrentCoinbase()
 		to = &coinbase
 	}
-	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, args.Nonce, args.Epoch, payload, key)
+	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -147,7 +149,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 
 func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, []byte{0x1}, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(true), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -158,7 +160,7 @@ func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 
 func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(false), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -174,7 +176,7 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		payload = *args.Payload
 	}
 
-	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.Nonce, args.Epoch, payload, nil)
+	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, decimal.Zero, args.Nonce, args.Epoch, payload, nil)
 }
 
 type FlipWords struct {
@@ -294,7 +296,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
 			FlipWords{
 				Words: [2]uint32{uint32(flipKeyWordPairs[i*2]), uint32(flipKeyWordPairs[i*2+1])},
-				Used:  usedPairs.Contains(i),
+				Used:  usedPairs.Contains(uint8(i)),
 				Id:    i,
 			})
 	}
@@ -331,32 +333,29 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 }
 
 type Epoch struct {
-	Epoch                  uint16     `json:"epoch"`
-	NextValidation         time.Time  `json:"nextValidation"`
-	CurrentPeriod          string     `json:"currentPeriod"`
-	CurrentValidationStart *time.Time `json:"currentValidationStart"`
+	Epoch                  uint16    `json:"epoch"`
+	NextValidation         time.Time `json:"nextValidation"`
+	CurrentPeriod          string    `json:"currentPeriod"`
+	CurrentValidationStart time.Time `json:"currentValidationStart"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
 	s := api.baseApi.engine.GetAppState()
-
 	var res string
 	switch s.State.ValidationPeriod() {
 	case state.NonePeriod:
 		res = "None"
-		break
 	case state.FlipLotteryPeriod:
 		res = "FlipLottery"
-		break
+		if api.ceremony.ShortSessionStarted() {
+			res = "ShortSession"
+		}
 	case state.ShortSessionPeriod:
 		res = "ShortSession"
-		break
 	case state.LongSessionPeriod:
 		res = "LongSession"
-		break
 	case state.AfterLongSessionPeriod:
 		res = "AfterLongSession"
-		break
 	}
 
 	return Epoch{

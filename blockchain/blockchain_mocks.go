@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/tendermint/tm-db"
 	"math/big"
 	"time"
@@ -17,24 +19,33 @@ import (
 
 func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	return &config.ConsensusConf{
-		MaxSteps:                       150,
-		CommitteePercent:               0.3,
-		FinalCommitteeConsensusPercent: 0.7,
-		ThesholdBa:                     0.65,
-		ProposerTheshold:               0.5,
-		WaitBlockDelay:                 time.Minute,
-		WaitSortitionProofDelay:        time.Second * 5,
-		EstimatedBaVariance:            time.Second * 5,
-		WaitForStepDelay:               time.Second * 20,
-		Automine:                       automine,
-		BlockReward:                    big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
-		StakeRewardRate:                0.2,
-		FeeBurnRate:                    0.9,
-		FinalCommitteeReward:           big.NewInt(6e+18),
+		MaxSteps:                           150,
+		CommitteePercent:                   0.3,
+		FinalCommitteeConsensusPercent:     0.7,
+		ThesholdBa:                         0.65,
+		ProposerTheshold:                   0.5,
+		WaitBlockDelay:                     time.Minute,
+		WaitSortitionProofDelay:            time.Second * 5,
+		EstimatedBaVariance:                time.Second * 5,
+		WaitForStepDelay:                   time.Second * 20,
+		Automine:                           automine,
+		BlockReward:                        big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
+		StakeRewardRate:                    0.2,
+		FeeBurnRate:                        0.9,
+		FinalCommitteeReward:               big.NewInt(6e+18),
+		SnapshotRange:                      10000,
+		OfflinePenaltyBlocksCount:          1800,
+		SuccessfullValidationRewardPercent: 0.24,
+		FlipRewardPercent:                  0.32,
+		ValidInvitationRewardPercent:       0.32,
+		FoundationPayoutsPercent:           0.1,
+		ZeroWalletPercent:                  0.02,
+		FeeSensitivityCoef:                 0.25,
+		MinFeePerByte:                      big.NewInt(1e+4),
 	}
 }
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
@@ -62,22 +73,18 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	bus := eventbus.New()
-	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit)
+	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, collector.NewBlockStatsCollector())
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 	txPool.Initialize(chain.Head, secStore.GetAddress())
 
-	return chain, appState, txPool
+	return chain, appState, txPool, key
 }
 
-func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
+func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, -1, -1)
-}
-
-func NewTestBlockchainWithTxLimits(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
 }

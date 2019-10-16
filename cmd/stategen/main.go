@@ -9,9 +9,11 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/jteeuwen/go-bindata"
 	"github.com/pkg/errors"
 	"gopkg.in/urfave/cli.v1"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -68,6 +70,8 @@ func main() {
 			WordsSeed:          globalObject.FlipWordsSeed(),
 			ValidationPeriod:   globalObject.ValidationPeriod(),
 			Epoch:              globalObject.Epoch(),
+			EpochBlock:         globalObject.EpochBlock(),
+			FeePerByte:         globalObject.FeePerByte(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
@@ -85,6 +89,8 @@ func main() {
 			snapshot.Accounts = append(snapshot.Accounts, &state.StateAccount{
 				Address: addr,
 				Balance: data.Balance,
+				Epoch:   data.Epoch,
+				Nonce:   data.Nonce,
 			})
 			return false
 		})
@@ -146,7 +152,7 @@ func main() {
 			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, &state.StateApprovedIdentity{
 				Address:  addr,
 				Approved: data.Approved,
-				Online:   data.Online,
+				Online:   false,
 			})
 			return false
 		})
@@ -159,6 +165,15 @@ func main() {
 			return err
 		}
 		file.Close()
+
+		err = bindata.Translate(&bindata.Config{
+			Input: []bindata.InputConfig{{
+				Path:      filepath.Clean("stategen.out"),
+				Recursive: false,
+			}},
+			Package: "blockchain",
+			Output:  "bindata.go",
+		})
 
 		return nil
 	}

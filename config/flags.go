@@ -14,16 +14,21 @@ const (
 	DefaultSwarmKey       = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
+	DefaultMaxPeers       = 50
+
+	LowPowerMaxPeers = 6
 )
 
 var (
 	DefaultBootstrapNodes = []string{
-		"enode://baeceea089e3e9f5382940ef38168fff4c5155692f5a3e0f618ca586ea73a62f8fc858995471741a50724c651af37db84c14254ad80ecbe8e1f979ce8a9ec7b0@111.90.140.21:40404",
-		"enode://1596e005b3addf7b6ef43ce574a18948ec127681d4262ec05da06a38bca5f08d52a8189807c7330c49dc8548b7345fc570c77b6e9541bb952be23f71dfd9eb85@206.81.23.186:40404",
+		"enode://6d683e23b2640258b3c72c0bef28eb61a76dc0d87abd1b4471a6dbffe85bdfb307880e301b9ee670679d0f9502d6f4e63f1fe0c4c16ce0387de1513ee94578fe@111.90.140.21:40404",
+		"enode://56b1f1fb9ebf3c83d049083b6ceba87a37036176c250beabec6f93f746ff4e70cd7470e0c9431ea793dea9d1f5ad25039c94a6600ff609e85b5713f6163ab326@206.81.23.186:40404",
+		"enode://cec6377ad9bbf60794e7c38f673312c22b4baf831603f17e8a2fe40bb81824b281d20c39f3cb948ec908be6eb1c662366dfd538941382d2d50f29d84bc089b69@165.227.91.202:40404",
 	}
 	DefaultIpfsBootstrapNodes = []string{
 		"/ip4/111.90.140.21/tcp/4002/ipfs/QmZV7cwSgVTSnMUE2zTK3f5nepCuT5yYnTyMpRgGhxJoTG",
 		"/ip4/206.81.23.186/tcp/40403/ipfs/QmcNz33dvfrY5cMMQs64CcSQoR9sVVGL8qD4mptYUGHUTD",
+		"/ip4/165.227.91.202/tcp/40403/ipfs/QmUfSuQMGkjQHyBYknSzSNNHaCpbeJPDwBzqBC7X1suGWN",
 	}
 	CfgFileFlag = cli.StringFlag{
 		Name:  "config",
@@ -89,5 +94,9 @@ var (
 	ForceFullSyncFlag = cli.Uint64Flag{
 		Name:  "forcefullsync",
 		Usage: "Force full sync on last blocks",
+	}
+	ProfileFlag = cli.StringFlag{
+		Name:  "profile",
+		Usage: "Configuration profile",
 	}
 )
