@@ -50,6 +50,7 @@ type Flipper struct {
 	cancelLoadingCtx context.CancelFunc
 	bus              eventbus.Bus
 	flipKey          *ecies.PrivateKey
+	flipsQueue       chan *types.Flip
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -76,16 +77,29 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txp
 		loadingCtx:       ctx,
 		cancelLoadingCtx: cancel,
 		bus:              bus,
+		flipsQueue:       make(chan *types.Flip, 10000),
 	}
-
+	go fp.writeLoop()
 	return fp
 }
 
 func (fp *Flipper) Initialize() {
 	fp.epochDb = database.NewEpochDb(fp.db, fp.appState.State.Epoch())
+
 }
 
-func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
+func (fp *Flipper) writeLoop() {
+	for {
+		select {
+		case flip := <-fp.flipsQueue:
+			if err := fp.addNewFlip(flip, false); err != nil && err != DuplicateFlipError {
+				fp.log.Error("invalid flip", "err", err)
+			}
+		}
+	}
+}
+
+func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
@@ -150,6 +164,14 @@ func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
 	}
 
 	return err
+}
+
+func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
+	if local {
+		return fp.addNewFlip(flip, local)
+	}
+	fp.flipsQueue <- flip
+	return nil
 }
 
 func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {

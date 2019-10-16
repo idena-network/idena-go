@@ -247,9 +247,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := p.markPayload(f); err != nil {
 			return nil
 		}
-		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
-			p.Log().Error("invalid flip", "err", err)
-		}
+		pm.flipper.AddNewFlip(f, false)
 	case FlipKey:
 		flipKey := new(types.FlipKey)
 		if err := msg.Decode(flipKey); err != nil {
