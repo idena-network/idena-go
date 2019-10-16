@@ -77,7 +77,7 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txp
 		loadingCtx:       ctx,
 		cancelLoadingCtx: cancel,
 		bus:              bus,
-		flipsQueue:       make(chan *types.Flip, 10000),
+		flipsQueue:       make(chan *types.Flip, 1000),
 	}
 	go fp.writeLoop()
 	return fp
@@ -170,7 +170,10 @@ func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
 	if local {
 		return fp.addNewFlip(flip, local)
 	}
-	fp.flipsQueue <- flip
+	select {
+	case fp.flipsQueue <- flip:
+	default:
+	}
 	return nil
 }
 
