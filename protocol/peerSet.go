@@ -115,3 +115,15 @@ func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 		p.sendMsg(msgcode, payload)
 	}
 }
+
+func (ps *peerSet) HasPayload(payload interface{}) bool {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+	key := msgKey(payload)
+	for _, p := range ps.peers {
+		if _, ok := p.msgCache.Get(key); ok {
+			return true
+		}
+	}
+	return false
+}

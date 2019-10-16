@@ -20,9 +20,11 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/ipfs/go-cid"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
+	"time"
 )
 
 const (
@@ -51,6 +53,7 @@ type Flipper struct {
 	bus              eventbus.Bus
 	flipKey          *ecies.PrivateKey
 	flipsQueue       chan *types.Flip
+	flipsCache       *cache.Cache
 }
 type IpfsFlip struct {
 	Data   []byte
@@ -78,6 +81,7 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txp
 		cancelLoadingCtx: cancel,
 		bus:              bus,
 		flipsQueue:       make(chan *types.Flip, 1000),
+		flipsCache:       cache.New(time.Minute, time.Minute*2),
 	}
 	go fp.writeLoop()
 	return fp
@@ -149,7 +153,9 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 		return err
 	}
 
-	fp.bus.Publish(&events.NewFlipEvent{Flip: flip})
+	fp.flipsCache.Add(string(c.Bytes()), flip, cache.DefaultExpiration)
+
+	fp.bus.Publish(&events.NewFlipEvent{FlipCid: c.Bytes()})
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
 
@@ -162,7 +168,6 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		return err
 	}
-
 	return err
 }
 
@@ -365,4 +370,15 @@ func (fp *Flipper) GetRawFlip(flipCid []byte) (*IpfsFlip, error) {
 		}
 	}
 	return ipfsFlip, nil
+}
+
+func (fp *Flipper) Has(c []byte) bool {
+	return fp.epochDb.HasFlipCid(c)
+}
+
+func (fp *Flipper) ReadFlip(cid []byte) (*types.Flip, error) {
+	if flip, ok := fp.flipsCache.Get(string(cid)); ok {
+		return flip.(*types.Flip), nil
+	}
+	return nil, errors.New("flip is not found")
 }
