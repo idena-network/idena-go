@@ -861,7 +861,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
-		!flags.HasFlag(types.ValidationFinished) && !flags.HasFlag(types.FlipLotteryStarted){
+		!flags.HasFlag(types.ValidationFinished) && !flags.HasFlag(types.FlipLotteryStarted) {
 		flags |= types.Snapshot
 	}
 
@@ -1107,6 +1107,7 @@ func (chain *Blockchain) WriteCertificate(hash common.Hash, cert *types.BlockCer
 		chain.repo.WriteWeakCertificate(hash)
 	}
 }
+
 func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 	header := chain.repo.ReadBlockHeader(hash)
 	if header == nil {
@@ -1127,6 +1128,15 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 			Header: header,
 			Body:   body,
 		}
+	}
+}
+
+func (chain *Blockchain) GetBlockWithRetry(hash common.Hash) *types.Block {
+	for {
+		if block := chain.GetBlock(chain.Head.Hash()); block != nil {
+			return block
+		}
+		time.Sleep(time.Second)
 	}
 }
 
@@ -1267,7 +1277,7 @@ func (chain *Blockchain) StartSync() {
 
 func (chain *Blockchain) StopSync() {
 	chain.isSyncing = false
-	chain.txpool.StopSync(chain.GetBlock(chain.Head.Hash()))
+	chain.txpool.StopSync(chain.GetBlockWithRetry(chain.Head.Hash()))
 }
 
 func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
