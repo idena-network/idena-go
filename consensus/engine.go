@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
@@ -16,7 +17,12 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"time"
+)
+
+const (
+	MaxStoredAvgTimeDiffs = 20
 )
 
 var (
@@ -24,22 +30,25 @@ var (
 )
 
 type Engine struct {
-	chain           *blockchain.Blockchain
-	pm              *protocol.ProtocolManager
-	log             log.Logger
-	process         string
-	pubKey          []byte
-	config          *config.ConsensusConf
-	proposals       *pengings.Proposals
-	votes           *pengings.Votes
-	txpool          *mempool.TxPool
-	addr            common.Address
-	appState        *appstate.AppState
-	downloader      *protocol.Downloader
-	secStore        *secstore.SecStore
-	peekingBlocks   chan *types.Block
-	forkResolver    *ForkResolver
-	offlineDetector *blockchain.OfflineDetector
+	chain             *blockchain.Blockchain
+	pm                *protocol.ProtocolManager
+	log               log.Logger
+	process           string
+	pubKey            []byte
+	config            *config.ConsensusConf
+	proposals         *pengings.Proposals
+	votes             *pengings.Votes
+	txpool            *mempool.TxPool
+	addr              common.Address
+	appState          *appstate.AppState
+	downloader        *protocol.Downloader
+	secStore          *secstore.SecStore
+	peekingBlocks     chan *types.Block
+	forkResolver      *ForkResolver
+	offlineDetector   *blockchain.OfflineDetector
+	prevRoundDuration time.Duration
+	avgTimeDiffs      []decimal.Decimal
+	timeDrift         time.Duration
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -69,6 +78,7 @@ func (engine *Engine) Start() {
 	log.Info("Start consensus protocol", "pubKey", hexutil.Encode(engine.pubKey))
 	engine.forkResolver.Start()
 	go engine.loop()
+	go engine.ntpTimeDriftUpdate()
 }
 
 func (engine *Engine) GetProcess() string {
@@ -80,10 +90,39 @@ func (engine *Engine) GetAppState() *appstate.AppState {
 }
 
 func (engine *Engine) alignTime() {
+	if engine.prevRoundDuration > engine.config.MinBlockDistance {
+		return
+	}
+
 	now := time.Now().UTC()
-	diff := engine.config.MinBlockDistance - now.Sub(time.Unix(engine.chain.Head.Time().Int64(), 0))
-	if diff > 0 {
-		time.Sleep(diff)
+	var offset time.Duration
+	if len(engine.avgTimeDiffs) > 0 {
+		f, _ := decimal.Avg(engine.avgTimeDiffs[0], engine.avgTimeDiffs[1:]...).Float64()
+		offset = time.Duration(f * float64(time.Second))
+		if offset < 0 && engine.timeDrift < 0 || offset > 0 && engine.timeDrift > 0 {
+			offset = (offset + engine.timeDrift) / 2
+		} else {
+			offset = 0
+		}
+	}
+
+	correctedNow := now.Add(-offset)
+	headTime := time.Unix(engine.chain.Head.Time().Int64(), 0)
+
+	if correctedNow.After(headTime) {
+		maxDelay := engine.config.MinBlockDistance - engine.config.EstimatedBaVariance - engine.config.WaitSortitionProofDelay
+		diff := engine.config.MinBlockDistance - correctedNow.Sub(headTime)
+		diff = time.Duration(math.MinInt(int(diff), int(maxDelay)))
+		if diff > 0 {
+			time.Sleep(diff)
+		}
+	}
+}
+
+func (engine *Engine) calculateTimeDiff(round uint64, roundStart time.Time) {
+	engine.avgTimeDiffs = append(engine.avgTimeDiffs, engine.proposals.AvgTimeDiff(round, roundStart.Unix()))
+	if len(engine.avgTimeDiffs) > MaxStoredAvgTimeDiffs {
+		engine.avgTimeDiffs = engine.avgTimeDiffs[1:]
 	}
 }
 
@@ -107,6 +146,9 @@ func (engine *Engine) loop() {
 
 		engine.alignTime()
 
+		engine.prevRoundDuration = 0
+		roundStart := time.Now().UTC()
+
 		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers",
 			engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
@@ -128,7 +170,7 @@ func (engine *Engine) loop() {
 		engine.process = "Calculating highest-priority pubkey"
 
 		proposerPubKey := engine.getHighestProposerPubKey(round)
-
+		engine.calculateTimeDiff(round, roundStart)
 		proposer := engine.fmtProposer(proposerPubKey)
 
 		engine.log.Info("Selected proposer", "proposer", proposer)
@@ -191,6 +233,7 @@ func (engine *Engine) loop() {
 			}
 		}
 		engine.completeRound(round)
+		engine.prevRoundDuration = time.Now().UTC().Sub(roundStart)
 	}
 }
 
@@ -229,7 +272,7 @@ func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block 
 	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
 	engine.pm.ProposeBlock(block)
 
-	engine.proposals.AddProposedBlock(block, "")
+	engine.proposals.AddProposedBlock(block, "", time.Now().UTC())
 	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, block.Height())
 
 	return block
@@ -487,4 +530,13 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	}
 
 	return nil, errors.New("Block is not found")
+}
+
+func (engine *Engine) ntpTimeDriftUpdate() {
+	for {
+		if drift, err := protocol.SntpDrift(3); err == nil {
+			engine.timeDrift = drift
+		}
+		time.Sleep(time.Minute)
+	}
 }
