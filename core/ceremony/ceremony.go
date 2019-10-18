@@ -220,7 +220,7 @@ func (vc *ValidationCeremony) restoreState() {
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
-	if vc.validationStartCtxCancel != nil || !vc.shouldInteractWithNetwork() {
+	if vc.validationStartCtxCancel != nil {
 		return
 	}
 	t := time.Now().UTC()
@@ -611,7 +611,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 			vc.log.Error(err.Error())
 			vc.epochDb.RemoveOwnTx(txType)
 		}
-	} else{
+	} else {
 		vc.epochDb.WriteSuccessfulOwnTx(signedTx.Hash())
 	}
 	vc.logInfoWithInteraction("Broadcast ceremony tx", "type", txType, "hash", signedTx.Hash().Hex())
