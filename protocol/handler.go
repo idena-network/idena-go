@@ -196,7 +196,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markPayload(block)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(block.Height() - 1)
-		if ok, _ := pm.proposals.AddProposedBlock(block, p.id); ok {
+		if ok, _ := pm.proposals.AddProposedBlock(block, p.id, time.Now().UTC()); ok {
 			pm.ProposeBlock(block)
 		}
 	case Vote:
