@@ -1132,11 +1132,17 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 }
 
 func (chain *Blockchain) GetBlockWithRetry(hash common.Hash) *types.Block {
+	tryCount := 0
 	for {
-		if block := chain.GetBlock(chain.Head.Hash()); block != nil {
+		if block := chain.GetBlock(hash); block != nil {
 			return block
 		}
+		tryCount++
+		if tryCount == 10 {
+			panic(fmt.Sprintf("Failed to get block %s", hash.Hex()))
+		}
 		time.Sleep(time.Second)
+		chain.log.Warn("Retrying to get block", "hash", hash.Hex())
 	}
 }
 
