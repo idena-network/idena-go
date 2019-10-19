@@ -483,7 +483,6 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 						return true
 					}
 					roundVotes.Add(vote.Hash())
-					engine.offlineDetector.ProcessVote(vote)
 
 					if roundVotes.Cardinality() >= necessaryVotesCount {
 						list := make([]*types.Vote, 0, necessaryVotesCount)

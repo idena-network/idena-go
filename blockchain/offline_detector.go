@@ -77,7 +77,10 @@ func (dt *OfflineDetector) Start(head *types.Header) {
 }
 
 func (dt *OfflineDetector) ProcessVote(vote *types.Vote) {
-	dt.votesChan <- vote
+	select {
+	case dt.votesChan <- vote:
+	default:
+	}
 }
 
 func (dt *OfflineDetector) VoteForOffline(block *types.Block) bool {
