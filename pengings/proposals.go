@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"sort"
 	"sync"
 	"time"
@@ -41,8 +42,14 @@ type Proposals struct {
 }
 
 type blockPeer struct {
-	block  *types.Block
-	peerId string
+	block         *types.Block
+	receivingTime time.Time
+	peerId        string
+}
+
+type proposedBlock struct {
+	block         *types.Block
+	receivingTime time.Time
 }
 
 func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDetector) *Proposals {
@@ -155,7 +162,7 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 
 	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
 		blockPeer := value.(*blockPeer)
-		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId); added {
+		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId, blockPeer.receivingTime); added {
 			result = append(result, blockPeer.block)
 		} else if !pending {
 			proposals.pendingBlocks.Delete(key)
@@ -167,10 +174,9 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) (added bool, pending bool) {
+func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string, receivingTime time.Time) (added bool, pending bool) {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
-
 		if proposals.proposeCache.Add(block.Hash().Hex(), nil, cache.DefaultExpiration) != nil {
 			return false, false
 		}
@@ -195,12 +201,12 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string) 
 			return false, false
 		}
 
-		round.Store(block.Hash(), block)
+		round.Store(block.Hash(), &proposedBlock{block: block, receivingTime: receivingTime})
 
 		return true, false
 	} else if currentRound < block.Height() {
 		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
-			block: block, peerId: peerId,
+			block: block, peerId: peerId, receivingTime: receivingTime,
 		})
 		return false, true
 	}
@@ -214,9 +220,9 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 			round := m.(*sync.Map)
 			var result *types.Block
 			round.Range(func(key, value interface{}) bool {
-				block := value.(*types.Block)
-				if bytes.Compare(block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
-					result = block
+				block := value.(*proposedBlock)
+				if bytes.Compare(block.block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
+					result = block.block
 					return false
 				}
 				return true
@@ -234,7 +240,7 @@ func (proposals *Proposals) GetBlockByHash(round uint64, hash common.Hash) (*typ
 	if m, ok := proposals.blocksByRound.Load(round); ok {
 		roundMap := m.(*sync.Map)
 		if block, ok := roundMap.Load(hash); ok {
-			return block.(*types.Block), nil
+			return block.(*proposedBlock).block, nil
 		}
 	}
 	return nil, errors.New("Block is not found in proposals")
@@ -250,4 +256,21 @@ func (proposals *Proposals) GetForkedPeers() mapset.Set {
 
 func (proposals *Proposals) ClearPotentialForks() {
 	proposals.potentialForkedPeers.Clear()
+}
+
+func (proposals *Proposals) AvgTimeDiff(round uint64, start int64) decimal.Decimal {
+	var diffs []decimal.Decimal
+	m, ok := proposals.blocksByRound.Load(round)
+	if ok {
+		round := m.(*sync.Map)
+		round.Range(func(key, value interface{}) bool {
+			block := value.(*proposedBlock)
+			diffs = append(diffs, decimal.New(block.receivingTime.Unix(), 0).Sub(decimal.NewFromBigInt(block.block.Header.Time(), 0)))
+			return true
+		})
+	}
+	if len(diffs) == 0 {
+		return decimal.Zero
+	}
+	return decimal.Avg(diffs[0], diffs[1:]...)
 }

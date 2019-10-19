@@ -44,7 +44,7 @@ func (s durationSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // checkClockDrift queries an NTP server for clock drifts and warns the user if
 // one large enough is detected.
 func checkClockDrift() bool{
-	drift, err := sntpDrift(ntpChecks)
+	drift, err := SntpDrift(ntpChecks)
 	if err != nil {
 		return true
 	}
@@ -58,13 +58,13 @@ func checkClockDrift() bool{
 	}
 }
 
-// sntpDrift does a naive time resolution against an NTP server and returns the
+// SntpDrift does a naive time resolution against an NTP server and returns the
 // measured drift. This method uses the simple version of NTP. It's not precise
 // but should be fine for these purposes.
 //
 // Note, it executes two extra measurements compared to the number of requested
 // ones to be able to discard the two extremes as outliers.
-func sntpDrift(measurements int) (time.Duration, error) {
+func SntpDrift(measurements int) (time.Duration, error) {
 	// Resolve the address of the NTP server
 	addr, err := net.ResolveUDPAddr("udp", ntpPool+":123")
 	if err != nil {
