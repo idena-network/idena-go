@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	math2 "math"
 	"time"
 )
 
@@ -99,13 +100,12 @@ func (engine *Engine) alignTime() {
 	if len(engine.avgTimeDiffs) > 0 {
 		f, _ := decimal.Avg(engine.avgTimeDiffs[0], engine.avgTimeDiffs[1:]...).Float64()
 		offset = time.Duration(f * float64(time.Second))
-		if offset < 0 && engine.timeDrift < 0 || offset > 0 && engine.timeDrift > 0 {
+		if (offset < 0 && engine.timeDrift < 0 || offset > 0 && engine.timeDrift > 0) && math2.Abs(float64(engine.timeDrift-offset)) < float64(time.Second*2) {
 			offset = (offset + engine.timeDrift) / 2
 		} else {
 			offset = 0
 		}
 	}
-
 	correctedNow := now.Add(-offset)
 	headTime := time.Unix(engine.chain.Head.Time().Int64(), 0)
 
