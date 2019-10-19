@@ -141,12 +141,13 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
 	appState := appstate.NewAppState(db, bus)
-	votes := pengings.NewVotes(appState, bus)
+
+	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
+	votes := pengings.NewVotes(appState, bus, offlineDetector)
 
 	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, config.Consensus.MinFeePerByte)
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
-	offlineDetector := blockchain.NewOfflineDetector(config.OfflineDetection, db, appState, secStore, bus)
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
 	proposals := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)

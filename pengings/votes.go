@@ -2,6 +2,7 @@ package pengings
 
 import (
 	"github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -16,21 +17,23 @@ const (
 )
 
 type Votes struct {
-	votesByRound *sync.Map
-	votesByHash  *sync.Map
-	knownVotes   mapset.Set
-	state        *appstate.AppState
-	head         *types.Header
-	bus          eventbus.Bus
+	votesByRound    *sync.Map
+	votesByHash     *sync.Map
+	knownVotes      mapset.Set
+	state           *appstate.AppState
+	head            *types.Header
+	bus             eventbus.Bus
+	offlineDetector *blockchain.OfflineDetector
 }
 
-func NewVotes(state *appstate.AppState, bus eventbus.Bus) *Votes {
+func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *blockchain.OfflineDetector) *Votes {
 	v := &Votes{
-		votesByRound: &sync.Map{},
-		votesByHash:  &sync.Map{},
-		knownVotes:   mapset.NewSet(),
-		state:        state,
-		bus:          bus,
+		votesByRound:    &sync.Map{},
+		votesByHash:     &sync.Map{},
+		knownVotes:      mapset.NewSet(),
+		state:           state,
+		bus:             bus,
+		offlineDetector: offlineDetector,
 	}
 	v.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -69,6 +72,7 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 	}
 	votes.knownVotes.Add(vote.Hash())
 	votes.votesByHash.Store(vote.Hash(), vote)
+	votes.offlineDetector.ProcessVote(vote)
 	return true
 }
 
