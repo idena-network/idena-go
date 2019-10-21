@@ -60,7 +60,7 @@ type ProtocolManager struct {
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
 
-	txpool        *mempool.TxPool
+	txpool        mempool.TransactionPool
 	flipKeyPool   *mempool.KeysPool
 	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
@@ -113,7 +113,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		incomeBatches: make(map[string]map[uint32]*batch),
 		proposals:     proposals,
 		votes:         votes,
-		txpool:        txpool,
+		txpool:        mempool.NewAsyncTxPool(txpool),
 		txChan:        make(chan *types.Transaction, 100),
 		flipKeyChan:   make(chan *types.FlipKey, 200),
 		flipper:       fp,

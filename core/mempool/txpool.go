@@ -1,7 +1,6 @@
 package mempool
 
 import (
-	"errors"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -11,9 +10,9 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
+	"github.com/pkg/errors"
 	"math/big"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -32,6 +31,11 @@ var (
 		types.EvidenceTx:           true,
 	}
 )
+
+type TransactionPool interface {
+	Add(tx *types.Transaction) error
+	GetPendingTransaction() []*types.Transaction
+}
 
 type TxPool struct {
 	knownDeferredTxs mapset.Set
@@ -236,7 +240,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		}
 
 		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
-			if strings.HasPrefix(err.Error(), "invalid nonce") {
+			if errors.Cause(err) == validation.InvalidNonce {
 				txpool.Remove(tx)
 				continue
 			}
