@@ -13,6 +13,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"math/big"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -235,6 +236,10 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		}
 
 		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+			if strings.HasPrefix(err.Error(), "invalid nonce") {
+				txpool.Remove(tx)
+				continue
+			}
 			sender, _ := types.Sender(tx)
 			if n, ok := minErrorNonce[sender]; ok {
 				if tx.AccountNonce < n {
