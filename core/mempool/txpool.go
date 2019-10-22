@@ -32,6 +32,11 @@ var (
 	}
 )
 
+type TransactionPool interface {
+	Add(tx *types.Transaction) error
+	GetPendingTransaction() []*types.Transaction
+}
+
 type TxPool struct {
 	knownDeferredTxs mapset.Set
 	deferredTxs      []*types.Transaction
