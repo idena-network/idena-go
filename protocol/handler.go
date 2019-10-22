@@ -33,6 +33,8 @@ const (
 	NewFlip          = 0x0B
 	FlipKey          = 0x0C
 	SnapshotManifest = 0x0D
+	FlipCid          = 0x0E
+	RequestFlip      = 0x0F
 )
 const (
 	DecodeErr              = 1
@@ -58,7 +60,7 @@ type ProtocolManager struct {
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
 
-	txpool        *mempool.TxPool
+	txpool        mempool.TransactionPool
 	flipKeyPool   *mempool.KeysPool
 	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
@@ -111,7 +113,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		incomeBatches: make(map[string]map[uint32]*batch),
 		proposals:     proposals,
 		votes:         votes,
-		txpool:        txpool,
+		txpool:        mempool.NewAsyncTxPool(txpool),
 		txChan:        make(chan *types.Transaction, 100),
 		flipKeyChan:   make(chan *types.FlipKey, 200),
 		flipper:       fp,
@@ -133,7 +135,7 @@ func (pm *ProtocolManager) Start() {
 	})
 	_ = pm.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
-		pm.broadcastFlip(newFlipEvent.Flip)
+		pm.broadcastFlipCid(newFlipEvent.FlipCid)
 	})
 
 	go pm.broadcastLoop()
@@ -182,6 +184,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+
+		if pm.isProcessed(query) {
+			return nil
+		}
 		p.markPayload(query)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
@@ -192,6 +198,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		block := new(types.Block)
 		if err := msg.Decode(block); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(block) {
+			return nil
 		}
 		p.markPayload(block)
 		// if peer proposes this msg it should be on `query.Round-1` height
@@ -204,6 +213,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(vote); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if pm.isProcessed(vote) {
+			return nil
+		}
 		p.markPayload(vote)
 		p.setPotentialHeight(vote.Header.Round - 1)
 		if pm.votes.AddVote(vote) {
@@ -213,6 +225,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		tx := new(types.Transaction)
 		if err := msg.Decode(tx); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(tx) {
+			return nil
 		}
 		p.markPayload(tx)
 		pm.txpool.Add(tx)
@@ -236,10 +251,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		p.markPayload(f)
-		if err := pm.flipper.AddNewFlip(f, false); err != nil && err != flip.DuplicateFlipError {
-			p.Log().Error("invalid flip", "err", err)
+		if pm.isProcessed(f) {
+			return nil
 		}
+		p.markPayload(f)
+		pm.flipper.AddNewFlip(f, false)
 	case FlipKey:
 		flipKey := new(types.FlipKey)
 		if err := msg.Decode(flipKey); err != nil {
@@ -252,9 +268,33 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.manifest = manifest
+	case FlipCid:
+		cid := new(flipCid)
+		if err := msg.Decode(cid); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(cid) {
+			return nil
+		}
+		p.markPayload(cid)
+		if !pm.flipper.Has(cid.Cid) {
+			p.sendMsg(RequestFlip, cid)
+		}
+	case RequestFlip:
+		cid := new(flipCid)
+		if err := msg.Decode(cid); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if f, err := pm.flipper.ReadFlip(cid.Cid); err == nil {
+			p.sendMsg(NewFlip, f)
+		}
 	}
 
 	return nil
+}
+
+func (pm *ProtocolManager) isProcessed(payload interface{}) bool {
+	return pm.peers.HasPayload(payload)
 }
 
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
@@ -413,8 +453,8 @@ func (pm *ProtocolManager) broadcastTx(tx *types.Transaction) {
 	pm.peers.SendWithFilter(NewTx, tx)
 }
 
-func (pm *ProtocolManager) broadcastFlip(flip *types.Flip) {
-	pm.peers.SendWithFilter(NewFlip, flip)
+func (pm *ProtocolManager) broadcastFlipCid(cid []byte) {
+	pm.peers.SendWithFilter(FlipCid, &flipCid{cid})
 }
 
 func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey) {
