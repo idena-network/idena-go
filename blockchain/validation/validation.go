@@ -270,10 +270,9 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 		if bytes.Compare(flip.Cid, attachment.Cid) == 0 {
 			return DuplicatedFlip
 		}
-		// TODO: enable when UI will be ready (fork)
-		//if flip.Pair == attachment.Pair {
-		//	return DuplicatedFlipPair
-		//}
+		if flip.Pair == attachment.Pair {
+			return DuplicatedFlipPair
+		}
 	}
 
 	return nil
