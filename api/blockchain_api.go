@@ -60,6 +60,7 @@ type Block struct {
 }
 
 type Transaction struct {
+	Hash      common.Hash     `json:"hash"`
 	Type      string          `json:"type"`
 	From      common.Address  `json:"from"`
 	To        *common.Address `json:"to"`
@@ -213,6 +214,7 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp uint64) *Transaction {
 	sender, _ := types.Sender(tx)
 	return &Transaction{
+		Hash:      tx.Hash(),
 		Epoch:     tx.Epoch,
 		Payload:   tx.Payload,
 		Amount:    blockchain.ConvertToFloat(tx.Amount),
