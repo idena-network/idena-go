@@ -21,21 +21,20 @@ import (
 )
 
 const (
-	Handshake        = 0x01
-	GetHead          = 0x02
-	Head             = 0x03
-	ProposeBlock     = 0x04
-	ProposeProof     = 0x05
-	Vote             = 0x06
-	NewTx            = 0x07
-	GetBlockByHash   = 0x08
-	GetBlocksRange   = 0x09
-	BlocksRange      = 0x0A
-	NewFlip          = 0x0B
-	FlipKey          = 0x0C
-	SnapshotManifest = 0x0D
-	FlipCid          = 0x0E
-	RequestFlip      = 0x0F
+	Handshake         = 0x01
+	ProposeBlock      = 0x02
+	ProposeProof      = 0x03
+	Vote              = 0x04
+	NewTx             = 0x05
+	GetBlockByHash    = 0x06
+	GetBlocksRange    = 0x07
+	BlocksRange       = 0x08
+	FlipBody          = 0x09
+	FlipKey           = 0x0A
+	SnapshotManifest  = 0x0B
+	PushFlipCid       = 0x0C
+	PullFlip          = 0x0D
+	GetForkBlockRange = 0x0E
 )
 const (
 	DecodeErr              = 1
@@ -82,6 +81,11 @@ type getBlocksRangeRequest struct {
 	BatchId uint32
 	From    uint64
 	To      uint64
+}
+
+type getForkBlocksRangeRequest struct {
+	BatchId uint32
+	Blocks  []common.Hash
 }
 
 type proposeProof struct {
@@ -176,6 +180,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 					batch.headers <- b
 					p.setHeight(b.Header.Height())
 				}
+				close(batch.headers)
 				pm.batchedLock.Lock()
 				peerBatches.Delete(response.BatchId)
 				if maputil.IsSyncMapEmpty(peerBatches) {
@@ -252,7 +257,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		pm.provideBlocks(p, query.BatchId, query.From, query.To)
-	case NewFlip:
+	case GetForkBlockRange:
+		query := new(getForkBlocksRangeRequest)
+		if err := msg.Decode(query); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		pm.provideForkBlocks(p, query.BatchId, query.Blocks)
+	case FlipBody:
 		f := new(types.Flip)
 		if err := msg.Decode(f); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
@@ -274,7 +285,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.manifest = manifest
-	case FlipCid:
+	case PushFlipCid:
 		cid := new(flipCid)
 		if err := msg.Decode(cid); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
@@ -284,15 +295,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		p.markPayload(cid)
 		if !pm.flipper.Has(cid.Cid) {
-			p.sendMsg(RequestFlip, cid)
+			p.sendMsg(PullFlip, cid)
 		}
-	case RequestFlip:
+	case PullFlip:
 		cid := new(flipCid)
 		if err := msg.Decode(cid); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		if f, err := pm.flipper.ReadFlip(cid.Cid); err == nil {
-			p.sendMsg(NewFlip, f)
+			p.sendMsg(FlipBody, f)
 		}
 	}
 
@@ -306,7 +317,6 @@ func (pm *ProtocolManager) isProcessed(payload interface{}) bool {
 func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, to uint64) {
 	var result []*block
 	for i := from; i <= to; i++ {
-
 		b := pm.bcn.GetBlockHeaderByHeight(i)
 		if b != nil {
 			result = append(result, &block{
@@ -320,6 +330,23 @@ func (pm *ProtocolManager) provideBlocks(p *peer, batchId uint32, from uint64, t
 			break
 		}
 	}
+	p.sendMsg(BlocksRange, &blockRange{
+		BatchId: batchId,
+		Blocks:  result,
+	})
+}
+
+func (pm *ProtocolManager) provideForkBlocks(p *peer, batchId uint32, blocks []common.Hash) {
+	var result []*block
+
+	bundles := pm.bcn.ReadBlockForForkedPeer(blocks)
+	for _, b := range bundles {
+		result = append(result, &block{
+			Header: b.Block.Header,
+			Cert:   b.Cert,
+		})
+	}
+	p.Log().Info("Peer is in fork. Providing own blocks", "cnt", len(bundles))
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
@@ -390,10 +417,10 @@ func (pm *ProtocolManager) GetKnownManifests() map[string]*snapshot.Manifest {
 	return result
 }
 
-func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64) (error, *batch) {
+func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64) (*batch, error) {
 	peer := pm.peers.Peer(peerId)
 	if peer == nil {
-		return errors.New("peer is not found"), nil
+		return nil, errors.New("peer is not found")
 	}
 
 	b := &batch{
@@ -416,7 +443,33 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 		From:    from,
 		To:      to,
 	})
-	return nil, b
+	return b, nil
+}
+
+func (pm *ProtocolManager) GetForkBlockRange(peerId string, ownBlocks []common.Hash) (*batch, error) {
+	peer := pm.peers.Peer(peerId)
+	if peer == nil {
+		return nil, errors.New("peer is not found")
+	}
+	b := &batch{
+		p:       peer,
+		headers: make(chan *block, 100),
+	}
+	peerBatches, ok := pm.incomeBatches[peerId]
+
+	if !ok {
+		peerBatches = make(map[uint32]*batch)
+		pm.batchedLock.Lock()
+		pm.incomeBatches[peerId] = peerBatches
+		pm.batchedLock.Unlock()
+	}
+	id := atomic.AddUint32(&batchId, 1)
+	peerBatches[id] = b
+	peer.sendMsg(GetForkBlockRange, &getForkBlocksRangeRequest{
+		BatchId: batchId,
+		Blocks:  ownBlocks,
+	})
+	return b, nil
 }
 
 func (pm *ProtocolManager) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
@@ -459,7 +512,7 @@ func (pm *ProtocolManager) broadcastTx(tx *types.Transaction) {
 }
 
 func (pm *ProtocolManager) broadcastFlipCid(cid []byte) {
-	pm.peers.SendWithFilter(FlipCid, &flipCid{cid})
+	pm.peers.SendWithFilter(PushFlipCid, &flipCid{cid})
 }
 
 func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey) {
@@ -512,4 +565,13 @@ func (pm *ProtocolManager) PeersCount() int {
 }
 func (pm *ProtocolManager) Peers() []*peer {
 	return pm.peers.Peers()
+}
+
+func (pm *ProtocolManager) PeerHeights() []uint64 {
+	result := make([]uint64, 0)
+	peers := pm.peers.Peers()
+	for _, peer := range peers {
+		result = append(result, peer.knownHeight)
+	}
+	return result
 }
