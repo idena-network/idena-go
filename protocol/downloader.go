@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"errors"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -97,29 +98,29 @@ func (d *Downloader) filterForkedPeers(peers map[string]uint64) {
 	}
 }
 
-func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
+func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) error {
 
 	for {
 		if forkResolver.HasLoadedFork() {
-			return
+			return errors.New("loaded fork is detected")
 		}
 		knownHeights := d.pm.GetKnownHeights()
 		if knownHeights == nil {
 			d.log.Info(fmt.Sprintf("Peers are not found. Assume node is synchronized"))
-			break
+			return nil
 		}
 
 		d.filterForkedPeers(knownHeights)
 
 		if len(knownHeights) == 0 {
-			d.log.Warn("All connected peers is in fork. ")
+			return errors.New("all connected peers are in fork")
 		}
 
 		head := d.chain.Head
 		d.top = getTopHeight(knownHeights)
 		if head.Height() >= d.top {
 			d.log.Info(fmt.Sprintf("Node is synchronized"))
-			return
+			return nil
 		}
 		if !d.isSyncing {
 			d.startSync()
@@ -225,7 +226,7 @@ func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan 
 	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekBlocks(fromBlock, toBlock, peers)
 }
 
-func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle{
+func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle {
 	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekForkedBlocks(ownBlocks, peerId)
 }
 

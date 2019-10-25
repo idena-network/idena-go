@@ -83,7 +83,7 @@ func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerI
 		if err := resolver.chain.ValidateSubChain(commonHeight, forkBlocks); err != nil {
 			return errors.Errorf("unacceptable fork, peerId=%v, err=%v", peerId, err)
 		} else {
-			resolver.log.Info("applicable fork is detected", "peerId", peerId, "commonHeight", commonHeight)
+			resolver.log.Info("applicable fork is detected", "peerId", peerId, "commonHeight", commonHeight, "size", len(forkBlocks))
 			resolver.applicableFork = &applicableFork{
 				commonHeight: commonHeight,
 				blocks:       forkBlocks,

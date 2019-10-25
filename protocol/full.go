@@ -262,7 +262,7 @@ func (fs *fullSync) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) cha
 				}
 			case <-timeout:
 				fs.log.Warn("timeout was reached while seeking block")
-				continue
+				return
 			}
 		}
 	}()

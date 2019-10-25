@@ -287,7 +287,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
 	})
-
+	chain.RemovePreliminaryHead()
 	return nil
 }
 
@@ -1412,8 +1412,10 @@ func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.Ident
 }
 
 func (chain *Blockchain) RemovePreliminaryHead() {
+	if chain.PreliminaryHead != nil {
+		chain.repo.RemovePreliminaryHead()
+	}
 	chain.PreliminaryHead = nil
-	chain.repo.RemovePreliminaryHead()
 }
 
 func (chain *Blockchain) SwitchToPreliminary() {

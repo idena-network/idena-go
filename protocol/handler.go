@@ -177,6 +177,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 					batch.headers <- b
 					p.setHeight(b.Header.Height())
 				}
+				close(batch.headers)
 				pm.batchedLock.Lock()
 				delete(peerBatches, response.BatchId)
 				pm.batchedLock.Unlock()
@@ -339,7 +340,7 @@ func (pm *ProtocolManager) provideForkBlocks(p *peer, batchId uint32, blocks []c
 			Cert:   b.Cert,
 		})
 	}
-
+	p.Log().Info("Peer is in fork. Providing own blocks", "cnt", len(bundles))
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,

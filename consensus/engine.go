@@ -135,11 +135,16 @@ func (engine *Engine) loop() {
 			time.Sleep(time.Second * 30)
 			continue
 		}
-		engine.downloader.SyncBlockchain(engine.forkResolver)
-		if engine.forkResolver.HasLoadedFork() {
-			engine.forkResolver.ApplyFork()
+		if err := engine.downloader.SyncBlockchain(engine.forkResolver); err != nil {
+			if engine.forkResolver.HasLoadedFork() {
+				engine.forkResolver.ApplyFork()
+			} else{
+				engine.log.Warn("syncing error", "err", err)
+				time.Sleep(time.Second * 5)
+			}
 			continue
 		}
+
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			continue
