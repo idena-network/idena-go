@@ -597,6 +597,9 @@ func (i *memoryIpfs) Add(data []byte) (cid.Cid, error) {
 }
 
 func (i *memoryIpfs) Get(key []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return []byte{}, nil
+	}
 	c, err := cid.Parse(key)
 	if err != nil {
 		return nil, err
