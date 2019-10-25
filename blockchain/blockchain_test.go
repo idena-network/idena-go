@@ -388,3 +388,21 @@ func generateBlock(height uint64, txsCount int) *types.Block {
 
 	return block
 }
+
+func TestBlockchain_GetTopBlockHashes(t *testing.T) {
+	chain, _ := NewTestBlockchainWithBlocks(90, 9)
+	hashes := chain.GetTopBlockHashes(50)
+	require.Len(t, hashes, 50)
+	require.Equal(t, hashes[0], chain.GetBlockHeaderByHeight(100).Hash())
+	require.Equal(t, hashes[49], chain.GetBlockHeaderByHeight(51).Hash())
+}
+
+func TestBlockchain_ReadBlockForForkedPeer(t *testing.T) {
+	chain, _ := NewTestBlockchainWithBlocks(90, 9)
+	hashes := chain.GetTopBlockHashes(50)
+	for i := 0; i < len(hashes)-1; i++ {
+		hashes[i] = common.Hash{byte(i)}
+	}
+	bundles := chain.ReadBlockForForkedPeer(hashes)
+	require.Len(t, bundles, 49)
+}

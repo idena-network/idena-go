@@ -1,10 +1,12 @@
 package protocol
 
 import (
+	"errors"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
@@ -34,6 +36,10 @@ type blockApplier interface {
 
 type ForkResolver interface {
 	HasLoadedFork() bool
+}
+
+type BlockSeeker interface {
+	SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle
 }
 
 type Downloader struct {
@@ -90,22 +96,35 @@ func getTopHeight(heights map[string]uint64) uint64 {
 	return max
 }
 
-func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) {
+func (d *Downloader) filterForkedPeers(peers map[string]uint64) {
+	for _, p := range d.potentialForkedPeers.ToSlice() {
+		delete(peers, p.(string))
+	}
+}
+
+func (d *Downloader) SyncBlockchain(forkResolver ForkResolver) error {
 
 	for {
 		if forkResolver.HasLoadedFork() {
-			return
+			return errors.New("loaded fork is detected")
 		}
 		knownHeights := d.pm.GetKnownHeights()
 		if knownHeights == nil {
 			d.log.Info(fmt.Sprintf("Peers are not found. Assume node is synchronized"))
-			break
+			return nil
 		}
+
+		d.filterForkedPeers(knownHeights)
+
+		if len(knownHeights) == 0 {
+			return errors.New("all connected peers are in fork")
+		}
+
 		head := d.chain.Head
 		d.top = getTopHeight(knownHeights)
 		if head.Height() >= d.top {
 			d.log.Info(fmt.Sprintf("Node is synchronized"))
-			return
+			return nil
 		}
 		if !d.isSyncing {
 			d.startSync()
@@ -134,7 +153,7 @@ loop:
 				continue
 			}
 			to := math.Min(from+applier.batchSize(), math.Min(toHeight, height))
-			if err, batch := d.pm.GetBlocksRange(peer, from, to); err != nil {
+			if batch, err := d.pm.GetBlocksRange(peer, from, to); err != nil {
 				continue
 			} else {
 				select {
@@ -207,8 +226,12 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 	}
 }
 
-func (d *Downloader) PeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.Block {
-	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).PeekBlocks(fromBlock, toBlock, peers)
+func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle {
+	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekBlocks(fromBlock, toBlock, peers)
+}
+
+func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle {
+	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekForkedBlocks(ownBlocks, peerId)
 }
 
 func (d *Downloader) HasPotentialFork() bool {
