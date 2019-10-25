@@ -51,6 +51,7 @@ type Engine struct {
 	avgTimeDiffs      []decimal.Decimal
 	timeDrift         time.Duration
 	synced            bool
+	nextBlockDetector *nextBlockDetector
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -59,18 +60,19 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader,
 	offlineDetector *blockchain.OfflineDetector) *Engine {
 	return &Engine{
-		chain:           chain,
-		pm:              pm,
-		log:             log.New(),
-		config:          config,
-		proposals:       proposals,
-		appState:        appState,
-		votes:           votes,
-		txpool:          txpool,
-		downloader:      downloader,
-		secStore:        secStore,
-		forkResolver:    NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
-		offlineDetector: offlineDetector,
+		chain:             chain,
+		pm:                pm,
+		log:               log.New(),
+		config:            config,
+		proposals:         proposals,
+		appState:          appState,
+		votes:             votes,
+		txpool:            txpool,
+		downloader:        downloader,
+		secStore:          secStore,
+		forkResolver:      NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
+		offlineDetector:   offlineDetector,
+		nextBlockDetector: newNextBlockDetector(pm, downloader, chain),
 	}
 }
 
@@ -134,12 +136,17 @@ func (engine *Engine) loop() {
 			time.Sleep(time.Second * 30)
 			continue
 		}
-		engine.downloader.SyncBlockchain(engine.forkResolver)
-		if engine.forkResolver.HasLoadedFork() {
+		if err := engine.downloader.SyncBlockchain(engine.forkResolver); err != nil {
 			engine.synced = false
-			engine.forkResolver.ApplyFork()
+			if engine.forkResolver.HasLoadedFork() {
+				engine.forkResolver.ApplyFork()
+			} else{
+				engine.log.Warn("syncing error", "err", err)
+				time.Sleep(time.Second * 5)
+			}
 			continue
 		}
+
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
 			engine.synced = false
@@ -326,7 +333,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 }
 
 func (engine *Engine) completeBA() {
-	engine.peekingBlocks = nil
+	engine.nextBlockDetector.complete()
 }
 
 func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, *types.BlockCert, error) {
@@ -375,7 +382,7 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, *types.Block
 
 		step++
 
-		if engine.futureBlockExist(round, emptyBlockHash) {
+		if engine.nextBlockDetector.nextBlockExist(round, emptyBlockHash) {
 			return common.Hash{}, nil, errors.New("Detected future block")
 		}
 		if engine.forkResolver.HasLoadedFork() {
@@ -383,41 +390,6 @@ func (engine *Engine) binaryBa(blockHash common.Hash) (common.Hash, *types.Block
 		}
 	}
 	return common.Hash{}, nil, errors.New("No consensus")
-}
-
-func (engine *Engine) futureBlockExist(round uint64, emptyBlockHash common.Hash) bool {
-	if engine.peekingBlocks == nil {
-		forwardPeers := engine.pm.PotentialForwardPeers(round)
-		if len(forwardPeers) > 0 {
-			engine.peekingBlocks = engine.downloader.PeekBlocks(round, round, forwardPeers)
-		} else {
-			return false
-		}
-	}
-
-	timeout := time.After(time.Second * 2)
-	select {
-	case block, ok := <-engine.peekingBlocks:
-		if !ok {
-			engine.peekingBlocks = nil
-			return false
-		}
-
-		if block.IsEmpty() {
-			if block.Hash() == emptyBlockHash {
-				engine.peekingBlocks = nil
-				return true
-			}
-		} else {
-			if err := engine.chain.ValidateBlock(block, nil); err == nil {
-				engine.peekingBlocks = nil
-				return true
-			}
-		}
-	case <-timeout:
-		return false
-	}
-	return false
 }
 
 func (engine *Engine) vote(round uint64, step uint16, block common.Hash) {

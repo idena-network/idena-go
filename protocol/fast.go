@@ -240,7 +240,7 @@ func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 	}
 	for peerId, height := range knownHeights {
 		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
-			if err, batch := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
+			if batch, err := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
 				continue
 			} else {
 				return batch

@@ -128,6 +128,11 @@ type BlockCert struct {
 	Votes []*Vote
 }
 
+type BlockBundle struct {
+	Block *Block
+	Cert  *BlockCert
+}
+
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction
 
