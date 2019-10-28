@@ -140,12 +140,11 @@ type Syncing struct {
 }
 
 func (api *BlockchainApi) Syncing() Syncing {
-	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers()
+	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers() || !api.baseApi.engine.Synced()
 	current, highest := api.d.SyncProgress()
 	if !isSyncing {
 		highest = current
 	}
-
 	return Syncing{
 		Syncing:      isSyncing,
 		CurrentBlock: current,

@@ -50,6 +50,7 @@ type Engine struct {
 	prevRoundDuration time.Duration
 	avgTimeDiffs      []decimal.Decimal
 	timeDrift         time.Duration
+	synced            bool
 }
 
 func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -135,13 +136,16 @@ func (engine *Engine) loop() {
 		}
 		engine.downloader.SyncBlockchain(engine.forkResolver)
 		if engine.forkResolver.HasLoadedFork() {
+			engine.synced = false
 			engine.forkResolver.ApplyFork()
 			continue
 		}
 		if !engine.config.Automine && !engine.pm.HasPeers() {
 			time.Sleep(time.Second * 5)
+			engine.synced = false
 			continue
 		}
+		engine.synced = true
 		head := engine.chain.Head
 
 		engine.alignTime()
@@ -538,4 +542,8 @@ func (engine *Engine) ntpTimeDriftUpdate() {
 		}
 		time.Sleep(time.Minute)
 	}
+}
+
+func (engine *Engine) Synced() bool {
+	return engine.synced
 }
