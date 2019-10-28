@@ -58,6 +58,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 			Alloc: alloc,
 		},
 		Validation: valConf,
+		Blockchain: &config.BlockchainConfig{},
 	}
 
 	db := db.NewMemDB()

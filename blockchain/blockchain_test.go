@@ -438,3 +438,74 @@ func Test_ApplyBurnTx(t *testing.T) {
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
 }
+
+func Test_Blockchain_SaveBurntCoins(t *testing.T) {
+	require := require.New(t)
+
+	chain, _, _, key := NewTestBlockchain(true, nil)
+	chain.config.Blockchain.BurnTxRange = 3
+
+	key2, _ := crypto.GenerateKey()
+
+	createHeader := func(height uint64) *types.Header {
+		return &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Height: height,
+				Time:   big.NewInt(0),
+			},
+		}
+	}
+
+	// Block height=1
+	chain.SaveTxs(createHeader(1), []*types.Transaction{
+		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(2), nil),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil),
+	})
+
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
+
+	burntCoins := chain.ReadTotalBurntCoins()
+	require.Equal(2, len(burntCoins))
+	require.Equal(addr, burntCoins[0].Address)
+	require.Equal(big.NewInt(5), burntCoins[0].Amount)
+	require.Equal(addr2, burntCoins[1].Address)
+	require.Equal(big.NewInt(4), burntCoins[1].Amount)
+
+	// Block height=2
+	chain.SaveTxs(createHeader(2), []*types.Transaction{
+		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil),
+		tests.GetFullTx(0, 0, key, types.SendTx, big.NewInt(2), nil),
+	})
+
+	burntCoins = chain.ReadTotalBurntCoins()
+	require.Equal(2, len(burntCoins))
+	require.Equal(addr2, burntCoins[0].Address)
+	require.Equal(big.NewInt(9), burntCoins[0].Amount)
+	require.Equal(addr, burntCoins[1].Address)
+	require.Equal(big.NewInt(6), burntCoins[1].Amount)
+
+	// Block height=4
+	chain.SaveTxs(createHeader(4), []*types.Transaction{
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil),
+	})
+
+	burntCoins = chain.ReadTotalBurntCoins()
+	require.Equal(2, len(burntCoins))
+	require.Equal(addr2, burntCoins[0].Address)
+	require.Equal(big.NewInt(5), burntCoins[0].Amount)
+	require.Equal(addr, burntCoins[1].Address)
+	require.Equal(big.NewInt(4), burntCoins[1].Amount)
+
+	// Block height=7
+	chain.SaveTxs(createHeader(7), []*types.Transaction{
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil),
+	})
+
+	burntCoins = chain.ReadTotalBurntCoins()
+	require.Equal(1, len(burntCoins))
+	require.Equal(addr, burntCoins[0].Address)
+	require.Equal(big.NewInt(1), burntCoins[0].Amount)
+}

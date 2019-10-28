@@ -16,6 +16,8 @@ var (
 
 	ownTransactionIndexPrefix = []byte("oti")
 
+	burntCoinsPrefix = []byte("bti")
+
 	certPrefix = []byte("c")
 
 	flipEncryptionPrefix = []byte("key")

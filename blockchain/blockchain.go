@@ -1431,16 +1431,24 @@ func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 }
 
 func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
+	chain.repo.DeleteOutdatedBurntCoins(header.Height(), chain.config.Blockchain.BurnTxRange)
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
 		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
 			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
+		}
+		if tx.Type == types.BurnTx {
+			chain.repo.SaveBurntCoins(header.Height(), tx.Hash(), sender, tx.AmountOrZero())
 		}
 	}
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
 	return chain.repo.GetSavedTxs(address, count, token)
+}
+
+func (chain *Blockchain) ReadTotalBurntCoins() []*types.BurntCoins {
+	return chain.repo.GetTotalBurntCoins()
 }
 
 func readPredefinedState() (*state.PredefinedState, error) {

@@ -15,6 +15,7 @@ const (
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
 	DefaultMaxPeers       = 50
+	DefaultBurntTxRange   = 180
 
 	LowPowerMaxPeers = 6
 )

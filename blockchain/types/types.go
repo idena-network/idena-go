@@ -172,6 +172,11 @@ type SavedTransaction struct {
 	Timestamp  uint64
 }
 
+type BurntCoins struct {
+	Address common.Address
+	Amount  *big.Int
+}
+
 func (b *Block) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
