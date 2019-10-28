@@ -617,6 +617,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 		break
+	case types.BurnTx:
+		stateDB.SubBalance(sender, totalCost)
+		break
 	case types.InviteTx:
 		if sender != stateDB.GodAddress() {
 			stateDB.SubInvite(sender, 1)

@@ -22,6 +22,7 @@ const (
 	OnlineStatusTx       uint16 = 0x9
 	KillInviteeTx        uint16 = 0xA
 	ChangeGodAddressTx   uint16 = 0xB
+	BurnTx               uint16 = 0xC
 )
 
 const (

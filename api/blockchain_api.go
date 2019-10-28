@@ -28,6 +28,8 @@ var (
 		types.SubmitLongAnswersTx:  "submitLongAnswers",
 		types.EvidenceTx:           "evidence",
 		types.OnlineStatusTx:       "online",
+		types.ChangeGodAddressTx:   "changeGodAddress",
+		types.BurnTx:               "burn",
 	}
 )
 
