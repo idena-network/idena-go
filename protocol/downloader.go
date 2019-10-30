@@ -23,6 +23,10 @@ const (
 	MaxAttemptsCountPerBatch = 10
 )
 
+var (
+	BanReasonTimeout = errors.New("timeout")
+)
+
 type Syncer interface {
 	IsSyncing() bool
 }
@@ -308,4 +312,10 @@ func (d *Downloader) stopSync() {
 	d.sm.StopSync()
 	d.isSyncing = false
 	d.top = 0
+}
+
+func (d *Downloader) BanPeer(peerId string, reason error) {
+	if d.pm != nil {
+		d.pm.BanPeer(peerId, reason)
+	}
 }
