@@ -28,7 +28,7 @@ type fullSync struct {
 	isSyncing            bool
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
-	deferredHeaders      []*block
+	deferredHeaders      []blockPeer
 }
 
 func (fs *fullSync) batchSize() uint64 {
@@ -72,7 +72,7 @@ func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
 
 func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, error) {
 	defer func() {
-		fs.deferredHeaders = []*block{}
+		fs.deferredHeaders = []blockPeer{}
 	}()
 
 	for _, b := range fs.deferredHeaders {
@@ -84,7 +84,7 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
 					return block.Height(), err
 				}
-
+				fs.pm.BanPeer(b.peerId, err)
 				fs.log.Warn(fmt.Sprintf("Block %v is invalid: %v", block.Height(), err))
 				time.Sleep(time.Second)
 				// TODO: ban bad peer
@@ -129,16 +129,22 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 
 		select {
 		case block := <-batch.headers:
-
-			if err := fs.validateHeader(block); err != nil {
+			if block == nil {
+				err := errors.New("failed to load block header")
+				fs.pm.BanPeer(batch.p.id, err)
+				return err
+			}
+			batch.p.resetTimeouts()
+			if err := fs.validateHeader(block, batch.p); err != nil {
 				if err == blockchain.ParentHashIsInvalid {
 					fs.potentialForkedPeers.Add(batch.p.id)
 					return err
 				}
+				fs.pm.BanPeer(batch.p.id, err)
 				fs.log.Error("Block header is invalid", "err", err)
 				return reload(i)
 			}
-			fs.deferredHeaders = append(fs.deferredHeaders, block)
+			fs.deferredHeaders = append(fs.deferredHeaders, blockPeer{*block, batch.p.id})
 			if block.Cert != nil && block.Cert.Len() > 0 {
 				if from, err := fs.applyDeferredBlocks(checkState); err != nil {
 					return reload(from)
@@ -146,6 +152,9 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 			}
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached", "peer", batch.p.id)
+			if batch.p.addTimeout() {
+				fs.pm.BanPeer(batch.p.id, BanReasonTimeout)
+			}
 			return reload(i)
 		}
 	}
@@ -157,7 +166,7 @@ func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
 	return head.Height() + 1, nil
 }
 
-func (fs *fullSync) validateHeader(block *block) error {
+func (fs *fullSync) validateHeader(block *block, p *peer) error {
 	prevBlock := fs.chain.Head
 	if len(fs.deferredHeaders) > 0 {
 		prevBlock = fs.deferredHeaders[len(fs.deferredHeaders)-1].Header
@@ -168,7 +177,7 @@ func (fs *fullSync) validateHeader(block *block) error {
 		return err
 	}
 
-	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
+	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) || block.Header.Height() == p.knownHeight {
 		if block.Cert.Empty() {
 			return BlockCertIsMissing
 		}
