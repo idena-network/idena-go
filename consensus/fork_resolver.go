@@ -59,7 +59,10 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	lastBlocksHashes := resolver.chain.GetTopBlockHashes(100)
 
 	blocks := resolver.downloader.SeekForkedBlocks(lastBlocksHashes, peerId)
-	resolver.processBlocks(blocks, peerId)
+	if err := resolver.processBlocks(blocks, peerId); err != nil {
+		resolver.downloader.BanPeer(peerId, err)
+		resolver.log.Warn("invalid fork", err, err)
+	}
 }
 
 func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId string) error {
