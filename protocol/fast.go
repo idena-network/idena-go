@@ -35,7 +35,7 @@ type fastSync struct {
 	validators           *validators.ValidatorsCache
 	sm                   *state.SnapshotManager
 	bus                  eventbus.Bus
-	deferredHeaders      []*block
+	deferredHeaders      []blockPeer
 	coinBase             common.Address
 }
 
@@ -101,12 +101,13 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 
 func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 	defer func() {
-		fs.deferredHeaders = []*block{}
+		fs.deferredHeaders = []blockPeer{}
 	}()
 
 	for _, b := range fs.deferredHeaders {
 
 		if err := fs.validateIdentityState(b); err != nil {
+			fs.pm.BanPeer(b.peerId, err)
 			return b.Header.Height(), err
 		}
 		if !b.IdentityDiff.Empty() {
@@ -114,6 +115,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		}
 
 		if err := fs.chain.AddHeader(b.Header); err != nil {
+			fs.pm.BanPeer(b.peerId, err)
 			return b.Header.Height(), err
 		}
 
@@ -177,16 +179,23 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 
 		select {
 		case block := <-batch.headers:
+			if block == nil {
+				err := errors.New("failed to load block header")
+				fs.pm.BanPeer(batch.p.id, err)
+				return err
+			}
 			if err := fs.validateHeader(block); err != nil {
 				if err == blockchain.ParentHashIsInvalid {
 					fs.potentialForkedPeers.Add(batch.p.id)
 					return err
+				} else {
+					fs.pm.BanPeer(batch.p.id, err)
 				}
 				fs.log.Error("Block header is invalid", "err", err)
 				return reload(i)
 			}
 
-			fs.deferredHeaders = append(fs.deferredHeaders, block)
+			fs.deferredHeaders = append(fs.deferredHeaders, blockPeer{*block, batch.p.id})
 			if block.Cert != nil && block.Cert.Len() > 0 {
 				if from, err := fs.applyDeferredBlocks(); err != nil {
 					return reload(from)
@@ -195,6 +204,9 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 
 		case <-timeout:
 			fs.log.Warn("process batch - timeout was reached")
+			if batch.p.addTimeout() {
+				fs.pm.BanPeer(batch.p.id, BanReasonTimeout)
+			}
 			return reload(i)
 		}
 	}
@@ -202,7 +214,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	return nil
 }
 
-func (fs *fastSync) validateIdentityState(block *block) error {
+func (fs *fastSync) validateIdentityState(block blockPeer) error {
 	fs.stateDb.AddDiff(block.Header.Height(), block.IdentityDiff)
 	if fs.stateDb.Root() != block.Header.IdentityRoot() {
 		fs.stateDb.Reset()
