@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -12,22 +11,26 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/core/ceremony"
+	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-cid"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"time"
 )
 
 type DnaApi struct {
-	bc       *blockchain.Blockchain
-	baseApi  *BaseApi
-	ceremony *ceremony.ValidationCeremony
+	bc             *blockchain.Blockchain
+	baseApi        *BaseApi
+	ceremony       *ceremony.ValidationCeremony
+	profileManager *profile.Manager
 }
 
-func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony) *DnaApi {
-	return &DnaApi{bc, baseApi, ceremony}
+func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony,
+	profileManager *profile.Manager) *DnaApi {
+	return &DnaApi{bc, baseApi, ceremony, profileManager}
 }
 
 type State struct {
@@ -187,7 +190,7 @@ type FlipWords struct {
 
 type Identity struct {
 	Address          common.Address  `json:"address"`
-	Nickname         string          `json:"nickname"`
+	ProfileHash      string          `json:"profileHash"`
 	Stake            decimal.Decimal `json:"stake"`
 	Invites          uint8           `json:"invites"`
 	Age              uint16          `json:"age"`
@@ -278,9 +281,10 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		break
 	}
 
-	var nickname string
-	if data.Nickname != nil {
-		nickname = string(data.Nickname[:])
+	var profileHash string
+	if len(data.ProfileHash) > 0 {
+		c, _ := cid.Parse(data.ProfileHash)
+		profileHash = c.String()
 	}
 
 	var result []string
@@ -317,7 +321,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Stake:            blockchain.ConvertToFloat(data.Stake),
 		Age:              age,
 		Invites:          data.Invites,
-		Nickname:         nickname,
+		ProfileHash:      profileHash,
 		PubKey:           fmt.Sprintf("%x", data.PubKey),
 		RequiredFlips:    data.RequiredFlips,
 		FlipKeyWordPairs: convertedFlipKeyWordPairs,
@@ -392,4 +396,75 @@ func (api *DnaApi) ExportKey(password string) (string, error) {
 		return "", errors.New("password should not be empty")
 	}
 	return api.baseApi.secStore.ExportKey(password)
+}
+
+type ChangeProfileArgs struct {
+	Banner   *hexutil.Bytes  `json:"banner"`
+	Nickname string          `json:"nickname"`
+	MaxFee   decimal.Decimal `json:"maxFee"`
+}
+
+type ChangeProfileResponse struct {
+	TxHash common.Hash `json:"txHash"`
+	Hash   string      `json:"hash"`
+}
+
+type ProfileResponse struct {
+	Banner   *hexutil.Bytes `json:"banner"`
+	Nickname string         `json:"nickname"`
+}
+
+func (api *DnaApi) ChangeProfile(args ChangeProfileArgs) (ChangeProfileResponse, error) {
+	profileData := profile.Profile{}
+	if args.Banner != nil && len(*args.Banner) > 0 {
+		profileData.Banner = *args.Banner
+	}
+	if len(args.Nickname) > 0 {
+		profileData.Nickname = []byte(args.Nickname)
+	}
+
+	profileHash, err := api.profileManager.AddProfile(profileData)
+
+	if err != nil {
+		return ChangeProfileResponse{}, errors.Wrap(err, "failed to add profile data")
+	}
+
+	txHash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), nil, types.ChangeProfileTx, decimal.Zero,
+		args.MaxFee, decimal.Zero, 0, 0, attachments.CreateChangeProfileAttachment(profileHash),
+		nil)
+
+	if err != nil {
+		return ChangeProfileResponse{}, errors.Wrap(err, "failed to send tx to change profile")
+	}
+
+	c, _ := cid.Cast(profileHash)
+
+	return ChangeProfileResponse{
+		TxHash: txHash,
+		Hash:   c.String(),
+	}, nil
+}
+
+func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
+	if address == nil {
+		coinbase := api.GetCoinbaseAddr()
+		address = &coinbase
+	}
+	identity := api.baseApi.getAppState().State.GetIdentity(*address)
+	if len(identity.ProfileHash) == 0 {
+		return ProfileResponse{}, nil
+	}
+	identityProfile, err := api.profileManager.GetProfile(identity.ProfileHash)
+	if err != nil {
+		return ProfileResponse{}, err
+	}
+	var banner *hexutil.Bytes
+	if len(identityProfile.Banner) > 0 {
+		b := hexutil.Bytes(identityProfile.Banner)
+		banner = &b
+	}
+	return ProfileResponse{
+		Nickname: string(identityProfile.Nickname),
+		Banner:   banner,
+	}, nil
 }

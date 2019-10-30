@@ -92,7 +92,7 @@ type IdentityFlip struct {
 }
 
 type Identity struct {
-	Nickname       *[64]byte `rlp:"nil"`
+	ProfileHash    []byte `rlp:"nil"`
 	Stake          *big.Int
 	Invites        uint8
 	Birthday       uint16
@@ -479,6 +479,15 @@ func (s *stateIdentity) SubPenalty(amount *big.Int) {
 
 func (s *stateIdentity) GetPenalty() *big.Int {
 	return s.data.Penalty
+}
+
+func (s *stateIdentity) SetProfileHash(hash []byte) {
+	s.data.ProfileHash = hash
+	s.touch()
+}
+
+func (s *stateIdentity) GetProfileHash() []byte {
+	return s.data.ProfileHash
 }
 
 // EncodeRLP implements rlp.Encoder.

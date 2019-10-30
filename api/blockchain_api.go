@@ -30,6 +30,7 @@ var (
 		types.OnlineStatusTx:       "online",
 		types.ChangeGodAddressTx:   "changeGodAddress",
 		types.BurnTx:               "burn",
+		types.ChangeProfileTx:      "changeProfile",
 	}
 )
 

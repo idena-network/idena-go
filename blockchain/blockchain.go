@@ -674,6 +674,12 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		appState.State.SetGodAddress(*tx.To)
+	case types.ChangeProfileTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		attachment := attachments.ParseChangeProfileAttachment(tx)
+		stateDB.SetProfileHash(sender, attachment.Hash)
+		break
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)

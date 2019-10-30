@@ -65,6 +65,7 @@ func init() {
 		types.OnlineStatusTx:       validateOnlineStatusTx,
 		types.ChangeGodAddressTx:   validateChangeGodAddressTx,
 		types.BurnTx:               validateBurnTx,
+		types.ChangeProfileTx:      validateChangeProfileTx,
 	}
 }
 
@@ -515,6 +516,24 @@ func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, mempoolT
 	sender, _ := types.Sender(tx)
 	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	attachment := attachments.ParseChangeProfileAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
 	}
 	return nil
 }

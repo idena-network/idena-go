@@ -16,7 +16,7 @@ var (
 
 	ownTransactionIndexPrefix = []byte("oti")
 
-	burntCoinsPrefix = []byte("bti")
+	burntCoinsPrefix = []byte("bc")
 
 	certPrefix = []byte("c")
 

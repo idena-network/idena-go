@@ -123,7 +123,7 @@ func main() {
 				Code:            data.Code,
 				Generation:      data.Generation,
 				Invites:         data.Invites,
-				Nickname:        data.Nickname,
+				ProfileHash:     data.ProfileHash,
 				PubKey:          data.PubKey,
 				QualifiedFlips:  data.QualifiedFlips,
 				RequiredFlips:   data.RequiredFlips,

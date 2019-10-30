@@ -23,6 +23,7 @@ const (
 	KillInviteeTx        uint16 = 0xA
 	ChangeGodAddressTx   uint16 = 0xB
 	BurnTx               uint16 = 0xC
+	ChangeProfileTx      uint16 = 0xD
 )
 
 const (
