@@ -36,7 +36,7 @@ type peer struct {
 	msgCache        *cache.Cache
 	appVersion      string
 	protocol        uint16
-	timeout         int
+	timeouts        int
 }
 
 type request struct {
@@ -174,6 +174,10 @@ func (p *peer) setPotentialHeight(newHeight uint64) {
 }
 
 func (p *peer) addTimeout() (shouldBeBanned bool) {
-	p.timeout++
-	return p.timeout > maxTimeoutsBeforeBan
+	p.timeouts++
+	return p.timeouts > maxTimeoutsBeforeBan
+}
+
+func (p *peer) resetTimeouts(){
+	p.timeouts = 0
 }

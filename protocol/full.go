@@ -134,6 +134,7 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 				fs.pm.BanPeer(batch.p.id, err)
 				return err
 			}
+			batch.p.resetTimeouts()
 			if err := fs.validateHeader(block, batch.p); err != nil {
 				if err == blockchain.ParentHashIsInvalid {
 					fs.potentialForkedPeers.Add(batch.p.id)
