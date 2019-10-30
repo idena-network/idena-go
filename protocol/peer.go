@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/p2p"
+	"github.com/idena-network/idena-go/p2p/enode"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -15,9 +16,10 @@ import (
 )
 
 const (
-	handshakeTimeout  = 10 * time.Second
-	msgCacheAliveTime = 3 * time.Minute
-	msgCacheGcTime    = 5 * time.Minute
+	handshakeTimeout     = 10 * time.Second
+	msgCacheAliveTime    = 3 * time.Minute
+	msgCacheGcTime       = 5 * time.Minute
+	maxTimeoutsBeforeBan = 3
 )
 
 type peer struct {
@@ -34,6 +36,7 @@ type peer struct {
 	msgCache        *cache.Cache
 	appVersion      string
 	protocol        uint16
+	timeouts        int
 }
 
 type request struct {
@@ -45,13 +48,17 @@ func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayM
 	return &peer{
 		rw:             rw,
 		Peer:           p,
-		id:             fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		id:             formatPeerId(p.ID()),
 		queuedRequests: make(chan *request, 10000),
 		term:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		maxDelayMs:     maxDelayMs,
 		msgCache:       cache.New(msgCacheAliveTime, msgCacheGcTime),
 	}
+}
+
+func formatPeerId(id enode.ID) string {
+	return fmt.Sprintf("%x", id.Bytes()[:16])
 }
 
 func (p *peer) sendMsg(msgcode uint64, payload interface{}) {
@@ -164,4 +171,13 @@ func (p *peer) setPotentialHeight(newHeight uint64) {
 	if newHeight > p.potentialHeight {
 		p.potentialHeight = newHeight
 	}
+}
+
+func (p *peer) addTimeout() (shouldBeBanned bool) {
+	p.timeouts++
+	return p.timeouts > maxTimeoutsBeforeBan
+}
+
+func (p *peer) resetTimeouts(){
+	p.timeouts = 0
 }

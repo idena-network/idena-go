@@ -3,6 +3,7 @@ package protocol
 import (
 	"fmt"
 	"github.com/coreos/go-semver/semver"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -38,6 +39,7 @@ const (
 const (
 	DecodeErr              = 1
 	MaxTimestampLagSeconds = 15
+	MaxBannedPeers         = 500000
 )
 
 const (
@@ -70,6 +72,7 @@ type ProtocolManager struct {
 	config        *p2p.Config
 	wrongTime     bool
 	appVersion    string
+	bannedPeers   mapset.Set
 }
 
 type getBlockBodyRequest struct {
@@ -125,6 +128,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		flipKeyPool:   flipKeyPool,
 		config:        config,
 		appVersion:    appVersion,
+		bannedPeers:   mapset.NewSet(),
 	}
 }
 
@@ -348,6 +352,10 @@ func (pm *ProtocolManager) provideForkBlocks(p *peer, batchId uint32, blocks []c
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
+	id := formatPeerId(p.ID())
+	if pm.bannedPeers.Contains(id) {
+		return errors.New("Peer is banned")
+	}
 	peer := pm.makePeer(p, rw, pm.config.MaxDelay)
 	if err := peer.Handshake(pm.bcn.Network(), pm.bcn.Head.Height(), pm.bcn.Genesis(), pm.appVersion); err != nil {
 		current := semver.New(pm.appVersion)
@@ -569,4 +577,20 @@ func (pm *ProtocolManager) PeerHeights() []uint64 {
 		result = append(result, peer.knownHeight)
 	}
 	return result
+}
+
+func (pm *ProtocolManager) BanPeer(peerId string, reason error) {
+	pm.bannedPeers.Add(peerId)
+	if pm.bannedPeers.Cardinality() > MaxBannedPeers {
+		pm.bannedPeers.Pop()
+	}
+
+	peer := pm.peers.Peer(peerId)
+	if peer != nil {
+		if reason != nil {
+			peer.Log().Info("peer has been banned", "reason", reason)
+		}
+		peer.Disconnect(p2p.DiscBannedPeer)
+	}
+
 }
