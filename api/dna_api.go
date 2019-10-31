@@ -21,13 +21,14 @@ import (
 )
 
 type DnaApi struct {
-	bc       *blockchain.Blockchain
-	baseApi  *BaseApi
-	ceremony *ceremony.ValidationCeremony
+	bc         *blockchain.Blockchain
+	baseApi    *BaseApi
+	ceremony   *ceremony.ValidationCeremony
+	appVersion string
 }
 
-func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony) *DnaApi {
-	return &DnaApi{bc, baseApi, ceremony}
+func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony, appVersion string) *DnaApi {
+	return &DnaApi{bc, baseApi, ceremony, appVersion}
 }
 
 type State struct {
@@ -392,4 +393,8 @@ func (api *DnaApi) ExportKey(password string) (string, error) {
 		return "", errors.New("password should not be empty")
 	}
 	return api.baseApi.secStore.ExportKey(password)
+}
+
+func (api *DnaApi) Version() string {
+	return api.appVersion
 }
