@@ -617,6 +617,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 		break
+	case types.BurnTx:
+		stateDB.SubBalance(sender, totalCost)
+		break
 	case types.InviteTx:
 		if sender != stateDB.GodAddress() {
 			stateDB.SubInvite(sender, 1)
@@ -671,6 +674,12 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		appState.State.SetGodAddress(*tx.To)
+	case types.ChangeProfileTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		attachment := attachments.ParseChangeProfileAttachment(tx)
+		stateDB.SetProfileHash(sender, attachment.Hash)
+		break
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -1428,16 +1437,24 @@ func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 }
 
 func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
+	chain.repo.DeleteOutdatedBurntCoins(header.Height(), chain.config.Blockchain.BurnTxRange)
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
 		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
 			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
+		}
+		if tx.Type == types.BurnTx {
+			chain.repo.SaveBurntCoins(header.Height(), tx.Hash(), sender, tx.AmountOrZero())
 		}
 	}
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
 	return chain.repo.GetSavedTxs(address, count, token)
+}
+
+func (chain *Blockchain) ReadTotalBurntCoins() []*types.BurntCoins {
+	return chain.repo.GetTotalBurntCoins()
 }
 
 func readPredefinedState() (*state.PredefinedState, error) {

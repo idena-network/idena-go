@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
+	"sort"
 	"time"
 )
 
@@ -71,6 +72,15 @@ func savedTxKey(sender common.Address, timestamp uint64, nonce uint32, hash comm
 	key = append(key, encodeUint64Number(timestamp)...)
 	key = append(key, encodeUint32Number(nonce)...)
 	return append(key, hash[:]...)
+}
+
+func burntCoinsKey(height uint64, hash common.Hash) []byte {
+	key := append(burntCoinsPrefix, encodeUint64Number(height)...)
+	return append(key, hash[:]...)
+}
+
+func burntCoinsMinKey() []byte {
+	return burntCoinsKey(0, common.BytesToHash(common.MinHash[:]))
 }
 
 func identityStateDiffKey(height uint64) []byte {
@@ -403,9 +413,63 @@ func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs
 		tx := new(types.SavedTransaction)
 		if err := rlp.DecodeBytes(value, tx); err != nil {
 			log.Error("cannot parse tx", "key", key)
+			continue
 		}
 		txs = append(txs, tx)
 	}
 
 	return txs, nil
+}
+
+func (r *Repo) DeleteOutdatedBurntCoins(blockHeight uint64, blockRange uint64) {
+	if blockHeight <= blockRange {
+		return
+	}
+	it := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(blockHeight-blockRange,
+		common.BytesToHash(common.MaxHash[:])))
+	defer it.Close()
+	for ; it.Valid(); it.Next() {
+		r.db.Delete(it.Key())
+	}
+}
+
+func (r *Repo) SaveBurntCoins(blockHeight uint64, txHash common.Hash, address common.Address, amount *big.Int) {
+	s := &types.BurntCoins{
+		Address: address,
+		Amount:  amount,
+	}
+	data, err := rlp.EncodeToBytes(s)
+	if err != nil {
+		log.Crit("failed to RLP encode saved burnt coins", "err", err)
+		return
+	}
+	r.db.Set(burntCoinsKey(blockHeight, txHash), data)
+}
+
+func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
+	it := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(math.MaxUint64, common.BytesToHash(common.MaxHash[:])))
+	defer it.Close()
+
+	amountsByAddress := make(map[common.Address]*types.BurntCoins)
+	var res []*types.BurntCoins
+	for ; it.Valid(); it.Next() {
+		key, value := it.Key(), it.Value()
+		burntCoins := new(types.BurntCoins)
+		if err := rlp.DecodeBytes(value, burntCoins); err != nil {
+			log.Error("cannot parse burnt coins", "key", key)
+			continue
+		}
+		if total, ok := amountsByAddress[burntCoins.Address]; ok {
+			total.Amount = new(big.Int).Add(total.Amount, burntCoins.Amount)
+		} else {
+			amountsByAddress[burntCoins.Address] = burntCoins
+			res = append(res, burntCoins)
+		}
+	}
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Amount.Cmp(res[j].Amount) == 1
+	})
+
+	return res
 }

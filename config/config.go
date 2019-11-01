@@ -235,6 +235,7 @@ func getDefaultConfig(dataDir string) *Config {
 		OfflineDetection: GetDefaultOfflineDetectionConfig(),
 		Blockchain: &BlockchainConfig{
 			StoreCertRange: DefaultStoreCertRange,
+			BurnTxRange:    DefaultBurntTxRange,
 		},
 	}
 }
