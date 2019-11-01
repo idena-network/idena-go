@@ -58,6 +58,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 			Alloc: alloc,
 		},
 		Validation: valConf,
+		Blockchain: &config.BlockchainConfig{},
 	}
 
 	db := db.NewMemDB()
@@ -110,8 +111,8 @@ func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.P
 			GodAddress:        addr,
 			FirstCeremonyTime: 4070908800, //01.01.2099
 		},
-		Validation: &config.ValidationConfig{
-		},
+		Validation: &config.ValidationConfig{},
+		Blockchain: &config.BlockchainConfig{},
 	}
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
@@ -150,8 +151,8 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 			GodAddress:        chain.secStore.GetAddress(),
 			FirstCeremonyTime: 4070908800, //01.01.2099
 		},
-		Validation: &config.ValidationConfig{
-		},
+		Validation: &config.ValidationConfig{},
+		Blockchain: &config.BlockchainConfig{},
 	}
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, chain.secStore, bus)

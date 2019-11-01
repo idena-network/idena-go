@@ -28,6 +28,9 @@ var (
 		types.SubmitLongAnswersTx:  "submitLongAnswers",
 		types.EvidenceTx:           "evidence",
 		types.OnlineStatusTx:       "online",
+		types.ChangeGodAddressTx:   "changeGodAddress",
+		types.BurnTx:               "burn",
+		types.ChangeProfileTx:      "changeProfile",
 	}
 )
 
@@ -73,6 +76,11 @@ type Transaction struct {
 	BlockHash common.Hash     `json:"blockHash"`
 	UsedFee   decimal.Decimal `json:"usedFee"`
 	Timestamp uint64          `json:"timestamp"`
+}
+
+type BurntCoins struct {
+	Address common.Address  `json:"address"`
+	Amount  decimal.Decimal `json:"amount"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -208,6 +216,17 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 		Transactions: list,
 		Token:        token,
 	}
+}
+
+func (api *BlockchainApi) BurntCoins() []BurntCoins {
+	var res []BurntCoins
+	for _, bc := range api.bc.ReadTotalBurntCoins() {
+		res = append(res, BurntCoins{
+			Address: bc.Address,
+			Amount:  blockchain.ConvertToFloat(bc.Amount),
+		})
+	}
+	return res
 }
 
 func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp uint64) *Transaction {
