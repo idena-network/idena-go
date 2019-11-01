@@ -20,7 +20,7 @@ type StateIdentityFlip struct {
 
 type StateIdentity struct {
 	Address         common.Address
-	Nickname        *[64]byte `rlp:"nil"`
+	ProfileHash     []byte `rlp:"nil"`
 	Stake           *big.Int
 	Invites         uint8
 	Birthday        uint16

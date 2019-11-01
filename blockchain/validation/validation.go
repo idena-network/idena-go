@@ -64,6 +64,8 @@ func init() {
 		types.EvidenceTx:           validateEvidenceTx,
 		types.OnlineStatusTx:       validateOnlineStatusTx,
 		types.ChangeGodAddressTx:   validateChangeGodAddressTx,
+		types.BurnTx:               validateBurnTx,
+		types.ChangeProfileTx:      validateChangeProfileTx,
 	}
 }
 
@@ -123,8 +125,8 @@ func ValidateFee(appState *appstate.AppState, tx *types.Transaction, mempoolTx b
 	if mempoolTx {
 		return nil
 	}
-	fee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
-	if fee.Cmp(tx.MaxFeeOrZero()) == 1 {
+	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	if feeAmount.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return BigFee
 	}
 	return nil
@@ -501,5 +503,37 @@ func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transacti
 		return LateTx
 	}
 
+	return nil
+}
+
+func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	sender, _ := types.Sender(tx)
+	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	attachment := attachments.ParseChangeProfileAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
 	return nil
 }

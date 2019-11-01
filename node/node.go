@@ -15,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/core/ceremony"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
@@ -68,6 +69,7 @@ type Node struct {
 	downloader      *protocol.Downloader
 	offlineDetector *blockchain.OfflineDetector
 	appVersion      string
+	profileManager  *profile.Manager
 }
 
 type NodeCtx struct {
@@ -158,6 +160,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
+	profileManager := profile.NewProfileManager(ipfsProxy)
 	node := &Node{
 		config:          config,
 		blockchain:      chain,
@@ -178,6 +181,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 		offlineDetector: offlineDetector,
 		votes:           votes,
 		appVersion:      appVersion,
+		profileManager:  profileManager,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -335,7 +339,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion),
+			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion, node.profileManager),
 			Public:    true,
 		},
 		{

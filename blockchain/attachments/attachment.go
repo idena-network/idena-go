@@ -81,3 +81,23 @@ func ParseOnlineStatusAttachment(tx *types.Transaction) *OnlineStatusAttachment 
 	}
 	return &attachment
 }
+
+type ChangeProfileAttachment struct {
+	Hash []byte
+}
+
+func CreateChangeProfileAttachment(hash []byte) []byte {
+	attachment := &ChangeProfileAttachment{
+		Hash: hash,
+	}
+	payload, _ := rlp.EncodeToBytes(attachment)
+	return payload
+}
+
+func ParseChangeProfileAttachment(tx *types.Transaction) *ChangeProfileAttachment {
+	var attachment ChangeProfileAttachment
+	if err := rlp.Decode(bytes.NewReader(tx.Payload), &attachment); err != nil {
+		return nil
+	}
+	return &attachment
+}

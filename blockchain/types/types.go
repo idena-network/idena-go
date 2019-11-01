@@ -22,6 +22,8 @@ const (
 	OnlineStatusTx       uint16 = 0x9
 	KillInviteeTx        uint16 = 0xA
 	ChangeGodAddressTx   uint16 = 0xB
+	BurnTx               uint16 = 0xC
+	ChangeProfileTx      uint16 = 0xD
 )
 
 const (
@@ -169,6 +171,11 @@ type SavedTransaction struct {
 	FeePerByte *big.Int
 	BlockHash  common.Hash
 	Timestamp  uint64
+}
+
+type BurntCoins struct {
+	Address common.Address
+	Amount  *big.Int
 }
 
 func (b *Block) Hash() common.Hash {
