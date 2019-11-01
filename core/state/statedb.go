@@ -382,6 +382,14 @@ func (s *StateDB) GetPenalty(address common.Address) *big.Int {
 	return s.GetOrNewIdentityObject(address).GetPenalty()
 }
 
+func (s *StateDB) SetProfileHash(addr common.Address, hash []byte) {
+	s.GetOrNewIdentityObject(addr).SetProfileHash(hash)
+}
+
+func (s *StateDB) GetProfileHash(addr common.Address) []byte {
+	return s.GetOrNewIdentityObject(addr).GetProfileHash()
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
@@ -1018,7 +1026,7 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.State = identity.State
 		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
 		stateObject.data.QualifiedFlips = identity.QualifiedFlips
-		stateObject.data.Nickname = identity.Nickname
+		stateObject.data.ProfileHash = identity.ProfileHash
 		stateObject.data.Code = identity.Code
 		stateObject.data.Flips = flips
 		stateObject.data.Invitees = identity.Invitees
