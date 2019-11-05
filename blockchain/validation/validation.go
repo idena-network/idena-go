@@ -87,7 +87,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 	nonce, epoch := appState.State.GetNonce(sender), appState.State.GetEpoch(sender)
 
 	if nonce >= tx.AccountNonce && epoch == globalEpoch && tx.Epoch == globalEpoch {
-		return errors.Errorf("invalid nonce, state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
+		return errors.Wrapf(InvalidNonce, "state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
 	}
 
 	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
