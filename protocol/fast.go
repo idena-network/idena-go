@@ -175,7 +175,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	}
 
 	for i := batch.from; i <= batch.to; i++ {
-		timeout := time.After(time.Second * 10)
+		timeout := time.After(time.Second * 20)
 
 		select {
 		case block := <-batch.headers:
@@ -269,11 +269,13 @@ func (fs *fastSync) postConsuming() error {
 	}
 
 	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
+		fs.sm.AddInvalidManifest(fs.manifest.Cid)
 		return errors.New("preliminary head's root doesn't equal manifest's root")
 	}
 	fs.log.Info("Start loading of snapshot", "height", fs.manifest.Height)
 	filePath, err := fs.sm.DownloadSnapshot(fs.manifest)
 	if err != nil {
+		fs.sm.AddTimeoutManifest(fs.manifest.Cid)
 		return errors.WithMessage(err, "snapshot's downloading has been failed")
 	}
 	fs.log.Info("Snapshot has been loaded", "height", fs.manifest.Height)
@@ -285,6 +287,7 @@ func (fs *fastSync) postConsuming() error {
 	err = fs.appState.State.RecoverSnapshot(fs.manifest, file)
 	file.Close()
 	if err != nil {
+		fs.sm.AddInvalidManifest(fs.manifest.Cid)
 		//TODO : add snapshot to ban list
 		return err
 	}
