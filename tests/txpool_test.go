@@ -139,12 +139,18 @@ func TestTxPool_ResetTo(t *testing.T) {
 	key2, _ := crypto.GenerateKey()
 	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
 
+	key3, _ := crypto.GenerateKey()
+	addr3 := crypto.PubkeyToAddress(key3.PublicKey)
+
 	alloc := make(map[common.Address]config.GenesisAllocation)
 	alloc[addr] = config.GenesisAllocation{
 		Balance: getAmount(100),
 	}
 	alloc[addr2] = config.GenesisAllocation{
 		Balance: getAmount(20),
+	}
+	alloc[addr3] = config.GenesisAllocation{
+		Balance: getAmount(200),
 	}
 
 	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
@@ -181,6 +187,29 @@ func TestTxPool_ResetTo(t *testing.T) {
 	err = pool.Add(tx7)
 	require.NoError(err)
 
+	// will be removed because of bad nonce
+	tx8 := GetTypesTxWithAmount(5, 1, key3, types.SendTx, getAmount(1))
+	err = pool.Add(tx8)
+	require.NoError(err)
+
+	// will be saved
+	tx9 := GetTypesTxWithAmount(6, 1, key3, types.SendTx, getAmount(1))
+	err = pool.Add(tx9)
+	require.NoError(err)
+
+	// will be removed because of balance
+	tx10 := GetTypesTxWithAmount(7, 1, key3, types.SendTx, getAmount(100))
+	err = pool.Add(tx10)
+	require.NoError(err)
+
+	// will be removed because of nonce hole
+	tx11 := GetTypesTxWithAmount(8, 1, key3, types.SendTx, getAmount(1))
+	err = pool.Add(tx11)
+	require.NoError(err)
+
+	app.State.SetNonce(addr3, 5)
+	app.State.SetEpoch(addr3, 1)
+	app.State.SubBalance(addr3, getAmount(150))
 	app.State.SubBalance(addr, getAmount(35))
 	app.State.IncEpoch()
 
@@ -199,13 +228,15 @@ func TestTxPool_ResetTo(t *testing.T) {
 
 	txs := pool.GetPendingTransaction()
 
-	require.Equal(3, len(txs))
+	require.Equal(4, len(txs))
 	require.Contains(txs, tx1)
 	require.Contains(txs, tx2)
 	require.Contains(txs, tx5)
+	require.Contains(txs, tx9)
 
 	require.Equal(uint32(2), app.NonceCache.GetNonce(addr, 1))
 	require.Equal(uint32(1), app.NonceCache.GetNonce(addr2, 1))
+	require.Equal(uint32(6), app.NonceCache.GetNonce(addr3, 1))
 }
 
 func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
