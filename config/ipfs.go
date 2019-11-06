@@ -11,4 +11,5 @@ type IpfsConfig struct {
 	HighWater          int
 	GracePeriod        string
 	ReproviderInterval string
+	Profile            string
 }

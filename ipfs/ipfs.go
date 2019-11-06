@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
+	config2 "github.com/ipfs/go-ipfs-config"
 	ipfsConf "github.com/ipfs/go-ipfs-config"
 	"github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core"
@@ -461,6 +462,18 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
 		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
+
+		if cfg.Profile != "" {
+			transformer, ok := config2.Profiles[cfg.Profile]
+			if !ok {
+				return fmt.Errorf("invalid IPFS configuration profile: %s", cfg.Profile)
+			}
+
+			if err := transformer.Transform(ipfsConfig); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 	var ipfsConfig *ipfsConf.Config
