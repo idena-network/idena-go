@@ -66,6 +66,7 @@ type Node struct {
 	ceremony        *ceremony.ValidationCeremony
 	downloader      *protocol.Downloader
 	offlineDetector *blockchain.OfflineDetector
+	appVersion      string
 }
 
 type NodeCtx struct {
@@ -175,6 +176,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 		downloader:      downloader,
 		offlineDetector: offlineDetector,
 		votes:           votes,
+		appVersion:      appVersion,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -326,7 +328,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony),
+			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion),
 			Public:    true,
 		},
 		{
