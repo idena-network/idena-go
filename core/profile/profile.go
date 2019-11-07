@@ -16,7 +16,7 @@ type Manager struct {
 
 type Profile struct {
 	Nickname []byte `rlp:"nil"`
-	Banner   []byte `rlp:"nil"`
+	Info     []byte `rlp:"nil"`
 }
 
 func NewProfileManager(ipfsProxy ipfs.Proxy) *Manager {

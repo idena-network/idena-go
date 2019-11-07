@@ -398,8 +398,28 @@ func (api *DnaApi) ExportKey(password string) (string, error) {
 	return api.baseApi.secStore.ExportKey(password)
 }
 
+type BurnArgs struct {
+	From   common.Address  `json:"from"`
+	Key    string          `json:"key"`
+	Amount decimal.Decimal `json:"amount"`
+	MaxFee decimal.Decimal `json:"maxFee"`
+	BaseTxArgs
+}
+
+func (api *DnaApi) Burn(args BurnArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(from, nil, types.BurnTx, args.Amount, args.MaxFee, decimal.Zero, args.Nonce,
+		args.Epoch, attachments.CreateBurnAttachment(args.Key), nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
 type ChangeProfileArgs struct {
-	Banner   *hexutil.Bytes  `json:"banner"`
+	Info     *hexutil.Bytes  `json:"info"`
 	Nickname string          `json:"nickname"`
 	MaxFee   decimal.Decimal `json:"maxFee"`
 }
@@ -410,14 +430,14 @@ type ChangeProfileResponse struct {
 }
 
 type ProfileResponse struct {
-	Banner   *hexutil.Bytes `json:"banner"`
+	Info     *hexutil.Bytes `json:"info"`
 	Nickname string         `json:"nickname"`
 }
 
 func (api *DnaApi) ChangeProfile(args ChangeProfileArgs) (ChangeProfileResponse, error) {
 	profileData := profile.Profile{}
-	if args.Banner != nil && len(*args.Banner) > 0 {
-		profileData.Banner = *args.Banner
+	if args.Info != nil && len(*args.Info) > 0 {
+		profileData.Info = *args.Info
 	}
 	if len(args.Nickname) > 0 {
 		profileData.Nickname = []byte(args.Nickname)
@@ -458,13 +478,13 @@ func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 	if err != nil {
 		return ProfileResponse{}, err
 	}
-	var banner *hexutil.Bytes
-	if len(identityProfile.Banner) > 0 {
-		b := hexutil.Bytes(identityProfile.Banner)
-		banner = &b
+	var info *hexutil.Bytes
+	if len(identityProfile.Info) > 0 {
+		b := hexutil.Bytes(identityProfile.Info)
+		info = &b
 	}
 	return ProfileResponse{
 		Nickname: string(identityProfile.Nickname),
-		Banner:   banner,
+		Info:     info,
 	}, nil
 }
