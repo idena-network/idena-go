@@ -330,14 +330,14 @@ func (s *IdentityStateDB) SaveForcedVersion(height uint64) error {
 	return err
 }
 
-func (s *IdentityStateDB) SwitchToPreliminary(heigth uint64) error {
+func (s *IdentityStateDB) SwitchToPreliminary(height uint64) error {
 	prefix := loadIdentityPrefix(s.original, true)
 	if prefix == nil {
 		return errors.New("preliminary prefix is not found")
 	}
 	pdb := dbm.NewPrefixDB(s.original, prefix)
 	tree := NewMutableTree(pdb)
-	if _, err := tree.LoadVersion(int64(heigth)); err != nil {
+	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return err
 	}
 	setIdentityPrefix(s.original, prefix, false)
