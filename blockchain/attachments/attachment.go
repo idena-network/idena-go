@@ -82,6 +82,26 @@ func ParseOnlineStatusAttachment(tx *types.Transaction) *OnlineStatusAttachment 
 	return &attachment
 }
 
+type BurnAttachment struct {
+	Key string
+}
+
+func CreateBurnAttachment(key string) []byte {
+	attachment := &BurnAttachment{
+		Key: key,
+	}
+	payload, _ := rlp.EncodeToBytes(attachment)
+	return payload
+}
+
+func ParseBurnAttachment(tx *types.Transaction) *BurnAttachment {
+	var attachment BurnAttachment
+	if err := rlp.Decode(bytes.NewReader(tx.Payload), &attachment); err != nil {
+		return nil
+	}
+	return &attachment
+}
+
 type ChangeProfileAttachment struct {
 	Hash []byte
 }

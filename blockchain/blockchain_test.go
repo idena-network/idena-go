@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -300,22 +301,22 @@ func TestBlockchain_SaveTxs(t *testing.T) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
 	txs := []txWithTimestamp{
-		{tx: tests.GetFullTx(1, 1, key, types.SendTx, nil, &addr), timestamp: 10},
-		{tx: tests.GetFullTx(2, 1, key, types.SendTx, nil, &addr), timestamp: 20},
-		{tx: tests.GetFullTx(4, 1, key, types.SendTx, nil, &addr), timestamp: 30},
-		{tx: tests.GetFullTx(5, 1, key, types.SendTx, nil, &addr), timestamp: 35},
-		{tx: tests.GetFullTx(6, 1, key, types.SendTx, nil, &addr), timestamp: 50},
-		{tx: tests.GetFullTx(7, 1, key, types.SendTx, nil, &addr), timestamp: 80},
-		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 80},
-		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr), timestamp: 456},
-		{tx: tests.GetFullTx(10, 1, key, types.SendTx, nil, &addr), timestamp: 456},
-		{tx: tests.GetFullTx(1, 2, key, types.SendTx, nil, &addr), timestamp: 500},
-		{tx: tests.GetFullTx(2, 2, key, types.SendTx, nil, &addr), timestamp: 500},
+		{tx: tests.GetFullTx(1, 1, key, types.SendTx, nil, &addr, nil), timestamp: 10},
+		{tx: tests.GetFullTx(2, 1, key, types.SendTx, nil, &addr, nil), timestamp: 20},
+		{tx: tests.GetFullTx(4, 1, key, types.SendTx, nil, &addr, nil), timestamp: 30},
+		{tx: tests.GetFullTx(5, 1, key, types.SendTx, nil, &addr, nil), timestamp: 35},
+		{tx: tests.GetFullTx(6, 1, key, types.SendTx, nil, &addr, nil), timestamp: 50},
+		{tx: tests.GetFullTx(7, 1, key, types.SendTx, nil, &addr, nil), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr, nil), timestamp: 80},
+		{tx: tests.GetFullTx(9, 1, key, types.SendTx, nil, &addr, nil), timestamp: 456},
+		{tx: tests.GetFullTx(10, 1, key, types.SendTx, nil, &addr, nil), timestamp: 456},
+		{tx: tests.GetFullTx(1, 2, key, types.SendTx, nil, &addr, nil), timestamp: 500},
+		{tx: tests.GetFullTx(2, 2, key, types.SendTx, nil, &addr, nil), timestamp: 500},
 
-		{tx: tests.GetFullTx(1, 1, key2, types.SendTx, nil, &addr), timestamp: 20},
-		{tx: tests.GetFullTx(8, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
-		{tx: tests.GetFullTx(10, 1, key2, types.SendTx, nil, &addr), timestamp: 80},
-		{tx: tests.GetFullTx(4, 1, key2, types.SendTx, nil, &addr), timestamp: 456},
+		{tx: tests.GetFullTx(1, 1, key2, types.SendTx, nil, &addr, nil), timestamp: 20},
+		{tx: tests.GetFullTx(8, 1, key2, types.SendTx, nil, &addr, nil), timestamp: 80},
+		{tx: tests.GetFullTx(10, 1, key2, types.SendTx, nil, &addr, nil), timestamp: 80},
+		{tx: tests.GetFullTx(4, 1, key2, types.SendTx, nil, &addr, nil), timestamp: 456},
 	}
 
 	for _, item := range txs {
@@ -458,38 +459,58 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 
 	// Block height=1
 	chain.SaveTxs(createHeader(1), []*types.Transaction{
-		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(2), nil),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil),
+		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(3), nil,
+			attachments.CreateBurnAttachment("3")),
+		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil,
+			attachments.CreateBurnAttachment("2")),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(2), nil,
+			attachments.CreateBurnAttachment("1")),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
+			attachments.CreateBurnAttachment("1")),
 	})
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
 
 	burntCoins := chain.ReadTotalBurntCoins()
-	require.Equal(2, len(burntCoins))
+	require.Equal(3, len(burntCoins))
 	require.Equal(addr, burntCoins[0].Address)
 	require.Equal(big.NewInt(5), burntCoins[0].Amount)
+
 	require.Equal(addr2, burntCoins[1].Address)
+	require.Equal("2", burntCoins[1].Key)
 	require.Equal(big.NewInt(4), burntCoins[1].Amount)
+
+	require.Equal(addr2, burntCoins[2].Address)
+	require.Equal("3", burntCoins[2].Key)
+	require.Equal(big.NewInt(3), burntCoins[2].Amount)
 
 	// Block height=2
 	chain.SaveTxs(createHeader(2), []*types.Transaction{
-		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil),
-		tests.GetFullTx(0, 0, key, types.SendTx, big.NewInt(2), nil),
+		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil,
+			attachments.CreateBurnAttachment("2")),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
+			attachments.CreateBurnAttachment("1")),
+		tests.GetFullTx(0, 0, key, types.SendTx, big.NewInt(2), nil, nil),
 	})
 
 	burntCoins = chain.ReadTotalBurntCoins()
-	require.Equal(2, len(burntCoins))
+	require.Equal(3, len(burntCoins))
 	require.Equal(addr2, burntCoins[0].Address)
 	require.Equal(big.NewInt(9), burntCoins[0].Amount)
+	require.Equal("2", burntCoins[0].Key)
+
 	require.Equal(addr, burntCoins[1].Address)
 	require.Equal(big.NewInt(6), burntCoins[1].Amount)
 
+	require.Equal(addr2, burntCoins[2].Address)
+	require.Equal("3", burntCoins[2].Key)
+	require.Equal(big.NewInt(3), burntCoins[2].Amount)
+
 	// Block height=4
 	chain.SaveTxs(createHeader(4), []*types.Transaction{
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
+			attachments.CreateBurnAttachment("1")),
 	})
 
 	burntCoins = chain.ReadTotalBurntCoins()
@@ -501,7 +522,8 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 
 	// Block height=7
 	chain.SaveTxs(createHeader(7), []*types.Transaction{
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil),
+		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
+			attachments.CreateBurnAttachment("1")),
 	})
 
 	burntCoins = chain.ReadTotalBurntCoins()

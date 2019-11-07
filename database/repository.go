@@ -433,9 +433,10 @@ func (r *Repo) DeleteOutdatedBurntCoins(blockHeight uint64, blockRange uint64) {
 	}
 }
 
-func (r *Repo) SaveBurntCoins(blockHeight uint64, txHash common.Hash, address common.Address, amount *big.Int) {
+func (r *Repo) SaveBurntCoins(blockHeight uint64, txHash common.Hash, address common.Address, key string, amount *big.Int) {
 	s := &types.BurntCoins{
 		Address: address,
+		Key:     key,
 		Amount:  amount,
 	}
 	data, err := rlp.EncodeToBytes(s)
@@ -450,7 +451,7 @@ func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
 	it := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(math.MaxUint64, common.BytesToHash(common.MaxHash[:])))
 	defer it.Close()
 
-	amountsByAddress := make(map[common.Address]*types.BurntCoins)
+	var coinsByAddressAndKey map[common.Address]map[string]*types.BurntCoins
 	var res []*types.BurntCoins
 	for ; it.Valid(); it.Next() {
 		key, value := it.Key(), it.Value()
@@ -459,10 +460,20 @@ func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
 			log.Error("cannot parse burnt coins", "key", key)
 			continue
 		}
-		if total, ok := amountsByAddress[burntCoins.Address]; ok {
-			total.Amount = new(big.Int).Add(total.Amount, burntCoins.Amount)
+		if coinsByAddressAndKey == nil {
+			coinsByAddressAndKey = make(map[common.Address]map[string]*types.BurntCoins)
+		}
+		if addressCoinsByKey, ok := coinsByAddressAndKey[burntCoins.Address]; ok {
+			if total, ok := addressCoinsByKey[burntCoins.Key]; ok {
+				total.Amount = new(big.Int).Add(total.Amount, burntCoins.Amount)
+			} else {
+				addressCoinsByKey[burntCoins.Key] = burntCoins
+				res = append(res, burntCoins)
+			}
 		} else {
-			amountsByAddress[burntCoins.Address] = burntCoins
+			addressCoinsByKey = make(map[string]*types.BurntCoins)
+			addressCoinsByKey[burntCoins.Key] = burntCoins
+			coinsByAddressAndKey[burntCoins.Address] = addressCoinsByKey
 			res = append(res, burntCoins)
 		}
 	}
