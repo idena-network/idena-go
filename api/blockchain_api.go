@@ -81,6 +81,7 @@ type Transaction struct {
 type BurntCoins struct {
 	Address common.Address  `json:"address"`
 	Amount  decimal.Decimal `json:"amount"`
+	Key     string          `json:"key"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -224,6 +225,7 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 		res = append(res, BurntCoins{
 			Address: bc.Address,
 			Amount:  blockchain.ConvertToFloat(bc.Amount),
+			Key:     bc.Key,
 		})
 	}
 	return res

@@ -175,6 +175,7 @@ type SavedTransaction struct {
 
 type BurntCoins struct {
 	Address common.Address
+	Key     string
 	Amount  *big.Int
 }
 

@@ -517,6 +517,10 @@ func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, mempoolT
 	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
 		return err
 	}
+	attachment := attachments.ParseBurnAttachment(tx)
+	if attachment == nil || len(attachment.Key) == 0 {
+		return InvalidPayload
+	}
 	return nil
 }
 
