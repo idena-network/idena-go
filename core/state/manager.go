@@ -20,7 +20,14 @@ import (
 	"time"
 )
 
-const SnapshotsFolder = "/snapshots"
+const (
+	SnapshotsFolder = "/snapshots"
+)
+
+var (
+	InvalidManifestPrefix = []byte("im")
+	MaxManifestTimeouts   = byte(5)
+)
 
 type SnapshotManager struct {
 	db        dbm.DB
@@ -192,4 +199,26 @@ func (m *SnapshotManager) StartSync() {
 
 func (m *SnapshotManager) StopSync() {
 	m.isSyncing = false
+}
+
+func (m *SnapshotManager) IsInvalidManifest(cid []byte) bool {
+	key := append(InvalidManifestPrefix, cid...)
+	if !m.db.Has(key) {
+		return false
+	}
+	return m.db.Get(key)[0] >= MaxManifestTimeouts
+}
+
+func (m *SnapshotManager) AddInvalidManifest(cid []byte) {
+	key := append(InvalidManifestPrefix, cid...)
+	m.db.Set(key, []byte{MaxManifestTimeouts})
+}
+func (m *SnapshotManager) AddTimeoutManifest(cid []byte) {
+	key := append(InvalidManifestPrefix, cid...)
+	value := []byte{0x1}
+	if m.db.Has(key) {
+		value = m.db.Get(key)
+		value[0]++
+	}
+	m.db.Set(key, value)
 }
