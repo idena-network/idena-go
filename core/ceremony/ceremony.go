@@ -204,6 +204,9 @@ func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
 }
 
 func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
+	if len(vc.candidates) == 0 {
+		return 1
+	}
 	count := uint(len(vc.flips) * common.LongSessionTesters / len(vc.candidates))
 	if count == 0 {
 		count = 1
