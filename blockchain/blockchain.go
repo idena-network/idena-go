@@ -1262,7 +1262,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 				return errors.New("Block cert is missing")
 			}
 		}
-		if ! b.Cert.Empty() {
+		if !b.Cert.Empty() {
 			if err := chain.ValidateBlockCert(prevBlock, b.Block.Header, b.Cert, checkState.ValidatorsCache); err != nil {
 				return err
 			}
@@ -1444,7 +1444,11 @@ func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction)
 			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
 		}
 		if tx.Type == types.BurnTx {
-			chain.repo.SaveBurntCoins(header.Height(), tx.Hash(), sender, tx.AmountOrZero())
+			attachment := attachments.ParseBurnAttachment(tx)
+			if attachment == nil {
+				continue
+			}
+			chain.repo.SaveBurntCoins(header.Height(), tx.Hash(), sender, attachment.Key, tx.AmountOrZero())
 		}
 	}
 }
@@ -1519,7 +1523,7 @@ func (chain *Blockchain) ReadBlockForForkedPeer(blocks []common.Hash) []types.Bl
 	return result
 }
 
-func (chain *Blockchain) GetTopBlockHashes(count int) [] common.Hash {
+func (chain *Blockchain) GetTopBlockHashes(count int) []common.Hash {
 	result := make([]common.Hash, 0, count)
 	head := chain.Head.Height()
 	for i := uint64(0); i < uint64(count); i++ {
