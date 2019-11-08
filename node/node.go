@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	util "github.com/idena-network/idena-go/common/ulimit"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/consensus"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -208,6 +209,12 @@ func (node *Node) StartWithHeight(height uint64) {
 	cfg.PrivateKey = node.generateSyntheticP2PKey()
 	node.srv = &p2p.Server{
 		Config: *cfg,
+	}
+
+	if changed, value, err := util.ManageFdLimit(); changed {
+		node.log.Info("Set new fd limit", "value", value)
+	} else if err != nil {
+		node.log.Warn("Failed to set new fd limit", "err", err)
 	}
 
 	if err := node.blockchain.InitializeChain(); err != nil {
