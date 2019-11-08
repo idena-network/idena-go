@@ -395,6 +395,15 @@ func (api *DnaApi) ExportKey(password string) (string, error) {
 	return api.baseApi.secStore.ExportKey(password)
 }
 
+type ImportKeyArgs struct {
+	Key      string `json:"key"`
+	Password string `json:"password"`
+}
+
+func (api *DnaApi) ImportKey(args ImportKeyArgs) error {
+	return api.bc.Config().ProvideNodeKey(args.Key, args.Password, true)
+}
+
 func (api *DnaApi) Version() string {
 	return api.appVersion
 }

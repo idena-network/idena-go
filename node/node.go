@@ -107,7 +107,7 @@ func ProvideMobileKey(path string, cfg string, key string, password string) stri
 		return err.Error()
 	}
 
-	if err := c.ProvideNodeKey(key, password); err != nil {
+	if err := c.ProvideNodeKey(key, password, false); err != nil {
 		return err.Error()
 	}
 	return "done"

@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -38,14 +39,17 @@ type Config struct {
 	Blockchain       *BlockchainConfig
 }
 
-func (c *Config) ProvideNodeKey(key string, password string) error {
+func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) error {
 	instanceDir := filepath.Join(c.DataDir, "keystore")
 	if err := os.MkdirAll(instanceDir, 0700); err != nil {
 		return err
 	}
 
 	keyfile := filepath.Join(instanceDir, datadirPrivateKey)
-	if _, err := crypto.LoadECDSA(keyfile); err == nil {
+
+	currentKey, err := crypto.LoadECDSA(keyfile)
+
+	if !withBackup && err == nil {
 		return errors.New("key already exists")
 	}
 
@@ -63,6 +67,14 @@ func (c *Config) ProvideNodeKey(key string, password string) error {
 	if err != nil {
 		return errors.Errorf("key is not valid ECDSA key, err: %v", err.Error())
 	}
+
+	if withBackup && currentKey != nil {
+		backupFile := filepath.Join(instanceDir, fmt.Sprintf("backup-%v", time.Now().Unix()))
+		if err := crypto.SaveECDSA(backupFile, currentKey); err != nil {
+			return errors.Errorf("failed to backup key, err: %v", err.Error())
+		}
+	}
+
 	if err := crypto.SaveECDSA(keyfile, ecdsaKey); err != nil {
 		return errors.Errorf("failed to persist key, err: %v", err.Error())
 	}
