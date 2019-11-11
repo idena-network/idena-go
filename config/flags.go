@@ -14,9 +14,9 @@ const (
 	DefaultSwarmKey       = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
-	DefaultMaxPeers       = 50
+	DefaultMaxPeers       = 25
 
-	LowPowerMaxPeers = 6
+	LowPowerMaxPeers = 8
 )
 
 var (

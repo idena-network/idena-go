@@ -173,7 +173,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	}
 
 	for i := batch.from; i <= batch.to; i++ {
-		timeout := time.After(time.Second * 10)
+		timeout := time.After(time.Second * 20)
 
 		select {
 		case block := <-batch.headers:
