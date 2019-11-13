@@ -194,7 +194,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 			}
 
 		case <-timeout:
-			fs.log.Warn("process batch - timeout was reached")
+			fs.log.Warn("process batch - timeout was reached", "peer", batch.p.id)
 			return reload(i)
 		}
 	}

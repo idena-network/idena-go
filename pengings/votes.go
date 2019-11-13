@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	MaxKnownVotes = 10000
-	VotesLag      = 1
+	MaxKnownVotes              = 10000
+	VotesLag                   = 3
+	PropagateFutureVotesPeriod = 30
 )
 
 type Votes struct {
@@ -52,6 +53,10 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 	minRound := votes.head.Height() - VotesLag
 
 	if vote.Header.Round < minRound {
+		return false
+	}
+
+	if votes.head.Height() < vote.Header.Round && vote.Header.Round-votes.head.Height() > PropagateFutureVotesPeriod {
 		return false
 	}
 

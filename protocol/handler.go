@@ -296,7 +296,7 @@ func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) erro
 	go pm.syncFlipKeyPool(peer)
 	pm.sendManifest(peer)
 	defer pm.unregister(peer)
-	p.Log().Info("Peer successfully connected", "peerId", p.ID(), "app", peer.appVersion, "proto", peer.protocol)
+	p.Log().Info("Peer successfully connected", "peerId", p.ID(), "ip", peer.RemoteAddr().String(), "app", peer.appVersion, "proto", peer.protocol)
 	return pm.runListening(peer)
 }
 

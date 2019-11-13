@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -153,8 +154,13 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 
 	lastLoad := time.Now()
 	done := false
+	logLevels := []float32{0.15, 0.3, 0.5, 0.75}
 	onLoading := func(size, read int64) {
 		lastLoad = time.Now()
+		if size > 0 && len(logLevels) > 0 && float32(read)/float32(size) >= logLevels[0] {
+			m.log.Info("Snapshot loading", "progress", fmt.Sprintf("%v%%", logLevels[0]*100))
+			logLevels = logLevels[1:]
+		}
 	}
 	var loadToErr error
 
