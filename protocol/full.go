@@ -228,7 +228,11 @@ func (fs *fullSync) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *
 			for i := batch.from; i <= batch.to; i++ {
 				timeout := time.After(time.Second * 10)
 				select {
-				case header := <-batch.headers:
+				case header, ok := <-batch.headers:
+					if !ok || header == nil {
+						fs.log.Warn("got nil block while seeking")
+						continue
+					}
 					if block, err := fs.GetBlock(header.Header); err != nil {
 						fs.log.Warn("fail to retrieve block while seeking", "err", err)
 						continue
