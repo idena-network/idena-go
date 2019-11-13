@@ -52,7 +52,7 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 
 	minRound := votes.head.Height() - VotesLag
 
-	if vote.Header.Round < minRound {
+	if votes.head.Height() > VotesLag && vote.Header.Round < minRound {
 		return false
 	}
 
