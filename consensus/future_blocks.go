@@ -61,7 +61,8 @@ func (d *nextBlockDetector) nextBlockExist(round uint64, emptyBlockHash common.H
 	timeout := time.After(time.Second * 2)
 	select {
 	case bundle, ok := <-d.activeSeeking:
-		if !ok {
+		if !ok || bundle == nil || bundle.Cert.Empty() ||
+			d.chain.ValidateBlockCertOnHead(bundle.Block.Header, bundle.Cert) != nil {
 			// read all bundles - reset state
 			d.activeSeeking = nil
 			return false
@@ -73,7 +74,7 @@ func (d *nextBlockDetector) nextBlockExist(round uint64, emptyBlockHash common.H
 				return true
 			}
 		} else {
-			if d.chain.ValidateBlock(bundle.Block, nil) == nil && d.chain.ValidateBlockCertOnHead(bundle.Block.Header, bundle.Cert) == nil {
+			if d.chain.ValidateBlock(bundle.Block, nil) == nil {
 				d.activeSeeking = nil
 				return true
 			}
