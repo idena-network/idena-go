@@ -62,3 +62,4 @@ datadir*/*
 **/idena-go
 *.db
 config.json
+/config2.json

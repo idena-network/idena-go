@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const (
+	DeferFutureProposalsPeriod = 30
+)
+
 type Proof struct {
 	Proof  []byte
 	Hash   common.Hash
@@ -67,15 +71,14 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 }
 
 func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey []byte, round uint64) (added bool, pending bool) {
-
+	currentRound := proposals.chain.Round()
 	proof := &Proof{
 		p,
 		hash,
 		pubKey,
 		round,
 	}
-	if round == proposals.chain.Round() {
-
+	if round == currentRound {
 		if proposals.proposeCache.Add(hash.Hex(), nil, cache.DefaultExpiration) != nil {
 			return false, false
 		}
@@ -91,7 +94,7 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 		}
 		byRound.Store(hash, proof)
 		return true, false
-	} else if round > proposals.chain.Round() {
+	} else if currentRound < round  && round-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingProofs.LoadOrStore(proof.Hash, proof)
 		return false, true
 	}
@@ -204,7 +207,7 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string, 
 		round.Store(block.Hash(), &proposedBlock{block: block, receivingTime: receivingTime})
 
 		return true, false
-	} else if currentRound < block.Height() {
+	} else if currentRound < block.Height() && block.Height()-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
 			block: block, peerId: peerId, receivingTime: receivingTime,
 		})
