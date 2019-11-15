@@ -63,8 +63,7 @@ type ProtocolManager struct {
 	flipper       *flip.Flipper
 	txChan        chan *types.Transaction
 	flipKeyChan   chan *types.FlipKey
-	incomeBatches map[string]map[uint32]*batch
-	batchedLock   sync.Mutex
+	incomeBatches *sync.Map
 	bus           eventbus.Bus
 	config        *p2p.Config
 	wrongTime     bool
@@ -108,7 +107,7 @@ func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Propos
 		peers:         newPeerSet(),
 		heads:         make(chan *peerHead, 10),
 		incomeBlocks:  make(chan *types.Block, 1000),
-		incomeBatches: make(map[string]map[uint32]*batch),
+		incomeBatches: &sync.Map{},
 		proposals:     proposals,
 		votes:         votes,
 		txpool:        txpool,
@@ -165,15 +164,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.Log().Trace("Income blocks range", "batchId", response.BatchId)
-		if peerBatches, ok := pm.incomeBatches[p.id]; ok {
-			if batch, ok := peerBatches[response.BatchId]; ok {
+		if ib, ok := pm.incomeBatches.Load(p.id); ok {
+			peerBatches := ib.(*sync.Map)
+			if pb, ok := peerBatches.Load(response.BatchId); ok {
+				batch := pb.(*batch)
 				for _, b := range response.Blocks {
 					batch.headers <- b
 					p.setHeight(b.Header.Height())
 				}
-				pm.batchedLock.Lock()
-				delete(peerBatches, response.BatchId)
-				pm.batchedLock.Unlock()
+				peerBatches.Delete(response.BatchId)
 			}
 		}
 
@@ -356,16 +355,9 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 		p:       peer,
 		headers: make(chan *block, to-from+1),
 	}
-	peerBatches, ok := pm.incomeBatches[peerId]
-
-	if !ok {
-		peerBatches = make(map[uint32]*batch)
-		pm.batchedLock.Lock()
-		pm.incomeBatches[peerId] = peerBatches
-		pm.batchedLock.Unlock()
-	}
+	peerBatches, _ := pm.incomeBatches.LoadOrStore(peerId, &sync.Map{})
 	id := atomic.AddUint32(&batchId, 1)
-	peerBatches[id] = b
+	peerBatches.(*sync.Map).Store(id, b)
 	peer.sendMsg(GetBlocksRange, &getBlocksRangeRequest{
 		BatchId: batchId,
 		From:    from,
