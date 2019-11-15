@@ -48,6 +48,7 @@ type TxPool struct {
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
 	minFeePerByte    *big.Int
+	tmpNonceCache    *state.NonceCache
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int, minFeePerByte *big.Int) *TxPool {
@@ -149,6 +150,9 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	senderPending[hash] = tx
 
 	txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+	if txpool.tmpNonceCache != nil {
+		txpool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+	}
 
 	txpool.bus.Publish(&events.NewTxEvent{
 		Tx: tx,
@@ -220,7 +224,10 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		txpool.Remove(tx)
 	}
 
-	txpool.appState.NonceCache = state.NewNonceCache(txpool.appState.State)
+	txpool.mutex.Lock()
+	txpool.tmpNonceCache = state.NewNonceCache(txpool.appState.State)
+	txpool.mutex.Unlock()
+
 	globalEpoch := txpool.appState.State.Epoch()
 
 	pending := txpool.GetPendingTransaction()
@@ -267,8 +274,12 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 			continue
 		}
 
-		txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+		txpool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
+	txpool.mutex.Lock()
+	txpool.appState.NonceCache = txpool.tmpNonceCache
+	txpool.tmpNonceCache = nil
+	txpool.mutex.Unlock()
 }
 
 func (txpool *TxPool) checkTotalTxLimit() error {
