@@ -934,9 +934,8 @@ func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
-
-	// TODO: update params in fork
-	if f, _ := q.Float64(); f >= 0.85 {
+	
+	if f, _ := q.Float64(); f >= chain.config.Consensus.ProposerTheshold {
 		return true, hash, proof
 	}
 	return false, common.Hash{}, nil
