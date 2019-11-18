@@ -463,16 +463,15 @@ func (pm *ProtocolManager) GetForkBlockRange(peerId string, ownBlocks []common.H
 		p:       peer,
 		headers: make(chan *block, 100),
 	}
-	peerBatches, ok := pm.incomeBatches[peerId]
-
+	pm.batchedLock.Lock()
+	peerBatches, ok := pm.incomeBatches.Load(peerId)
 	if !ok {
-		peerBatches = make(map[uint32]*batch)
-		pm.batchedLock.Lock()
-		pm.incomeBatches[peerId] = peerBatches
-		pm.batchedLock.Unlock()
+		peerBatches = &sync.Map{}
+		pm.incomeBatches.Store(peerId, peerBatches)
 	}
 	id := atomic.AddUint32(&batchId, 1)
-	peerBatches[id] = b
+	peerBatches.(*sync.Map).Store(id, b)
+	pm.batchedLock.Unlock()
 	peer.sendMsg(GetForkBlockRange, &getForkBlocksRangeRequest{
 		BatchId: batchId,
 		Blocks:  ownBlocks,
