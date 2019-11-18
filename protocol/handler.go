@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/maputil"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state/snapshot"
@@ -64,6 +65,7 @@ type ProtocolManager struct {
 	txChan        chan *types.Transaction
 	flipKeyChan   chan *types.FlipKey
 	incomeBatches *sync.Map
+	batchedLock   sync.Mutex
 	bus           eventbus.Bus
 	config        *p2p.Config
 	wrongTime     bool
@@ -172,7 +174,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 					batch.headers <- b
 					p.setHeight(b.Header.Height())
 				}
+				pm.batchedLock.Lock()
 				peerBatches.Delete(response.BatchId)
+				if maputil.IsSyncMapEmpty(peerBatches) {
+					pm.incomeBatches.Delete(p.id)
+				}
+				pm.batchedLock.Unlock()
 			}
 		}
 
@@ -355,9 +362,15 @@ func (pm *ProtocolManager) GetBlocksRange(peerId string, from uint64, to uint64)
 		p:       peer,
 		headers: make(chan *block, to-from+1),
 	}
-	peerBatches, _ := pm.incomeBatches.LoadOrStore(peerId, &sync.Map{})
+	pm.batchedLock.Lock()
+	peerBatches, ok := pm.incomeBatches.Load(peerId)
+	if !ok {
+		peerBatches = &sync.Map{}
+		pm.incomeBatches.Store(peerId, peerBatches)
+	}
 	id := atomic.AddUint32(&batchId, 1)
 	peerBatches.(*sync.Map).Store(id, b)
+	pm.batchedLock.Unlock()
 	peer.sendMsg(GetBlocksRange, &getBlocksRangeRequest{
 		BatchId: batchId,
 		From:    from,
