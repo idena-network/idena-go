@@ -38,7 +38,10 @@ type StatsCollector interface {
 	AfterBalanceUpdate(addr common.Address, appState *appstate.AppState)
 
 	AddMintedCoins(amount *big.Int)
-	AddBurntCoins(amount *big.Int)
+	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
+	AddInviteBurntCoins(addr common.Address, amount *big.Int, tx *types.Transaction)
+	AddFeeBurntCoins(addr common.Address, feeAmount *big.Int, burntRate float32, tx *types.Transaction)
+	AddKilledBurntCoins(addr common.Address, amount *big.Int)
 
 	AfterKillIdentity(addr common.Address, appState *appstate.AppState)
 	AfterAddStake(addr common.Address, amount *big.Int)
@@ -279,15 +282,50 @@ func AddMintedCoins(c StatsCollector, amount *big.Int) {
 	c.AddMintedCoins(amount)
 }
 
-func (c *collectorStub) AddBurntCoins(amount *big.Int) {
+func (c *collectorStub) AddPenaltyBurntCoins(addr common.Address, amount *big.Int) {
 	// do nothing
 }
 
-func AddBurntCoins(c StatsCollector, amount *big.Int) {
+func AddPenaltyBurntCoins(c StatsCollector, addr common.Address, amount *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddBurntCoins(amount)
+	c.AddPenaltyBurntCoins(addr, amount)
+}
+
+func (c *collectorStub) AddInviteBurntCoins(addr common.Address, amount *big.Int, tx *types.Transaction) {
+	// do nothing
+}
+
+func AddInviteBurntCoins(c StatsCollector, addr common.Address, amount *big.Int, tx *types.Transaction) {
+	if c == nil {
+		return
+	}
+	c.AddInviteBurntCoins(addr, amount, tx)
+}
+
+func (c *collectorStub) AddFeeBurntCoins(addr common.Address, feeAmount *big.Int, burntRate float32,
+	tx *types.Transaction) {
+	// do nothing
+}
+
+func AddFeeBurntCoins(c StatsCollector, addr common.Address, feeAmount *big.Int, burntRate float32,
+	tx *types.Transaction) {
+	if c == nil {
+		return
+	}
+	c.AddFeeBurntCoins(addr, feeAmount, burntRate, tx)
+}
+
+func (c *collectorStub) AddKilledBurntCoins(addr common.Address, amount *big.Int) {
+	// do nothing
+}
+
+func AddKilledBurntCoins(c StatsCollector, addr common.Address, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddKilledBurntCoins(addr, amount)
 }
 
 func (c *collectorStub) AfterKillIdentity(addr common.Address, appState *appstate.AppState) {

@@ -691,7 +691,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			identitiesCount++
 		} else if value.state == state.Killed {
 			// Stake of killed identity is burnt
-			collector.AddBurntCoins(statsCollector, appState.State.GetStakeBalance(addr))
+			collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 			collector.AfterBalanceUpdate(statsCollector, addr, appState)
 			collector.AfterKillIdentity(statsCollector, addr, appState)
 		}

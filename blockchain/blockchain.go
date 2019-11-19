@@ -394,10 +394,9 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	}
 	collector.AfterBalanceUpdate(statsCollector, block.Header.ProposedHeader.Coinbase, appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AddBurntCoins(statsCollector, intBurn)
 	collector.AfterAddStake(statsCollector, block.Header.ProposedHeader.Coinbase, stake)
 	collector.AfterSubPenalty(statsCollector, block.Header.ProposedHeader.Coinbase, penaltySub, appState)
-	collector.AddBurntCoins(statsCollector, penaltySub)
+	collector.AddPenaltyBurntCoins(statsCollector, block.Header.ProposedHeader.Coinbase, penaltySub)
 	collector.AddProposerReward(statsCollector, block.Header.ProposedHeader.Coinbase, reward, stake)
 
 	chain.rewardFinalCommittee(appState, block, prevBlock, statsCollector)
@@ -589,7 +588,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AfterAddStake(statsCollector, addr, stake)
 		collector.AfterSubPenalty(statsCollector, addr, penaltySub, appState)
-		collector.AddBurntCoins(statsCollector, penaltySub)
+		collector.AddPenaltyBurntCoins(statsCollector, addr, penaltySub)
 		collector.AddFinalCommitteeReward(statsCollector, addr, reward, stake)
 	}
 }
@@ -673,7 +672,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		collector.AfterKillIdentity(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, recipient, appState)
 		if sender != *tx.To {
-			collector.AddBurntCoins(statsCollector, appState.State.GetStakeBalance(sender))
+			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
 		}
 	case types.SendTx:
 		stateDB.SubBalance(sender, totalCost)
@@ -764,6 +763,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	if senderAccount.Epoch() != tx.Epoch {
 		stateDB.SetEpoch(sender, tx.Epoch)
 	}
+	collector.AddFeeBurntCoins(statsCollector, sender, fee, chain.config.Consensus.FeeBurnRate, tx)
 
 	return fee, nil
 }
