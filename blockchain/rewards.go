@@ -33,7 +33,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
 	authors *types.ValidationAuthors, totalReward decimal.Decimal, collector collector.BlockStatsCollector) {
-	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfullValidationRewardPercent))
+	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfulValidationRewardPercent))
 
 	epoch := appState.State.Epoch()
 

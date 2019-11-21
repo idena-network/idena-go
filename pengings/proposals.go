@@ -116,7 +116,7 @@ func (proposals *Proposals) GetProposerPubKey(round uint64) []byte {
 		}
 
 		sort.SliceStable(list, func(i, j int) bool {
-			return bytes.Compare(list[i][:], list[j][:]) < 0
+			return bytes.Compare(list[i][:], list[j][:]) > 0
 		})
 
 		v, ok := byRound.Load(list[0])

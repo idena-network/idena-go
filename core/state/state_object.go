@@ -6,21 +6,23 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/rlp"
 	"io"
+	math2 "math"
 	"math/big"
 )
 
 type IdentityState uint8
 
 const (
-	Undefined        IdentityState = 0
-	Invite           IdentityState = 1
-	Candidate        IdentityState = 2
-	Verified         IdentityState = 3
-	Suspended        IdentityState = 4
-	Killed           IdentityState = 5
-	Zombie           IdentityState = 6
-	Newbie           IdentityState = 7
-	MaxInvitesAmount               = math.MaxUint8
+	Undefined           IdentityState = 0
+	Invite              IdentityState = 1
+	Candidate           IdentityState = 2
+	Verified            IdentityState = 3
+	Suspended           IdentityState = 4
+	Killed              IdentityState = 5
+	Zombie              IdentityState = 6
+	Newbie              IdentityState = 7
+	MaxInvitesAmount                  = math.MaxUint8
+	EmptyBlocksBitsSize               = 25
 )
 
 // stateAccount represents an Idena account which is being modified.
@@ -68,14 +70,16 @@ const (
 )
 
 type Global struct {
-	Epoch              uint16
-	NextValidationTime *big.Int
-	ValidationPeriod   ValidationPeriod
-	GodAddress         common.Address
-	WordsSeed          types.Seed `rlp:"nil"`
-	LastSnapshot       uint64
-	EpochBlock         uint64
-	FeePerByte         *big.Int
+	Epoch                uint16
+	NextValidationTime   *big.Int
+	ValidationPeriod     ValidationPeriod
+	GodAddress           common.Address
+	WordsSeed            types.Seed `rlp:"nil"`
+	LastSnapshot         uint64
+	EpochBlock           uint64
+	FeePerByte           *big.Int
+	VrfProposerThreshold uint64
+	EmptyBlocksBits      *big.Int
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -502,6 +506,45 @@ func (s *stateGlobal) Epoch() uint16 {
 func (s *stateGlobal) IncEpoch() {
 	s.data.Epoch++
 	s.touch()
+}
+
+func (s *stateGlobal) VrfProposerThreshold() float64 {
+	return math2.Float64frombits(s.data.VrfProposerThreshold)
+}
+
+func (s *stateGlobal) VrfProposerThresholdRaw() uint64 {
+	return s.data.VrfProposerThreshold
+}
+
+func (s *stateGlobal) SetVrfProposerThreshold(value float64) {
+	s.data.VrfProposerThreshold = math2.Float64bits(value)
+	s.touch()
+}
+
+func (s *stateGlobal) AddBlockBit(empty bool) {
+	if s.data.EmptyBlocksBits == nil {
+		s.data.EmptyBlocksBits = new(big.Int)
+	}
+	s.data.EmptyBlocksBits.Lsh(s.data.EmptyBlocksBits, 1)
+	if !empty {
+		s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, 0, 1)
+	}
+	s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, EmptyBlocksBitsSize, 0)
+	s.touch()
+}
+
+func (s *stateGlobal) EmptyBlocksRatio() float64 {
+	cnt := 0
+	for i := 0; i < EmptyBlocksBitsSize; i++ {
+		if s.data.EmptyBlocksBits.Bit(i) == 0 {
+			cnt++
+		}
+	}
+	return float64(cnt) / float64(EmptyBlocksBitsSize)
+}
+
+func (s *stateGlobal) EmptyBlocksBits() *big.Int {
+	return s.data.EmptyBlocksBits
 }
 
 func (s *stateGlobal) LastSnapshot() uint64 {

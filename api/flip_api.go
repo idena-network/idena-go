@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/log"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -66,7 +67,7 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
 		return FlipSubmitResponse{}, err
 	}
-
+	log.Info("flip submitted", "hash", tx.Hash(), "nonce", tx.AccountNonce)
 	return FlipSubmitResponse{
 		TxHash: tx.Hash(),
 		Hash:   cid.String(),
