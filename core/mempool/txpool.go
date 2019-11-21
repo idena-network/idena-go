@@ -91,6 +91,12 @@ func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
 }
 
 func (txpool *TxPool) Validate(tx *types.Transaction) error {
+	txpool.mutex.Lock()
+	defer txpool.mutex.Unlock()
+	return txpool.validate(tx)
+}
+
+func (txpool *TxPool) validate(tx *types.Transaction) error {
 
 	if err := txpool.checkTotalTxLimit(); err != nil {
 		return err
@@ -132,7 +138,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 		return nil
 	}
 
-	if err := txpool.Validate(tx); err != nil {
+	if err := txpool.validate(tx); err != nil {
 		if err != DuplicateTxError {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
