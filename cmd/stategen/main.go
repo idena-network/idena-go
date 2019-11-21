@@ -64,14 +64,16 @@ func main() {
 		globalObject := appState.State.GetOrNewGlobalObject()
 
 		snapshot.Global = state.StateGlobal{
-			LastSnapshot:       globalObject.LastSnapshot(),
-			NextValidationTime: globalObject.NextValidationTime(),
-			GodAddress:         globalObject.GodAddress(),
-			WordsSeed:          globalObject.FlipWordsSeed(),
-			ValidationPeriod:   globalObject.ValidationPeriod(),
-			Epoch:              globalObject.Epoch(),
-			EpochBlock:         globalObject.EpochBlock(),
-			FeePerByte:         globalObject.FeePerByte(),
+			LastSnapshot:         globalObject.LastSnapshot(),
+			NextValidationTime:   globalObject.NextValidationTime(),
+			GodAddress:           globalObject.GodAddress(),
+			WordsSeed:            globalObject.FlipWordsSeed(),
+			ValidationPeriod:     globalObject.ValidationPeriod(),
+			Epoch:                globalObject.Epoch(),
+			EpochBlock:           globalObject.EpochBlock(),
+			FeePerByte:           globalObject.FeePerByte(),
+			VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
+			EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {

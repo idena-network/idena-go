@@ -14,7 +14,7 @@ import (
 
 type ValidatorsCache struct {
 	identityState    *state.IdentityStateDB
-	validOnlineNodes []*common.Address
+	validOnlineNodes []common.Address
 	nodesSet         mapset.Set
 	onlineNodesSet   mapset.Set
 	log              log.Logger
@@ -43,9 +43,16 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		set.Add(v.god)
 		return set
 	}
+	if len(v.validOnlineNodes) == limit {
+		for _, n := range v.validOnlineNodes {
+			set.Add(n)
+		}
+		return set
+	}
+
 	cnt := new(big.Int).SetInt64(int64(len(v.validOnlineNodes)))
 	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {
-		set.Add(*v.validOnlineNodes[indexGenerator(seed, round, step, i, cnt)])
+		set.Add(v.validOnlineNodes[indexGenerator(seed, round, step, i, cnt)])
 	}
 	if set.Cardinality() < limit {
 		return nil
@@ -93,7 +100,7 @@ func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *typ
 }
 
 func (v *ValidatorsCache) loadValidNodes() {
-	var onlineNodes []*common.Address
+	var onlineNodes []common.Address
 	v.nodesSet.Clear()
 	v.onlineNodesSet.Clear()
 
@@ -111,7 +118,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 
 		if data.Online {
 			v.onlineNodesSet.Add(addr)
-			onlineNodes = append(onlineNodes, &addr)
+			onlineNodes = append(onlineNodes, addr)
 		}
 
 		v.nodesSet.Add(addr)
@@ -122,7 +129,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 	v.validOnlineNodes = sortValidNodes(onlineNodes)
 }
 
-func sortValidNodes(nodes []*common.Address) []*common.Address {
+func sortValidNodes(nodes []common.Address) []common.Address {
 	sort.SliceStable(nodes, func(i, j int) bool {
 		return bytes.Compare(nodes[i][:], nodes[j][:]) > 0
 	})

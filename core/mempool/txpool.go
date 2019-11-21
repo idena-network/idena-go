@@ -276,6 +276,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
 			txpool.Remove(tx)
+			txpool.log.Info("Tx removed by nonce", "err", tx.Hash())
 			continue
 		}
 
