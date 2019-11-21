@@ -208,6 +208,44 @@ func TestStateGlobal_IncEpoch(t *testing.T) {
 	require.Equal(t, uint16(2), stateDb.Epoch())
 }
 
+func TestStateGlobal_VrfProposerThreshold(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	value := 0.95
+
+	stateDb.SetVrfProposerThreshold(value)
+	_, _, err := stateDb.Commit(false)
+	require.NoError(t, err)
+	stateDb.Clear()
+
+	require.Equal(t, value, stateDb.VrfProposerThreshold())
+}
+
+func TestStateGlobal_EmptyBlocksRatio(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	for i := 0; i < 15; i++ {
+		stateDb.AddBlockBit(false)
+	}
+	stateDb.Commit(true)
+	require.Equal(t, 10.0/25.0, stateDb.EmptyBlocksRatio())
+
+	for i := 0; i < 100; i++ {
+		stateDb.AddBlockBit(true)
+	}
+	stateDb.Commit(true)
+	require.Equal(t, 1.0, stateDb.EmptyBlocksRatio())
+
+	for i := 0; i < 1000; i++ {
+		stateDb.AddBlockBit(false)
+	}
+	stateDb.Commit(true)
+	require.Equal(t, 0.0, stateDb.EmptyBlocksRatio())
+	require.Len(t, stateDb.GetOrNewGlobalObject().data.EmptyBlocksBits.Bytes(), 4)
+}
+
 func TestStateDB_WriteSnapshot(t *testing.T) {
 	database := db.NewMemDB()
 	stateDb := NewLazy(database)

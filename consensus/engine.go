@@ -140,7 +140,7 @@ func (engine *Engine) loop() {
 			engine.synced = false
 			if engine.forkResolver.HasLoadedFork() {
 				engine.forkResolver.ApplyFork()
-			} else{
+			} else {
 				engine.log.Warn("syncing error", "err", err)
 				time.Sleep(time.Second * 5)
 			}
@@ -221,6 +221,7 @@ func (engine *Engine) loop() {
 				engine.log.Error("Add empty block", "err", err)
 				continue
 			}
+
 			engine.chain.WriteCertificate(blockHash, cert, engine.chain.IsPermanentCert(emptyBlock.Header))
 			engine.log.Info("Reached consensus on empty block")
 		} else {
@@ -237,7 +238,6 @@ func (engine *Engine) loop() {
 				} else {
 					engine.log.Info("Reached TENTATIVE", "block", blockHash.Hex(), "txs", len(block.Body.Transactions))
 				}
-
 				engine.chain.WriteCertificate(blockHash, cert, engine.chain.IsPermanentCert(block.Header))
 			} else {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())

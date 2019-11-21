@@ -31,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
+	math2 "math"
 	"math/big"
 	"time"
 )
@@ -326,6 +327,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock)
 	chain.applyGlobalParams(appState, block)
 	chain.applyNextBlockFee(appState, block)
+	chain.applyVrfProposerThreshold(appState, block)
 
 	diff = appState.Precommit()
 
@@ -336,7 +338,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, blo
 
 	chain.applyNewEpoch(appState, block)
 	chain.applyGlobalParams(appState, block)
-
+	chain.applyVrfProposerThreshold(appState, block)
 	diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), diff
@@ -725,6 +727,18 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 	return newFeePerByte
 }
 
+func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, block *types.Block) {
+	appState.State.AddBlockBit(block.IsEmpty())
+	currentThreshold := appState.State.VrfProposerThreshold()
+	maxVrf, minVrf, k := chain.config.Consensus.MaxProposerThreshold, chain.config.Consensus.MinProposerThreshold, chain.config.Consensus.VrfSensitivityCoef
+	if currentThreshold == 0 {
+		currentThreshold = minVrf
+	}
+
+	newThreshold := math2.Min(maxVrf, math2.Max(currentThreshold*(1.0+k*(0.1-appState.State.EmptyBlocksRatio())), minVrf))
+	appState.State.SetVrfProposerThreshold(newThreshold)
+}
+
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
 	return fee.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
@@ -738,7 +752,7 @@ func getSeedData(prevBlock *types.Header) []byte {
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
 	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
-		return chain.getSortition(chain.getProposerData())
+		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold())
 	}
 
 	return false, common.Hash{}, nil
@@ -799,7 +813,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	chain.applyBlockRewards(totalFee, totalTips, checkState, block, chain.Head)
 	chain.applyGlobalParams(checkState, block)
 	chain.applyNextBlockFee(checkState, block)
-
+	chain.applyVrfProposerThreshold(checkState, block)
 	checkState.Precommit()
 
 	block.Header.ProposedHeader.Root = checkState.State.Root()
@@ -937,14 +951,14 @@ func (chain *Blockchain) getProposerData() []byte {
 	return result
 }
 
-func (chain *Blockchain) getSortition(data []byte) (bool, common.Hash, []byte) {
+func (chain *Blockchain) getSortition(data []byte, threshold float64) (bool, common.Hash, []byte) {
 	hash, proof := chain.secStore.VrfEvaluate(data)
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
-	
-	if f, _ := q.Float64(); f >= chain.config.Consensus.ProposerTheshold {
+
+	if f, _ := q.Float64(); f >= threshold {
 		return true, hash, proof
 	}
 	return false, common.Hash{}, nil
@@ -1095,7 +1109,7 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
 
-	if f, _ := q.Float64(); f < chain.config.Consensus.ProposerTheshold {
+	if f, _ := q.Float64(); f < chain.appState.State.VrfProposerThreshold() {
 		return errors.New("Proposer is invalid")
 	}
 
@@ -1211,7 +1225,7 @@ func (chain *Blockchain) GetCommitteSize(vc *validators.ValidatorsCache, final b
 	var cnt = vc.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
-		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
+		percent = chain.config.Consensus.FinalCommitteePercent
 	}
 	if cnt <= 8 {
 		return cnt
@@ -1224,7 +1238,7 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(vc *validators.ValidatorsCach
 	var cnt = vc.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
-		percent = chain.config.Consensus.FinalCommitteeConsensusPercent
+		percent = chain.config.Consensus.FinalCommitteePercent
 	}
 
 	switch cnt {
@@ -1239,7 +1253,7 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(vc *validators.ValidatorsCach
 	case 8:
 		return 5
 	}
-	return int(float64(cnt) * percent * chain.config.Consensus.ThesholdBa)
+	return int(float64(cnt) * percent * chain.config.Consensus.AgreementThreshold)
 }
 
 func (chain *Blockchain) Genesis() common.Hash {

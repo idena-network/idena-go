@@ -287,6 +287,25 @@ func Test_applyNextBlockFee(t *testing.T) {
 	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
 }
 
+func Test_applyVrfProposerThreshold(t *testing.T) {
+	conf := GetDefaultConsensusConfig(false)
+	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
+	chain, _ := NewTestBlockchainWithBlocks(100, 0)
+
+	chain.GenerateEmptyBlocks(10)
+	require.Equal(t, 0.4, chain.appState.State.EmptyBlocksRatio())
+
+	chain.GenerateBlocks(5)
+	require.Equal(t, 0.4, chain.appState.State.EmptyBlocksRatio())
+
+	chain.GenerateBlocks(100)
+	require.Equal(t, 0.9999, chain.appState.State.VrfProposerThreshold())
+
+	chain.GenerateEmptyBlocks(3)
+	require.Equal(t, 0.9979002, chain.appState.State.VrfProposerThreshold())
+
+}
+
 type txWithTimestamp struct {
 	tx        *types.Transaction
 	timestamp uint64

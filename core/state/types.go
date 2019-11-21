@@ -44,14 +44,16 @@ type StateApprovedIdentity struct {
 }
 
 type StateGlobal struct {
-	Epoch              uint16
-	NextValidationTime *big.Int
-	ValidationPeriod   ValidationPeriod
-	GodAddress         common.Address
-	WordsSeed          types.Seed `rlp:"nil"`
-	LastSnapshot       uint64
-	EpochBlock         uint64
-	FeePerByte         *big.Int
+	Epoch                uint16
+	NextValidationTime   *big.Int
+	ValidationPeriod     ValidationPeriod
+	GodAddress           common.Address
+	WordsSeed            types.Seed `rlp:"nil"`
+	LastSnapshot         uint64
+	EpochBlock           uint64
+	FeePerByte           *big.Int
+	VrfProposerThreshold uint64
+	EmptyBlocksBits      *big.Int
 }
 
 type PredefinedState struct {

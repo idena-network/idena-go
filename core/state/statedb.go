@@ -398,6 +398,22 @@ func (s *StateDB) SetGlobalEpoch(epoch uint16) {
 	s.GetOrNewGlobalObject().SetEpoch(epoch)
 }
 
+func (s *StateDB) VrfProposerThreshold() float64 {
+	return s.GetOrNewGlobalObject().VrfProposerThreshold()
+}
+
+func (s *StateDB) SetVrfProposerThreshold(value float64) {
+	s.GetOrNewGlobalObject().SetVrfProposerThreshold(value)
+}
+
+func (s *StateDB) AddBlockBit(empty bool) {
+	s.GetOrNewGlobalObject().AddBlockBit(empty)
+}
+
+func (s *StateDB) EmptyBlocksRatio() float64 {
+	return s.GetOrNewGlobalObject().EmptyBlocksRatio()
+}
+
 func (s *StateDB) SetEpochBlock(height uint64) {
 	s.GetOrNewGlobalObject().SetEpochBlock(height)
 }
@@ -994,6 +1010,8 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
 	stateObject.data.FeePerByte = state.Global.FeePerByte
+	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
+	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
