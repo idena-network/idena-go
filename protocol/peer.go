@@ -22,18 +22,19 @@ const (
 
 type peer struct {
 	*p2p.Peer
-	rw              p2p.MsgReadWriter
-	id              string
-	maxDelayMs      int
-	knownHeight     uint64
-	potentialHeight uint64
-	manifest        *snapshot.Manifest
-	queuedRequests  chan *request
-	term            chan struct{}
-	finished        chan struct{}
-	msgCache        *cache.Cache
-	appVersion      string
-	protocol        uint16
+	rw                   p2p.MsgReadWriter
+	id                   string
+	maxDelayMs           int
+	knownHeight          uint64
+	potentialHeight      uint64
+	manifest             *snapshot.Manifest
+	queuedRequests       chan *request
+	highPriorityRequests chan *request
+	term                 chan struct{}
+	finished             chan struct{}
+	msgCache             *cache.Cache
+	appVersion           string
+	protocol             uint16
 }
 
 type request struct {
@@ -43,35 +44,63 @@ type request struct {
 
 func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayMs int) *peer {
 	return &peer{
-		rw:             rw,
-		Peer:           p,
-		id:             fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		queuedRequests: make(chan *request, 10000),
-		term:           make(chan struct{}),
-		finished:       make(chan struct{}),
-		maxDelayMs:     maxDelayMs,
-		msgCache:       cache.New(msgCacheAliveTime, msgCacheGcTime),
+		rw:                   rw,
+		Peer:                 p,
+		id:                   fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		queuedRequests:       make(chan *request, 10000),
+		highPriorityRequests: make(chan *request, 500),
+		term:                 make(chan struct{}),
+		finished:             make(chan struct{}),
+		maxDelayMs:           maxDelayMs,
+		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
 	}
 }
 
-func (p *peer) sendMsg(msgcode uint64, payload interface{}) {
-	select {
-	case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
-	case <-p.finished:
+func (p *peer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
+	if highPriority {
+		select {
+		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
+		case <-p.finished:
+		}
+	} else {
+		select {
+		case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
+		case <-p.finished:
+		}
 	}
 }
 
 func (p *peer) broadcast() {
 	defer close(p.finished)
+	send := func(request *request) error {
+		if err := p2p.Send(p.rw, request.msgcode, request.data); err != nil {
+			p.Log().Error(err.Error())
+			return err
+		}
+		return nil
+	}
 	for {
 		if p.maxDelayMs > 0 {
 			delay := time.Duration(rand.Int31n(int32(p.maxDelayMs)))
 			time.Sleep(delay * time.Millisecond)
 		}
+
 		select {
+		case request := <-p.highPriorityRequests:
+			if send(request) != nil {
+				return
+			}
+			continue
+		default:
+		}
+
+		select {
+		case request := <-p.highPriorityRequests:
+			if send(request) != nil {
+				return
+			}
 		case request := <-p.queuedRequests:
-			if err := p2p.Send(p.rw, request.msgcode, request.data); err != nil {
-				p.Log().Error(err.Error())
+			if send(request) != nil {
 				return
 			}
 		case <-p.term:

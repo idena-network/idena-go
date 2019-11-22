@@ -42,7 +42,7 @@ func (p *KeysPool) Initialize(head *types.Header) {
 		})
 }
 
-func (p *KeysPool) Add(key *types.FlipKey) error {
+func (p *KeysPool) Add(key *types.FlipKey, own bool) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -72,6 +72,7 @@ func (p *KeysPool) Add(key *types.FlipKey) error {
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
 		Key: key,
+		Own: own,
 	})
 
 	return nil

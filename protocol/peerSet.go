@@ -96,14 +96,14 @@ func (ps *peerSet) Close() {
 	ps.closed = true
 }
 
-func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}) {
+func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPriority bool) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 	key := msgKey(payload)
 	for _, p := range ps.peers {
 		if _, ok := p.msgCache.Get(key); !ok {
 			p.markKey(key)
-			p.sendMsg(msgcode, payload)
+			p.sendMsg(msgcode, payload, highPriority)
 		}
 	}
 }
@@ -112,6 +112,6 @@ func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 	for _, p := range ps.peers {
-		p.sendMsg(msgcode, payload)
+		p.sendMsg(msgcode, payload, false)
 	}
 }
