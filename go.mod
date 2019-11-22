@@ -53,7 +53,6 @@ require (
 	golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
 	golang.org/x/sys v0.0.0-20190904154756-749cb33beabd
-	google.golang.org/appengine v1.4.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/urfave/cli.v1 v1.20.0
@@ -62,3 +61,5 @@ require (
 replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20190919135148-89e4ad773677
 
 replace github.com/libp2p/go-libp2p-kad-dht => github.com/libp2p/go-libp2p-kad-dht v0.2.1-0.20190905000620-96d98235133f
+
+go 1.13
