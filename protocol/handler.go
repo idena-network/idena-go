@@ -299,7 +299,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}
 		p.markPayload(cid)
 		if !pm.flipper.Has(cid.Cid) {
-			p.sendMsg(PullFlip, cid)
+			p.sendMsg(PullFlip, cid, false)
 		}
 	case PullFlip:
 		cid := new(flipCid)
@@ -307,7 +307,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		if f, err := pm.flipper.ReadFlip(cid.Cid); err == nil {
-			p.sendMsg(FlipBody, f)
+			p.sendMsg(FlipBody, f, false)
 		}
 	}
 
@@ -354,7 +354,7 @@ func (pm *ProtocolManager) provideForkBlocks(p *peer, batchId uint32, blocks []c
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
-	})
+	}, false)
 }
 
 func (pm *ProtocolManager) HandleNewPeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
@@ -475,7 +475,7 @@ func (pm *ProtocolManager) GetForkBlockRange(peerId string, ownBlocks []common.H
 	peer.sendMsg(GetForkBlockRange, &getForkBlocksRangeRequest{
 		BatchId: batchId,
 		Blocks:  ownBlocks,
-	})
+	}, false)
 	return b, nil
 }
 
