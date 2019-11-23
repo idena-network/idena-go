@@ -433,7 +433,7 @@ func (vc *ValidationCeremony) broadcastFlipKey() {
 		return
 	}
 
-	vc.keysPool.Add(signedMsg)
+	vc.keysPool.Add(signedMsg, true)
 	vc.keySent = true
 }
 

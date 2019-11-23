@@ -139,7 +139,7 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	}
 
 	if err := txpool.validate(tx); err != nil {
-		if err != DuplicateTxError {
+		if err != DuplicateTxError && sender == txpool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
 		return err
@@ -161,7 +161,8 @@ func (txpool *TxPool) Add(tx *types.Transaction) error {
 	}
 
 	txpool.bus.Publish(&events.NewTxEvent{
-		Tx: tx,
+		Tx:  tx,
+		Own: sender == txpool.coinbase,
 	})
 
 	return nil

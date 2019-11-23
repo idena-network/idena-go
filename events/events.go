@@ -14,7 +14,8 @@ const (
 )
 
 type NewTxEvent struct {
-	Tx *types.Transaction
+	Tx  *types.Transaction
+	Own bool
 }
 
 func (e *NewTxEvent) EventID() eventbus.EventID {
@@ -31,6 +32,7 @@ func (e *NewBlockEvent) EventID() eventbus.EventID {
 
 type NewFlipKeyEvent struct {
 	Key *types.FlipKey
+	Own bool
 }
 
 func (e *NewFlipKeyEvent) EventID() eventbus.EventID {
