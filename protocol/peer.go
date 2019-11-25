@@ -19,7 +19,7 @@ const (
 	handshakeTimeout     = 10 * time.Second
 	msgCacheAliveTime    = 3 * time.Minute
 	msgCacheGcTime       = 5 * time.Minute
-	maxTimeoutsBeforeBan = 3
+	maxTimeoutsBeforeBan = 7
 )
 
 type peer struct {
