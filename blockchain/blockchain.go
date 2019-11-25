@@ -681,6 +681,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 	case types.BurnTx:
 		stateDB.SubBalance(sender, totalCost)
+		collector.AfterBalanceUpdate(statsCollector, sender, appState)
+		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
 	case types.InviteTx:
 		if sender == stateDB.GodAddress() {
 			stateDB.SubGodAddressInvite()
@@ -749,11 +751,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
+		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.DeleteFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
+		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	}

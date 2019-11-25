@@ -42,6 +42,7 @@ type StatsCollector interface {
 	AddInviteBurntCoins(addr common.Address, amount *big.Int, tx *types.Transaction)
 	AddFeeBurntCoins(addr common.Address, feeAmount *big.Int, burntRate float32, tx *types.Transaction)
 	AddKilledBurntCoins(addr common.Address, amount *big.Int)
+	AddBurnTxBurntCoins(addr common.Address, tx *types.Transaction)
 
 	AfterKillIdentity(addr common.Address, appState *appstate.AppState)
 	AfterAddStake(addr common.Address, amount *big.Int)
@@ -326,6 +327,17 @@ func AddKilledBurntCoins(c StatsCollector, addr common.Address, amount *big.Int)
 		return
 	}
 	c.AddKilledBurntCoins(addr, amount)
+}
+
+func (c *collectorStub) AddBurnTxBurntCoins(addr common.Address, tx *types.Transaction) {
+	// do nothing
+}
+
+func AddBurnTxBurntCoins(c StatsCollector, addr common.Address, tx *types.Transaction) {
+	if c == nil {
+		return
+	}
+	c.AddBurnTxBurntCoins(addr, tx)
 }
 
 func (c *collectorStub) AfterKillIdentity(addr common.Address, appState *appstate.AppState) {

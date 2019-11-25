@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func TestForkResolver_ResolveFork(t *testing.T) {
 	require.NotEqual(t, forkHashes, initialHashes)
 
 	//small fork
-	resolver := NewForkResolver([]ForkDetector{}, nil, chain.Blockchain)
+	resolver := NewForkResolver([]ForkDetector{}, nil, chain.Blockchain, collector.NewStatsCollector())
 	forkBlocks := chain2.ReadBlockForForkedPeer(initialHashes)
 	require.Len(t, forkBlocks, 21)
 	blocks := make(chan types.BlockBundle, 21)
@@ -70,7 +71,7 @@ func TestForkResolver_ResolveFork2(t *testing.T) {
 	chain2.GenerateBlocks(50)
 
 	//missed certificate
-	resolver := NewForkResolver([]ForkDetector{}, &protocol.Downloader{}, chain.Blockchain)
+	resolver := NewForkResolver([]ForkDetector{}, &protocol.Downloader{}, chain.Blockchain, collector.NewStatsCollector())
 	initialHashes := chain.GetTopBlockHashes(100)
 	forkBlocks := chain2.ReadBlockForForkedPeer(initialHashes)
 	blocks := make(chan types.BlockBundle, 22)

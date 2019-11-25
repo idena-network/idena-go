@@ -72,7 +72,7 @@ func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossip
 		txpool:            txpool,
 		downloader:        downloader,
 		secStore:          secStore,
-		forkResolver:      NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
+		forkResolver:      NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain, statsCollector),
 		offlineDetector:   offlineDetector,
 		nextBlockDetector: newNextBlockDetector(gossipHandler, downloader, chain),
 		statsCollector:    statsCollector,

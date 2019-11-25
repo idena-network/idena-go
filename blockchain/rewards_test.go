@@ -8,7 +8,6 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
-	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-db"
@@ -67,7 +66,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &authors, 100, collector.NewStatsCollector())
+	rewardValidIdentities(appState, conf, &authors, 100, nil)
 
 	appState.Commit(nil)
 

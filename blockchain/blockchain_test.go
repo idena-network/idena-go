@@ -448,7 +448,7 @@ func Test_ApplyBurnTx(t *testing.T) {
 	expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, signedTx)
+	chain.ApplyTxOnState(appState, signedTx, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
