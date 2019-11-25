@@ -77,6 +77,7 @@ type ipfsProxy struct {
 	cfg                  *config.IpfsConfig
 	nodeCtx              context.Context
 	nodeCtxCancel        context.CancelFunc
+	nilNode              *core.IpfsNode
 	lastPeersUpdatedTime time.Time
 }
 
@@ -96,6 +97,13 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 		return nil, err
 	}
 
+	nilNode, err := core.NewNode(context.Background(), &core.BuildCfg{
+		NilRepo: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().Pretty())
 
 	c := cache.New(2*time.Minute, 5*time.Minute)
@@ -107,6 +115,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 		nodeCtx:              ctx,
 		nodeCtxCancel:        cancelCtx,
 		lastPeersUpdatedTime: time.Now().UTC(),
+		nilNode:              nilNode,
 	}
 
 	go p.watchPeers()
@@ -398,12 +407,7 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		return value.(cid.Cid), nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	nilnode, _ := core.NewNode(ctx, &core.BuildCfg{
-		NilRepo: true,
-	})
-	defer nilnode.Peerstore.Close()
+	nilnode := p.nilNode
 
 	addblockstore := nilnode.Blockstore
 	exch := nilnode.Exchange
@@ -411,6 +415,8 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 
 	bserv := blockservice.New(addblockstore, exch) // hash security 001
 	dserv := dag.NewDAGService(bserv)
+
+	ctx := context.Background()
 
 	fileAdder, err := coreunix.NewAdder(ctx, pinning, addblockstore, dserv)
 
