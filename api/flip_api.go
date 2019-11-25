@@ -80,6 +80,11 @@ type FlipHashesResponse struct {
 	Extra bool   `json:"extra"`
 }
 
+func (api *FlipApi) isCeremonyCandidate() bool {
+	identity := api.baseApi.getAppState().State.GetIdentity(api.baseApi.getCurrentCoinbase())
+	return state.IsCeremonyCandidate(identity)
+}
+
 func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 	period := api.baseApi.getAppState().State.ValidationPeriod()
 
@@ -87,7 +92,7 @@ func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
 	}
 
-	if !api.ceremony.IsCandidate() {
+	if !api.isCeremonyCandidate() {
 		return nil, errors.New("coinbase address is not a ceremony candidate")
 	}
 
@@ -103,7 +108,7 @@ func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
 	}
 
-	if !api.ceremony.IsCandidate() {
+	if !api.isCeremonyCandidate() {
 		return nil, errors.New("coinbase address is not a ceremony candidate")
 	}
 
@@ -173,7 +178,7 @@ type SubmitAnswersResponse struct {
 }
 
 func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
-	if !api.ceremony.IsCandidate() {
+	if !api.isCeremonyCandidate() {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
@@ -193,7 +198,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 }
 
 func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
-	if !api.ceremony.IsCandidate() {
+	if !api.isCeremonyCandidate() {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 

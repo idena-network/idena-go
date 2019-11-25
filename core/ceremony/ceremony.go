@@ -161,7 +161,7 @@ func (vc *ValidationCeremony) ShortSessionBeginTime() time.Time {
 	return vc.appState.EvidenceMap.GetShortSessionBeginningTime()
 }
 
-func (vc *ValidationCeremony) IsCandidate() bool {
+func (vc *ValidationCeremony) isCandidate() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
 	return state.IsCeremonyCandidate(identity)
 }
@@ -533,7 +533,7 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
-	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() {
+	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() {
 		return
 	}
 	answers := vc.epochDb.ReadOwnShortAnswersBits()
@@ -551,7 +551,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 }
 
 func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
-	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.IsCandidate() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent {
+	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent {
 		return
 	}
 
