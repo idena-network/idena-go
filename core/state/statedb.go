@@ -1010,8 +1010,8 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
 	stateObject.data.FeePerByte = state.Global.FeePerByte
-	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
-	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
+	//stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
+	//stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
 }
 
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {

@@ -72,8 +72,8 @@ func main() {
 			Epoch:                globalObject.Epoch(),
 			EpochBlock:           globalObject.EpochBlock(),
 			FeePerByte:           globalObject.FeePerByte(),
-			VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
-			EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
+			//VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
+			//EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {

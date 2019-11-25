@@ -171,13 +171,13 @@ func applyProfile(ctx *cli.Context, cfg *Config) {
 		cfg.IpfsConf.Routing = "dhtclient"
 	} else {
 		if cfg.IpfsConf.LowWater == 0 {
-			cfg.IpfsConf.LowWater = 50
+			cfg.IpfsConf.LowWater = 30
 		}
 		if cfg.IpfsConf.HighWater == 0 {
-			cfg.IpfsConf.HighWater = 100
+			cfg.IpfsConf.HighWater = 50
 		}
 		if cfg.IpfsConf.GracePeriod == "" {
-			cfg.IpfsConf.GracePeriod = "20s"
+			cfg.IpfsConf.GracePeriod = "40s"
 		}
 		if cfg.IpfsConf.ReproviderInterval == "" {
 			cfg.IpfsConf.ReproviderInterval = "12h"
