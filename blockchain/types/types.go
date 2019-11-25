@@ -77,8 +77,8 @@ type ProposedHeader struct {
 	TxBloom        []byte
 	BlockSeed      Seed
 	FeePerByte     *big.Int
-
-	SeedProof []byte
+	Upgrade        uint16
+	SeedProof      []byte
 }
 
 type Header struct {
@@ -94,6 +94,7 @@ type VoteHeader struct {
 	ParentHash  common.Hash
 	VotedHash   common.Hash
 	TurnOffline bool
+	Upgrade     uint16
 }
 
 type Block struct {
