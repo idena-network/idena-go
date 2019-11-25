@@ -52,8 +52,8 @@ type StateGlobal struct {
 	LastSnapshot         uint64
 	EpochBlock           uint64
 	FeePerByte           *big.Int
-	//VrfProposerThreshold uint64
-	//EmptyBlocksBits      *big.Int
+	VrfProposerThreshold uint64
+	EmptyBlocksBits      *big.Int
 }
 
 type PredefinedState struct {
