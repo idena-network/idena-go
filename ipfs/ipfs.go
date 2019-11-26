@@ -230,11 +230,11 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 			break
 		}
 		cancel()
-		if err != nil {
-			file.Seek(0, io.SeekStart)
-			time.Sleep(1 * time.Second)
-			continue
+		if err == nil {
+			break
 		}
+		file.Seek(0, io.SeekStart)
+		time.Sleep(1 * time.Second)
 	}
 
 	if err != nil {
