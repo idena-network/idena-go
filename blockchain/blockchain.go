@@ -920,16 +920,16 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 }
 
 func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
-	chain.insertHeader(block.Header)
 	_, err := chain.ipfs.Add(block.Body.Bytes())
+	if err != nil {
+		return err
+	}
+	chain.insertHeader(block.Header)
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
 	chain.SaveTxs(block.Header, block.Body.Transactions)
-	chain.repo.WriteHead(block.Header)
+	chain.setCurrentHead(block.Header)
 
-	if err == nil {
-		chain.setCurrentHead(block.Header)
-	}
 	return err
 }
 
