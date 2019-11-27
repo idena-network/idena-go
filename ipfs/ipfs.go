@@ -215,23 +215,36 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-
 	file := files.NewBytesFile(data)
 	defer file.Close()
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.CidVersion(1))
-	select {
-	case <-ctx.Done():
-		err = errors.New("timeout while writing data to ipfs")
-	default:
-		break
+
+	var ipfsPath path.Resolved
+	var err error
+	for num := 5; num > 0; num-- {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		ipfsPath, err = api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.CidVersion(1))
+		select {
+		case <-ctx.Done():
+			err = errors.New("timeout while writing data to ipfs")
+		default:
+			break
+		}
+		cancel()
+		if err == nil {
+			break
+		}
+		file = files.NewBytesFile(data)
+		defer file.Close()
+
+		time.Sleep(1 * time.Second)
 	}
+
 	if err != nil {
 		return cid.Cid{}, err
 	}
-	p.log.Debug("Add ipfs data", "cid", path.Cid().String())
-	return path.Cid(), nil
+
+	p.log.Debug("Add ipfs data", "cid", ipfsPath.Cid().String())
+	return ipfsPath.Cid(), nil
 }
 
 func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error) {

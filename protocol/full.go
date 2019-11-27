@@ -84,10 +84,11 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
 					return block.Height(), err
 				}
-				fs.pm.BanPeer(b.peerId, err)
+				if errors.Cause(err) != blockchain.BlockInsertionErr {
+					fs.pm.BanPeer(b.peerId, err)
+				}
 				fs.log.Warn(fmt.Sprintf("Block %v is invalid: %v", block.Height(), err))
 				time.Sleep(time.Second)
-				// TODO: ban bad peer
 				return block.Height(), err
 			}
 			if !b.Cert.Empty() {
