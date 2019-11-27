@@ -51,6 +51,7 @@ const (
 var (
 	MaxHash             *big.Float
 	ParentHashIsInvalid = errors.New("parentHash is invalid")
+	BlockInsertionErr   = errors.New("can't insert block")
 )
 
 type Blockchain struct {
@@ -922,15 +923,14 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
 	_, err := chain.ipfs.Add(block.Body.Bytes())
 	if err != nil {
-		return err
+		return errors.Wrap(BlockInsertionErr, err.Error())
 	}
 	chain.insertHeader(block.Header)
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
 	chain.SaveTxs(block.Header, block.Body.Transactions)
 	chain.setCurrentHead(block.Header)
-
-	return err
+	return nil
 }
 
 func (chain *Blockchain) WriteTxIndex(hash common.Hash, txs types.Transactions) {
