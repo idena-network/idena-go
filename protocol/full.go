@@ -89,7 +89,6 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 				}
 				fs.log.Warn(fmt.Sprintf("Block %v is invalid: %v", block.Height(), err))
 				time.Sleep(time.Second)
-				// TODO: ban bad peer
 				return block.Height(), err
 			}
 			if !b.Cert.Empty() {
