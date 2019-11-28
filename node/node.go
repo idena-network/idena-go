@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -80,6 +81,8 @@ type NodeCtx struct {
 	Flipper         *flip.Flipper
 	KeysPool        *mempool.KeysPool
 	OfflineDetector *blockchain.OfflineDetector
+	ProofsByRound   *sync.Map
+	PendingProofs   *sync.Map
 }
 
 func StartMobileNode(path string, cfg string) string {
@@ -153,7 +156,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	flipKeyPool := mempool.NewKeysPool(appState, bus)
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
-	proposals := pengings.NewProposals(chain, offlineDetector)
+	proposals, proofsByRound, pendingProofs := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P, appVersion)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
@@ -191,6 +194,8 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 		Flipper:         flipper,
 		KeysPool:        flipKeyPool,
 		OfflineDetector: offlineDetector,
+		ProofsByRound:   proofsByRound,
+		PendingProofs:   pendingProofs,
 	}, nil
 }
 

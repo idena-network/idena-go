@@ -56,8 +56,8 @@ type proposedBlock struct {
 	receivingTime time.Time
 }
 
-func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDetector) *Proposals {
-	return &Proposals{
+func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDetector) (*Proposals, *sync.Map, *sync.Map) {
+	p := &Proposals{
 		chain:                chain,
 		offlineDetector:      detector,
 		log:                  log.New(),
@@ -68,6 +68,7 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 		potentialForkedPeers: mapset.NewSet(),
 		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
 	}
+	return p, p.proofsByRound, p.pendingProofs
 }
 
 func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey []byte, round uint64) (added bool, pending bool) {
@@ -94,7 +95,7 @@ func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey [
 		}
 		byRound.Store(hash, proof)
 		return true, false
-	} else if currentRound < round  && round-currentRound < DeferFutureProposalsPeriod {
+	} else if currentRound < round && round-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingProofs.LoadOrStore(proof.Hash, proof)
 		return false, true
 	}
