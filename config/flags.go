@@ -100,4 +100,8 @@ var (
 		Name:  "profile",
 		Usage: "Configuration profile",
 	}
+	IpfsPortStaticFlag = cli.BoolFlag{
+		Name:  "ipfsportstatic",
+		Usage: "Enable static ipfs port",
+	}
 )
