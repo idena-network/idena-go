@@ -227,19 +227,19 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 		return
 	}
 	t := time.Now().UTC()
-	if t.Before(vc.appState.State.NextValidationTime()) {
+	validationTime := vc.appState.State.NextValidationTime()
+	if t.Before(validationTime) {
 		ctx, cancel := context.WithCancel(context.Background())
 		vc.validationStartCtxCancel = cancel
 		go func() {
 			ticker := time.NewTicker(time.Second * 1)
 			defer ticker.Stop()
-			vc.log.Info("Short session timer has been created", "time", vc.appState.State.NextValidationTime())
+			vc.log.Info("Short session timer has been created", "time", validationTime)
 			for {
 				select {
 				case <-ticker.C:
-					appState := vc.appState.Readonly(vc.chain.Head.Height())
-					if time.Now().UTC().After(appState.State.NextValidationTime()) {
-						vc.startShortSession(appState)
+					if time.Now().UTC().After(validationTime) {
+						vc.startShortSession(vc.appState.Readonly(vc.chain.Head.Height()))
 						vc.log.Info("Timer triggered")
 						return
 					}
