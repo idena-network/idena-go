@@ -166,8 +166,8 @@ func (vc *ValidationCeremony) isCandidate() bool {
 	return state.IsCeremonyCandidate(identity)
 }
 
-func (vc *ValidationCeremony) shouldBroadcastFlipKey() bool {
-	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState) bool {
+	identity := appState.State.GetIdentity(vc.secStore.GetAddress())
 	return len(identity.Flips) > 0
 }
 
@@ -227,18 +227,19 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 		return
 	}
 	t := time.Now().UTC()
-	if t.Before(vc.appState.State.NextValidationTime()) {
+	validationTime := vc.appState.State.NextValidationTime()
+	if t.Before(validationTime) {
 		ctx, cancel := context.WithCancel(context.Background())
 		vc.validationStartCtxCancel = cancel
 		go func() {
 			ticker := time.NewTicker(time.Second * 1)
 			defer ticker.Stop()
-			vc.log.Info("Short session timer has been created", "time", vc.appState.State.NextValidationTime())
+			vc.log.Info("Short session timer has been created", "time", validationTime)
 			for {
 				select {
 				case <-ticker.C:
-					if time.Now().UTC().After(vc.appState.State.NextValidationTime()) {
-						vc.startShortSession()
+					if time.Now().UTC().After(validationTime) {
+						vc.startShortSession(vc.appState.Readonly(vc.chain.Head.Height()))
 						vc.log.Info("Timer triggered")
 						return
 					}
@@ -307,13 +308,13 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
-		vc.startShortSession()
+		vc.startShortSession(vc.appState)
 	}
-	vc.broadcastFlipKey()
+	vc.broadcastFlipKey(vc.appState)
 	vc.processCeremonyTxs(block)
 }
 
-func (vc *ValidationCeremony) startShortSession() {
+func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 	vc.validationStartMutex.Lock()
 	defer vc.validationStartMutex.Unlock()
 
@@ -327,7 +328,7 @@ func (vc *ValidationCeremony) startShortSession() {
 	if vc.shouldInteractWithNetwork() {
 		vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	}
-	vc.broadcastFlipKey()
+	vc.broadcastFlipKey(appState)
 	vc.shortSessionStarted = true
 }
 
@@ -336,7 +337,7 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 		vc.logInfoWithInteraction("Long session started")
 	}
 	vc.broadcastShortAnswersTx()
-	vc.broadcastFlipKey()
+	vc.broadcastFlipKey(vc.appState)
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
 }
@@ -413,8 +414,8 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 	return time.Now().UTC().Sub(headTime) < ceremonyDuration
 }
 
-func (vc *ValidationCeremony) broadcastFlipKey() {
-	if vc.keySent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey() {
+func (vc *ValidationCeremony) broadcastFlipKey(appState *appstate.AppState) {
+	if vc.keySent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey(appState) {
 		return
 	}
 
