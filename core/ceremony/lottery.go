@@ -27,7 +27,7 @@ func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [
 	authorsPerCandidate, candidatesPerAuthor := getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
 
 	if len(authors) > 7 {
-		authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(candidates, authorsPerCandidate, candidatesPerAuthor)
+		authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(seed, candidates, authorsPerCandidate, candidatesPerAuthor)
 	}
 
 	return determineFlips(authorsPerCandidate, flipsPerAuthor, flips, seed, shortFlipsCount)
