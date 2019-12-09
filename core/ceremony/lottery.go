@@ -74,7 +74,11 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 
 	candidatesQueue := getRandomizedCandidates()
 
-	for author, value := range candidatesPerAuthor {
+	for author := 0; author < len(candidates); author++ {
+		value, ok := candidatesPerAuthor[author]
+		if !ok {
+			continue
+		}
 		currentCount := len(value)
 		if currentCount >= 11 {
 			continue
@@ -159,6 +163,13 @@ func determineFlips(authorsPerCandidate map[int][]int, flipsPerAuthor map[int][]
 		}
 		shortFlipsPerCandidate[candidateIndex] = distinct(shortFlips)
 		longFlipsPerCandidate[candidateIndex] = distinct(longFlips)
+	}
+
+	// case when only 1 flip is available
+	for i := 0; i < len(longFlipsPerCandidate); i++ {
+		if len(longFlipsPerCandidate[i]) == 0 {
+			longFlipsPerCandidate[i] = []int{0}
+		}
 	}
 	return shortFlipsPerCandidate, longFlipsPerCandidate
 }

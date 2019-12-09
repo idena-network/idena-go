@@ -126,6 +126,23 @@ func Test_Case3(t *testing.T) {
 	require.Nil(t, longFlipsPerCandidate)
 }
 
+func Test_Case4(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 500)
+
+	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 12, 1, 1)
+
+	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+
+	for _, item := range shortFlipsPerCandidate {
+		require.Equal(t, 1, len(item))
+	}
+
+	for _, item := range longFlipsPerCandidate {
+		require.Equal(t, 1, len(item))
+	}
+}
+
 func Test_FillAuthorsQueue(t *testing.T) {
 	seed := make([]byte, 8)
 	binary.LittleEndian.PutUint64(seed, 100)
