@@ -360,19 +360,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
 	vc.flipAuthorMapLock.Unlock()
 
-	shortFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()), seed, false, nil)
-
-	chosenFlips := make(map[int]bool)
-	for _, a := range shortFlipsPerCandidate {
-		for _, f := range a {
-			chosenFlips[f] = true
-		}
-	}
-
-	longFlipsPerCandidate := SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, int(vc.LongSessionFlipsCount()), common.ReverseBytes(seed), true, chosenFlips)
-
-	vc.shortFlipsPerCandidate = shortFlipsPerCandidate
-	vc.longFlipsPerCandidate = longFlipsPerCandidate
+	vc.shortFlipsPerCandidate, vc.longFlipsPerCandidate = SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, seed, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()))
 
 	vc.shortFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.shortFlipsPerCandidate, vc.flips)
 	vc.longFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.longFlipsPerCandidate, vc.flips)
@@ -471,6 +459,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 				Address:    addr,
 				Generation: data.Generation,
 				Code:       data.Code,
+				IsAuthor:   len(data.Flips) > 0,
 			})
 		} else {
 			nonCandidates = append(nonCandidates, addr)

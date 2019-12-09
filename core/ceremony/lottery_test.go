@@ -3,63 +3,10 @@ package ceremony
 import (
 	"encoding/binary"
 	"github.com/google/tink/go/subtle/random"
-	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
+	"math/rand"
 	"testing"
 )
-
-func TestSortFlips(t *testing.T) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 1000)
-
-	flipsPerAuthor, flips := makeFlips(7, 3)
-
-	candidates := makeCandidates(7)
-
-	flipsPerCandidateShort := SortFlips(flipsPerAuthor, candidates, flips, 3, b, false, nil)
-
-	chosenFlips := make(map[int]bool)
-	for _, a := range flipsPerCandidateShort {
-		for _, f := range a {
-			chosenFlips[f] = true
-		}
-	}
-
-	flipsPerCandidateLong := SortFlips(flipsPerAuthor, candidates, flips, 10, common.ReverseBytes(b), true, chosenFlips)
-
-	flipsPerCandidateShortResult := [][]int{{9, 14, 15}, {11, 17, 19}, {4, 13, 16}, {1, 7, 18}, {0, 2, 8}, {6, 10, 20}, {3, 5, 12}}
-	flipsPerCandidateLongResult := [][]int{{4, 5, 6, 9, 10, 11, 13, 17, 19, 20}, {0, 1, 2, 6, 7, 12, 14, 15, 16, 19}, {0, 1, 3, 11, 12, 14, 15, 16, 17, 19}, {0, 3, 6, 7, 8, 12, 14, 15, 16, 18}, {2, 3, 4, 5, 9, 10, 11, 17, 18, 20}, {2, 4, 5, 7, 8, 10, 11, 13, 18, 20}, {0, 1, 3, 6, 7, 9, 12, 13, 14, 16}}
-
-	require.Equal(t, flipsPerCandidateShortResult, flipsPerCandidateShort)
-	require.Equal(t, flipsPerCandidateLongResult, flipsPerCandidateLong)
-}
-
-func TestSortFlips_2(t *testing.T) {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, 100)
-
-	flipsPerAuthor, flips := makeFlips(3, 3)
-
-	candidates := makeCandidates(6)
-
-	flipsPerCandidateShort := SortFlips(flipsPerAuthor, candidates, flips, 5, b, false, nil)
-
-	chosenFlips := make(map[int]bool)
-	for _, a := range flipsPerCandidateShort {
-		for _, f := range a {
-			chosenFlips[f] = true
-		}
-	}
-
-	flipsPerCandidateLong := SortFlips(flipsPerAuthor, candidates, flips, 10, common.ReverseBytes(b), true, chosenFlips)
-
-	flipsPerCandidateShortResult := [][]int{{4, 5, 6, 7, 8}, {0, 1, 2, 7, 8}, {0, 2, 3, 4, 5}, {0, 2, 4, 5, 6}, {1, 3, 4, 7, 8}, {0, 1, 3, 5, 7}}
-
-	flipsPerCandidateLongResult := [][]int{{0, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {0, 1, 2, 3, 4, 5, 6, 7, 8}}
-
-	require.Equal(t, flipsPerCandidateShortResult, flipsPerCandidateShort)
-	require.Equal(t, flipsPerCandidateLongResult, flipsPerCandidateLong)
-}
 
 func TestHasRelation(t *testing.T) {
 	a := &candidate{
@@ -107,6 +54,77 @@ func TestHasRelation(t *testing.T) {
 	require.False(t, hasRelation(a, b, 5))
 }
 
+func Test_GetFirstAuthorsDistribution(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 100)
+
+	candidates, _, _ := makeCandidatesWithFlips(seed, 120, 100, 3)
+	authors := getAuthorsIndexes(candidates)
+	authorsPerCandidate, _ := getFirstAuthorsDistribution(authors, candidates, seed, 7)
+	for _, item := range authorsPerCandidate {
+		require.Equal(t, 7, len(item))
+	}
+
+	candidates, _, _ = makeCandidatesWithFlips(seed, 10000, 5000, 3)
+	authors = getAuthorsIndexes(candidates)
+	authorsPerCandidate, _ = getFirstAuthorsDistribution(authors, candidates, seed, 7)
+
+	for _, item := range authorsPerCandidate {
+		require.Equal(t, 7, len(item))
+	}
+}
+
+func Test_Case1(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 100)
+
+	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 150, 100, 3)
+
+	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+
+	for _, item := range shortFlipsPerCandidate {
+		require.Equal(t, 7, len(item))
+	}
+
+	for _, item := range longFlipsPerCandidate {
+		require.True(t, len(item) >= 11)
+	}
+}
+
+func Test_Case2(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 500)
+
+	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 300, 100, 3)
+
+	a, b := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+
+	for _, item := range a {
+		require.Equal(t, 7, len(item))
+	}
+
+	for _, item := range b {
+		require.Equal(t, 14, len(item))
+	}
+}
+
+func Test_FillAuthorsQueue(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 100)
+	candidatesCount := 20
+	authorsCount := 0
+	candidates := makeCandidates(candidatesCount)
+	var authorIndexes []int
+	for i := 0; i < candidatesCount; i += 2 {
+		candidates[i].IsAuthor = true
+		authorIndexes = append(authorIndexes, i)
+		authorsCount++
+	}
+	queue := fillAuthorsQueue(seed, authorIndexes, candidates, 7)
+
+	require.Equal(t, candidatesCount*7, queue.Len())
+}
+
 func makeFlips(authors int, flipNum int) (flipsPerAuthor map[int][][]byte, flips [][]byte) {
 	flipsPerAuthor = make(map[int][][]byte)
 	flips = make([][]byte, 0)
@@ -131,4 +149,36 @@ func makeCandidates(authors int) []*candidate {
 		})
 	}
 	return res
+}
+
+func makeCandidatesWithFlips(seed []byte, candidatesCount int, authorsCount int, flipPerAuthor int) (candidates []*candidate, flipsPerAuthor map[int][][]byte, flips [][]byte) {
+	res := make([]*candidate, 0)
+	randSeed := binary.LittleEndian.Uint64(seed)
+	//code := random.GetRandomBytes(12)
+	r := rand.New(rand.NewSource(int64(randSeed)*12 + 3))
+	authors := r.Perm(candidatesCount)[:authorsCount]
+	authorsMap := make(map[int]bool)
+	for _, a := range authors {
+		authorsMap[a] = true
+	}
+
+	flipsPerAuthor = make(map[int][][]byte)
+	flips = make([][]byte, 0)
+
+	for i := 0; i < candidatesCount; i++ {
+		isAuthor := authorsMap[i]
+		if isAuthor {
+			for j := 0; j < flipPerAuthor; j++ {
+				flip := random.GetRandomBytes(5)
+				flipsPerAuthor[i] = append(flipsPerAuthor[i], flip)
+				flips = append(flips, flip)
+			}
+		}
+		res = append(res, &candidate{
+			Code:       random.GetRandomBytes(12),
+			Generation: 0,
+			IsAuthor:   isAuthor,
+		})
+	}
+	return res, flipsPerAuthor, flips
 }

@@ -2,150 +2,240 @@ package ceremony
 
 import (
 	"bytes"
+	"container/list"
 	"encoding/binary"
-	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/rlp"
 	"math/rand"
-	"sort"
 )
 
 const (
 	GeneticRelationLength = 3
-	MaxLongFlipSolvers    = 10
 )
 
-func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [][]byte, flipsPerAddr int, seed []byte, longSession bool, flipsToUse map[int]bool) (flipsPerCandidate [][]int) {
-
-	candidatesLen := len(candidates)
-
-	flipsPerCandidate = make([][]int, candidatesLen)
-
-	if candidatesLen == 0 || len(flips) == 0 {
-		return flipsPerCandidate
+func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
+	if len(candidates) == 0 {
+		return shortFlipsPerCandidate, longFlipsPerCandidate
 	}
 
-	authorsPerFlips := make(map[common.Hash]int)
+	authors := getAuthorsIndexes(candidates)
 
-	for k, v := range flipsPerAuthor {
-		for _, f := range v {
-			authorsPerFlips[common.Hash(rlp.Hash(f))] = k
+	if len(authors) == 0 {
+		return shortFlipsPerCandidate, longFlipsPerCandidate
+	}
+
+	authorsPerCandidate, candidatesPerAuthor := getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
+
+	if len(authors) > 7 {
+		authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(candidates, authorsPerCandidate, candidatesPerAuthor)
+	}
+
+	return determineFlips(authorsPerCandidate, flipsPerAuthor, flips, seed, shortFlipsCount)
+}
+
+func getFirstAuthorsDistribution(authorsIndexes []int, candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
+	queue := fillAuthorsQueue(seed, authorsIndexes, candidates, shortFlipsCount)
+	candidateIndex := 0
+	authorsPerCandidate = make(map[int][]int)
+	candidatesPerAuthor = make(map[int][]int)
+
+	for {
+		if queue.Len() == 0 {
+			break
 		}
+		if candidateIndex == len(candidates) {
+			candidateIndex = 0
+		}
+
+		// for current candidate try to find suitable author
+		suitableAuthor := getNextSuitablePair(candidates, queue, candidateIndex, authorsPerCandidate[candidateIndex])
+
+		authorsPerCandidate[candidateIndex] = append(authorsPerCandidate[candidateIndex], suitableAuthor)
+		candidatesPerAuthor[suitableAuthor] = append(candidatesPerAuthor[suitableAuthor], candidateIndex)
+
+		candidateIndex++
 	}
 
-	isAuthor := func(flipIndex int, candidateIndex int) bool {
-		flip := flips[flipIndex]
-		for _, f := range flipsPerAuthor[candidateIndex] {
-			if bytes.Compare(flip, f) == 0 {
-				return true
+	return authorsPerCandidate, candidatesPerAuthor
+}
+
+func appendAdditionalCandidates(candidates []*candidate, authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) (map[int][]int, map[int][]int) {
+
+	getRandomizedCandidates := func() Queue {
+		p := rand.Perm(len(candidates))
+		queue := NewQueue()
+		for _, idx := range p {
+			queue.Push(idx)
+		}
+		return queue
+	}
+
+	candidatesQueue := getRandomizedCandidates()
+
+	for author, value := range candidatesPerAuthor {
+		currentCount := len(value)
+		if currentCount >= 11 {
+			continue
+		}
+
+		if candidatesQueue.Len() == 0 {
+			candidatesQueue = getRandomizedCandidates()
+		}
+
+		// do until each candidate has 11 candidates
+		for currentCount < 11 {
+			if candidatesQueue.Len() == 0 {
+				break
 			}
+
+			// for current author try to find suitable candidate
+			suitableCandidate := getNextSuitablePair(candidates, candidatesQueue, author, candidatesPerAuthor[author])
+
+			currentCount++
+			candidatesPerAuthor[author] = append(candidatesPerAuthor[author], suitableCandidate)
+			authorsPerCandidate[suitableCandidate] = append(authorsPerCandidate[suitableCandidate], author)
 		}
-		return false
 	}
 
+	return authorsPerCandidate, candidatesPerAuthor
+}
+
+func determineFlips(authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
+
+	distinct := func(arr []int) []int {
+		m := make(map[int]struct{})
+		var output []int
+		for _, item := range arr {
+			if _, ok := m[item]; ok {
+				continue
+			}
+			output = append(output, item)
+			m[item] = struct{}{}
+		}
+		return output
+	}
+
+	hashMap := make(map[common.Hash]int)
+	for idx, item := range flips {
+		hashMap[common.Hash(rlp.Hash(item))] = idx
+	}
 	randSeed := binary.LittleEndian.Uint64(seed)
+	random := rand.New(rand.NewSource(int64(randSeed)*12 + 3))
 
-	maxFlipUses := candidatesLen * flipsPerAddr / len(flips)
-	if candidatesLen*flipsPerAddr%len(flips) > 0 {
-		maxFlipUses++
+	shortFlipsPerCandidate = make([][]int, len(authorsPerCandidate))
+	longFlipsPerCandidate = make([][]int, len(authorsPerCandidate))
+
+	for candidateIndex := 0; candidateIndex < len(authorsPerCandidate); candidateIndex++ {
+		authors := authorsPerCandidate[candidateIndex]
+		randomizedAuthors := random.Perm(len(authors))
+		var shortFlips []int
+		var longFlips []int
+		for j := 0; j < len(authors); j++ {
+			author := authors[randomizedAuthors[j]]
+			flips := flipsPerAuthor[author]
+			if len(shortFlips) < shortFlipsCount {
+				flipGlobalIndex := -1
+				for i := 0; i < len(flips); i++ {
+					randomIndex := random.Intn(len(flips))
+					flipHash := common.Hash(rlp.Hash(flips[randomIndex]))
+					flipGlobalIndex = hashMap[flipHash]
+					if !contains(shortFlips, flipGlobalIndex) {
+						break
+					}
+				}
+
+				shortFlips = append(shortFlips, flipGlobalIndex)
+			}
+
+			for k := 0; k < len(flips); k++ {
+				flipHash := common.Hash(rlp.Hash(flips[k]))
+				flipGlobalIndex := hashMap[flipHash]
+				if !contains(shortFlips, flipGlobalIndex) {
+					longFlips = append(longFlips, flipGlobalIndex)
+				}
+			}
+		}
+		shortFlipsPerCandidate[candidateIndex] = distinct(shortFlips)
+		longFlipsPerCandidate[candidateIndex] = distinct(longFlips)
 	}
-	if longSession && maxFlipUses > MaxLongFlipSolvers {
-		maxFlipUses = MaxLongFlipSolvers
+	return shortFlipsPerCandidate, longFlipsPerCandidate
+}
+
+func getNextSuitablePair(candidates []*candidate, indexesQueue Queue, currentCandidate int, currentCandidateUsedIndexes []int) (suitableCandidatePair int) {
+
+	// first traversal (with relation)
+	for i := 0; i < indexesQueue.Len(); i++ {
+		nextCandidate := indexesQueue.Pop()
+		if checkIfCandidateSuits(candidates, currentCandidate, nextCandidate, currentCandidateUsedIndexes, hasRelation) {
+			return nextCandidate
+		} else {
+			indexesQueue.Push(nextCandidate)
+		}
 	}
 
-	used := make([]int, len(flips))
+	// second traversal (without relation)
+	for i := 0; i < indexesQueue.Len(); i++ {
+		nextCandidate := indexesQueue.Pop()
+		if checkIfCandidateSuits(candidates, currentCandidate, nextCandidate, currentCandidateUsedIndexes, func(first *candidate, second *candidate, geneticOverlapLength int) bool {
+			return false
+		}) {
+			return nextCandidate
+		} else {
+			indexesQueue.Push(nextCandidate)
+		}
+	}
 
-	//shuffle flips
+	nextCandidate := indexesQueue.Pop()
+	return nextCandidate
+}
+
+func checkIfCandidateSuits(candidates []*candidate, currentCandidate int, nextCandidate int, currentCandidateUsedIndexes []int, hasRelationFn func(first *candidate, second *candidate, geneticOverlapLength int) bool) bool {
+	return currentCandidate != nextCandidate &&
+		!hasRelationFn(candidates[currentCandidate], candidates[nextCandidate], GeneticRelationLength) &&
+		!contains(currentCandidateUsedIndexes, nextCandidate)
+}
+
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func fillAuthorsQueue(seed []byte, authorsIndexes []int, candidates []*candidate, authorsPerCandidate int) Queue {
+	totalAuthorsShouldBe := len(candidates) * authorsPerCandidate
+	randSeed := binary.LittleEndian.Uint64(seed)
 	random := rand.New(rand.NewSource(int64(randSeed)))
-	flipsPermutation := random.Perm(len(flips))
-	candidatesPermutation := random.Perm(candidatesLen)
-
-	result := make(map[int]mapset.Set)
-
-	findSuitableFlipIndex := func(currentIdx int, currentCandidateIndex int,
-		hasRelationFn func(first *candidate, second *candidate, geneticOverlapLength int) bool) int {
-
-		startFlipIndex := currentIdx
-		for {
-			newFlipIndex := flipsPermutation[startFlipIndex]
-
-			// we can pick this flip if
-			// 1. this is short session or this is long session and this flip was chosen during short session
-			// 2. this candidate does not have this flip yet
-			// 3. if number of uses is less than maximum
-			// 4. this candidate is not the author of this flip
-			// 5. this candidate is in relation with flip author
-			if (!longSession || longSession && flipsToUse[newFlipIndex]) &&
-				!result[currentCandidateIndex].Contains(newFlipIndex) &&
-				used[newFlipIndex] < maxFlipUses &&
-				!isAuthor(newFlipIndex, currentCandidateIndex) &&
-				!hasRelationFn(candidates[currentCandidateIndex], candidates[authorsPerFlips[rlp.Hash(flips[newFlipIndex])]], GeneticRelationLength) {
-				break
-			}
-
-			startFlipIndex++
-
-			// we should check either we passed a whole circle and didnt find suitable flip
-			// or we just reached the end and need to continue from 0 index.
-			// the extra situation, when we started from zero index and reached the end
-			// in this situation we need to stop, because we also passed whole circle
-			if startFlipIndex == len(flips) {
-				startFlipIndex = 0
-				if currentIdx == 0 {
-					break
-				}
-			}
-			if startFlipIndex == currentIdx {
-				break
-			}
-		}
-
-		return startFlipIndex
+	randomizedAuthors := random.Perm(len(authorsIndexes))
+	queue := NewQueue()
+	if len(authorsIndexes) == 0 {
+		return queue
 	}
+	idx := 0
+	for {
+		if queue.Len() == totalAuthorsShouldBe {
+			break
+		}
+		if idx == len(authorsIndexes) {
+			idx = 0
+			randomizedAuthors = random.Perm(len(authorsIndexes))
+		}
+		queue.Push(authorsIndexes[randomizedAuthors[idx]])
+		idx++
+	}
+	return queue
+}
 
-	currentFlipIndex := 0
-	for i := 0; i < candidatesLen; i++ {
-		currentCandidateIndex := candidatesPermutation[i]
-		result[currentCandidateIndex] = mapset.NewSet()
-
-		for j := 0; j < flipsPerAddr; j++ {
-			if currentFlipIndex == len(flips) {
-				currentFlipIndex = 0
-			}
-
-			// include genetic relation
-			idx := findSuitableFlipIndex(currentFlipIndex, currentCandidateIndex, hasRelation)
-
-			// if we didnt find suitable index, we try to search again, without genetic code
-			if idx == currentFlipIndex {
-				currentFlipIndex++
-				if currentFlipIndex == len(flips) {
-					currentFlipIndex = 0
-				}
-				idx = findSuitableFlipIndex(currentFlipIndex, currentCandidateIndex, func(first *candidate, second *candidate, geneticOverlapLength int) bool {
-					return false
-				})
-			}
-
-			foundFlipIndex := flipsPermutation[idx]
-			used[foundFlipIndex]++
-			result[currentCandidateIndex].Add(foundFlipIndex)
-			currentFlipIndex++
+func getAuthorsIndexes(candidates []*candidate) []int {
+	var authors []int
+	for idx, candidate := range candidates {
+		if candidate.IsAuthor {
+			authors = append(authors, idx)
 		}
 	}
-
-	for i, v := range result {
-		var arr []int
-		for _, idx := range v.ToSlice() {
-			arr = append(arr, idx.(int))
-		}
-		sort.SliceStable(arr, func(i, j int) bool {
-			return arr[i] < arr[j]
-		})
-		flipsPerCandidate[i] = arr
-	}
-
-	return flipsPerCandidate
+	return authors
 }
 
 func hasRelation(first *candidate, second *candidate, geneticOverlapLength int) bool {
@@ -165,4 +255,35 @@ func hasRelation(first *candidate, second *candidate, geneticOverlapLength int) 
 	} else {
 		return res(second, first)
 	}
+}
+
+// Queue is a queue
+type Queue interface {
+	Pop() int
+	Push(int)
+	Peek() int
+	Len() int
+}
+
+type queueImpl struct {
+	*list.List
+}
+
+func (q *queueImpl) Push(v int) {
+	q.PushBack(v)
+}
+
+func (q *queueImpl) Pop() int {
+	e := q.Front()
+	q.List.Remove(e)
+	return e.Value.(int)
+}
+
+func (q *queueImpl) Peek() int {
+	e := q.Front()
+	return e.Value.(int)
+}
+
+func NewQueue() Queue {
+	return &queueImpl{list.New()}
 }
