@@ -21,7 +21,7 @@ func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [
 	authors := getAuthorsIndexes(candidates)
 
 	if len(authors) == 0 {
-		return shortFlipsPerCandidate, longFlipsPerCandidate
+		return make([][]int, len(candidates)), make([][]int, len(candidates))
 	}
 
 	authorsPerCandidate, candidatesPerAuthor := getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
@@ -59,10 +59,12 @@ func getFirstAuthorsDistribution(authorsIndexes []int, candidates []*candidate, 
 	return authorsPerCandidate, candidatesPerAuthor
 }
 
-func appendAdditionalCandidates(candidates []*candidate, authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) (map[int][]int, map[int][]int) {
+func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) (map[int][]int, map[int][]int) {
+	randSeed := binary.LittleEndian.Uint64(seed)
+	random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
 
 	getRandomizedCandidates := func() Queue {
-		p := rand.Perm(len(candidates))
+		p := random.Perm(len(candidates))
 		queue := NewQueue()
 		for _, idx := range p {
 			queue.Push(idx)
@@ -207,7 +209,7 @@ func contains(s []int, e int) bool {
 func fillAuthorsQueue(seed []byte, authorsIndexes []int, candidates []*candidate, authorsPerCandidate int) Queue {
 	totalAuthorsShouldBe := len(candidates) * authorsPerCandidate
 	randSeed := binary.LittleEndian.Uint64(seed)
-	random := rand.New(rand.NewSource(int64(randSeed)))
+	random := rand.New(rand.NewSource(int64(randSeed)*21 - 77))
 	randomizedAuthors := random.Perm(len(authorsIndexes))
 	queue := NewQueue()
 	if len(authorsIndexes) == 0 {

@@ -97,15 +97,33 @@ func Test_Case2(t *testing.T) {
 
 	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 300, 100, 3)
 
-	a, b := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
 
-	for _, item := range a {
+	for _, item := range shortFlipsPerCandidate {
 		require.Equal(t, 7, len(item))
 	}
 
-	for _, item := range b {
+	for _, item := range longFlipsPerCandidate {
 		require.Equal(t, 14, len(item))
 	}
+}
+
+func Test_Case3(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 500)
+
+	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 5, 0, 3)
+
+	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+
+	require.Equal(t, 5, len(shortFlipsPerCandidate))
+	require.Equal(t, 5, len(longFlipsPerCandidate))
+
+	candidates, flipsPerAuthor, flips = makeCandidatesWithFlips(seed, 0, 0, 3)
+
+	shortFlipsPerCandidate, longFlipsPerCandidate = SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	require.Nil(t, shortFlipsPerCandidate)
+	require.Nil(t, longFlipsPerCandidate)
 }
 
 func Test_FillAuthorsQueue(t *testing.T) {
@@ -123,20 +141,6 @@ func Test_FillAuthorsQueue(t *testing.T) {
 	queue := fillAuthorsQueue(seed, authorIndexes, candidates, 7)
 
 	require.Equal(t, candidatesCount*7, queue.Len())
-}
-
-func makeFlips(authors int, flipNum int) (flipsPerAuthor map[int][][]byte, flips [][]byte) {
-	flipsPerAuthor = make(map[int][][]byte)
-	flips = make([][]byte, 0)
-	for i := 0; i < authors; i++ {
-		for j := 0; j < flipNum; j++ {
-			flip := random.GetRandomBytes(5)
-			flipsPerAuthor[i] = append(flipsPerAuthor[i], flip)
-			flips = append(flips, flip)
-		}
-
-	}
-	return flipsPerAuthor, flips
 }
 
 func makeCandidates(authors int) []*candidate {
