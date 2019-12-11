@@ -35,7 +35,8 @@ type Config struct {
 	// for ephemeral nodes).
 	HTTPPort int `toml:",omitempty"`
 
-	APIKey string
+	APIKey    string
+	UseApiKey bool
 }
 
 func (c *Config) HTTPEndpoint() string {

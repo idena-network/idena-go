@@ -390,11 +390,10 @@ func (s *Server) readRequest(codec ServerCodec) ([]*serverRequest, bool, Error) 
 			continue
 		}
 
-		//TODO: uncomment after UI release
-		//if s.apiKey != "" && r.key != s.apiKey {
-		//	requests[i] = &serverRequest{id: r.id, err: &invalidApiKeyError{}}
-		//	continue
-		//}
+		if s.apiKey != "" && r.key != s.apiKey {
+			requests[i] = &serverRequest{id: r.id, err: &invalidApiKeyError{}}
+			continue
+		}
 
 		if r.isPubSub && strings.HasSuffix(r.method, unsubscribeMethodSuffix) {
 			requests[i] = &serverRequest{id: r.id, isUnsubscribe: true}

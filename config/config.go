@@ -147,6 +147,8 @@ func (c *Config) SetApiKey() error {
 			shouldSaveKey = false
 		}
 		c.RPC.APIKey = key
+	} else {
+		c.RPC.UseApiKey = true
 	}
 
 	if shouldSaveKey {

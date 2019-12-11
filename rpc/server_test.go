@@ -161,14 +161,13 @@ func TestServerMethodWithCtx(t *testing.T) {
 	testServerMethodExecution(t, "echoWithCtx")
 }
 
-//TODO: uncomment after UI release
-//func TestServerMethodExecutionWithApiKeyProvided(t *testing.T) {
-//	testApiKey(t, true)
-//}
-//
-//func TestServerMethodExecutionWithoutApiKeyProvided(t *testing.T) {
-//	testApiKey(t, false)
-//}
+func TestServerMethodExecutionWithApiKeyProvided(t *testing.T) {
+	testApiKey(t, true)
+}
+
+func TestServerMethodExecutionWithoutApiKeyProvided(t *testing.T) {
+	testApiKey(t, false)
+}
 
 func testApiKey(t *testing.T, sendKey bool) {
 	apiKey := "tempKey"
