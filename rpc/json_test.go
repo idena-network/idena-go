@@ -34,7 +34,7 @@ func (rwc *RWC) Close() error {
 }
 
 func TestJSONRequestParsing(t *testing.T) {
-	server := NewServer()
+	server := NewServer("")
 	service := new(Service)
 
 	if err := server.RegisterName("calc", service); err != nil {

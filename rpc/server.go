@@ -43,8 +43,9 @@ const (
 )
 
 // NewServer will create a new server instance with no registered handlers.
-func NewServer() *Server {
+func NewServer(apiKey string) *Server {
 	server := &Server{
+		apiKey:   apiKey,
 		services: make(serviceRegistry),
 		codecs:   mapset.NewSet(),
 		run:      1,
@@ -386,6 +387,11 @@ func (s *Server) readRequest(codec ServerCodec) ([]*serverRequest, bool, Error) 
 
 		if r.err != nil {
 			requests[i] = &serverRequest{id: r.id, err: r.err}
+			continue
+		}
+
+		if s.apiKey != "" && r.key != s.apiKey {
+			requests[i] = &serverRequest{id: r.id, err: &invalidApiKeyError{}}
 			continue
 		}
 

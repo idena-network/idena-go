@@ -510,7 +510,7 @@ func TestClientReconnect(t *testing.T) {
 }
 
 func newTestServer(serviceName string, service interface{}) *Server {
-	server := NewServer()
+	server := NewServer("")
 	if err := server.RegisterName(serviceName, service); err != nil {
 		panic(err)
 	}

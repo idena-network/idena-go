@@ -95,7 +95,7 @@ func (s *NotificationTestService) HangSubscription(ctx context.Context, val int)
 }
 
 func TestNotifications(t *testing.T) {
-	server := NewServer()
+	server := NewServer("")
 	service := &NotificationTestService{unsubscribed: make(chan string)}
 
 	if err := server.RegisterName("eth", service); err != nil {
@@ -221,7 +221,7 @@ func TestSubscriptionMultipleNamespaces(t *testing.T) {
 		subCount          = len(namespaces) * 2
 		notificationCount = 3
 
-		server                 = NewServer()
+		server                 = NewServer("")
 		clientConn, serverConn = net.Pipe()
 		out                    = json.NewEncoder(clientConn)
 		in                     = json.NewDecoder(clientConn)

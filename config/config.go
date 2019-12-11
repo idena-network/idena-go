@@ -22,6 +22,7 @@ import (
 
 const (
 	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
+	apiKeyFileName    = "api.key"
 	LowPowerProfile   = "lowpower"
 )
 
@@ -131,6 +132,33 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 		return "", err
 	}
 	return instanceDir, nil
+}
+
+func (c *Config) SetApiKey() error {
+	shouldSaveKey := true
+	if c.RPC.APIKey == "" {
+		apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
+		data, _ := ioutil.ReadFile(apiKeyFile)
+		key := string(data)
+		if key == "" {
+			randomKey, _ := crypto.GenerateKey()
+			key = hex.EncodeToString(crypto.FromECDSA(randomKey)[:16])
+		} else {
+			shouldSaveKey = false
+		}
+		c.RPC.APIKey = key
+	}
+
+	if shouldSaveKey {
+		f, err := os.OpenFile(filepath.Join(c.DataDir, apiKeyFileName), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = f.WriteString(c.RPC.APIKey)
+		return err
+	}
+	return nil
 }
 
 func MakeMobileConfig(path string, cfg string) (*Config, error) {
@@ -300,6 +328,12 @@ func applyRpcFlags(ctx *cli.Context, cfg *Config) {
 	}
 	if ctx.IsSet(RpcPortFlag.Name) {
 		cfg.RPC.HTTPPort = ctx.Int(RpcPortFlag.Name)
+	}
+	if ctx.IsSet(ApiKeyFlag.Name) {
+		cfg.RPC.APIKey = ctx.String(ApiKeyFlag.Name)
+		if cfg.RPC.APIKey != "" {
+			cfg.RPC.UseApiKey = true
+		}
 	}
 }
 

@@ -70,6 +70,7 @@ type subscriptions map[string]*callback  // collection of subscription callbacks
 // Server represents a RPC server
 type Server struct {
 	services serviceRegistry
+	apiKey   string
 
 	run      int32
 	codecsMu sync.Mutex
@@ -78,6 +79,7 @@ type Server struct {
 
 // rpcRequest represents a raw incoming RPC request
 type rpcRequest struct {
+	key      string
 	service  string
 	method   string
 	id       interface{}

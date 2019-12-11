@@ -102,4 +102,8 @@ var (
 		Name:  "ipfsportstatic",
 		Usage: "Enable static ipfs port",
 	}
+	ApiKeyFlag = cli.StringFlag{
+		Name:  "apikey",
+		Usage: "Set RPC api key",
+	}
 )

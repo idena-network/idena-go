@@ -45,6 +45,7 @@ func main() {
 		config.ForceFullSyncFlag,
 		config.ProfileFlag,
 		config.IpfsPortStaticFlag,
+		config.ApiKeyFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {

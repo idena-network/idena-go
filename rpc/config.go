@@ -34,6 +34,9 @@ type Config struct {
 	// default zero value is/ valid and will pick a port number randomly (useful
 	// for ephemeral nodes).
 	HTTPPort int `toml:",omitempty"`
+
+	APIKey    string
+	UseApiKey bool
 }
 
 func (c *Config) HTTPEndpoint() string {
