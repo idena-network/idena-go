@@ -38,6 +38,7 @@ const (
 )
 
 type jsonRequest struct {
+	Key     string          `json:"key"`
 	Method  string          `json:"method"`
 	Version string          `json:"jsonrpc"`
 	Id      json.RawMessage `json:"id,omitempty"`
@@ -181,7 +182,7 @@ func parseRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) {
 
 	// subscribe are special, they will always use `subscribeMethod` as first param in the payload
 	if strings.HasSuffix(in.Method, subscribeMethodSuffix) {
-		reqs := []rpcRequest{{id: &in.Id, isPubSub: true}}
+		reqs := []rpcRequest{{id: &in.Id, isPubSub: true, key: in.Key}}
 		if len(in.Payload) > 0 {
 			// first param must be subscription name
 			var subscribeMethod [1]string
@@ -199,7 +200,7 @@ func parseRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) {
 
 	if strings.HasSuffix(in.Method, unsubscribeMethodSuffix) {
 		return []rpcRequest{{id: &in.Id, isPubSub: true,
-			method: in.Method, params: in.Payload}}, false, nil
+			method: in.Method, params: in.Payload, key: in.Key}}, false, nil
 	}
 
 	elems := strings.Split(in.Method, serviceMethodSeparator)
@@ -209,10 +210,10 @@ func parseRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) {
 
 	// regular RPC call
 	if len(in.Payload) == 0 {
-		return []rpcRequest{{service: elems[0], method: elems[1], id: &in.Id}}, false, nil
+		return []rpcRequest{{service: elems[0], method: elems[1], id: &in.Id, key: in.Key}}, false, nil
 	}
 
-	return []rpcRequest{{service: elems[0], method: elems[1], id: &in.Id, params: in.Payload}}, false, nil
+	return []rpcRequest{{service: elems[0], method: elems[1], id: &in.Id, params: in.Payload, key: in.Key}}, false, nil
 }
 
 // parseBatchRequest will parse a batch request into a collection of requests from the given RawMessage, an indication
@@ -233,7 +234,7 @@ func parseBatchRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) 
 
 		// subscribe are special, they will always use `subscriptionMethod` as first param in the payload
 		if strings.HasSuffix(r.Method, subscribeMethodSuffix) {
-			requests[i] = rpcRequest{id: id, isPubSub: true}
+			requests[i] = rpcRequest{id: id, isPubSub: true, key: r.Key}
 			if len(r.Payload) > 0 {
 				// first param must be subscription name
 				var subscribeMethod [1]string
@@ -251,14 +252,14 @@ func parseBatchRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) 
 		}
 
 		if strings.HasSuffix(r.Method, unsubscribeMethodSuffix) {
-			requests[i] = rpcRequest{id: id, isPubSub: true, method: r.Method, params: r.Payload}
+			requests[i] = rpcRequest{id: id, isPubSub: true, method: r.Method, params: r.Payload, key: r.Key}
 			continue
 		}
 
 		if len(r.Payload) == 0 {
-			requests[i] = rpcRequest{id: id, params: nil}
+			requests[i] = rpcRequest{id: id, params: nil, key: r.Key}
 		} else {
-			requests[i] = rpcRequest{id: id, params: r.Payload}
+			requests[i] = rpcRequest{id: id, params: r.Payload, key: r.Key}
 		}
 		if elem := strings.Split(r.Method, serviceMethodSeparator); len(elem) == 2 {
 			requests[i].service, requests[i].method = elem[0], elem[1]

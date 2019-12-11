@@ -64,3 +64,10 @@ type shutdownError struct{}
 func (e *shutdownError) ErrorCode() int { return -32000 }
 
 func (e *shutdownError) Error() string { return "server is shutting down" }
+
+// invalid api key
+type invalidApiKeyError struct{}
+
+func (e *invalidApiKeyError) ErrorCode() int { return -32800 }
+
+func (e *invalidApiKeyError) Error() string { return "the provided API key is invalid" }

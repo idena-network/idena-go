@@ -28,6 +28,7 @@ import (
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/pkg/errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -138,6 +139,11 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	keyStoreDir, err := config.KeyStoreDataDir()
 	if err != nil {
 		return nil, err
+	}
+
+	err = config.SetApiKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot set API key")
 	}
 
 	ipfsProxy, err := ipfs.NewIpfsProxy(config.IpfsConf)
@@ -280,7 +286,7 @@ func (node *Node) startRPC() error {
 	// Gather all the possible APIs to surface
 	apis := node.apis()
 
-	if err := node.startHTTP(node.config.RPC.HTTPEndpoint(), apis, node.config.RPC.HTTPModules, node.config.RPC.HTTPCors, node.config.RPC.HTTPVirtualHosts, node.config.RPC.HTTPTimeouts); err != nil {
+	if err := node.startHTTP(node.config.RPC.HTTPEndpoint(), apis, node.config.RPC.HTTPModules, node.config.RPC.HTTPCors, node.config.RPC.HTTPVirtualHosts, node.config.RPC.HTTPTimeouts, node.config.RPC.APIKey); err != nil {
 		return err
 	}
 
@@ -289,12 +295,12 @@ func (node *Node) startRPC() error {
 }
 
 // startHTTP initializes and starts the HTTP RPC endpoint.
-func (node *Node) startHTTP(endpoint string, apis []rpc.API, modules []string, cors []string, vhosts []string, timeouts rpc.HTTPTimeouts) error {
+func (node *Node) startHTTP(endpoint string, apis []rpc.API, modules []string, cors []string, vhosts []string, timeouts rpc.HTTPTimeouts, apiKey string) error {
 	// Short circuit if the HTTP endpoint isn't being exposed
 	if endpoint == "" {
 		return nil
 	}
-	listener, handler, err := rpc.StartHTTPEndpoint(endpoint, apis, modules, cors, vhosts, timeouts)
+	listener, handler, err := rpc.StartHTTPEndpoint(endpoint, apis, modules, cors, vhosts, timeouts, apiKey)
 	if err != nil {
 		return err
 	}

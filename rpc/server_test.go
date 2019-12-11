@@ -76,7 +76,7 @@ func (s *Service) Subscription(ctx context.Context) (*Subscription, error) {
 }
 
 func TestServerRegisterName(t *testing.T) {
-	server := NewServer()
+	server := NewServer("")
 	service := new(Service)
 
 	if err := server.RegisterName("calc", service); err != nil {
@@ -102,7 +102,7 @@ func TestServerRegisterName(t *testing.T) {
 }
 
 func testServerMethodExecution(t *testing.T, method string) {
-	server := NewServer()
+	server := NewServer("")
 	service := new(Service)
 
 	if err := server.RegisterName("test", service); err != nil {
@@ -159,4 +159,83 @@ func TestServerMethodExecution(t *testing.T) {
 
 func TestServerMethodWithCtx(t *testing.T) {
 	testServerMethodExecution(t, "echoWithCtx")
+}
+
+//TODO: uncomment after UI release
+//func TestServerMethodExecutionWithApiKeyProvided(t *testing.T) {
+//	testApiKey(t, true)
+//}
+//
+//func TestServerMethodExecutionWithoutApiKeyProvided(t *testing.T) {
+//	testApiKey(t, false)
+//}
+
+func testApiKey(t *testing.T, sendKey bool) {
+	apiKey := "tempKey"
+	server := NewServer(apiKey)
+	service := new(Service)
+
+	if err := server.RegisterName("test", service); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	stringArg := "string arg"
+	intArg := 1122
+	argsArg := &Args{"abcde"}
+	params := []interface{}{stringArg, intArg, argsArg}
+
+	request := map[string]interface{}{
+		"id":      12345,
+		"method":  "test_echo",
+		"version": "2.0",
+		"params":  params,
+	}
+
+	if sendKey {
+		request["key"] = apiKey
+	}
+
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+
+	go server.ServeCodec(NewJSONCodec(serverConn), OptionMethodInvocation)
+
+	out := json.NewEncoder(clientConn)
+	in := json.NewDecoder(clientConn)
+
+	if err := out.Encode(request); err != nil {
+		t.Fatal(err)
+	}
+
+	if sendKey {
+		response := jsonSuccessResponse{Result: &Result{}}
+		if err := in.Decode(&response); err != nil {
+			t.Fatal(err)
+		}
+
+		if result, ok := response.Result.(*Result); ok {
+			if result.String != stringArg {
+				t.Errorf("expected %s, got : %s\n", stringArg, result.String)
+			}
+			if result.Int != intArg {
+				t.Errorf("expected %d, got %d\n", intArg, result.Int)
+			}
+			if !reflect.DeepEqual(result.Args, argsArg) {
+				t.Errorf("expected %v, got %v\n", argsArg, result)
+			}
+		} else {
+			t.Fatalf("invalid response: expected *Result - got: %T", response.Result)
+		}
+
+	} else {
+		response := jsonErrResponse{Error: jsonError{}}
+		if err := in.Decode(&response); err != nil {
+			t.Fatal(err)
+		}
+
+		invalidKeyError := &invalidApiKeyError{}
+		if response.Error.Message != invalidKeyError.Error() {
+			t.Errorf("expected %v, got %v\n", invalidKeyError.Error(), response.Error.Message)
+		}
+	}
 }
