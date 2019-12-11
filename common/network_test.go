@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func TestNetworkParams(t *testing.T) {
@@ -51,4 +52,53 @@ func TestLongSessionFlipsCount(t *testing.T) {
 	require.Equal(uint(50), LongSessionFlipsCount(5000))
 	require.Equal(uint(100), LongSessionFlipsCount(30000))
 	require.Equal(uint(90), LongSessionFlipsCount(100000))
+}
+
+func TestNormalizedEpochDuration(t *testing.T) {
+	day := time.Hour * 24
+	saturday := time.Date(2020, 1, 4, 0, 0, 0, 0, time.UTC)
+	require.Equal(t, day, NormalizedEpochDuration(saturday, 1))
+	require.Equal(t, day*3, NormalizedEpochDuration(saturday, 17))
+	require.Equal(t, day*4, NormalizedEpochDuration(saturday, 45))
+	require.Equal(t, day*5, NormalizedEpochDuration(saturday, 96))
+	require.Equal(t, day*5, NormalizedEpochDuration(saturday, 124))
+	require.Equal(t, day*6, NormalizedEpochDuration(saturday, 270))
+	require.Equal(t, day*6, NormalizedEpochDuration(saturday, 275))
+	require.Equal(t, day*7, NormalizedEpochDuration(saturday, 449))
+	require.Equal(t, day*7, NormalizedEpochDuration(saturday, 1158))
+	require.Equal(t, day*7, NormalizedEpochDuration(saturday, 1243))
+	require.Equal(t, day*14, NormalizedEpochDuration(saturday, 1244))
+	require.Equal(t, day*14, NormalizedEpochDuration(saturday, 1250))
+	require.Equal(t, day*21, NormalizedEpochDuration(saturday, 14403))
+	require.Equal(t, day*28, NormalizedEpochDuration(saturday, 24284))
+	require.Equal(t, day*35, NormalizedEpochDuration(saturday, 34701))
+	require.Equal(t, day*35, NormalizedEpochDuration(saturday, 50000))
+	require.Equal(t, day*35, NormalizedEpochDuration(saturday, 60000))
+	require.Equal(t, day*42, NormalizedEpochDuration(saturday, 75000))
+	require.Equal(t, day*42, NormalizedEpochDuration(saturday, 100000))
+	require.Equal(t, day*91, NormalizedEpochDuration(saturday, 1000000))
+	require.Equal(t, day*91, NormalizedEpochDuration(saturday, 100000000))
+
+	notSaturday := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	require.Equal(t, day, NormalizedEpochDuration(notSaturday, 1))
+	require.Equal(t, day*3, NormalizedEpochDuration(notSaturday, 17))
+	require.Equal(t, day*4, NormalizedEpochDuration(notSaturday, 45))
+	require.Equal(t, day*5, NormalizedEpochDuration(notSaturday, 96))
+	require.Equal(t, day*5, NormalizedEpochDuration(notSaturday, 124))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 270))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 275))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 449))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 1158))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 1243))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 1244))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 1250))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 14403))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 24284))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 34701))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 50000))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 60000))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 75000))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 100000))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 1000000))
+	require.Equal(t, day*6, NormalizedEpochDuration(notSaturday, 100000000))
 }

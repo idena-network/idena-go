@@ -409,7 +409,9 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	appState.State.IncEpoch()
 
-	appState.State.SetNextValidationTime(appState.State.NextValidationTime().Add(chain.config.Validation.GetEpochDuration(networkSize)))
+	validationTime := appState.State.NextValidationTime()
+	nextValidationTime := chain.config.Validation.GetNextValidationTime(validationTime, networkSize)
+	appState.State.SetNextValidationTime(nextValidationTime)
 
 	appState.State.SetFlipWordsSeed(block.Seed())
 

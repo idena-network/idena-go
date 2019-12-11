@@ -32,6 +32,13 @@ func (cfg *ValidationConfig) GetEpochDuration(networkSize int) time.Duration {
 	return time.Hour * 24 * time.Duration(e)
 }
 
+func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, networkSize int) time.Time {
+	if cfg.ValidationInterval > 0 {
+		return validationTime.Add(cfg.ValidationInterval)
+	}
+	return validationTime.Add(common.NormalizedEpochDuration(validationTime, networkSize))
+}
+
 func (cfg *ValidationConfig) GetFlipLotteryDuration() time.Duration {
 	if cfg.FlipLotteryDuration > 0 {
 		return cfg.FlipLotteryDuration
