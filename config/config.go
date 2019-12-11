@@ -22,7 +22,7 @@ import (
 
 const (
 	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
-	apiKey            = "api.key"
+	apiKeyFileName    = "api.key"
 	LowPowerProfile   = "lowpower"
 )
 
@@ -137,7 +137,7 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 func (c *Config) SetApiKey() error {
 	shouldSaveKey := true
 	if c.RPC.APIKey == "" {
-		apiKeyFile := filepath.Join(c.DataDir, apiKey)
+		apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
 		data, _ := ioutil.ReadFile(apiKeyFile)
 		key := string(data)
 		if key == "" {
@@ -150,7 +150,7 @@ func (c *Config) SetApiKey() error {
 	}
 
 	if shouldSaveKey {
-		f, err := os.OpenFile(filepath.Join(c.DataDir, apiKey), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(filepath.Join(c.DataDir, apiKeyFileName), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			return err
 		}
