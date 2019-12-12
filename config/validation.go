@@ -24,14 +24,6 @@ type ValidationConfig struct {
 	AfterLongSessionDuration time.Duration
 }
 
-func (cfg *ValidationConfig) GetEpochDuration(networkSize int) time.Duration {
-	if cfg.ValidationInterval > 0 {
-		return cfg.ValidationInterval
-	}
-	e, _, _ := common.NetworkParams(networkSize)
-	return time.Hour * 24 * time.Duration(e)
-}
-
 func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, networkSize int) time.Time {
 	if cfg.ValidationInterval > 0 {
 		return validationTime.Add(cfg.ValidationInterval)
