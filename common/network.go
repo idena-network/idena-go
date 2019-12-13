@@ -3,6 +3,7 @@ package common
 import (
 	math2 "github.com/idena-network/idena-go/common/math"
 	"math"
+	"time"
 )
 
 const (
@@ -52,4 +53,16 @@ func NetworkParams(networkSize int) (epochDuration int, invites int, flips int) 
 	flips = int(math2.Max(3, uint64(flips)))
 	invites = int(math2.Min(1, uint64(math.Round(invitesCount))))
 	return
+}
+
+func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Duration {
+	const day = 24 * time.Hour
+	baseEpochDays, _, _ := NetworkParams(networkSize)
+	if baseEpochDays < 7 {
+		return day * time.Duration(baseEpochDays)
+	}
+	if validationTime.Weekday() != time.Saturday {
+		return day * 6
+	}
+	return day * time.Duration(math2.MinInt(91, int(math.Round(math.Pow(float64(networkSize), 0.33)/7)*7)))
 }

@@ -22,10 +22,10 @@ import (
 )
 
 type DnaApi struct {
-	bc         *blockchain.Blockchain
-	baseApi    *BaseApi
-	ceremony   *ceremony.ValidationCeremony
-	appVersion string
+	bc             *blockchain.Blockchain
+	baseApi        *BaseApi
+	ceremony       *ceremony.ValidationCeremony
+	appVersion     string
 	profileManager *profile.Manager
 }
 
@@ -372,7 +372,6 @@ func (api *DnaApi) Epoch() Epoch {
 }
 
 type CeremonyIntervals struct {
-	ValidationInterval       float64
 	FlipLotteryDuration      float64
 	ShortSessionDuration     float64
 	LongSessionDuration      float64
@@ -384,7 +383,6 @@ func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	networkSize := api.baseApi.getAppState().ValidatorsCache.NetworkSize()
 
 	return CeremonyIntervals{
-		ValidationInterval:       cfg.Validation.GetEpochDuration(networkSize).Seconds(),
 		FlipLotteryDuration:      cfg.Validation.GetFlipLotteryDuration().Seconds(),
 		ShortSessionDuration:     cfg.Validation.GetShortSessionDuration().Seconds(),
 		LongSessionDuration:      cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
