@@ -716,7 +716,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			newTotalQualifiedFlipsCount, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-		incSuccessfulInvites(validationAuthors, god, identity, newIdentityState, appState.State.Epoch())
+		incSuccessfulInvites(validationAuthors, god, identity, newIdentityState, vc.epoch)
 		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors)
 
 		value := cacheValue{
@@ -793,7 +793,7 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 }
 
 func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity,
-	newState state.IdentityState, validationEpoch uint16) {
+	newState state.IdentityState, currentEpoch uint16) {
 	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
 		return
 	}
@@ -801,7 +801,7 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	if invitee.State == state.Candidate {
 		newAge = 1
 	} else {
-		newAge = validationEpoch + 1 - invitee.Birthday
+		newAge = currentEpoch + 1 - invitee.Birthday
 	}
 	if newAge > 3 {
 		return
