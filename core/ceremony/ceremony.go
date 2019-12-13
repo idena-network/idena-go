@@ -793,26 +793,25 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 }
 
 func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity,
-	newState state.IdentityState, curEpoch uint16) {
+	newState state.IdentityState, validationEpoch uint16) {
 	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
 		return
 	}
-	var age uint16
+	var newAge uint16
 	if invitee.State == state.Candidate {
-		age = 1
+		newAge = 1
 	} else {
-		age = curEpoch + 1 - invitee.Birthday
+		newAge = validationEpoch + 1 - invitee.Birthday
 	}
-	if age > 3 {
+	if newAge > 3 {
 		return
 	}
 	goodAuthors := validationAuthors.GoodAuthors
 	if vr, ok := goodAuthors[invitee.Inviter.Address]; ok {
-		vr.SuccessfulInviteAges = append(vr.SuccessfulInviteAges, age)
+		vr.SuccessfulInviteAges = append(vr.SuccessfulInviteAges, newAge)
 	} else if invitee.Inviter.Address == god {
 		goodAuthors[god] = &types.ValidationResult{
-			SuccessfulInviteAges: []uint16{age},
-			Missed:               true,
+			SuccessfulInviteAges: []uint16{newAge},
 			Validated:            true,
 		}
 	}

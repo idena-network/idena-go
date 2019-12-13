@@ -101,11 +101,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
 	switch age {
 	case 1:
-		return config.FirstInvitationValidationRewardCoef
+		return config.FirstInvitationRewardCoef
 	case 2:
-		return config.SecondInvitationValidationRewardCoef
+		return config.SecondInvitationRewardCoef
 	case 3:
-		return config.ThirdInvitationValidationRewardCoef
+		return config.ThirdInvitationRewardCoef
 	default:
 		return 0
 	}
