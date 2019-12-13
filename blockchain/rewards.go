@@ -75,6 +75,9 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 
 	totalFlips := float32(0)
 	for _, author := range authors.GoodAuthors {
+		if author.Missed {
+			continue
+		}
 		totalFlips += float32(author.WeakFlips + author.StrongFlips)
 	}
 	if totalFlips == 0 {
@@ -84,6 +87,9 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
 
 	for addr, author := range authors.GoodAuthors {
+		if author.Missed {
+			continue
+		}
 		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(author.StrongFlips + author.WeakFlips)))
 		reward, stake := splitReward(math.ToInt(totalReward), config)
 		appState.State.AddBalance(addr, reward)
@@ -92,26 +98,51 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 	}
 }
 
+func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
+	switch age {
+	case 1:
+		return config.FirstInvitationValidationRewardCoef
+	case 2:
+		return config.SecondInvitationValidationRewardCoef
+	case 3:
+		return config.ThirdInvitationValidationRewardCoef
+	default:
+		return 0
+	}
+}
+
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
 	totalReward decimal.Decimal, collector collector.BlockStatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
-	totalInvites := float32(0)
+	totalWeight := float32(0)
 	for _, author := range authors.GoodAuthors {
-		totalInvites += float32(author.SuccessfulInvites)
+		if !author.Validated {
+			continue
+		}
+		for _, successfulInviteAge := range author.SuccessfulInviteAges {
+			totalWeight += getInvitationRewardCoef(successfulInviteAge, config)
+		}
 	}
-	if totalInvites == 0 {
+	if totalWeight == 0 {
 		return
 	}
 	collector.SetTotalInvitationsReward(math.ToInt(invitationRewardD))
-	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalInvites))
+	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 
 	for addr, author := range authors.GoodAuthors {
-		totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(float32(author.SuccessfulInvites)))
-		reward, stake := splitReward(math.ToInt(totalReward), config)
-		appState.State.AddBalance(addr, reward)
-		appState.State.AddStake(addr, stake)
-		collector.AddInvitationsReward(addr, reward, stake)
+		if !author.Validated {
+			continue
+		}
+		for _, successfulInviteAge := range author.SuccessfulInviteAges {
+			if weight := getInvitationRewardCoef(successfulInviteAge, config); weight > 0 {
+				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
+				reward, stake := splitReward(math.ToInt(totalReward), config)
+				appState.State.AddBalance(addr, reward)
+				appState.State.AddStake(addr, stake)
+				collector.AddInvitationsReward(addr, reward, stake)
+			}
+		}
 	}
 }
 
