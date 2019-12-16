@@ -9,6 +9,7 @@ type candidate struct {
 	Address    common.Address
 	Generation uint32
 	Code       []byte
+	IsAuthor   bool
 }
 
 type FlipStatus byte
