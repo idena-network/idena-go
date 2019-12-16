@@ -375,73 +375,68 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.TxAddr{
 			Address: god,
 		},
-	}, state.Newbie, epoch)
+	}, 0, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: badAuth,
 		},
-	}, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: god,
 		},
-	}, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch)
 
 	// 4th validation (Newbie->Newbie)
 	incSuccessfulInvites(authors, god, state.Identity{
-		Birthday: 2,
-		State:    state.Newbie,
+		State: state.Newbie,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Newbie, epoch)
+	}, 2, state.Newbie, epoch)
 
 	// 4th validation (Newbie->Verified)
 	incSuccessfulInvites(authors, god, state.Identity{
-		Birthday: 2,
-		State:    state.Newbie,
+		State: state.Newbie,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Verified, epoch)
+	}, 2, state.Verified, epoch)
 
 	// 3rd validation (Newbie->Newbie)
 	incSuccessfulInvites(authors, god, state.Identity{
-		Birthday: 3,
-		State:    state.Newbie,
+		State: state.Newbie,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Newbie, epoch)
+	}, 3, state.Newbie, epoch)
 
 	// 2nd validation (Newbie->Newbie)
 	incSuccessfulInvites(authors, god, state.Identity{
-		Birthday: 4,
-		State:    state.Newbie,
+		State: state.Newbie,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Newbie, epoch)
+	}, 4, state.Newbie, epoch)
 
 	// 3rd validation (Newbie->Verified)
 	incSuccessfulInvites(authors, god, state.Identity{
-		Birthday: 3,
-		State:    state.Newbie,
+		State: state.Newbie,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Verified, epoch)
+	}, 3, state.Verified, epoch)
 
 	require.Equal(t, len(authors.GoodAuthors[auth1].SuccessfulInviteAges), 4)
 	require.Equal(t, []uint16{1, 3, 2, 3}, authors.GoodAuthors[auth1].SuccessfulInviteAges)
