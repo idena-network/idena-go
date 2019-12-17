@@ -286,13 +286,7 @@ func (node *Node) startRPC() error {
 	// Gather all the possible APIs to surface
 	apis := node.apis()
 
-	// TODO: remove later
-	apiKey := node.config.RPC.APIKey
-	if !node.config.RPC.UseApiKey {
-		apiKey = ""
-	}
-
-	if err := node.startHTTP(node.config.RPC.HTTPEndpoint(), apis, node.config.RPC.HTTPModules, node.config.RPC.HTTPCors, node.config.RPC.HTTPVirtualHosts, node.config.RPC.HTTPTimeouts, apiKey); err != nil {
+	if err := node.startHTTP(node.config.RPC.HTTPEndpoint(), apis, node.config.RPC.HTTPModules, node.config.RPC.HTTPCors, node.config.RPC.HTTPVirtualHosts, node.config.RPC.HTTPTimeouts, node.config.RPC.APIKey); err != nil {
 		return err
 	}
 
