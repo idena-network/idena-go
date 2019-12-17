@@ -154,7 +154,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				collector.AfterBalanceUpdate(statsCollector, addr, appState)
 				collector.AddMintedCoins(statsCollector, reward)
 				collector.AddMintedCoins(statsCollector, stake)
-				collector.AddInvitationsReward(statsCollector, addr, reward, stake)
+				collector.AddInvitationsReward(statsCollector, addr, reward, stake, successfulInviteAge)
 				collector.AfterAddStake(statsCollector, addr, stake)
 			}
 		}

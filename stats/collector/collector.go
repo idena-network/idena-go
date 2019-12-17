@@ -24,7 +24,7 @@ type StatsCollector interface {
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int)
 	AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int)
-	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int)
+	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 
@@ -169,15 +169,15 @@ func AddFlipsReward(c StatsCollector, addr common.Address, balance *big.Int, sta
 	c.AddFlipsReward(addr, balance, stake)
 }
 
-func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int) {
+func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16) {
 	// do nothing
 }
 
-func AddInvitationsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+func AddInvitationsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int, age uint16) {
 	if c == nil {
 		return
 	}
-	c.AddInvitationsReward(addr, balance, stake)
+	c.AddInvitationsReward(addr, balance, stake, age)
 }
 
 func (c *collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int) {
