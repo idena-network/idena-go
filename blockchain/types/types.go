@@ -527,9 +527,11 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 }
 
 type ValidationResult struct {
-	StrongFlips       int
-	WeakFlips         int
-	SuccessfulInvites int
+	StrongFlips          int
+	WeakFlips            int
+	SuccessfulInviteAges []uint16
+	Validated            bool
+	Missed               bool
 }
 
 type ValidationAuthors struct {

@@ -97,6 +97,9 @@ func main() {
 			return false
 		})
 
+		// TODO delete the variable after fork-0.15.0 released
+		inviteesToRemovePerInviter := make(map[common.Address]common.Address)
+
 		appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 			if key == nil {
 				return true
@@ -118,6 +121,17 @@ func main() {
 				})
 			}
 
+			var inviter *state.TxAddr
+			// TODO uncomment the line and delete next if-operator after fork-0.15.0 released
+			//inviter = data.Inviter
+			if data.Inviter != nil {
+				if data.State == state.Invite {
+					inviter = data.Inviter
+				} else {
+					inviteesToRemovePerInviter[data.Inviter.Address] = addr
+				}
+			}
+
 			snapshot.Identities = append(snapshot.Identities, &state.StateIdentity{
 				Address:         addr,
 				State:           data.State,
@@ -133,11 +147,26 @@ func main() {
 				Stake:           data.Stake,
 				Flips:           flips,
 				Invitees:        data.Invitees,
-				Inviter:         data.Inviter,
+				Inviter:         inviter,
 				Penalty:         data.Penalty,
 			})
 			return false
 		})
+
+		// TODO delete the if-operator after fork-0.15.0 released
+		if len(inviteesToRemovePerInviter) > 0 {
+			for _, identity := range snapshot.Identities {
+				if inviteeAddr, ok := inviteesToRemovePerInviter[identity.Address]; ok {
+					for i, invitee := range identity.Invitees {
+						if invitee.Address != inviteeAddr {
+							continue
+						}
+						identity.Invitees = append(identity.Invitees[:i], identity.Invitees[i+1:]...)
+						break
+					}
+				}
+			}
+		}
 
 		appState.IdentityState.IterateIdentities(func(key []byte, value []byte) bool {
 			if key == nil {
