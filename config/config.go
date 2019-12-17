@@ -331,9 +331,6 @@ func applyRpcFlags(ctx *cli.Context, cfg *Config) {
 	}
 	if ctx.IsSet(ApiKeyFlag.Name) {
 		cfg.RPC.APIKey = ctx.String(ApiKeyFlag.Name)
-		if cfg.RPC.APIKey != "" {
-			cfg.RPC.UseApiKey = true
-		}
 	}
 }
 
