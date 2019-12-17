@@ -716,7 +716,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			newTotalQualifiedFlipsCount, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-		incSuccessfulInvites(validationAuthors, god, identity, newIdentityState)
+		incSuccessfulInvites(validationAuthors, god, identity, identityBirthday, newIdentityState, vc.epoch)
+		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -782,13 +783,31 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	return identitiesCount, validationAuthors, false
 }
 
-func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity, newState state.IdentityState) {
+func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool,
+	validationAuthors *types.ValidationAuthors) {
 	goodAuthors := validationAuthors.GoodAuthors
-	if invitee.State == state.Candidate && newState == state.Newbie && invitee.Inviter != nil {
-		if vr, ok := goodAuthors[invitee.Inviter.Address]; ok {
-			vr.SuccessfulInvites++
-		} else if invitee.Inviter.Address == god {
-			goodAuthors[god] = &types.ValidationResult{SuccessfulInvites: 1}
+	if vr, ok := goodAuthors[address]; ok {
+		vr.Missed = missed
+		vr.Validated = newState == state.Newbie || newState == state.Verified
+	}
+}
+
+func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity,
+	birthday uint16, newState state.IdentityState, currentEpoch uint16) {
+	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
+		return
+	}
+	newAge := currentEpoch - birthday + 1
+	if newAge > 3 {
+		return
+	}
+	goodAuthors := validationAuthors.GoodAuthors
+	if vr, ok := goodAuthors[invitee.Inviter.Address]; ok {
+		vr.SuccessfulInviteAges = append(vr.SuccessfulInviteAges, newAge)
+	} else if invitee.Inviter.Address == god {
+		goodAuthors[god] = &types.ValidationResult{
+			SuccessfulInviteAges: []uint16{newAge},
+			Validated:            true,
 		}
 	}
 }

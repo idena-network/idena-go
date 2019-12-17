@@ -88,142 +88,142 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Killed,
 			0, 0, 0, 0, true,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Invite,
 			1, 1, 1, 110, false,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Candidate,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
-			state.Newbie,false,false,
+			state.Newbie, false, false,
 		},
 		{
 			state.Candidate,
 			MinShortScore, MinLongScore, MinTotalScore, 11, true,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
-			state.Verified,false,false,
+			state.Verified, false, false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Newbie,false,false,
+			state.Newbie, false, false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, true,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Newbie,
 			0.4, 0.8, 1, 11, false,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 8, false,
-			state.Newbie,false,false,
+			state.Newbie, false, false,
 		},
 		{
 			state.Verified,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Verified,
 			0, 0, 0, 0, true,
-			state.Suspended,false,false,
+			state.Suspended, false, false,
 		},
 		{
 			state.Verified,
 			0, 0, 0, 0, false,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Suspended,
 			MinShortScore, MinLongScore, MinTotalScore, 10, false,
-			state.Verified,false,false,
+			state.Verified, false, false,
 		},
 		{
 			state.Suspended,
 			1, 0.8, 0, 10, true,
-			state.Zombie,false,false,
+			state.Zombie, false, false,
 		},
 		{
 			state.Zombie,
 			MinShortScore, 0, MinTotalScore, 10, false,
-			state.Verified,false,false,
+			state.Verified, false, false,
 		},
 		{
 			state.Zombie,
 			1, 0, 0, 10, true,
-			state.Killed,false,false,
+			state.Killed, false, false,
 		},
 		{
 			state.Candidate,
 			MinShortScore, 0, 0, 5, false,
-			state.Candidate,true,false,
+			state.Candidate, true, false,
 		},
 		{
 			state.Candidate,
-			MinShortScore-0.1, 0, 0, 5, false,
-			state.Killed,false,true,
+			MinShortScore - 0.1, 0, 0, 5, false,
+			state.Killed, false, true,
 		},
 		{
 			state.Newbie,
 			MinShortScore, 0, 0.1, 5, false,
-			state.Newbie,true,false,
+			state.Newbie, true, false,
 		},
 		{
 			state.Newbie,
 			MinShortScore, 0, 0.1, 5, false,
-			state.Newbie,false,true,
+			state.Newbie, false, true,
 		},
 		{
 			state.Newbie,
 			MinShortScore, 0, 0.1, 11, false,
-			state.Killed,false,true,
+			state.Killed, false, true,
 		},
 		{
 			state.Newbie,
-			MinShortScore-0.1, 0, 0.1, 9, false,
-			state.Killed,false,true,
+			MinShortScore - 0.1, 0, 0.1, 9, false,
+			state.Killed, false, true,
 		},
 		{
 			state.Verified,
-			MinShortScore-0.1, 0, 0.1, 10, false,
-			state.Verified,true,false,
+			MinShortScore - 0.1, 0, 0.1, 10, false,
+			state.Verified, true, false,
 		},
 		{
 			state.Verified,
-			MinShortScore-0.1, 0, 1.1, 10, false,
-			state.Killed,false,true,
+			MinShortScore - 0.1, 0, 1.1, 10, false,
+			state.Killed, false, true,
 		},
 		{
 			state.Suspended,
-			MinShortScore-0.1, 0, 0.1, 10, false,
-			state.Suspended,true,false,
+			MinShortScore - 0.1, 0, 0.1, 10, false,
+			state.Suspended, true, false,
 		},
 		{
 			state.Suspended,
-			MinShortScore-0.1, 0, 1.1, 10, false,
-			state.Killed,false,true,
+			MinShortScore - 0.1, 0, 1.1, 10, false,
+			state.Killed, false, true,
 		},
 		{
 			state.Zombie,
-			MinShortScore-0.1, 0, 0.1, 10, false,
-			state.Zombie,true,false,
+			MinShortScore - 0.1, 0, 0.1, 10, false,
+			state.Zombie, true, false,
 		},
 		{
 			state.Zombie,
 			MinShortScore, 0, 0.1, 10, false,
-			state.Killed,false,true,
+			state.Killed, false, true,
 		},
 	}
 
@@ -358,7 +358,7 @@ func Test_analizeAuthors(t *testing.T) {
 }
 
 func Test_incSuccessfulInvites(t *testing.T) {
-
+	epoch := uint16(5)
 	god := common.Address{0x1}
 	auth1 := common.Address{0x2}
 	badAuth := common.Address{0x3}
@@ -366,7 +366,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	authors := &types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1: {StrongFlips: 1, WeakFlips: 1, SuccessfulInvites: 0},
+			auth1: {StrongFlips: 1, WeakFlips: 1},
 		},
 	}
 
@@ -375,31 +375,77 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.TxAddr{
 			Address: god,
 		},
-	}, state.Newbie)
+	}, 0, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: auth1,
 		},
-	}, state.Newbie)
+	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: badAuth,
 		},
-	}, state.Newbie)
+	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(authors, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.TxAddr{
 			Address: god,
 		},
-	}, state.Newbie)
+	}, 5, state.Newbie, epoch)
 
-	require.Equal(t, authors.GoodAuthors[auth1].SuccessfulInvites, 1)
-	require.Equal(t, authors.GoodAuthors[god].SuccessfulInvites, 1)
+	// 4th validation (Newbie->Newbie)
+	incSuccessfulInvites(authors, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.TxAddr{
+			Address: auth1,
+		},
+	}, 2, state.Newbie, epoch)
+
+	// 4th validation (Newbie->Verified)
+	incSuccessfulInvites(authors, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.TxAddr{
+			Address: auth1,
+		},
+	}, 2, state.Verified, epoch)
+
+	// 3rd validation (Newbie->Newbie)
+	incSuccessfulInvites(authors, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.TxAddr{
+			Address: auth1,
+		},
+	}, 3, state.Newbie, epoch)
+
+	// 2nd validation (Newbie->Newbie)
+	incSuccessfulInvites(authors, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.TxAddr{
+			Address: auth1,
+		},
+	}, 4, state.Newbie, epoch)
+
+	// 3rd validation (Newbie->Verified)
+	incSuccessfulInvites(authors, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.TxAddr{
+			Address: auth1,
+		},
+	}, 3, state.Verified, epoch)
+
+	require.Equal(t, len(authors.GoodAuthors[auth1].SuccessfulInviteAges), 4)
+	require.Equal(t, []uint16{1, 3, 2, 3}, authors.GoodAuthors[auth1].SuccessfulInviteAges)
+
+	require.Equal(t, len(authors.GoodAuthors[god].SuccessfulInviteAges), 1)
+	require.Equal(t, []uint16{1}, authors.GoodAuthors[god].SuccessfulInviteAges)
+	require.True(t, authors.GoodAuthors[god].Validated)
+	require.False(t, authors.GoodAuthors[god].Missed)
+
 	require.NotContains(t, authors.GoodAuthors, badAuth)
 }
 
