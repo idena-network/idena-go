@@ -98,8 +98,7 @@ func main() {
 		})
 
 		// TODO delete the variable after fork-0.15.0 released
-		inviteesToRemovePerInviter := make(map[common.Address]common.Address)
-
+		inviteesToRemovePerInviter := make(map[common.Address][]common.Address)
 		appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 			if key == nil {
 				return true
@@ -125,10 +124,11 @@ func main() {
 			// TODO uncomment the line and delete next if-operator after fork-0.15.0 released
 			//inviter = data.Inviter
 			if data.Inviter != nil {
-				if data.State == state.Invite {
+				if data.State == state.Invite || data.State == state.Candidate {
 					inviter = data.Inviter
 				} else {
-					inviteesToRemovePerInviter[data.Inviter.Address] = addr
+					inviteesToRemovePerInviter[data.Inviter.Address] =
+						append(inviteesToRemovePerInviter[data.Inviter.Address], addr)
 				}
 			}
 
@@ -156,17 +156,22 @@ func main() {
 		// TODO delete the if-operator after fork-0.15.0 released
 		if len(inviteesToRemovePerInviter) > 0 {
 			for _, identity := range snapshot.Identities {
-				if inviteeAddr, ok := inviteesToRemovePerInviter[identity.Address]; ok {
-					for i, invitee := range identity.Invitees {
-						if invitee.Address != inviteeAddr {
-							continue
+				if inviteeAddrs, ok := inviteesToRemovePerInviter[identity.Address]; ok {
+					for _, inviteeAddr := range inviteeAddrs {
+						for i, invitee := range identity.Invitees {
+							if invitee.Address != inviteeAddr {
+								continue
+							}
+							identity.Invitees = append(identity.Invitees[:i], identity.Invitees[i+1:]...)
+							break
 						}
-						identity.Invitees = append(identity.Invitees[:i], identity.Invitees[i+1:]...)
-						break
 					}
 				}
 			}
 		}
+
+		// TODO delete this call after fork-0.15.0 released
+		validateInvites(snapshot.Identities, appState)
 
 		appState.IdentityState.IterateIdentities(func(key []byte, value []byte) bool {
 			if key == nil {
@@ -222,4 +227,22 @@ func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, e
 		WriteBuffer:            cache / 4 * opt.MiB,
 		Filter:                 filter.NewBloomFilter(10),
 	})
+}
+
+// TODO delete the func after fork-0.15.0 released
+func validateInvites(identities []*state.StateIdentity, appState *appstate.AppState) {
+	for _, identity := range identities {
+		if len(identity.Invitees) == 0 {
+			continue
+		}
+		for _, invitee := range identity.Invitees {
+			if appState.State.GetIdentityState(invitee.Address) == state.Invite {
+				continue
+			}
+			if appState.State.GetIdentityState(invitee.Address) == state.Candidate {
+				continue
+			}
+			panic("There is a link between inviter and validated invitee")
+		}
+	}
 }
