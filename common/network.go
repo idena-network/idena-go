@@ -58,11 +58,11 @@ func NetworkParams(networkSize int) (epochDuration int, invites int, flips int) 
 func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Duration {
 	const day = 24 * time.Hour
 	baseEpochDays, _, _ := NetworkParams(networkSize)
-	if baseEpochDays < 7 {
+	if baseEpochDays < 21 {
 		return day * time.Duration(baseEpochDays)
 	}
 	if validationTime.Weekday() != time.Saturday {
-		return day * 6
+		return day * 20
 	}
-	return day * time.Duration(math2.MinInt(91, int(math.Round(math.Pow(float64(networkSize), 0.33)/7)*7)))
+	return day * time.Duration(math2.MinInt(91, int(math.Round(math.Pow(float64(networkSize), 0.33)/21)*21)))
 }
