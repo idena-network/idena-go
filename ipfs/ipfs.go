@@ -243,7 +243,7 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 		return cid.Cid{}, err
 	}
 
-	p.log.Debug("Add ipfs data", "cid", ipfsPath.Cid().String())
+	p.log.Debug("AddPublicFlipKey ipfs data", "cid", ipfsPath.Cid().String())
 	return ipfsPath.Cid(), nil
 }
 
@@ -268,7 +268,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	if err != nil {
 		return cid.Cid{}, err
 	}
-	p.log.Debug("Add ipfs data from reader", "cid", path.Cid().String())
+	p.log.Debug("AddPublicFlipKey ipfs data from reader", "cid", path.Cid().String())
 	return path.Cid(), nil
 }
 

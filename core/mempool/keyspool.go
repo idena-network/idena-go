@@ -7,6 +7,8 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"sync"
@@ -14,7 +16,7 @@ import (
 
 type KeysPool struct {
 	appState  *appstate.AppState
-	flipKeys  map[common.Address]*types.FlipKey
+	flipKeys  map[common.Address]*types.PublicFlipKey
 	knownKeys mapset.Set
 	mutex     sync.Mutex
 	bus       eventbus.Bus
@@ -28,7 +30,7 @@ func NewKeysPool(appState *appstate.AppState, bus eventbus.Bus) *KeysPool {
 		bus:       bus,
 		knownKeys: mapset.NewSet(),
 		log:       log.New(),
-		flipKeys:  make(map[common.Address]*types.FlipKey),
+		flipKeys:  make(map[common.Address]*types.PublicFlipKey),
 	}
 }
 
@@ -42,7 +44,7 @@ func (p *KeysPool) Initialize(head *types.Header) {
 		})
 }
 
-func (p *KeysPool) Add(key *types.FlipKey, own bool) error {
+func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -61,7 +63,7 @@ func (p *KeysPool) Add(key *types.FlipKey, own bool) error {
 	appState := p.appState.Readonly(p.head.Height())
 
 	if err := validateFlipKey(appState, key); err != nil {
-		log.Warn("FlipKey is not valid", "hash", hash.Hex(), "err", err)
+		log.Warn("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
 		return err
 	}
 
@@ -78,11 +80,15 @@ func (p *KeysPool) Add(key *types.FlipKey, own bool) error {
 	return nil
 }
 
-func (p *KeysPool) GetFlipKeys() []*types.FlipKey {
+func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) {
+
+}
+
+func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	var list []*types.FlipKey
+	var list []*types.PublicFlipKey
 
 	for _, tx := range p.flipKeys {
 		list = append(list, tx)
@@ -90,11 +96,30 @@ func (p *KeysPool) GetFlipKeys() []*types.FlipKey {
 	return list
 }
 
-func (p *KeysPool) GetFlipKey(address common.Address) *types.FlipKey {
+func (p *KeysPool) GetPublicFlipKey(address common.Address) *ecies.PrivateKey {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	return p.flipKeys[address]
+	key, ok := p.flipKeys[address]
+	if !ok {
+		return nil
+	}
+
+	ecdsaKey, _ := crypto.ToECDSA(key.Key)
+	return ecies.ImportECDSA(ecdsaKey)
+}
+
+func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	key, ok := p.flipKeys[address]
+	if !ok {
+		return nil
+	}
+
+	ecdsaKey, _ := crypto.ToECDSA(key.Key)
+	return ecies.ImportECDSA(ecdsaKey)
 }
 
 func (p *KeysPool) Clear() {
@@ -102,10 +127,10 @@ func (p *KeysPool) Clear() {
 	defer p.mutex.Unlock()
 
 	p.knownKeys = mapset.NewSet()
-	p.flipKeys = make(map[common.Address]*types.FlipKey)
+	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
 }
 
-func validateFlipKey(appState *appstate.AppState, key *types.FlipKey) error {
+func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {
 	sender, _ := types.SenderFlipKey(key)
 	if sender == (common.Address{}) {
 		return errors.New("invalid signature")

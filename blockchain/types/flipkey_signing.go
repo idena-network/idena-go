@@ -8,14 +8,14 @@ import (
 )
 
 // SignFlipKey returns flip key signed with given private key
-func SignFlipKey(fk *FlipKey, prv *ecdsa.PrivateKey) (*FlipKey, error) {
+func SignFlipKey(fk *PublicFlipKey, prv *ecdsa.PrivateKey) (*PublicFlipKey, error) {
 	h := signatureFlipKeyHash(fk)
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FlipKey{
+	return &PublicFlipKey{
 		Key:       fk.Key,
 		Epoch:     fk.Epoch,
 		Signature: sig,
@@ -24,7 +24,7 @@ func SignFlipKey(fk *FlipKey, prv *ecdsa.PrivateKey) (*FlipKey, error) {
 
 // Sender may cache the address, allowing it to be used regardless of
 // signing method.
-func SenderFlipKey(fk *FlipKey) (common.Address, error) {
+func SenderFlipKey(fk *PublicFlipKey) (common.Address, error) {
 	if from := fk.from.Load(); from != nil {
 		return from.(common.Address), nil
 	}
@@ -37,13 +37,37 @@ func SenderFlipKey(fk *FlipKey) (common.Address, error) {
 	return addr, nil
 }
 
-func SenderFlipKeyPubKey(fk *FlipKey) ([]byte, error) {
+// SignFlipKey returns flip key signed with given private key
+func SignFlipKeysPackage(fk *PrivateFlipKeysPackage, prv *ecdsa.PrivateKey) (*PrivateFlipKeysPackage, error) {
+	h := signatureFlipKeysPackageHash(fk)
+	sig, err := crypto.Sign(h[:], prv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PrivateFlipKeysPackage{
+		Data:      fk.Data,
+		Epoch:     fk.Epoch,
+		Signature: sig,
+	}, nil
+}
+
+func SenderFlipKeyPubKey(fk *PublicFlipKey) ([]byte, error) {
 	return crypto.Ecrecover(signatureFlipKeyHash(fk).Bytes(), fk.Signature)
 }
 
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
-func signatureFlipKeyHash(fk *FlipKey) common.Hash {
+func signatureFlipKeysPackageHash(fk *PrivateFlipKeysPackage) common.Hash {
+	return rlp.Hash([]interface{}{
+		fk.Data,
+		fk.Epoch,
+	})
+}
+
+// Hash returns the hash to be signed by the sender.
+// It does not uniquely identify the transaction.
+func signatureFlipKeyHash(fk *PublicFlipKey) common.Hash {
 	return rlp.Hash([]interface{}{
 		fk.Key,
 		fk.Epoch,

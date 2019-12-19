@@ -34,8 +34,9 @@ type FlipSubmitResponse struct {
 }
 
 type FlipSubmitArgs struct {
-	Hex    *hexutil.Bytes `json:"hex"`
-	PairId uint8          `json:"pairId"`
+	Hex        *hexutil.Bytes `json:"hex"`
+	PrivateHex *hexutil.Bytes `json:"privateHex"`
+	PairId     uint8          `json:"pairId"`
 }
 
 func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
@@ -43,9 +44,10 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
-	rawFlip := *args.Hex
+	rawPublicPart := *args.Hex
+	rawPrivatePart := *args.PrivateHex
 
-	cid, encryptedFlip, err := api.fp.PrepareFlip(rawFlip)
+	cid, encryptedPublicPart, encryptedPrivatePart, err := api.fp.PrepareFlip(rawPublicPart, rawPrivatePart)
 
 	if err != nil {
 		return FlipSubmitResponse{}, err
@@ -60,8 +62,9 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	}
 
 	flip := &types.Flip{
-		Tx:   tx,
-		Data: encryptedFlip,
+		Tx:          tx,
+		PublicPart:  encryptedPublicPart,
+		PrivatePart: encryptedPrivatePart,
 	}
 
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
@@ -140,7 +143,8 @@ func prepareHashes(flipper *flip.Flipper, flips [][]byte, shortSession bool) ([]
 }
 
 type FlipResponse struct {
-	Hex hexutil.Bytes `json:"hex"`
+	Hex        hexutil.Bytes `json:"hex"`
+	PrivateHex hexutil.Bytes `json:"privateHex"`
 }
 
 func (api *FlipApi) Get(hash string) (FlipResponse, error) {
@@ -150,14 +154,15 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	}
 	cidBytes := c.Bytes()
 
-	data, err := api.fp.GetFlip(cidBytes)
+	publicPart, privatePart, err := api.fp.GetFlip(cidBytes)
 
 	if err != nil {
 		return FlipResponse{}, err
 	}
 
 	return FlipResponse{
-		Hex: hexutil.Bytes(data),
+		Hex:        publicPart,
+		PrivateHex: privatePart,
 	}, nil
 }
 

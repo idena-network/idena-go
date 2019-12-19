@@ -51,18 +51,15 @@ type Flipper struct {
 	loadingCtx       context.Context
 	cancelLoadingCtx context.CancelFunc
 	bus              eventbus.Bus
-	flipKey          *ecies.PrivateKey
 	flipsQueue       chan *types.Flip
 	flipsCache       *cache.Cache
+	flipPublicKey    *ecies.PrivateKey
+	flipPrivateKey   *ecies.PrivateKey
 }
 type IpfsFlip struct {
-	Data   []byte
-	PubKey []byte
-}
-type IpfsFlipOld struct {
-	Data   []byte
-	PubKey []byte
-	Pair   uint8
+	PubKey      []byte
+	PublicPart  []byte
+	PrivatePart []byte
 }
 
 func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txpool *mempool.TxPool, secStore *secstore.SecStore, appState *appstate.AppState, bus eventbus.Bus) *Flipper {
@@ -112,8 +109,9 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 		return errors.Errorf("flip tx has invalid pubkey, tx: %v", flip.Tx.Hash())
 	}
 	ipf := IpfsFlip{
-		Data:   flip.Data,
-		PubKey: pubKey,
+		PublicPart:  flip.PublicPart,
+		PrivatePart: flip.PrivatePart,
+		PubKey:      pubKey,
 	}
 
 	data, _ := rlp.EncodeToBytes(ipf)
@@ -182,19 +180,26 @@ func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
 	return nil
 }
 
-func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
+func (fp *Flipper) PrepareFlip(flipPublicPart []byte, flipPrivatePart []byte) (cid.Cid, []byte, []byte, error) {
 
-	encryptionKey := fp.GetFlipEncryptionKey()
+	publicEncryptionKey, privateEncryptionKey := fp.GetFlipPublicEncryptionKey(), fp.GetFlipPrivateEncryptionKey()
 
-	encrypted, err := ecies.Encrypt(rand.Reader, &encryptionKey.PublicKey, hex, nil, nil)
+	encryptedPublic, err := ecies.Encrypt(rand.Reader, &publicEncryptionKey.PublicKey, flipPublicPart, nil, nil)
 
 	if err != nil {
-		return cid.Cid{}, nil, err
+		return cid.Cid{}, nil, nil, err
+	}
+
+	encryptedPrivate, err := ecies.Encrypt(rand.Reader, &privateEncryptionKey.PublicKey, flipPrivatePart, nil, nil)
+
+	if err != nil {
+		return cid.Cid{}, nil, nil, err
 	}
 
 	ipf := IpfsFlip{
-		Data:   encrypted,
-		PubKey: fp.secStore.GetPubKey(),
+		PublicPart:  encryptedPublic,
+		PrivatePart: encryptedPrivate,
+		PubKey:      fp.secStore.GetPubKey(),
 	}
 
 	ipfsData, _ := rlp.EncodeToBytes(ipf)
@@ -202,57 +207,80 @@ func (fp *Flipper) PrepareFlip(hex []byte) (cid.Cid, []byte, error) {
 	c, err := fp.ipfsProxy.Cid(ipfsData)
 
 	if err != nil {
-		return cid.Cid{}, nil, err
+		return cid.Cid{}, nil, nil, err
 	}
 
-	return c, encrypted, nil
+	return c, encryptedPublic, encryptedPrivate, nil
 }
 
-func (fp *Flipper) GetFlip(key []byte) ([]byte, error) {
+func (fp *Flipper) GetFlip(key []byte) (publicPart []byte, privatePart []byte, err error) {
 
 	fp.mutex.Lock()
 	ipfsFlip := fp.flips[common.Hash(rlp.Hash(key))]
 	fp.mutex.Unlock()
 
 	if ipfsFlip == nil {
-		return nil, errors.New("flip is missing")
+		return nil, nil, errors.New("flip is missing")
 	}
 
 	// if flip is mine
-	var encryptionKey *ecies.PrivateKey
+	var publicEncryptionKey *ecies.PrivateKey
+	var privateEncryptionKey *ecies.PrivateKey
 	if bytes.Compare(ipfsFlip.PubKey, fp.secStore.GetPubKey()) == 0 {
-		encryptionKey = fp.GetFlipEncryptionKey()
-		if encryptionKey == nil {
-			return nil, errors.New("flip key is missing")
-		}
+		publicEncryptionKey, privateEncryptionKey = fp.GetFlipPublicEncryptionKey(), fp.GetFlipPrivateEncryptionKey()
 	} else {
 		addr, _ := crypto.PubKeyBytesToAddress(ipfsFlip.PubKey)
-		flipKey := fp.keyspool.GetFlipKey(addr)
-		if flipKey == nil {
-			return nil, errors.New("flip key is missing")
+		publicEncryptionKey, privateEncryptionKey = fp.keyspool.GetPublicFlipKey(addr), fp.keyspool.GetPrivateFlipKey(addr)
+		if publicEncryptionKey == nil {
+			return nil, nil, errors.New("flip public key is missing")
 		}
-		ecdsaKey, _ := crypto.ToECDSA(flipKey.Key)
-		encryptionKey = ecies.ImportECDSA(ecdsaKey)
+		if privateEncryptionKey == nil {
+			return nil, nil, errors.New("flip private key is missing")
+		}
 	}
 
-	decryptedFlip, err := encryptionKey.Decrypt(ipfsFlip.Data, nil, nil)
+	decryptedPublicPart, err := publicEncryptionKey.Decrypt(ipfsFlip.PublicPart, nil, nil)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, errors.Wrap(err, "cannot decrypt flip public part")
 	}
 
-	return decryptedFlip, nil
+	decryptedPrivatePart, err := privateEncryptionKey.Decrypt(ipfsFlip.PrivatePart, nil, nil)
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot decrypt flip private part")
+	}
+
+	return decryptedPublicPart, decryptedPrivatePart, nil
 }
 
-func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
+func (fp *Flipper) GetFlipPublicEncryptionKey() *ecies.PrivateKey {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
-	if fp.flipKey != nil {
-		return fp.flipKey
+	if fp.flipPublicKey != nil {
+		return fp.flipPublicKey
 	}
 
-	seed := []byte(fmt.Sprintf("flip-key-for-epoch-%v", fp.appState.State.Epoch()))
+	fp.flipPublicKey = fp.generateFlipEncryptionKey(true)
+	return fp.flipPublicKey
+}
+
+func (fp *Flipper) GetFlipPrivateEncryptionKey() *ecies.PrivateKey {
+	fp.mutex.Lock()
+	defer fp.mutex.Unlock()
+
+	if fp.flipPrivateKey != nil {
+		return fp.flipPrivateKey
+	}
+
+	fp.flipPrivateKey = fp.generateFlipEncryptionKey(false)
+	return fp.flipPrivateKey
+}
+
+func (fp *Flipper) generateFlipEncryptionKey(public bool) *ecies.PrivateKey {
+
+	seed := []byte(fmt.Sprintf("flip-key-for-epoch-%v-%v", fp.appState.State.Epoch(), public))
 
 	hash := common.Hash(rlp.Hash(seed))
 
@@ -260,9 +288,7 @@ func (fp *Flipper) GetFlipEncryptionKey() *ecies.PrivateKey {
 
 	flipKey, _ := crypto.GenerateKeyFromSeed(bytes.NewReader(sig))
 
-	fp.flipKey = ecies.ImportECDSA(flipKey)
-
-	return fp.flipKey
+	return ecies.ImportECDSA(flipKey)
 }
 
 func (fp *Flipper) Load(cids [][]byte) {
@@ -291,14 +317,8 @@ func (fp *Flipper) Load(cids [][]byte) {
 
 		ipfsFlip := new(IpfsFlip)
 		if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
-			oldIpfsFlip := new(IpfsFlipOld)
-			if err2 := rlp.Decode(bytes.NewReader(data), oldIpfsFlip); err2 != nil {
-				fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
-				continue
-			} else {
-				ipfsFlip.Data = oldIpfsFlip.Data
-				ipfsFlip.PubKey = oldIpfsFlip.PubKey
-			}
+			fp.log.Warn("Can't decode flip", "cid", cid.String(), "err", err)
+			continue
 		}
 		fp.mutex.Lock()
 		fp.flips[common.Hash(rlp.Hash(key))] = ipfsFlip
@@ -318,7 +338,8 @@ func (fp *Flipper) Reset() {
 	fp.flipReadiness = make(map[common.Hash]bool)
 	fp.keyspool.Clear()
 	fp.Initialize()
-	fp.flipKey = nil
+	fp.flipPrivateKey = nil
+	fp.flipPublicKey = nil
 	fp.loadingCtx, fp.cancelLoadingCtx = context.WithCancel(context.Background())
 }
 
@@ -339,7 +360,7 @@ func (fp *Flipper) IsFlipReady(cid []byte) bool {
 	}
 
 	if !isReady {
-		if _, err := fp.GetFlip(cid); err == nil {
+		if _, _, err := fp.GetFlip(cid); err == nil {
 			fp.mutex.Lock()
 			isReady = true
 			fp.flipReadiness[hash] = true
@@ -361,13 +382,7 @@ func (fp *Flipper) GetRawFlip(flipCid []byte) (*IpfsFlip, error) {
 	}
 	ipfsFlip := new(IpfsFlip)
 	if err := rlp.Decode(bytes.NewReader(data), ipfsFlip); err != nil {
-		oldIpfsFlip := new(IpfsFlipOld)
-		if err2 := rlp.Decode(bytes.NewReader(data), oldIpfsFlip); err2 != nil {
-			return nil, err
-		} else {
-			ipfsFlip.Data = oldIpfsFlip.Data
-			ipfsFlip.PubKey = oldIpfsFlip.PubKey
-		}
+		return nil, err
 	}
 	return ipfsFlip, nil
 }

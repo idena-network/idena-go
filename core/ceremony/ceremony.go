@@ -3,6 +3,7 @@ package ceremony
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -16,6 +17,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
@@ -55,7 +57,8 @@ type ValidationCeremony struct {
 	longFlipsPerCandidate    [][]int
 	shortFlipsToSolve        [][]byte
 	longFlipsToSolve         [][]byte
-	keySent                  bool
+	publicKeySent            bool
+	privateKeysSent          bool
 	shortAnswersSent         bool
 	evidenceSent             bool
 	shortSessionStarted      bool
@@ -80,6 +83,8 @@ type ValidationCeremony struct {
 	epochApplyingCache       map[uint64]epochApplyingCache
 	validationStartCtxCancel context.CancelFunc
 	validationStartMutex     sync.Mutex
+	candidatesPerAuthor      map[int][]int
+	authorsPerCandidate      map[int][]int
 }
 
 type epochApplyingCache struct {
@@ -276,7 +281,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.longFlipsPerCandidate = nil
 	vc.shortFlipsToSolve = nil
 	vc.longFlipsToSolve = nil
-	vc.keySent = false
+	vc.publicKeySent = false
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
 	vc.shortSessionStarted = false
@@ -310,7 +315,7 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		vc.startShortSession(vc.appState)
 	}
-	vc.broadcastFlipKey(vc.appState)
+	vc.broadcastPublicFipKey(vc.appState)
 	vc.processCeremonyTxs(block)
 }
 
@@ -328,7 +333,7 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 	if vc.shouldInteractWithNetwork() {
 		vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	}
-	vc.broadcastFlipKey(appState)
+	vc.broadcastPublicFipKey(appState)
 	vc.shortSessionStarted = true
 }
 
@@ -337,7 +342,7 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 		vc.logInfoWithInteraction("Long session started")
 	}
 	vc.broadcastShortAnswersTx()
-	vc.broadcastFlipKey(vc.appState)
+	vc.broadcastPublicFipKey(vc.appState)
 	vc.processCeremonyTxs(block)
 	vc.broadcastEvidenceMap(block)
 }
@@ -360,7 +365,9 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
 	vc.flipAuthorMapLock.Unlock()
 
-	vc.shortFlipsPerCandidate, vc.longFlipsPerCandidate = SortFlips(vc.flipsPerAuthor, vc.candidates, vc.flips, seed, int(vc.ShortSessionFlipsCount()+common.ShortSessionExtraFlipsCount()))
+	shortFlipsCount := int(vc.ShortSessionFlipsCount() + common.ShortSessionExtraFlipsCount())
+	vc.authorsPerCandidate, vc.candidatesPerAuthor = GetAuthorsDistribution(vc.candidates, seed, shortFlipsCount)
+	vc.shortFlipsPerCandidate, vc.longFlipsPerCandidate = GetFlipsDistribution(len(vc.candidates), vc.authorsPerCandidate, vc.flipsPerAuthor, vc.flips, seed, shortFlipsCount)
 
 	vc.shortFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.shortFlipsPerCandidate, vc.flips)
 	vc.longFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.longFlipsPerCandidate, vc.flips)
@@ -402,15 +409,15 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 	return time.Now().UTC().Sub(headTime) < ceremonyDuration
 }
 
-func (vc *ValidationCeremony) broadcastFlipKey(appState *appstate.AppState) {
-	if vc.keySent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey(appState) {
+func (vc *ValidationCeremony) broadcastPublicFipKey(appState *appstate.AppState) {
+	if vc.publicKeySent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey(appState) {
 		return
 	}
 
 	epoch := vc.appState.State.Epoch()
-	key := vc.flipper.GetFlipEncryptionKey()
+	key := vc.flipper.GetFlipPublicEncryptionKey()
 
-	msg := types.FlipKey{
+	msg := types.PublicFlipKey{
 		Key:   crypto.FromECDSA(key.ExportECDSA()),
 		Epoch: epoch,
 	}
@@ -418,12 +425,56 @@ func (vc *ValidationCeremony) broadcastFlipKey(appState *appstate.AppState) {
 	signedMsg, err := vc.secStore.SignFlipKey(&msg)
 
 	if err != nil {
-		vc.log.Error("cannot sign flip key", "epoch", epoch, "err", err)
+		vc.log.Error("cannot sign public flip key", "epoch", epoch, "err", err)
 		return
 	}
 
-	vc.keysPool.Add(signedMsg, true)
-	vc.keySent = true
+	vc.keysPool.AddPublicFlipKey(signedMsg, true)
+	vc.publicKeySent = true
+}
+
+func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate.AppState) {
+	if vc.privateKeysSent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey(appState) {
+		return
+	}
+
+	epoch := vc.appState.State.Epoch()
+
+	myAddress := vc.secStore.GetAddress()
+	myIndex := -1
+	for idx, candidate := range vc.candidates {
+		if candidate.Address == myAddress {
+			myIndex = idx
+			break
+		}
+	}
+
+	if myIndex == -1 {
+		vc.log.Error("user is not in candidateIndexes", "epoch", epoch, "addr", myAddress.String())
+		return
+	}
+
+	candidateIndexes, ok := vc.candidatesPerAuthor[myIndex]
+	if !ok {
+		vc.log.Error("user does not have candidates", "epoch", epoch, "addr", myAddress.String())
+		return
+	}
+	publicFlipKey, privateFlipKey := vc.flipper.GetFlipPublicEncryptionKey(), vc.flipper.GetFlipPrivateEncryptionKey()
+
+	msg := types.PrivateFlipKeysPackage{
+		Data:  getPrivateFlipKeysPackageData(publicFlipKey, privateFlipKey, candidateIndexes, vc.candidates),
+		Epoch: epoch,
+	}
+
+	signedMsg, err := vc.secStore.SignFlipKeysPackage(&msg)
+
+	if err != nil {
+		vc.log.Error("cannot sign private flip keys package", "epoch", epoch, "err", err)
+		return
+	}
+
+	vc.keysPool.AddPrivateKeysPackage(signedMsg, true)
+	vc.privateKeysSent = true
 }
 
 func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
@@ -457,6 +508,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 			addFlips(addr, data.Flips)
 			m = append(m, &candidate{
 				Address:    addr,
+				PubKey:     data.PubKey,
 				Generation: data.Generation,
 				Code:       data.Code,
 				IsAuthor:   len(data.Flips) > 0,
@@ -532,7 +584,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		return
 	}
 
-	key := vc.flipper.GetFlipEncryptionKey()
+	key := vc.flipper.GetFlipPublicEncryptionKey()
 	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
 
 	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, vc.flipKeyWordProof, salt, key)); err == nil {
@@ -1047,4 +1099,27 @@ func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
 
 func (vc *ValidationCeremony) ShortSessionStarted() bool {
 	return vc.shortSessionStarted
+}
+
+func getPrivateFlipKeysPackageData(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, candidateIndexes []int, candidates []*candidate) []byte {
+
+	keyToEncrypt := crypto.FromECDSA(privateFlipKey.ExportECDSA())
+
+	var encryptedKeyPairs [][]byte
+	for _, item := range candidateIndexes {
+		candidate := candidates[item]
+		ecdsaPubKey, err := crypto.DecompressPubkey(candidate.PubKey)
+		if err == nil {
+			encryptedKeyPairs = append(encryptedKeyPairs, []byte{})
+		}
+
+		encryptedKey, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(ecdsaPubKey), keyToEncrypt, nil, nil)
+		encryptedKeyPairs = append(encryptedKeyPairs, encryptedKey)
+	}
+
+	arrayToEncrypt, _ := rlp.EncodeToBytes(encryptedKeyPairs)
+
+	encryptedArray, _ := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
+
+	return encryptedArray
 }

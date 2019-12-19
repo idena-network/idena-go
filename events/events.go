@@ -31,7 +31,7 @@ func (e *NewBlockEvent) EventID() eventbus.EventID {
 }
 
 type NewFlipKeyEvent struct {
-	Key *types.FlipKey
+	Key *types.PublicFlipKey
 	Own bool
 }
 

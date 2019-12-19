@@ -278,11 +278,11 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markPayload(f)
 		pm.flipper.AddNewFlip(f, false)
 	case FlipKey:
-		flipKey := new(types.FlipKey)
+		flipKey := new(types.PublicFlipKey)
 		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		pm.flipKeyPool.Add(flipKey, false)
+		pm.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
 		if err := msg.Decode(manifest); err != nil {
@@ -522,7 +522,7 @@ func (pm *ProtocolManager) broadcastFlipCid(cid []byte) {
 	pm.peers.SendWithFilter(PushFlipCid, &flipCid{cid}, false)
 }
 
-func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey, own bool) {
+func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	pm.peers.SendWithFilter(FlipKey, flipKey, own)
 }
 

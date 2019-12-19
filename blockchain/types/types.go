@@ -153,8 +153,9 @@ type Vote struct {
 }
 
 type Flip struct {
-	Tx   *Transaction
-	Data []byte
+	Tx          *Transaction
+	PublicPart  []byte
+	PrivatePart []byte
 }
 
 type ActivityMonitor struct {
@@ -433,7 +434,7 @@ func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
 }
 
-type FlipKey struct {
+type PublicFlipKey struct {
 	Key       []byte
 	Signature []byte
 	Epoch     uint16
@@ -441,7 +442,19 @@ type FlipKey struct {
 	from atomic.Value
 }
 
-func (k FlipKey) Hash() common.Hash {
+func (k PublicFlipKey) Hash() common.Hash {
+	return rlp.Hash(k)
+}
+
+type PrivateFlipKeysPackage struct {
+	Data      []byte
+	Epoch     uint16
+	Signature []byte
+
+	from atomic.Value
+}
+
+func (k PrivateFlipKeysPackage) Hash() common.Hash {
 	return rlp.Hash(k)
 }
 
