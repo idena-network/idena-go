@@ -307,14 +307,17 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
 		vc.calculateCeremonyCandidates()
+		vc.calculatePrivateFlipKeysIndexes()
 		vc.logInfoWithInteraction("Flip lottery started")
 	}
+	vc.broadcastPrivateFlipKeysPackage(vc.appState)
 }
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		vc.startShortSession(vc.appState)
 	}
+	vc.broadcastPrivateFlipKeysPackage(vc.appState)
 	vc.broadcastPublicFipKey(vc.appState)
 	vc.processCeremonyTxs(block)
 }
@@ -439,24 +442,11 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 
 	epoch := vc.appState.State.Epoch()
-
-	myAddress := vc.secStore.GetAddress()
-	myIndex := -1
-	for idx, candidate := range vc.candidates {
-		if candidate.Address == myAddress {
-			myIndex = idx
-			break
-		}
-	}
-
-	if myIndex == -1 {
-		vc.log.Error("user is not in candidateIndexes", "epoch", epoch, "addr", myAddress.String())
-		return
-	}
+	myIndex := vc.getOwnCandidateIndex()
 
 	candidateIndexes, ok := vc.candidatesPerAuthor[myIndex]
 	if !ok {
-		vc.log.Error("user does not have candidates", "epoch", epoch, "addr", myAddress.String())
+		vc.log.Error("user does not have candidates", "epoch", epoch, "addr", vc.secStore.GetAddress().String())
 		return
 	}
 	publicFlipKey, privateFlipKey := vc.flipper.GetFlipPublicEncryptionKey(), vc.flipper.GetFlipPrivateEncryptionKey()
@@ -1089,6 +1079,18 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
 
+func (vc *ValidationCeremony) getOwnCandidateIndex() int {
+	myAddress := vc.secStore.GetAddress()
+	myIndex := -1
+	for idx, candidate := range vc.candidates {
+		if candidate.Address == myAddress {
+			myIndex = idx
+			break
+		}
+	}
+	return myIndex
+}
+
 func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
 	seed := []byte(fmt.Sprintf("short-answers-salt-%v", epoch))
 	hash := common.Hash(rlp.Hash(seed))
@@ -1101,6 +1103,24 @@ func (vc *ValidationCeremony) ShortSessionStarted() bool {
 	return vc.shortSessionStarted
 }
 
+func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
+	if !vc.isCandidate() {
+		return
+	}
+	myIndex := vc.getOwnCandidateIndex()
+	authors := vc.authorsPerCandidate[myIndex]
+	m := make(map[common.Address]int)
+	for _, item := range authors {
+		authorCandidates := vc.candidatesPerAuthor[item]
+		for idx, c := range authorCandidates {
+			if c == myIndex {
+				m[vc.candidates[item].Address] = idx
+			}
+		}
+	}
+	vc.keysPool.ProvideAuthorIndexes(m)
+}
+
 func getPrivateFlipKeysPackageData(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, candidateIndexes []int, candidates []*candidate) []byte {
 
 	keyToEncrypt := crypto.FromECDSA(privateFlipKey.ExportECDSA())
@@ -1108,9 +1128,10 @@ func getPrivateFlipKeysPackageData(publicFlipKey *ecies.PrivateKey, privateFlipK
 	var encryptedKeyPairs [][]byte
 	for _, item := range candidateIndexes {
 		candidate := candidates[item]
-		ecdsaPubKey, err := crypto.DecompressPubkey(candidate.PubKey)
-		if err == nil {
+		ecdsaPubKey, err := crypto.UnmarshalPubkey(candidate.PubKey)
+		if err != nil {
 			encryptedKeyPairs = append(encryptedKeyPairs, []byte{})
+			continue
 		}
 
 		encryptedKey, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(ecdsaPubKey), keyToEncrypt, nil, nil)

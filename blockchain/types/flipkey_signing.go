@@ -52,6 +52,21 @@ func SignFlipKeysPackage(fk *PrivateFlipKeysPackage, prv *ecdsa.PrivateKey) (*Pr
 	}, nil
 }
 
+// Sender may cache the address, allowing it to be used regardless of
+// signing method.
+func SenderFlipKeysPackage(fk *PrivateFlipKeysPackage) (common.Address, error) {
+	if from := fk.from.Load(); from != nil {
+		return from.(common.Address), nil
+	}
+
+	addr, err := recoverPlain(signatureFlipKeysPackageHash(fk), fk.Signature)
+	if err != nil {
+		return common.Address{}, err
+	}
+	fk.from.Store(addr)
+	return addr, nil
+}
+
 func SenderFlipKeyPubKey(fk *PublicFlipKey) ([]byte, error) {
 	return crypto.Ecrecover(signatureFlipKeyHash(fk).Bytes(), fk.Signature)
 }

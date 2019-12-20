@@ -62,18 +62,19 @@ type ProtocolManager struct {
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
 
-	txpool        mempool.TransactionPool
-	flipKeyPool   *mempool.KeysPool
-	flipper       *flip.Flipper
-	txChan        chan *events.NewTxEvent
-	flipKeyChan   chan *events.NewFlipKeyEvent
-	incomeBatches *sync.Map
-	batchedLock   sync.Mutex
-	bus           eventbus.Bus
-	config        *p2p.Config
-	wrongTime     bool
-	appVersion    string
-	bannedPeers   mapset.Set
+	txpool              mempool.TransactionPool
+	flipKeyPool         *mempool.KeysPool
+	flipper             *flip.Flipper
+	txChan              chan *events.NewTxEvent
+	flipKeyChan         chan *events.NewFlipKeyEvent
+	flipKeysPackageChan chan *events.NewFlipKeysPackageEvent
+	incomeBatches       *sync.Map
+	batchedLock         sync.Mutex
+	bus                 eventbus.Bus
+	config              *p2p.Config
+	wrongTime           bool
+	appVersion          string
+	bannedPeers         mapset.Set
 }
 
 type getBlockBodyRequest struct {
@@ -114,22 +115,23 @@ type handshakeData struct {
 
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, config *p2p.Config, appVersion string) *ProtocolManager {
 	return &ProtocolManager{
-		bcn:           chain,
-		peers:         newPeerSet(),
-		heads:         make(chan *peerHead, 10),
-		incomeBlocks:  make(chan *types.Block, 1000),
-		incomeBatches: &sync.Map{},
-		proposals:     proposals,
-		votes:         votes,
-		txpool:        mempool.NewAsyncTxPool(txpool),
-		txChan:        make(chan *events.NewTxEvent, 100),
-		flipKeyChan:   make(chan *events.NewFlipKeyEvent, 200),
-		flipper:       fp,
-		bus:           bus,
-		flipKeyPool:   flipKeyPool,
-		config:        config,
-		appVersion:    appVersion,
-		bannedPeers:   mapset.NewSet(),
+		bcn:                 chain,
+		peers:               newPeerSet(),
+		heads:               make(chan *peerHead, 10),
+		incomeBlocks:        make(chan *types.Block, 1000),
+		incomeBatches:       &sync.Map{},
+		proposals:           proposals,
+		votes:               votes,
+		txpool:              mempool.NewAsyncTxPool(txpool),
+		txChan:              make(chan *events.NewTxEvent, 100),
+		flipKeyChan:         make(chan *events.NewFlipKeyEvent, 200),
+		flipKeysPackageChan: make(chan *events.NewFlipKeysPackageEvent, 200),
+		flipper:             fp,
+		bus:                 bus,
+		flipKeyPool:         flipKeyPool,
+		config:              config,
+		appVersion:          appVersion,
+		bannedPeers:         mapset.NewSet(),
 	}
 }
 
@@ -141,6 +143,10 @@ func (pm *ProtocolManager) Start() {
 	_ = pm.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
 		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
 		pm.flipKeyChan <- newFlipKeyEvent
+	})
+	_ = pm.bus.Subscribe(events.NewFlipKeysPackageID, func(e eventbus.Event) {
+		newFlipKeysPackageEvent := e.(*events.NewFlipKeysPackageEvent)
+		pm.flipKeysPackageChan <- newFlipKeysPackageEvent
 	})
 	_ = pm.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
@@ -511,6 +517,8 @@ func (pm *ProtocolManager) broadcastLoop() {
 			pm.broadcastTx(tx.Tx, tx.Own)
 		case key := <-pm.flipKeyChan:
 			pm.broadcastFlipKey(key.Key, key.Own)
+		case key := <-pm.flipKeysPackageChan:
+			pm.broadcastFlipKeysPackage(key.Key, key.Own)
 		}
 	}
 }
@@ -524,6 +532,10 @@ func (pm *ProtocolManager) broadcastFlipCid(cid []byte) {
 
 func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	pm.peers.SendWithFilter(FlipKey, flipKey, own)
+}
+
+func (pm *ProtocolManager) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
+	pm.peers.SendWithFilter(FlipKey, flipKeysPackage, own)
 }
 
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {

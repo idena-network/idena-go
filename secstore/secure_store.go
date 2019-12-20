@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"os"
 )
@@ -82,4 +83,9 @@ func (s *SecStore) ExportKey(password string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(encrypted), nil
+}
+
+func (s *SecStore) DecryptMessage(data []byte) ([]byte, error) {
+	sec, _ := crypto.ToECDSA(s.buffer.Bytes())
+	return ecies.ImportECDSA(sec).Decrypt(data, nil, nil)
 }
