@@ -32,5 +32,5 @@ func (api *NetApi) Peers() []Peer {
 }
 
 func (api *NetApi) IpfsAddress() string {
-	return ""
+	return api.pm.Endpoint()
 }

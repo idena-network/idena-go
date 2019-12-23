@@ -25,6 +25,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -654,6 +655,17 @@ func (h *IdenaGossipHandler) PeerHeights() []uint64 {
 		result = append(result, peer.knownHeight)
 	}
 	return result
+}
+
+func (h *IdenaGossipHandler) Endpoint() string {
+	addrs := h.host.Network().ListenAddresses()
+	for _, a := range addrs {
+		addrStr := a.String()
+		if strings.Contains(addrStr, "ip4") {
+			return fmt.Sprintf("%s/ipfs/%s", addrStr, h.host.ID().Pretty())
+		}
+	}
+	return h.host.ID().Pretty()
 }
 
 type idenaNotifiee struct {
