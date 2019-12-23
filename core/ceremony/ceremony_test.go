@@ -2,7 +2,6 @@ package ceremony
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -10,7 +9,6 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -463,19 +461,4 @@ func Test_determineIdentityBirthday(t *testing.T) {
 	identity.Birthday = 1
 	identity.State = state.Newbie
 	require.Equal(t, uint16(1), determineIdentityBirthday(2, identity, state.Newbie))
-}
-
-func Test_getPrivateKeysPackage(t *testing.T) {
-	key, _ := crypto.GenerateKey()
-	candidates := getParticipants(key, 4, 5)
-
-	key1, _ := crypto.GenerateKey()
-	publicEncKey := ecies.ImportECDSA(key1)
-
-	key2, _ := crypto.GenerateKey()
-	privateEncKey := ecies.ImportECDSA(key2)
-
-	encryptedData := getPrivateFlipKeysPackageData(publicEncKey, privateEncKey, []int{0, 2, 3}, candidates)
-
-	fmt.Println(encryptedData)
 }

@@ -86,7 +86,6 @@ func NewFlipper(db dbm.DB, ipfsProxy ipfs.Proxy, keyspool *mempool.KeysPool, txp
 
 func (fp *Flipper) Initialize() {
 	fp.epochDb = database.NewEpochDb(fp.db, fp.appState.State.Epoch())
-
 }
 
 func (fp *Flipper) writeLoop() {
@@ -328,7 +327,7 @@ func (fp *Flipper) Load(cids [][]byte) {
 	fp.hasFlips = true
 }
 
-func (fp *Flipper) Reset() {
+func (fp *Flipper) Clear() {
 	fp.mutex.Lock()
 	defer fp.mutex.Unlock()
 
@@ -336,7 +335,6 @@ func (fp *Flipper) Reset() {
 	fp.hasFlips = false
 	fp.flips = make(map[common.Hash]*IpfsFlip)
 	fp.flipReadiness = make(map[common.Hash]bool)
-	fp.keyspool.Clear()
 	fp.Initialize()
 	fp.flipPrivateKey = nil
 	fp.flipPublicKey = nil

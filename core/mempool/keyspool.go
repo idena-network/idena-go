@@ -1,6 +1,8 @@
 package mempool
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -11,12 +13,16 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
+	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/ipfs/go-cid"
+	util "github.com/ipfs/go-ipfs-util"
+	dbm "github.com/tendermint/tm-db"
+	"math/big"
 	"sync"
 )
 
@@ -25,7 +31,12 @@ type KeysPackage struct {
 	Cid        cid.Cid
 }
 
+const (
+	KeysPackageSaveThreshold = 0.66
+)
+
 type KeysPool struct {
+	db                        dbm.DB
 	appState                  *appstate.AppState
 	flipKeys                  map[common.Address]*types.PublicFlipKey
 	knownKeys                 mapset.Set
@@ -39,10 +50,16 @@ type KeysPool struct {
 	encryptedPrivateKeysCache map[common.Address]*ecies.PrivateKey
 	ipfsProxy                 ipfs.Proxy
 	secStore                  *secstore.SecStore
+	packagesLoadingCtx        context.Context
+	cancelLoadingCtx          context.CancelFunc
+	self                      common.Address
+	epochDb                   *database.EpochDb
 }
 
-func NewKeysPool(appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore, ipfsProxy ipfs.Proxy) *KeysPool {
+func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore, ipfsProxy ipfs.Proxy) *KeysPool {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &KeysPool{
+		db:                        db,
 		appState:                  appState,
 		bus:                       bus,
 		knownKeys:                 mapset.NewSet(),
@@ -53,11 +70,15 @@ func NewKeysPool(appState *appstate.AppState, bus eventbus.Bus, secStore *secsto
 		encryptedPrivateKeysCache: make(map[common.Address]*ecies.PrivateKey),
 		secStore:                  secStore,
 		ipfsProxy:                 ipfsProxy,
+		packagesLoadingCtx:        ctx,
+		cancelLoadingCtx:          cancel,
 	}
 }
 
 func (p *KeysPool) Initialize(head *types.Header) {
 	p.head = head
+	p.self = p.secStore.GetAddress()
+	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
 
 	_ = p.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -128,13 +149,17 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 	var c cid.Cid
 	var err error
 	data, _ := rlp.EncodeToBytes(keysPackage)
-	if own {
+	shouldSaveIntoIpfs := own || checkThreshold(p.self, hash)
+	if shouldSaveIntoIpfs {
 		c, err = p.ipfsProxy.Add(data)
 	} else {
 		c, err = p.ipfsProxy.Cid(data)
 	}
 	if err != nil {
 		return err
+	}
+	if shouldSaveIntoIpfs {
+		p.epochDb.WriteKeysPackageCid(c.Bytes())
 	}
 
 	p.knownKeyPackages.Add(hash)
@@ -226,16 +251,62 @@ func (p *KeysPool) Clear() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
+	p.cancelLoadingCtx()
 	p.privateKeyIndexes = nil
 	p.knownKeys = mapset.NewSet()
 	p.knownKeyPackages = mapset.NewSet()
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
 	p.flipKeyPackages = make(map[common.Address]*KeysPackage)
 	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
+	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
+	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
 }
 
-func (p *KeysPool) ProvideAuthorIndexes(indexes map[common.Address]int) {
+func (p *KeysPool) LoadNecessaryPackages(indexes map[common.Address]int) {
+	ctx := p.packagesLoadingCtx
 	p.privateKeyIndexes = indexes
+
+	allPackagesLoaded := false
+	for !allPackagesLoaded {
+		allPackagesLoaded = true
+		for author := range p.privateKeyIndexes {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			p.mutex.Lock()
+			keyPackage, ok := p.flipKeyPackages[author]
+			p.mutex.Unlock()
+
+			if ok && keyPackage.RawPackage != nil {
+				continue
+			} else if ok {
+				allPackagesLoaded = false
+				data, err := p.ipfsProxy.Get(keyPackage.Cid.Bytes())
+				if err != nil {
+					p.log.Warn("Can't get flip package by cid", "cid", keyPackage.Cid.String(), "err", err)
+					continue
+				}
+				flipKeysPackage := new(types.PrivateFlipKeysPackage)
+				if err := rlp.Decode(bytes.NewReader(data), flipKeysPackage); err != nil {
+					p.log.Warn("Can't decode keys package", "cid", keyPackage.Cid.String(), "err", err)
+					continue
+				}
+				p.mutex.Lock()
+				p.flipKeyPackages[author].RawPackage = flipKeysPackage
+				p.mutex.Unlock()
+			} else {
+				allPackagesLoaded = false
+			}
+		}
+	}
+
+}
+
+func (p *KeysPool) UnpinPackage(key []byte) {
+	p.ipfsProxy.Unpin(key)
 }
 
 func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {
@@ -264,7 +335,11 @@ func validateKey(sender common.Address, epoch uint16, appState *appstate.AppStat
 	return nil
 }
 
-func encryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, pubKeys [][]byte) []byte {
+type keysArray struct {
+	Pairs [][]byte
+}
+
+func EncryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, pubKeys [][]byte) []byte {
 	keyToEncrypt := crypto.FromECDSA(privateFlipKey.ExportECDSA())
 
 	var encryptedKeyPairs [][]byte
@@ -279,7 +354,7 @@ func encryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *
 		encryptedKeyPairs = append(encryptedKeyPairs, encryptedKey)
 	}
 
-	arrayToEncrypt, _ := rlp.EncodeToBytes(encryptedKeyPairs)
+	arrayToEncrypt, _ := rlp.EncodeToBytes(&keysArray{encryptedKeyPairs})
 
 	encryptedArray, _ := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
 
@@ -291,14 +366,28 @@ func getEncryptedKeyFromPackage(publicFlipKey *ecies.PrivateKey, data []byte, in
 	if err != nil {
 		return nil, err
 	}
-	var encryptedKeyPairs [][]byte
-	if err := rlp.DecodeBytes(decryptedPackage, encryptedKeyPairs); err != nil {
+	keysArray := new(keysArray)
+	if err := rlp.DecodeBytes(decryptedPackage, keysArray); err != nil {
 		return nil, err
 	}
 
-	if index > len(encryptedKeyPairs)-1 {
-		return nil, errors.New(fmt.Sprintf("ecnrypted private keys package length is invalid, current: %v, need index: %v", len(encryptedKeyPairs), index))
+	if index > len(keysArray.Pairs)-1 {
+		return nil, errors.New(fmt.Sprintf("ecnrypted private keys package length is invalid, current: %v, need index: %v", len(keysArray.Pairs), index))
 	}
 
-	return encryptedKeyPairs[index], nil
+	return keysArray.Pairs[index], nil
+}
+
+func checkThreshold(address common.Address, hash common.Hash) bool {
+	addrHash := rlp.Hash(address)
+	result := util.XOR(addrHash[:], hash[:])
+
+	a := new(big.Float).SetInt(new(big.Int).SetBytes(result[:]))
+	b := new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
+	q := new(big.Float).Quo(a, b).SetPrec(10)
+
+	if f, _ := q.Float64(); f >= KeysPackageSaveThreshold {
+		return true
+	}
+	return false
 }

@@ -3,7 +3,6 @@ package ceremony
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
@@ -17,7 +16,6 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
@@ -261,6 +259,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 		edb := vc.epochDb
 		go func() {
 			vc.dropFlips(edb)
+			vc.dropKeysPackages(edb)
 			edb.Clear()
 		}()
 	}
@@ -268,7 +267,8 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.epoch = vc.appState.State.Epoch()
 
 	vc.qualification = NewQualification(vc.epochDb)
-	vc.flipper.Reset()
+	vc.flipper.Clear()
+	vc.keysPool.Clear()
 	vc.appState.EvidenceMap.Clear()
 	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	if vc.validationStartCtxCancel != nil {
@@ -451,8 +451,14 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 	publicFlipKey, privateFlipKey := vc.flipper.GetFlipPublicEncryptionKey(), vc.flipper.GetFlipPrivateEncryptionKey()
 
+	var pubKeys [][]byte
+	for _, item := range candidateIndexes {
+		candidate := vc.candidates[item]
+		pubKeys = append(pubKeys, candidate.PubKey)
+	}
+
 	msg := types.PrivateFlipKeysPackage{
-		Data:  getPrivateFlipKeysPackageData(publicFlipKey, privateFlipKey, candidateIndexes, vc.candidates),
+		Data:  mempool.EncryptPrivateKeysPackage(publicFlipKey, privateFlipKey, pubKeys),
 		Epoch: epoch,
 	}
 
@@ -1118,29 +1124,11 @@ func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
 			}
 		}
 	}
-	vc.keysPool.ProvideAuthorIndexes(m)
+	vc.keysPool.LoadNecessaryPackages(m)
 }
 
-func getPrivateFlipKeysPackageData(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, candidateIndexes []int, candidates []*candidate) []byte {
-
-	keyToEncrypt := crypto.FromECDSA(privateFlipKey.ExportECDSA())
-
-	var encryptedKeyPairs [][]byte
-	for _, item := range candidateIndexes {
-		candidate := candidates[item]
-		ecdsaPubKey, err := crypto.UnmarshalPubkey(candidate.PubKey)
-		if err != nil {
-			encryptedKeyPairs = append(encryptedKeyPairs, []byte{})
-			continue
-		}
-
-		encryptedKey, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(ecdsaPubKey), keyToEncrypt, nil, nil)
-		encryptedKeyPairs = append(encryptedKeyPairs, encryptedKey)
-	}
-
-	arrayToEncrypt, _ := rlp.EncodeToBytes(encryptedKeyPairs)
-
-	encryptedArray, _ := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
-
-	return encryptedArray
+func (vc *ValidationCeremony) dropKeysPackages(db *database.EpochDb) {
+	db.IterateOverKeysPackageCids(func(cid []byte) {
+		vc.keysPool.UnpinPackage(cid)
+	})
 }

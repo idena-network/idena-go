@@ -36,6 +36,7 @@ const (
 	PushFlipCid       = 0x0C
 	PullFlip          = 0x0D
 	GetForkBlockRange = 0x0E
+	FlipKeysPackage   = 0x0F
 )
 const (
 	DecodeErr              = 1
@@ -315,6 +316,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if f, err := pm.flipper.ReadFlip(cid.Cid); err == nil {
 			p.sendMsg(FlipBody, f, false)
 		}
+	case FlipKeysPackage:
+		keysPackage := new(types.PrivateFlipKeysPackage)
+		if err := msg.Decode(keysPackage); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		pm.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
 	}
 
 	return nil
@@ -535,7 +542,7 @@ func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.PublicFlipKey, own bo
 }
 
 func (pm *ProtocolManager) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
-	pm.peers.SendWithFilter(FlipKey, flipKeysPackage, own)
+	pm.peers.SendWithFilter(FlipKeysPackage, flipKeysPackage, own)
 }
 
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {

@@ -21,6 +21,7 @@ require (
 	github.com/ipfs/go-ipfs-config v0.1.0
 	github.com/ipfs/go-ipfs-files v0.0.4
 	github.com/ipfs/go-merkledag v0.3.1
+	github.com/ipfs/go-ipfs-util v0.0.1
 	github.com/ipfs/go-mfs v0.1.1
 	github.com/ipfs/go-unixfs v0.2.1
 	github.com/ipfs/interface-go-ipfs-core v0.2.5
