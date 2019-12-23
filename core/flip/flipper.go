@@ -222,7 +222,6 @@ func (fp *Flipper) GetFlip(key []byte) (publicPart []byte, privatePart []byte, e
 		return nil, nil, errors.New("flip is missing")
 	}
 
-	// if flip is mine
 	var publicEncryptionKey *ecies.PrivateKey
 	var privateEncryptionKey *ecies.PrivateKey
 	if bytes.Compare(ipfsFlip.PubKey, fp.secStore.GetPubKey()) == 0 {
@@ -233,9 +232,6 @@ func (fp *Flipper) GetFlip(key []byte) (publicPart []byte, privatePart []byte, e
 		if publicEncryptionKey == nil {
 			return nil, nil, errors.New("flip public key is missing")
 		}
-		if privateEncryptionKey == nil {
-			return nil, nil, errors.New("flip private key is missing")
-		}
 	}
 
 	decryptedPublicPart, err := publicEncryptionKey.Decrypt(ipfsFlip.PublicPart, nil, nil)
@@ -244,10 +240,17 @@ func (fp *Flipper) GetFlip(key []byte) (publicPart []byte, privatePart []byte, e
 		return nil, nil, errors.Wrap(err, "cannot decrypt flip public part")
 	}
 
-	decryptedPrivatePart, err := privateEncryptionKey.Decrypt(ipfsFlip.PrivatePart, nil, nil)
+	var decryptedPrivatePart []byte
+	if len(ipfsFlip.PrivatePart) > 0 {
+		if privateEncryptionKey == nil {
+			return nil, nil, errors.New("flip private key is missing")
+		}
 
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot decrypt flip private part")
+		decryptedPrivatePart, err = privateEncryptionKey.Decrypt(ipfsFlip.PrivatePart, nil, nil)
+
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "cannot decrypt flip private part")
+		}
 	}
 
 	return decryptedPublicPart, decryptedPrivatePart, nil
