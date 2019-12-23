@@ -32,7 +32,7 @@ var (
 
 type Engine struct {
 	chain             *blockchain.Blockchain
-	pm                *protocol.ProtocolManager
+	pm                *protocol.IdenaGossipHandler
 	log               log.Logger
 	process           string
 	pubKey            []byte
@@ -54,14 +54,14 @@ type Engine struct {
 	nextBlockDetector *nextBlockDetector
 }
 
-func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, proposals *pengings.Proposals, config *config.ConsensusConf,
+func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossipHandler, proposals *pengings.Proposals, config *config.ConsensusConf,
 	appState *appstate.AppState,
 	votes *pengings.Votes,
 	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader,
 	offlineDetector *blockchain.OfflineDetector) *Engine {
 	return &Engine{
 		chain:             chain,
-		pm:                pm,
+		pm:                gossipHandler,
 		log:               log.New(),
 		config:            config,
 		proposals:         proposals,
@@ -72,7 +72,7 @@ func NewEngine(chain *blockchain.Blockchain, pm *protocol.ProtocolManager, propo
 		secStore:          secStore,
 		forkResolver:      NewForkResolver([]ForkDetector{proposals, downloader}, downloader, chain),
 		offlineDetector:   offlineDetector,
-		nextBlockDetector: newNextBlockDetector(pm, downloader, chain),
+		nextBlockDetector: newNextBlockDetector(gossipHandler, downloader, chain),
 	}
 }
 

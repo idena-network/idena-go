@@ -5,9 +5,11 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
-	"github.com/idena-network/idena-go/p2p"
-	"github.com/idena-network/idena-go/p2p/enode"
+	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/libp2p/go-libp2p-core/network"
+	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-msgio"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"math"
@@ -22,10 +24,10 @@ const (
 	maxTimeoutsBeforeBan = 7
 )
 
-type peer struct {
-	*p2p.Peer
-	rw                   p2p.MsgReadWriter
-	id                   string
+type protoPeer struct {
+	id                   peer.ID
+	stream               network.Stream
+	rw                   msgio.ReadWriteCloser
 	maxDelayMs           int
 	knownHeight          uint64
 	potentialHeight      uint64
@@ -36,34 +38,30 @@ type peer struct {
 	finished             chan struct{}
 	msgCache             *cache.Cache
 	appVersion           string
-	protocol             uint16
 	timeouts             int
+	log                  log.Logger
 }
 
-type request struct {
-	msgcode uint64
-	data    interface{}
-}
+func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
+	stream.Conn().RemotePeer()
+	rw := msgio.NewReadWriter(stream)
 
-func (pm *ProtocolManager) makePeer(p *p2p.Peer, rw p2p.MsgReadWriter, maxDelayMs int) *peer {
-	return &peer{
+	p := &protoPeer{
+		id:                   stream.Conn().RemotePeer(),
+		stream:               stream,
 		rw:                   rw,
-		Peer:                 p,
-		id:                   formatPeerId(p.ID()),
 		queuedRequests:       make(chan *request, 10000),
 		highPriorityRequests: make(chan *request, 500),
 		term:                 make(chan struct{}),
 		finished:             make(chan struct{}),
 		maxDelayMs:           maxDelayMs,
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
+		log:                  log.New("id", stream.Conn().RemotePeer().Pretty()),
 	}
+	return p
 }
 
-func formatPeerId(id enode.ID) string {
-	return fmt.Sprintf("%x", id.Bytes()[:16])
-}
-
-func (p *peer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
+func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
 	if highPriority {
 		select {
 		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
@@ -77,11 +75,13 @@ func (p *peer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
 	}
 }
 
-func (p *peer) broadcast() {
+func (p *protoPeer) broadcast() {
 	defer close(p.finished)
 	send := func(request *request) error {
-		if err := p2p.Send(p.rw, request.msgcode, request.data); err != nil {
-			p.Log().Error(err.Error())
+		msg := makeMsg(request.msgcode, request.data)
+
+		if err := p.rw.WriteMsg(msg); err != nil {
+			p.log.Error(err.Error())
 			return err
 		}
 		return nil
@@ -116,23 +116,35 @@ func (p *peer) broadcast() {
 	}
 }
 
-func (p *peer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
+func makeMsg(msgcode uint64, payload interface{}) []byte {
+
+	data, err := rlp.EncodeToBytes(payload)
+	if err != nil {
+		panic(err)
+	}
+	msg, err := rlp.EncodeToBytes(&Msg{Code: msgcode, Payload: data})
+	if err != nil {
+		panic(err)
+	}
+	return msg
+}
+
+func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
 	errc := make(chan error, 2)
-	var handShake handshakeData
+	handShake := new(handshakeData)
 
 	go func() {
-		errc <- p2p.Send(p.rw, Handshake, &handshakeData{
-
+		msg := makeMsg(Handshake, &handshakeData{
 			NetworkId:    network,
 			Height:       height,
 			GenesisBlock: genesis,
 			Timestamp:    uint64(time.Now().UTC().Unix()),
 			AppVersion:   appVersion,
-			Protocol:     Version,
 		})
+		errc <- p.rw.WriteMsg(msg)
 	}()
 	go func() {
-		errc <- p.readStatus(&handShake, network, genesis)
+		errc <- p.readStatus(handShake, network, genesis)
 	}()
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
@@ -143,15 +155,28 @@ func (p *peer) Handshake(network types.Network, height uint64, genesis common.Ha
 				return err
 			}
 		case <-timeout.C:
-			return p2p.DiscReadTimeout
+			return errors.New("handshake timeout")
 		}
 	}
 	p.knownHeight = handShake.Height
 	return nil
 }
 
-func (p *peer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+func (p *protoPeer) ReadMsg() (*Msg, error) {
 	msg, err := p.rw.ReadMsg()
+	defer p.rw.ReleaseMsg(msg)
+	if err != nil {
+		return nil, err
+	}
+	result := new(Msg)
+	if err := rlp.DecodeBytes(msg, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+	msg, err := p.ReadMsg()
 	if err != nil {
 		return err
 	}
@@ -162,7 +187,6 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 		return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
 	}
 	p.appVersion = handShake.AppVersion
-	p.protocol = handShake.Protocol
 	if handShake.GenesisBlock != genesis {
 		return errors.New(fmt.Sprintf("bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
 	}
@@ -176,11 +200,11 @@ func (p *peer) readStatus(handShake *handshakeData, network types.Network, genes
 	return nil
 }
 
-func (p *peer) markPayload(payload interface{}) {
+func (p *protoPeer) markPayload(payload interface{}) {
 	p.markKey(msgKey(payload))
 }
 
-func (p *peer) markKey(key string) {
+func (p *protoPeer) markKey(key string) {
 	p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
 }
 
@@ -189,24 +213,28 @@ func msgKey(data interface{}) string {
 	return string(hash[:])
 }
 
-func (p *peer) setHeight(newHeight uint64) {
+func (p *protoPeer) setHeight(newHeight uint64) {
 	if newHeight > p.knownHeight {
 		p.knownHeight = newHeight
 	}
 	p.setPotentialHeight(newHeight)
 }
 
-func (p *peer) setPotentialHeight(newHeight uint64) {
+func (p *protoPeer) setPotentialHeight(newHeight uint64) {
 	if newHeight > p.potentialHeight {
 		p.potentialHeight = newHeight
 	}
 }
 
-func (p *peer) addTimeout() (shouldBeBanned bool) {
+func (p *protoPeer) addTimeout() (shouldBeBanned bool) {
 	p.timeouts++
 	return p.timeouts > maxTimeoutsBeforeBan
 }
 
-func (p *peer) resetTimeouts() {
+func (p *protoPeer) resetTimeouts() {
 	p.timeouts = 0
+}
+
+func (p *protoPeer) disconnect() {
+	p.stream.Close()
 }

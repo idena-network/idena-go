@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"time"
 )
@@ -20,7 +21,7 @@ var (
 )
 
 type fullSync struct {
-	pm                   *ProtocolManager
+	pm                   *IdenaGossipHandler
 	log                  log.Logger
 	chain                *blockchain.Blockchain
 	batches              chan *batch
@@ -35,7 +36,7 @@ func (fs *fullSync) batchSize() uint64 {
 	return FullSyncBatchSize
 }
 
-func NewFullSync(pm *ProtocolManager, log log.Logger,
+func NewFullSync(pm *IdenaGossipHandler, log log.Logger,
 	chain *blockchain.Blockchain,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
@@ -53,7 +54,7 @@ func NewFullSync(pm *ProtocolManager, log log.Logger,
 	}
 }
 
-func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
+func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer peer.ID) *batch {
 	knownHeights := fs.pm.GetKnownHeights()
 	if knownHeights == nil {
 		return nil
@@ -167,7 +168,7 @@ func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
 	return head.Height() + 1, nil
 }
 
-func (fs *fullSync) validateHeader(block *block, p *peer) error {
+func (fs *fullSync) validateHeader(block *block, p *protoPeer) error {
 	prevBlock := fs.chain.Head
 	if len(fs.deferredHeaders) > 0 {
 		prevBlock = fs.deferredHeaders[len(fs.deferredHeaders)-1].Header
@@ -212,7 +213,7 @@ func (fs *fullSync) GetBlock(header *types.Header) (*types.Block, error) {
 	}
 }
 
-func (fs *fullSync) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle {
+func (fs *fullSync) SeekBlocks(fromBlock, toBlock uint64, peers []peer.ID) chan *types.BlockBundle {
 	var batches []*batch
 	blocks := make(chan *types.BlockBundle, len(peers))
 
@@ -252,7 +253,7 @@ func (fs *fullSync) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *
 	return blocks
 }
 
-func (fs *fullSync) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle {
+func (fs *fullSync) SeekForkedBlocks(ownBlocks []common.Hash, peerId peer.ID) chan types.BlockBundle {
 	blocks := make(chan types.BlockBundle, 100)
 	batch, err := fs.pm.GetForkBlockRange(peerId, ownBlocks)
 	if err != nil {

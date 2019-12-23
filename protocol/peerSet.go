@@ -2,18 +2,18 @@ package protocol
 
 import (
 	"errors"
-	"github.com/idena-network/idena-go/p2p"
+	peer2 "github.com/libp2p/go-libp2p-core/peer"
 	"sync"
 )
 
 var (
-	errClosed            = errors.New("peer set is closed")
-	errAlreadyRegistered = errors.New("peer is already registered")
-	errNotRegistered     = errors.New("peer is not registered")
+	errClosed            = errors.New("protoPeer set is closed")
+	errAlreadyRegistered = errors.New("protoPeer is already registered")
+	errNotRegistered     = errors.New("protoPeer is not registered")
 )
 
 type peerSet struct {
-	peers  map[string]*peer
+	peers  map[peer2.ID]*protoPeer
 	lock   sync.RWMutex
 	closed bool
 }
@@ -21,14 +21,14 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers: make(map[string]*peer),
+		peers: make(map[peer2.ID]*protoPeer),
 	}
 }
 
 // Register injects a new peer into the working set, or returns an error if the
 // peer is already known. If a new peer it registered, its broadcast loop is also
 // started.
-func (ps *peerSet) Register(p *peer) error {
+func (ps *peerSet) Register(p *protoPeer) error {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -45,7 +45,7 @@ func (ps *peerSet) Register(p *peer) error {
 
 // Unregister removes a remote peer from the active set, disabling any further
 // actions to/from that particular entity.
-func (ps *peerSet) Unregister(id string) error {
+func (ps *peerSet) Unregister(id peer2.ID) error {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -59,7 +59,7 @@ func (ps *peerSet) Unregister(id string) error {
 }
 
 // Peer retrieves the registered peer with the given id.
-func (ps *peerSet) Peer(id string) *peer {
+func (ps *peerSet) Peer(id peer2.ID) *protoPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -74,26 +74,14 @@ func (ps *peerSet) Len() int {
 	return len(ps.peers)
 }
 
-func (ps *peerSet) Peers() []*peer {
+func (ps *peerSet) Peers() []*protoPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-	list := make([]*peer, 0, len(ps.peers))
+	list := make([]*protoPeer, 0, len(ps.peers))
 	for _, p := range ps.peers {
 		list = append(list, p)
 	}
 	return list
-}
-
-// Close disconnects all peers.
-// No new peers can be registered after Close has returned.
-func (ps *peerSet) Close() {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	for _, p := range ps.peers {
-		p.Disconnect(p2p.DiscQuitting)
-	}
-	ps.closed = true
 }
 
 func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPriority bool) {

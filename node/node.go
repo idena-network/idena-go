@@ -21,7 +21,6 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/p2p"
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
@@ -51,7 +50,7 @@ type Node struct {
 	blockchain      *blockchain.Blockchain
 	appState        *appstate.AppState
 	secStore        *secstore.SecStore
-	pm              *protocol.ProtocolManager
+	pm              *protocol.IdenaGossipHandler
 	stop            chan struct{}
 	proposals       *pengings.Proposals
 	votes           *pengings.Votes
@@ -62,7 +61,6 @@ type Node struct {
 	httpListener    net.Listener // HTTP RPC listener socket to server API requests
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
 	log             log.Logger
-	srv             *p2p.Server
 	keyStore        *keystore.KeyStore
 	fp              *flip.Flipper
 	ipfsProxy       ipfs.Proxy
@@ -164,7 +162,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, blockStatsCollector)
 	proposals, proofsByRound, pendingProofs := pengings.NewProposals(chain, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
-	pm := protocol.NetProtocolManager(chain, proposals, votes, txpool, flipper, bus, flipKeyPool, config.P2P, appVersion)
+	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore, downloader, offlineDetector)
@@ -212,20 +210,6 @@ func (node *Node) Start() {
 func (node *Node) StartWithHeight(height uint64) {
 	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
 
-	cfg := node.config.P2P
-	cfg.Protocols = []p2p.Protocol{
-		{
-			Name:    "idena",
-			Version: 1,
-			Run:     node.pm.HandleNewPeer,
-			Length:  35,
-		},
-	}
-	cfg.PrivateKey = node.generateSyntheticP2PKey()
-	node.srv = &p2p.Server{
-		Config: *cfg,
-	}
-
 	if changed, value, err := util.ManageFdLimit(); changed {
 		node.log.Info("Set new fd limit", "value", value)
 	} else if err != nil {
@@ -261,11 +245,6 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
-
-	// configure TCP
-	if err := node.srv.Start(); err != nil {
-		node.log.Error("Cannot start TCP endpoint", "error", err.Error())
-	}
 	node.pm.Start()
 
 	// Configure RPC
@@ -344,7 +323,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "net",
 			Version:   "1.0",
-			Service:   api.NewNetApi(node.pm, node.srv, node.ipfsProxy),
+			Service:   api.NewNetApi(node.pm, node.ipfsProxy),
 			Public:    true,
 		},
 		{

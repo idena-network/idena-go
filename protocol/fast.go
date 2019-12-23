@@ -14,6 +14,7 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"os"
 	"time"
@@ -22,7 +23,7 @@ import (
 const FastSyncBatchSize = 1000
 
 type fastSync struct {
-	pm                   *ProtocolManager
+	pm                   *IdenaGossipHandler
 	log                  log.Logger
 	chain                *blockchain.Blockchain
 	batches              chan *batch
@@ -43,7 +44,7 @@ func (fs *fastSync) batchSize() uint64 {
 	return FastSyncBatchSize
 }
 
-func NewFastSync(pm *ProtocolManager, log log.Logger,
+func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 	chain *blockchain.Blockchain,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
@@ -246,7 +247,7 @@ func (fs *fastSync) validateHeader(block *block) error {
 	return nil
 }
 
-func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer string) *batch {
+func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer peer.ID) *batch {
 	knownHeights := fs.pm.GetKnownHeights()
 	if knownHeights == nil {
 		return nil

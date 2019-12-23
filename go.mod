@@ -27,8 +27,11 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.2.5
 	github.com/jackpal/go-nat-pmp v1.0.1
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
+	github.com/libp2p/go-libp2p-core v0.3.0
+	github.com/libp2p/go-msgio v0.0.4
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible
+	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/multiformats/go-multihash v0.0.10
 	github.com/nwaples/rardecode v1.0.0 // indirect
 	github.com/onsi/ginkgo v1.10.1 // indirect

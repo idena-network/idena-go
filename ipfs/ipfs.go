@@ -23,6 +23,7 @@ import (
 	ft "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	core2 "github.com/libp2p/go-libp2p-core"
 	"github.com/multiformats/go-multihash"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -67,6 +68,7 @@ type Proxy interface {
 	Port() int
 	PeerId() string
 	AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error)
+	Host() core2.Host
 }
 
 type ipfsProxy struct {
@@ -79,6 +81,10 @@ type ipfsProxy struct {
 	nodeCtxCancel        context.CancelFunc
 	nilNode              *core.IpfsNode
 	lastPeersUpdatedTime time.Time
+}
+
+func (p *ipfsProxy) Host() core2.Host {
+	return p.node.PeerHost
 }
 
 func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
@@ -595,6 +601,10 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i *memoryIpfs) Host() core2.Host {
+	panic("implement me")
 }
 
 func (i *memoryIpfs) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error {
