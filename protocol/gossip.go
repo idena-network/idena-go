@@ -290,6 +290,7 @@ func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
 func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) {
 	h.mutex.Lock()
 	if p := h.peers.Peer(stream.Conn().RemotePeer()); p != nil {
+		h.mutex.Unlock()
 		return p, errors.New("peer already connected")
 	}
 
