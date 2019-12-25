@@ -189,10 +189,13 @@ func (fp *Flipper) PrepareFlip(flipPublicPart []byte, flipPrivatePart []byte) (c
 		return cid.Cid{}, nil, nil, err
 	}
 
-	encryptedPrivate, err := ecies.Encrypt(rand.Reader, &privateEncryptionKey.PublicKey, flipPrivatePart, nil, nil)
+	var encryptedPrivate []byte
+	if len(flipPrivatePart) > 0 {
+		encryptedPrivate, err = ecies.Encrypt(rand.Reader, &privateEncryptionKey.PublicKey, flipPrivatePart, nil, nil)
 
-	if err != nil {
-		return cid.Cid{}, nil, nil, err
+		if err != nil {
+			return cid.Cid{}, nil, nil, err
+		}
 	}
 
 	ipf := IpfsFlip{

@@ -528,6 +528,9 @@ func (vc *ValidationCeremony) getCandidatesAddresses() []common.Address {
 }
 
 func getFlipsToSolve(self common.Address, participants []*candidate, flipsPerCandidate [][]int, flipCids [][]byte) [][]byte {
+	if len(flipCids) == 0 || len(participants) == 0 {
+		return nil
+	}
 	var result [][]byte
 	for i := 0; i < len(participants); i++ {
 		if participants[i].Address == self {
@@ -1124,7 +1127,7 @@ func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
 			}
 		}
 	}
-	vc.keysPool.LoadNecessaryPackages(m)
+	go vc.keysPool.LoadNecessaryPackages(m)
 }
 
 func (vc *ValidationCeremony) dropKeysPackages(db *database.EpochDb) {

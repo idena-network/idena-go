@@ -35,17 +35,25 @@ type FlipSubmitResponse struct {
 
 type FlipSubmitArgs struct {
 	Hex        *hexutil.Bytes `json:"hex"`
+	PublicHex  *hexutil.Bytes `json:"publicHex"`
 	PrivateHex *hexutil.Bytes `json:"privateHex"`
 	PairId     uint8          `json:"pairId"`
 }
 
 func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
-	if args.Hex == nil {
+	if args.Hex == nil && args.PublicHex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
 	}
 
-	rawPublicPart := *args.Hex
-	rawPrivatePart := *args.PrivateHex
+	var rawPublicPart, rawPrivatePart []byte
+	if args.PublicHex != nil {
+		rawPublicPart = *args.PublicHex
+	} else {
+		rawPublicPart = *args.Hex
+	}
+	if args.PrivateHex != nil {
+		rawPrivatePart = *args.PrivateHex
+	}
 
 	cid, encryptedPublicPart, encryptedPrivatePart, err := api.fp.PrepareFlip(rawPublicPart, rawPrivatePart)
 

@@ -288,7 +288,7 @@ func (ks *KeyStore) NewAccount(passphrase string) (Account, error) {
 	if err != nil {
 		return Account{}, err
 	}
-	// AddPublicFlipKey the account to the cache immediately rather
+	// Add the account to the cache immediately rather
 	// than waiting for file system notifications to pick it up.
 	ks.cache.add(account)
 	return account, nil

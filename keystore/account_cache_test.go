@@ -177,7 +177,7 @@ func TestCacheAddDeleteOrder(t *testing.T) {
 	for _, a := range accs {
 		cache.add(a)
 	}
-	// AddPublicFlipKey some of them twice to check that they don't get reinserted.
+	// Add some of them twice to check that they don't get reinserted.
 	cache.add(accs[0])
 	cache.add(accs[2])
 

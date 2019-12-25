@@ -124,48 +124,58 @@ func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
 }
 
 func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 
 	hash := keysPackage.Hash()
-
-	if p.knownKeys.Contains(hash) {
-		return errors.New("keys package with same hash already exists")
-	}
-
 	sender, _ := types.SenderFlipKeysPackage(keysPackage)
 
-	if _, ok := p.flipKeys[sender]; ok {
-		return errors.New("sender has already published his keys package")
-	}
+	err := func() error {
+		p.mutex.Lock()
+		defer p.mutex.Unlock()
 
-	appState := p.appState.Readonly(p.head.Height())
+		if p.knownKeyPackages.Contains(hash) {
+			return errors.New("keys package with same hash already exists")
+		}
 
-	if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
-		log.Warn("PrivateFLipKeysPackage is not valid", "hash", hash.Hex(), "err", err)
-		return err
-	}
+		if _, ok := p.flipKeyPackages[sender]; ok {
+			return errors.New("sender has already published his keys package")
+		}
 
-	var c cid.Cid
-	var err error
-	data, _ := rlp.EncodeToBytes(keysPackage)
-	shouldSaveIntoIpfs := own || checkThreshold(p.self, hash)
-	if shouldSaveIntoIpfs {
-		c, err = p.ipfsProxy.Add(data)
-	} else {
-		c, err = p.ipfsProxy.Cid(data)
-	}
+		appState := p.appState.Readonly(p.head.Height())
+
+		if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
+			log.Warn("PrivateFLipKeysPackage is not valid", "hash", hash.Hex(), "err", err)
+			return err
+		}
+
+		data, _ := rlp.EncodeToBytes(keysPackage)
+		c, err := p.ipfsProxy.Cid(data)
+
+		if err != nil {
+			return err
+		}
+
+		p.knownKeyPackages.Add(hash)
+		p.flipKeyPackages[sender] = &KeysPackage{
+			RawPackage: keysPackage,
+			Cid:        c,
+		}
+
+		if own || checkThreshold(p.self, hash) {
+			go func() {
+				c, err = p.ipfsProxy.Add(data)
+				if err != nil {
+					log.Error("cannot save private keys package to IPFS", "err", err)
+					return
+				}
+				p.epochDb.WriteKeysPackageCid(c.Bytes())
+			}()
+		}
+
+		return nil
+	}()
+
 	if err != nil {
 		return err
-	}
-	if shouldSaveIntoIpfs {
-		p.epochDb.WriteKeysPackageCid(c.Bytes())
-	}
-
-	p.knownKeyPackages.Add(hash)
-	p.flipKeyPackages[sender] = &KeysPackage{
-		RawPackage: keysPackage,
-		Cid:        c,
 	}
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
@@ -192,6 +202,10 @@ func (p *KeysPool) GetPublicFlipKey(address common.Address) *ecies.PrivateKey {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
+	return p.getPublicFlipKey(address)
+}
+
+func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
 	key, ok := p.flipKeys[address]
 	if !ok {
 		return nil
@@ -209,7 +223,7 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 		return data
 	}
 
-	publicFlipKey := p.GetPublicFlipKey(address)
+	publicFlipKey := p.getPublicFlipKey(address)
 	if publicFlipKey == nil {
 		return nil
 	}
