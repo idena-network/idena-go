@@ -35,6 +35,14 @@ const (
 	KeysPackageSaveThreshold = 0.66
 )
 
+var (
+	maxFloat *big.Float
+)
+
+func init() {
+	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
+}
+
 type KeysPool struct {
 	db                        dbm.DB
 	appState                  *appstate.AppState
@@ -397,8 +405,7 @@ func checkThreshold(address common.Address, hash common.Hash) bool {
 	result := util.XOR(addrHash[:], hash[:])
 
 	a := new(big.Float).SetInt(new(big.Int).SetBytes(result[:]))
-	b := new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
-	q := new(big.Float).Quo(a, b).SetPrec(10)
+	q := new(big.Float).Quo(a, maxFloat).SetPrec(10)
 
 	if f, _ := q.Float64(); f >= KeysPackageSaveThreshold {
 		return true

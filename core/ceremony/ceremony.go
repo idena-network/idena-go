@@ -291,6 +291,8 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.flipAuthorMap = nil
 	vc.validationStartCtxCancel = nil
 	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
+	vc.candidatesPerAuthor = nil
+	vc.authorsPerCandidate = nil
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
