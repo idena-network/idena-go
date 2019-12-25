@@ -282,6 +282,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.shortFlipsToSolve = nil
 	vc.longFlipsToSolve = nil
 	vc.publicKeySent = false
+	vc.privateKeysSent = false
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
 	vc.shortSessionStarted = false
