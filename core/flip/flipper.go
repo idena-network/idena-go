@@ -289,8 +289,12 @@ func (fp *Flipper) GetFlipPrivateEncryptionKey() *ecies.PrivateKey {
 }
 
 func (fp *Flipper) generateFlipEncryptionKey(public bool) *ecies.PrivateKey {
-
-	seed := []byte(fmt.Sprintf("flip-key-for-epoch-%v-%v", fp.appState.State.Epoch(), public))
+	var seed []byte
+	if public {
+		seed = []byte(fmt.Sprintf("flip-key-for-epoch-%v", fp.appState.State.Epoch()))
+	} else {
+		seed = []byte(fmt.Sprintf("flip-private-key-for-epoch-%v", fp.appState.State.Epoch()))
+	}
 
 	hash := common.Hash(rlp.Hash(seed))
 
