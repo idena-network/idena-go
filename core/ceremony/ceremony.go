@@ -1093,14 +1093,12 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 
 func (vc *ValidationCeremony) getOwnCandidateIndex() int {
 	myAddress := vc.secStore.GetAddress()
-	myIndex := -1
 	for idx, candidate := range vc.candidates {
 		if candidate.Address == myAddress {
-			myIndex = idx
-			break
+			return idx
 		}
 	}
-	return myIndex
+	return -1
 }
 
 func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {

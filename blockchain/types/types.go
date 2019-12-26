@@ -446,6 +446,11 @@ func (k PublicFlipKey) Hash() common.Hash {
 	return rlp.Hash(k)
 }
 
+type PrivateFlipKeysPackageCid struct {
+	Address common.Address
+	Cid     []byte
+}
+
 type PrivateFlipKeysPackage struct {
 	Data      []byte
 	Epoch     uint16

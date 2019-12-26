@@ -22,21 +22,22 @@ import (
 )
 
 const (
-	Handshake         = 0x01
-	ProposeBlock      = 0x02
-	ProposeProof      = 0x03
-	Vote              = 0x04
-	NewTx             = 0x05
-	GetBlockByHash    = 0x06
-	GetBlocksRange    = 0x07
-	BlocksRange       = 0x08
-	FlipBody          = 0x09
-	FlipKey           = 0x0A
-	SnapshotManifest  = 0x0B
-	PushFlipCid       = 0x0C
-	PullFlip          = 0x0D
-	GetForkBlockRange = 0x0E
-	FlipKeysPackage   = 0x0F
+	Handshake          = 0x01
+	ProposeBlock       = 0x02
+	ProposeProof       = 0x03
+	Vote               = 0x04
+	NewTx              = 0x05
+	GetBlockByHash     = 0x06
+	GetBlocksRange     = 0x07
+	BlocksRange        = 0x08
+	FlipBody           = 0x09
+	FlipKey            = 0x0A
+	SnapshotManifest   = 0x0B
+	PushFlipCid        = 0x0C
+	PullFlip           = 0x0D
+	GetForkBlockRange  = 0x0E
+	FlipKeysPackage    = 0x0F
+	FlipKeysPackageCid = 0x10
 )
 const (
 	DecodeErr              = 1
@@ -289,6 +290,10 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if pm.isProcessed(flipKey) {
+			return nil
+		}
+		p.markPayload(flipKey)
 		pm.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
@@ -321,7 +326,21 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if err := msg.Decode(keysPackage); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if pm.isProcessed(keysPackage) {
+			return nil
+		}
+		p.markPayload(keysPackage)
 		pm.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
+	case FlipKeysPackageCid:
+		packageCid := new(types.PrivateFlipKeysPackageCid)
+		if err := msg.Decode(packageCid); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(packageCid) {
+			return nil
+		}
+		p.markPayload(packageCid)
+		pm.flipKeyPool.AddPrivateKeysPackageCid(packageCid, false)
 	}
 
 	return nil
@@ -571,6 +590,11 @@ func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {
 	keys := pm.flipKeyPool.GetFlipKeys()
 	for _, key := range keys {
 		p.sendMsg(FlipKey, key, false)
+	}
+
+	keysPackages := pm.flipKeyPool.GetFlipPackagesCids()
+	for _, flipPackageCid := range keysPackages {
+		p.sendMsg(FlipKeysPackageCid, flipPackageCid, false)
 	}
 }
 func (pm *ProtocolManager) PotentialForwardPeers(round uint64) []string {

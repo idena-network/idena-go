@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -24,6 +23,7 @@ import (
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"sync"
+	"time"
 )
 
 type KeysPackage struct {
@@ -47,13 +47,11 @@ type KeysPool struct {
 	db                        dbm.DB
 	appState                  *appstate.AppState
 	flipKeys                  map[common.Address]*types.PublicFlipKey
-	knownKeys                 mapset.Set
 	mutex                     sync.Mutex
 	bus                       eventbus.Bus
 	head                      *types.Header
 	log                       log.Logger
 	flipKeyPackages           map[common.Address]*KeysPackage
-	knownKeyPackages          mapset.Set
 	privateKeyIndexes         map[common.Address]int // shows which key (by index) use from author's package
 	encryptedPrivateKeysCache map[common.Address]*ecies.PrivateKey
 	ipfsProxy                 ipfs.Proxy
@@ -70,10 +68,8 @@ func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secSt
 		db:                        db,
 		appState:                  appState,
 		bus:                       bus,
-		knownKeys:                 mapset.NewSet(),
 		log:                       log.New(),
 		flipKeys:                  make(map[common.Address]*types.PublicFlipKey),
-		knownKeyPackages:          mapset.NewSet(),
 		flipKeyPackages:           make(map[common.Address]*KeysPackage),
 		encryptedPrivateKeysCache: make(map[common.Address]*ecies.PrivateKey),
 		secStore:                  secStore,
@@ -96,32 +92,36 @@ func (p *KeysPool) Initialize(head *types.Header) {
 }
 
 func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 
-	hash := key.Hash()
+	err := func() error {
+		p.mutex.Lock()
+		defer p.mutex.Unlock()
 
-	if p.knownKeys.Contains(hash) {
-		return errors.New("flipKey with same hash already exists")
-	}
+		hash := key.Hash()
 
-	sender, _ := types.SenderFlipKey(key)
+		sender, _ := types.SenderFlipKey(key)
 
-	if _, ok := p.flipKeys[sender]; ok {
-		return errors.New("sender has already published his key")
-	}
+		if _, ok := p.flipKeys[sender]; ok {
+			return errors.New("sender has already published his key")
+		}
 
-	appState := p.appState.Readonly(p.head.Height())
+		appState := p.appState.Readonly(p.head.Height())
 
-	if err := validateFlipKey(appState, key); err != nil {
-		log.Warn("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
+		if err := validateFlipKey(appState, key); err != nil {
+			log.Warn("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
+			return err
+		}
+
+		p.flipKeys[sender] = key
+
+		p.appState.EvidenceMap.NewFlipsKey(sender)
+
+		return nil
+	}()
+
+	if err != nil {
 		return err
 	}
-
-	p.knownKeys.Add(hash)
-	p.flipKeys[sender] = key
-
-	p.appState.EvidenceMap.NewFlipsKey(sender)
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
 		Key: key,
@@ -139,10 +139,6 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 	err := func() error {
 		p.mutex.Lock()
 		defer p.mutex.Unlock()
-
-		if p.knownKeyPackages.Contains(hash) {
-			return errors.New("keys package with same hash already exists")
-		}
 
 		if _, ok := p.flipKeyPackages[sender]; ok {
 			return errors.New("sender has already published his keys package")
@@ -162,7 +158,6 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 			return err
 		}
 
-		p.knownKeyPackages.Add(hash)
 		p.flipKeyPackages[sender] = &KeysPackage{
 			RawPackage: keysPackage,
 			Cid:        c,
@@ -194,6 +189,23 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 	return nil
 }
 
+func (p *KeysPool) AddPrivateKeysPackageCid(packageCid *types.PrivateFlipKeysPackageCid, b bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	c, err := cid.Parse(packageCid.Cid)
+	if err != nil {
+		log.Warn("invalid cid during keys packages sync")
+		return
+	}
+
+	if _, ok := p.flipKeyPackages[packageCid.Address]; !ok {
+		p.flipKeyPackages[packageCid.Address] = &KeysPackage{
+			Cid: c,
+		}
+	}
+}
+
 func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -202,6 +214,21 @@ func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
 
 	for _, tx := range p.flipKeys {
 		list = append(list, tx)
+	}
+	return list
+}
+
+func (p *KeysPool) GetFlipPackagesCids() []*types.PrivateFlipKeysPackageCid {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	var list []*types.PrivateFlipKeysPackageCid
+
+	for k, p := range p.flipKeyPackages {
+		list = append(list, &types.PrivateFlipKeysPackageCid{
+			Address: k,
+			Cid:     p.Cid.Bytes(),
+		})
 	}
 	return list
 }
@@ -275,8 +302,6 @@ func (p *KeysPool) Clear() {
 
 	p.cancelLoadingCtx()
 	p.privateKeyIndexes = nil
-	p.knownKeys = mapset.NewSet()
-	p.knownKeyPackages = mapset.NewSet()
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
 	p.flipKeyPackages = make(map[common.Address]*KeysPackage)
 	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
@@ -320,11 +345,11 @@ func (p *KeysPool) LoadNecessaryPackages(indexes map[common.Address]int) {
 				p.flipKeyPackages[author].RawPackage = flipKeysPackage
 				p.mutex.Unlock()
 			} else {
+				time.Sleep(100 * time.Millisecond)
 				allPackagesLoaded = false
 			}
 		}
 	}
-
 }
 
 func (p *KeysPool) UnpinPackage(key []byte) {
