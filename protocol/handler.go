@@ -340,7 +340,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return nil
 		}
 		p.markPayload(packageCid)
-		pm.flipKeyPool.AddPrivateKeysPackageCid(packageCid, false)
+		pm.flipKeyPool.AddPrivateKeysPackageCid(packageCid)
 	}
 
 	return nil

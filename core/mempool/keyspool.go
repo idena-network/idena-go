@@ -189,7 +189,7 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 	return nil
 }
 
-func (p *KeysPool) AddPrivateKeysPackageCid(packageCid *types.PrivateFlipKeysPackageCid, b bool) {
+func (p *KeysPool) AddPrivateKeysPackageCid(packageCid *types.PrivateFlipKeysPackageCid) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -432,8 +432,6 @@ func checkThreshold(address common.Address, hash common.Hash) bool {
 	a := new(big.Float).SetInt(new(big.Int).SetBytes(result[:]))
 	q := new(big.Float).Quo(a, maxFloat).SetPrec(10)
 
-	if f, _ := q.Float64(); f >= KeysPackageSaveThreshold {
-		return true
-	}
-	return false
+	f, _ := q.Float64()
+	return f >= KeysPackageSaveThreshold
 }
