@@ -178,6 +178,9 @@ type SubmitAnswersResponse struct {
 }
 
 func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
+	log.Info("short answers submitting request")
+	defer log.Info("short answers submitting response")
+
 	if !api.isCeremonyCandidate() {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
@@ -198,6 +201,9 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 }
 
 func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResponse, error) {
+	log.Info("long answers submitting request")
+	defer log.Info("long answers submitting response")
+
 	if !api.isCeremonyCandidate() {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
