@@ -21,6 +21,7 @@ var (
 	EvidencePrefix        = []byte("evi")
 	LotterySeedKey        = []byte("ls")
 	FlipCidPrefix         = []byte("cid")
+	KeysPackagePrefix     = []byte("kp")
 )
 
 type EpochDb struct {
@@ -216,4 +217,15 @@ func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {
 func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
 	key := append(AnswerHashPrefix, addr.Bytes()...)
 	return edb.db.Has(key)
+}
+
+func (edb *EpochDb) WriteKeysPackageCid(cid []byte) {
+	edb.db.Set(append(KeysPackagePrefix, cid...), []byte{})
+}
+
+func (edb *EpochDb) IterateOverKeysPackageCids(callback func(cid []byte)) {
+	it := edb.db.Iterator(append(KeysPackagePrefix, ipfs.MinCid[:]...), append(KeysPackagePrefix, ipfs.MaxCid[:]...))
+	for ; it.Valid(); it.Next() {
+		callback(it.Key()[len(KeysPackagePrefix):])
+	}
 }

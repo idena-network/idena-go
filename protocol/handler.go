@@ -22,20 +22,22 @@ import (
 )
 
 const (
-	Handshake         = 0x01
-	ProposeBlock      = 0x02
-	ProposeProof      = 0x03
-	Vote              = 0x04
-	NewTx             = 0x05
-	GetBlockByHash    = 0x06
-	GetBlocksRange    = 0x07
-	BlocksRange       = 0x08
-	FlipBody          = 0x09
-	FlipKey           = 0x0A
-	SnapshotManifest  = 0x0B
-	PushFlipCid       = 0x0C
-	PullFlip          = 0x0D
-	GetForkBlockRange = 0x0E
+	Handshake          = 0x01
+	ProposeBlock       = 0x02
+	ProposeProof       = 0x03
+	Vote               = 0x04
+	NewTx              = 0x05
+	GetBlockByHash     = 0x06
+	GetBlocksRange     = 0x07
+	BlocksRange        = 0x08
+	FlipBody           = 0x09
+	FlipKey            = 0x0A
+	SnapshotManifest   = 0x0B
+	PushFlipCid        = 0x0C
+	PullFlip           = 0x0D
+	GetForkBlockRange  = 0x0E
+	FlipKeysPackage    = 0x0F
+	FlipKeysPackageCid = 0x10
 )
 const (
 	DecodeErr              = 1
@@ -62,18 +64,19 @@ type ProtocolManager struct {
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
 
-	txpool        mempool.TransactionPool
-	flipKeyPool   *mempool.KeysPool
-	flipper       *flip.Flipper
-	txChan        chan *events.NewTxEvent
-	flipKeyChan   chan *events.NewFlipKeyEvent
-	incomeBatches *sync.Map
-	batchedLock   sync.Mutex
-	bus           eventbus.Bus
-	config        *p2p.Config
-	wrongTime     bool
-	appVersion    string
-	bannedPeers   mapset.Set
+	txpool              mempool.TransactionPool
+	flipKeyPool         *mempool.KeysPool
+	flipper             *flip.Flipper
+	txChan              chan *events.NewTxEvent
+	flipKeyChan         chan *events.NewFlipKeyEvent
+	flipKeysPackageChan chan *events.NewFlipKeysPackageEvent
+	incomeBatches       *sync.Map
+	batchedLock         sync.Mutex
+	bus                 eventbus.Bus
+	config              *p2p.Config
+	wrongTime           bool
+	appVersion          string
+	bannedPeers         mapset.Set
 }
 
 type getBlockBodyRequest struct {
@@ -114,22 +117,23 @@ type handshakeData struct {
 
 func NetProtocolManager(chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, config *p2p.Config, appVersion string) *ProtocolManager {
 	return &ProtocolManager{
-		bcn:           chain,
-		peers:         newPeerSet(),
-		heads:         make(chan *peerHead, 10),
-		incomeBlocks:  make(chan *types.Block, 1000),
-		incomeBatches: &sync.Map{},
-		proposals:     proposals,
-		votes:         votes,
-		txpool:        mempool.NewAsyncTxPool(txpool),
-		txChan:        make(chan *events.NewTxEvent, 100),
-		flipKeyChan:   make(chan *events.NewFlipKeyEvent, 200),
-		flipper:       fp,
-		bus:           bus,
-		flipKeyPool:   flipKeyPool,
-		config:        config,
-		appVersion:    appVersion,
-		bannedPeers:   mapset.NewSet(),
+		bcn:                 chain,
+		peers:               newPeerSet(),
+		heads:               make(chan *peerHead, 10),
+		incomeBlocks:        make(chan *types.Block, 1000),
+		incomeBatches:       &sync.Map{},
+		proposals:           proposals,
+		votes:               votes,
+		txpool:              mempool.NewAsyncTxPool(txpool),
+		txChan:              make(chan *events.NewTxEvent, 100),
+		flipKeyChan:         make(chan *events.NewFlipKeyEvent, 200),
+		flipKeysPackageChan: make(chan *events.NewFlipKeysPackageEvent, 200),
+		flipper:             fp,
+		bus:                 bus,
+		flipKeyPool:         flipKeyPool,
+		config:              config,
+		appVersion:          appVersion,
+		bannedPeers:         mapset.NewSet(),
 	}
 }
 
@@ -141,6 +145,10 @@ func (pm *ProtocolManager) Start() {
 	_ = pm.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
 		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
 		pm.flipKeyChan <- newFlipKeyEvent
+	})
+	_ = pm.bus.Subscribe(events.NewFlipKeysPackageID, func(e eventbus.Event) {
+		newFlipKeysPackageEvent := e.(*events.NewFlipKeysPackageEvent)
+		pm.flipKeysPackageChan <- newFlipKeysPackageEvent
 	})
 	_ = pm.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
@@ -278,11 +286,15 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.markPayload(f)
 		pm.flipper.AddNewFlip(f, false)
 	case FlipKey:
-		flipKey := new(types.FlipKey)
+		flipKey := new(types.PublicFlipKey)
 		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		pm.flipKeyPool.Add(flipKey, false)
+		if pm.isProcessed(flipKey) {
+			return nil
+		}
+		p.markPayload(flipKey)
+		pm.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
 		if err := msg.Decode(manifest); err != nil {
@@ -309,6 +321,26 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		if f, err := pm.flipper.ReadFlip(cid.Cid); err == nil {
 			p.sendMsg(FlipBody, f, false)
 		}
+	case FlipKeysPackage:
+		keysPackage := new(types.PrivateFlipKeysPackage)
+		if err := msg.Decode(keysPackage); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(keysPackage) {
+			return nil
+		}
+		p.markPayload(keysPackage)
+		pm.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
+	case FlipKeysPackageCid:
+		packageCid := new(types.PrivateFlipKeysPackageCid)
+		if err := msg.Decode(packageCid); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pm.isProcessed(packageCid) {
+			return nil
+		}
+		p.markPayload(packageCid)
+		pm.flipKeyPool.AddPrivateKeysPackageCid(packageCid)
 	}
 
 	return nil
@@ -511,6 +543,8 @@ func (pm *ProtocolManager) broadcastLoop() {
 			pm.broadcastTx(tx.Tx, tx.Own)
 		case key := <-pm.flipKeyChan:
 			pm.broadcastFlipKey(key.Key, key.Own)
+		case key := <-pm.flipKeysPackageChan:
+			pm.broadcastFlipKeysPackage(key.Key, key.Own)
 		}
 	}
 }
@@ -522,8 +556,12 @@ func (pm *ProtocolManager) broadcastFlipCid(cid []byte) {
 	pm.peers.SendWithFilter(PushFlipCid, &flipCid{cid}, false)
 }
 
-func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.FlipKey, own bool) {
+func (pm *ProtocolManager) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	pm.peers.SendWithFilter(FlipKey, flipKey, own)
+}
+
+func (pm *ProtocolManager) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
+	pm.peers.SendWithFilter(FlipKeysPackage, flipKeysPackage, own)
 }
 
 func (pm *ProtocolManager) RequestBlockByHash(hash common.Hash) {
@@ -552,6 +590,11 @@ func (pm *ProtocolManager) syncFlipKeyPool(p *peer) {
 	keys := pm.flipKeyPool.GetFlipKeys()
 	for _, key := range keys {
 		p.sendMsg(FlipKey, key, false)
+	}
+
+	keysPackages := pm.flipKeyPool.GetFlipPackagesCids()
+	for _, flipPackageCid := range keysPackages {
+		p.sendMsg(FlipKeysPackageCid, flipPackageCid, false)
 	}
 }
 func (pm *ProtocolManager) PotentialForwardPeers(round uint64) []string {

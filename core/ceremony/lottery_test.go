@@ -80,7 +80,8 @@ func Test_Case1(t *testing.T) {
 
 	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 150, 100, 3)
 
-	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	authorsPerCandidate, _ := GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
 
 	for _, item := range shortFlipsPerCandidate {
 		require.Equal(t, 7, len(item))
@@ -97,7 +98,8 @@ func Test_Case2(t *testing.T) {
 
 	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 300, 100, 3)
 
-	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	authorsPerCandidate, _ := GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
 
 	for _, item := range shortFlipsPerCandidate {
 		require.Equal(t, 7, len(item))
@@ -114,16 +116,18 @@ func Test_Case3(t *testing.T) {
 
 	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 5, 0, 3)
 
-	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	authorsPerCandidate, _ := GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
 
 	require.Equal(t, 5, len(shortFlipsPerCandidate))
 	require.Equal(t, 5, len(longFlipsPerCandidate))
 
 	candidates, flipsPerAuthor, flips = makeCandidatesWithFlips(seed, 0, 0, 3)
 
-	shortFlipsPerCandidate, longFlipsPerCandidate = SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
-	require.Nil(t, shortFlipsPerCandidate)
-	require.Nil(t, longFlipsPerCandidate)
+	authorsPerCandidate, _ = GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate = GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
+	require.Equal(t, 0, len(shortFlipsPerCandidate))
+	require.Equal(t, 0, len(longFlipsPerCandidate))
 }
 
 func Test_Case4(t *testing.T) {
@@ -132,7 +136,8 @@ func Test_Case4(t *testing.T) {
 
 	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 12, 1, 1)
 
-	shortFlipsPerCandidate, longFlipsPerCandidate := SortFlips(flipsPerAuthor, candidates, flips, seed, 7)
+	authorsPerCandidate, _ := GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
 
 	for _, item := range shortFlipsPerCandidate {
 		require.Equal(t, 1, len(item))

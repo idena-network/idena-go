@@ -6,11 +6,12 @@ import (
 )
 
 const (
-	NewTxEventID      = eventbus.EventID("transaction-new")
-	AddBlockEventID   = eventbus.EventID("block-add")
-	NewFlipKeyID      = eventbus.EventID("flip-key-new")
-	FastSyncCompleted = eventbus.EventID("fast-sync-completed")
-	NewFlipEventID    = eventbus.EventID("flip-new")
+	NewTxEventID         = eventbus.EventID("transaction-new")
+	AddBlockEventID      = eventbus.EventID("block-add")
+	NewFlipKeyID         = eventbus.EventID("flip-key-new")
+	FastSyncCompleted    = eventbus.EventID("fast-sync-completed")
+	NewFlipEventID       = eventbus.EventID("flip-new")
+	NewFlipKeysPackageID = eventbus.EventID("flip-keys-package-new")
 )
 
 type NewTxEvent struct {
@@ -31,7 +32,7 @@ func (e *NewBlockEvent) EventID() eventbus.EventID {
 }
 
 type NewFlipKeyEvent struct {
-	Key *types.FlipKey
+	Key *types.PublicFlipKey
 	Own bool
 }
 
@@ -52,4 +53,13 @@ type NewFlipEvent struct {
 
 func (NewFlipEvent) EventID() eventbus.EventID {
 	return NewFlipEventID
+}
+
+type NewFlipKeysPackageEvent struct {
+	Key *types.PrivateFlipKeysPackage
+	Own bool
+}
+
+func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
+	return NewFlipKeysPackageID
 }
