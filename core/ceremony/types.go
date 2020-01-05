@@ -7,6 +7,7 @@ import (
 
 type candidate struct {
 	Address    common.Address
+	PubKey     []byte
 	Generation uint32
 	Code       []byte
 	IsAuthor   bool
