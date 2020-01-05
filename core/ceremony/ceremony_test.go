@@ -1,6 +1,7 @@
 package ceremony
 
 import (
+	"crypto/ecdsa"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -16,21 +17,22 @@ import (
 func TestValidationCeremony_getFlipsToSolve(t *testing.T) {
 	require := require.New(t)
 
-	myKey := common.Address{0x1, 0x2, 0x3}
-
 	flipsCids := [][]byte{{0x1}, {0x2}, {0x3}, {0x4}, {0x5}}
 
 	fliptsPerCandidate := [][]int{{0, 1, 2}, {4, 2, 1}, {1, 2, 3}, {1, 2, 4}, {0, 1, 3}}
 
-	result := getFlipsToSolve(myKey, getParticipants(myKey, 0, 5), fliptsPerCandidate, flipsCids)
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	result := getFlipsToSolve(addr, getParticipants(key, 0, 5), fliptsPerCandidate, flipsCids)
 	shouldBe := [][]byte{{0x1}, {0x2}, {0x3}}
 	require.Equal(shouldBe, result)
 
-	result = getFlipsToSolve(myKey, getParticipants(myKey, 3, 5), fliptsPerCandidate, flipsCids)
+	result = getFlipsToSolve(addr, getParticipants(key, 3, 5), fliptsPerCandidate, flipsCids)
 	shouldBe = [][]byte{{0x2}, {0x3}, {0x5}}
 	require.Equal(shouldBe, result)
 
-	result = getFlipsToSolve(myKey, getParticipants(myKey, 4, 5), fliptsPerCandidate, flipsCids)
+	result = getFlipsToSolve(addr, getParticipants(key, 4, 5), fliptsPerCandidate, flipsCids)
 	shouldBe = [][]byte{{0x1}, {0x2}, {0x4}}
 	require.Equal(shouldBe, result)
 }
@@ -38,32 +40,37 @@ func TestValidationCeremony_getFlipsToSolve(t *testing.T) {
 func TestValidationCeremony_getFlipsToSolve_fewFlips(t *testing.T) {
 	require := require.New(t)
 
-	myKey := common.Address{0x1, 0x2, 0x3}
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
 
 	flipsCids := [][]byte{{0x1}, {0x2}, {0x3}, {0x4}, {0x5}}
 
 	fliptsPerCandidate := [][]int{{0, 1, 6}, {4, 2, 8}, {1, 2, 4}, {1, 2, 3}, {6, 7, 8}}
 
-	result := getFlipsToSolve(myKey, getParticipants(myKey, 0, 5), fliptsPerCandidate, flipsCids)
+	result := getFlipsToSolve(addr, getParticipants(key, 0, 5), fliptsPerCandidate, flipsCids)
 	shouldBe := [][]byte{{0x1}, {0x2}, {0x2}}
 	require.Equal(shouldBe, result)
 
-	result = getFlipsToSolve(myKey, getParticipants(myKey, 4, 5), fliptsPerCandidate, flipsCids)
+	result = getFlipsToSolve(addr, getParticipants(key, 4, 5), fliptsPerCandidate, flipsCids)
 	shouldBe = [][]byte{{0x2}, {0x3}, {0x4}}
 	require.Equal(shouldBe, result)
 }
 
-func getParticipants(myKey common.Address, myIndex int, length int) []*candidate {
+func getParticipants(myKey *ecdsa.PrivateKey, myIndex int, length int) []*candidate {
 	participants := make([]*candidate, 0)
 
 	for i := 0; i < length; i++ {
 		if i == myIndex {
 			participants = append(participants, &candidate{
-				Address: myKey,
+				Address: crypto.PubkeyToAddress(myKey.PublicKey),
+				PubKey:  crypto.FromECDSAPub(&myKey.PublicKey),
 			})
 		} else {
+			key, _ := crypto.GenerateKey()
+
 			participants = append(participants, &candidate{
-				Address: common.Address{byte(i)},
+				Address: crypto.PubkeyToAddress(key.PublicKey),
+				PubKey:  crypto.FromECDSAPub(&key.PublicKey),
 			})
 		}
 	}

@@ -13,24 +13,24 @@ const (
 	GeneticRelationLength = 3
 )
 
-func SortFlips(flipsPerAuthor map[int][][]byte, candidates []*candidate, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
+func GetAuthorsDistribution(candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
 	if len(candidates) == 0 {
-		return shortFlipsPerCandidate, longFlipsPerCandidate
+		return make(map[int][]int), make(map[int][]int)
 	}
 
 	authors := getAuthorsIndexes(candidates)
 
 	if len(authors) == 0 {
-		return make([][]int, len(candidates)), make([][]int, len(candidates))
+		return make(map[int][]int), make(map[int][]int)
 	}
 
-	authorsPerCandidate, candidatesPerAuthor := getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
+	authorsPerCandidate, candidatesPerAuthor = getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
 
 	if len(authors) > 7 {
 		authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(seed, candidates, authorsPerCandidate, candidatesPerAuthor)
 	}
 
-	return determineFlips(authorsPerCandidate, flipsPerAuthor, flips, seed, shortFlipsCount)
+	return authorsPerCandidate, candidatesPerAuthor
 }
 
 func getFirstAuthorsDistribution(authorsIndexes []int, candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
@@ -106,7 +106,7 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 	return authorsPerCandidate, candidatesPerAuthor
 }
 
-func determineFlips(authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
+func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
 
 	distinct := func(arr []int) []int {
 		m := make(map[int]struct{})
@@ -128,11 +128,15 @@ func determineFlips(authorsPerCandidate map[int][]int, flipsPerAuthor map[int][]
 	randSeed := binary.LittleEndian.Uint64(seed)
 	random := rand.New(rand.NewSource(int64(randSeed)*12 + 3))
 
-	shortFlipsPerCandidate = make([][]int, len(authorsPerCandidate))
-	longFlipsPerCandidate = make([][]int, len(authorsPerCandidate))
+	shortFlipsPerCandidate = make([][]int, candidatesCount)
+	longFlipsPerCandidate = make([][]int, candidatesCount)
 
-	for candidateIndex := 0; candidateIndex < len(authorsPerCandidate); candidateIndex++ {
-		authors := authorsPerCandidate[candidateIndex]
+	for candidateIndex := 0; candidateIndex < candidatesCount; candidateIndex++ {
+		authors, ok := authorsPerCandidate[candidateIndex]
+		if !ok {
+			continue
+		}
+
 		randomizedAuthors := random.Perm(len(authors))
 		var shortFlips []int
 		var longFlips []int

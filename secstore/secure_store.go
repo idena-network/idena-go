@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"os"
 )
@@ -34,9 +35,14 @@ func (s *SecStore) SignTx(tx *types.Transaction) (*types.Transaction, error) {
 	return types.SignTx(tx, sec)
 }
 
-func (s *SecStore) SignFlipKey(fk *types.FlipKey) (*types.FlipKey, error) {
+func (s *SecStore) SignFlipKey(fk *types.PublicFlipKey) (*types.PublicFlipKey, error) {
 	sec, _ := crypto.ToECDSA(s.buffer.Bytes())
 	return types.SignFlipKey(fk, sec)
+}
+
+func (s *SecStore) SignFlipKeysPackage(fk *types.PrivateFlipKeysPackage) (*types.PrivateFlipKeysPackage, error) {
+	sec, _ := crypto.ToECDSA(s.buffer.Bytes())
+	return types.SignFlipKeysPackage(fk, sec)
 }
 
 func (s *SecStore) GetAddress() common.Address {
@@ -77,4 +83,9 @@ func (s *SecStore) ExportKey(password string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(encrypted), nil
+}
+
+func (s *SecStore) DecryptMessage(data []byte) ([]byte, error) {
+	sec, _ := crypto.ToECDSA(s.buffer.Bytes())
+	return ecies.ImportECDSA(sec).Decrypt(data, nil, nil)
 }
