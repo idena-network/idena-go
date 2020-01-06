@@ -15,5 +15,7 @@ const (
 	PushFlipCid       = 0x0C
 	PullFlip          = 0x0D
 	GetForkBlockRange = 0x0E
+	FlipKeysPackage    = 0x0F
+	FlipKeysPackageCid = 0x10
 )
 

@@ -47,42 +47,44 @@ type IdenaGossipHandler struct {
 	proposals    *pengings.Proposals
 	votes        *pengings.Votes
 
-	txpool        mempool.TransactionPool
-	flipKeyPool   *mempool.KeysPool
-	flipper       *flip.Flipper
-	txChan        chan *events.NewTxEvent
-	flipKeyChan   chan *events.NewFlipKeyEvent
-	incomeBatches *sync.Map
-	batchedLock   sync.Mutex
-	bus           eventbus.Bus
-	wrongTime     bool
-	appVersion    string
-	bannedPeers   mapset.Set
-	refreshCh     chan struct{}
-	log           log.Logger
-	mutex         sync.Mutex
+	txpool              mempool.TransactionPool
+	flipKeyPool         *mempool.KeysPool
+	flipper             *flip.Flipper
+	txChan              chan *events.NewTxEvent
+	flipKeyChan         chan *events.NewFlipKeyEvent
+	flipKeysPackageChan chan *events.NewFlipKeysPackageEvent
+	incomeBatches       *sync.Map
+	batchedLock         sync.Mutex
+	bus                 eventbus.Bus
+	wrongTime           bool
+	appVersion          string
+	bannedPeers         mapset.Set
+	refreshCh           chan struct{}
+	log                 log.Logger
+	mutex               sync.Mutex
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
 	handler := &IdenaGossipHandler{
-		host:          host,
-		cfg:           cfg,
-		bcn:           chain,
-		peers:         newPeerSet(),
-		incomeBlocks:  make(chan *types.Block, 1000),
-		incomeBatches: &sync.Map{},
-		proposals:     proposals,
-		votes:         votes,
-		txpool:        mempool.NewAsyncTxPool(txpool),
-		txChan:        make(chan *events.NewTxEvent, 100),
-		flipKeyChan:   make(chan *events.NewFlipKeyEvent, 200),
-		flipper:       fp,
-		bus:           bus,
-		flipKeyPool:   flipKeyPool,
-		appVersion:    appVersion,
-		bannedPeers:   mapset.NewSet(),
-		refreshCh:     make(chan struct{}, 1),
-		log:           log.New(),
+		host:                host,
+		cfg:                 cfg,
+		bcn:                 chain,
+		peers:               newPeerSet(),
+		incomeBlocks:        make(chan *types.Block, 1000),
+		incomeBatches:       &sync.Map{},
+		proposals:           proposals,
+		votes:               votes,
+		txpool:              mempool.NewAsyncTxPool(txpool),
+		txChan:              make(chan *events.NewTxEvent, 100),
+		flipKeyChan:         make(chan *events.NewFlipKeyEvent, 200),
+		flipKeysPackageChan: make(chan *events.NewFlipKeysPackageEvent, 200),
+		flipper:             fp,
+		bus:                 bus,
+		flipKeyPool:         flipKeyPool,
+		appVersion:          appVersion,
+		bannedPeers:         mapset.NewSet(),
+		refreshCh:           make(chan struct{}, 1),
+		log:                 log.New(),
 	}
 	return handler
 }
@@ -111,6 +113,10 @@ func (h *IdenaGossipHandler) Start() {
 	_ = h.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
 		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
 		h.flipKeyChan <- newFlipKeyEvent
+	})
+	_ = h.bus.Subscribe(events.NewFlipKeysPackageID, func(e eventbus.Event) {
+		newFlipKeysPackageEvent := e.(*events.NewFlipKeysPackageEvent)
+		h.flipKeysPackageChan <- newFlipKeysPackageEvent
 	})
 	_ = h.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
@@ -247,11 +253,11 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		p.markPayload(f)
 		h.flipper.AddNewFlip(f, false)
 	case FlipKey:
-		flipKey := new(types.FlipKey)
+		flipKey := new(types.PublicFlipKey)
 		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		h.flipKeyPool.Add(flipKey, false)
+		h.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
 		if err := msg.Decode(manifest); err != nil {
@@ -278,6 +284,26 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if f, err := h.flipper.ReadFlip(cid.Cid); err == nil {
 			p.sendMsg(FlipBody, f, false)
 		}
+	case FlipKeysPackage:
+		keysPackage := new(types.PrivateFlipKeysPackage)
+		if err := msg.Decode(keysPackage); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if h.isProcessed(keysPackage) {
+			return nil
+		}
+		p.markPayload(keysPackage)
+		h.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
+	case FlipKeysPackageCid:
+		packageCid := new(types.PrivateFlipKeysPackageCid)
+		if err := msg.Decode(packageCid); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if h.isProcessed(packageCid) {
+			return nil
+		}
+		p.markPayload(packageCid)
+		h.flipKeyPool.AddPrivateKeysPackageCid(packageCid)
 	}
 
 	return nil
@@ -600,6 +626,8 @@ func (h *IdenaGossipHandler) broadcastLoop() {
 			h.broadcastTx(tx.Tx, tx.Own)
 		case key := <-h.flipKeyChan:
 			h.broadcastFlipKey(key.Key, key.Own)
+		case key := <-h.flipKeysPackageChan:
+			h.broadcastFlipKeysPackage(key.Key, key.Own)
 		}
 	}
 }
@@ -611,8 +639,11 @@ func (h *IdenaGossipHandler) broadcastFlipCid(cid []byte) {
 	h.peers.SendWithFilter(PushFlipCid, &flipCid{cid}, false)
 }
 
-func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.FlipKey, own bool) {
+func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	h.peers.SendWithFilter(FlipKey, flipKey, own)
+}
+func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
+	h.peers.SendWithFilter(FlipKeysPackage, flipKeysPackage, own)
 }
 
 func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
@@ -641,6 +672,11 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 	keys := h.flipKeyPool.GetFlipKeys()
 	for _, key := range keys {
 		p.sendMsg(FlipKey, key, false)
+	}
+
+	keysPackages := h.flipKeyPool.GetFlipPackagesCids()
+	for _, flipPackageCid := range keysPackages {
+		p.sendMsg(FlipKeysPackageCid, flipPackageCid, false)
 	}
 }
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {
