@@ -106,4 +106,9 @@ var (
 		Name:  "apikey",
 		Usage: "Set RPC api key",
 	}
+	LogFileSizeFlag = cli.IntFlag{
+		Name:  "logfilesize",
+		Usage: "Set log file size in KB",
+		Value: 1024 * 10,
+	}
 )

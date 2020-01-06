@@ -8,11 +8,6 @@ import (
 	"reflect"
 	"sync"
 
-	"io/ioutil"
-	"path/filepath"
-	"regexp"
-	"strings"
-
 	"github.com/go-stack/stack"
 )
 
@@ -135,46 +130,35 @@ func prepFile(path string) (*countingWriter, error) {
 // at the given path. When a file's size reaches the limit, the handler creates
 // a new file named after the timestamp of the first log record it will contain.
 func RotatingFileHandler(path string, limit uint, formatter Format) (Handler, error) {
-	if err := os.MkdirAll(path, 0700); err != nil {
-		return nil, err
-	}
-	files, err := ioutil.ReadDir(path)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
-	re := regexp.MustCompile(`\.log$`)
-	last := len(files) - 1
-	for last >= 0 && (!files[last].Mode().IsRegular() || !re.MatchString(files[last].Name())) {
-		last--
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
 	}
-	var counter *countingWriter
-	if last >= 0 && files[last].Size() < int64(limit) {
-		// Open the last file, and continue to write into it until it's size reaches the limit.
-		if counter, err = prepFile(filepath.Join(path, files[last].Name())); err != nil {
-			return nil, err
-		}
-	}
-	if counter == nil {
-		counter = new(countingWriter)
-	}
+	counter := &countingWriter{w: f, count: uint(fi.Size())}
 	h := StreamHandler(counter, formatter)
-
+	var mu sync.Mutex
 	return FuncHandler(func(r *Record) error {
 		if counter.count > limit {
-			counter.Close()
-			counter.w = nil
-		}
-		if counter.w == nil {
-			f, err := os.OpenFile(
-				filepath.Join(path, fmt.Sprintf("%s.log", strings.Replace(r.Time.Format("060102150405.00"), ".", "", 1))),
-				os.O_CREATE|os.O_APPEND|os.O_WRONLY,
-				0600,
-			)
-			if err != nil {
-				return err
+			mu.Lock()
+			if counter.count > limit {
+				counter.Close()
+				oldFile := fmt.Sprintf("%s.old", path)
+				os.Remove(oldFile)
+				os.Rename(path, oldFile)
+
+				f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+				if err != nil {
+					mu.Unlock()
+					return err
+				}
+				counter.w = f
+				counter.count = 0
 			}
-			counter.w = f
-			counter.count = 0
+			mu.Unlock()
 		}
 		return h.Log(r)
 	}), nil
