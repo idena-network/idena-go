@@ -46,10 +46,12 @@ func main() {
 		config.ProfileFlag,
 		config.IpfsPortStaticFlag,
 		config.ApiKeyFlag,
+		config.LogFileSizeFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {
-		logLvl := log.Lvl(context.Int("verbosity"))
+		logLvl := log.Lvl(context.Int(config.VerbosityFlag.Name))
+		logFileSize := context.Int(config.LogFileSizeFlag.Name)
 
 		var handler log.Handler
 		if runtime.GOOS == "windows" {
@@ -71,7 +73,7 @@ func main() {
 			return err
 		}
 
-		fileHandler, err := getLogFileHandler(cfg)
+		fileHandler, err := getLogFileHandler(cfg, logFileSize)
 
 		if err != nil {
 			return err
@@ -96,7 +98,7 @@ func main() {
 	}
 }
 
-func getLogFileHandler(cfg *config.Config) (log.Handler, error) {
+func getLogFileHandler(cfg *config.Config, logFileSize int) (log.Handler, error) {
 	path := filepath.Join(cfg.DataDir, LogDir)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if err := os.MkdirAll(path, 0755); err != nil {
@@ -104,7 +106,7 @@ func getLogFileHandler(cfg *config.Config) (log.Handler, error) {
 		}
 	}
 
-	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
+	fileHandler, _ := log.RotatingFileHandler(filepath.Join(path, "output.log"), uint(logFileSize*1024), log.TerminalFormat(false))
 
 	return fileHandler, nil
 }
