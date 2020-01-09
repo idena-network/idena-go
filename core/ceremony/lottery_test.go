@@ -106,7 +106,7 @@ func Test_Case2(t *testing.T) {
 	}
 
 	for _, item := range longFlipsPerCandidate {
-		require.Equal(t, 14, len(item))
+		require.True(t, len(item) >= 14)
 	}
 }
 
@@ -145,6 +145,24 @@ func Test_Case4(t *testing.T) {
 
 	for _, item := range longFlipsPerCandidate {
 		require.Equal(t, 1, len(item))
+	}
+}
+
+func Test_Case5(t *testing.T) {
+	seed := make([]byte, 8)
+	binary.LittleEndian.PutUint64(seed, 500)
+
+	candidates, flipsPerAuthor, flips := makeCandidatesWithFlips(seed, 10, 3, 3)
+
+	authorsPerCandidate, _ := GetAuthorsDistribution(candidates, seed, 7)
+	shortFlipsPerCandidate, longFlipsPerCandidate := GetFlipsDistribution(len(candidates), authorsPerCandidate, flipsPerAuthor, flips, seed, 7)
+
+	for _, item := range shortFlipsPerCandidate {
+		require.True(t, len(item) >= 6)
+	}
+
+	for _, item := range longFlipsPerCandidate {
+		require.True(t, len(item) >= 6)
 	}
 }
 
