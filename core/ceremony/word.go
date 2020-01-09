@@ -62,20 +62,14 @@ func maxUniquePairs(dictionarySize int) int {
 }
 
 func nextPair(rnd *rand.Rand, dictionarySize, pairCount int, pairs mapset.Set) (num1, num2 int) {
-	num1, num2 = generatePair(rnd, dictionarySize)
+	num1, num2 = rnd.Intn(dictionarySize), rnd.Intn(dictionarySize)
 	maxPairs := maxUniquePairs(dictionarySize)
 	for pairCount <= maxPairs && !checkPair(num1, num2, pairs) {
-		num1, num2 = generatePair(rnd, dictionarySize)
+		num1, num2 = rnd.Intn(dictionarySize), rnd.Intn(dictionarySize)
 	}
 
 	pairs.Add(pairToString(num1, num2))
 	pairs.Add(pairToString(num2, num1))
-	return
-}
-
-func generatePair(rnd *rand.Rand, dictionarySize int) (num1, num2 int) {
-	num1 = rnd.Int() % dictionarySize
-	num2 = rnd.Int() % dictionarySize
 	return
 }
 
