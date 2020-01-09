@@ -1061,7 +1061,8 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	vc.flipKeyWordPairs, vc.flipKeyWordProof = vc.GeneratePairs(seed, common.WordDictionarySize, identity.GetTotalWordPairsCount())
+	vc.flipKeyWordPairs, vc.flipKeyWordProof = vc.GeneratePairs(seed, common.WordDictionarySize,
+		identity.GetTotalWordPairsCount(), vc.appState.State.Epoch())
 }
 
 func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {
@@ -1088,7 +1089,8 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 		return 0, 0, errors.New("proof not ready")
 	}
 
-	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
+	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId,
+		vc.appState.State.Epoch())
 }
 
 func (vc *ValidationCeremony) getOwnCandidateIndex() int {
