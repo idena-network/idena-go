@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
+	"github.com/idena-network/idena-go/rlp"
 	util "github.com/ipfs/go-ipfs-util"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -62,6 +63,7 @@ type IdenaGossipHandler struct {
 	refreshCh           chan struct{}
 	log                 log.Logger
 	mutex               sync.Mutex
+	sortedConnections   []connDistance
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
@@ -101,7 +103,7 @@ func (h *IdenaGossipHandler) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				h.refreshPeers()
+				h.refreshConnections()
 			}
 		}
 	}()
@@ -310,22 +312,28 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 }
 
 func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
-	h.runPeer(stream)
+	distance := distance(h.host.ID(), stream.Conn().RemotePeer())
+	if h.peers.Len() < h.cfg.MaxPeers || h.peers.BetterDistance(distance) {
+		h.log.Trace("try to open new peer from handler", "id", stream.Conn().RemotePeer())
+		h.runPeer(stream, distance)
+	} else {
+		stream.Close()
+	}
 }
 
-func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) {
+func (h *IdenaGossipHandler) runPeer(stream network.Stream, distance []byte) (*protoPeer, error) {
 	h.mutex.Lock()
 	if p := h.peers.Peer(stream.Conn().RemotePeer()); p != nil {
 		h.mutex.Unlock()
 		return p, errors.New("peer already connected")
 	}
 
-	peer := newPeer(stream, h.cfg.MaxDelay)
+	peer := newPeer(stream, h.cfg.MaxDelay, distance)
 
 	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion); err != nil {
 		current := semver.New(h.appVersion)
-		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major >= current.Major || other.Minor >= current.Minor && other.Major == current.Major {
-			peer.log.Info("Idena handshake failed", "err", err)
+		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
+			peer.log.Debug("Idena handshake failed", "err", err)
 		}
 		h.mutex.Unlock()
 		return nil, err
@@ -341,41 +349,93 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 	go h.syncFlipKeyPool(peer)
 	h.sendManifest(peer)
 
-	h.log.Info("Peer connected", "protoPeer", peer.id.Pretty())
-
+	h.log.Info("Peer connected", "id", peer.id.Pretty())
 	return peer, nil
 }
 
 func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	peer := h.peers.Peer(peerId)
+	if peer == nil {
+		return
+	}
 	if err := h.peers.Unregister(peerId); err != nil {
 		return
 	}
-	peer.disconnect()
-	h.log.Info("Peer disconnected", "protoPeer", peerId.Pretty())
-	h.host.ConnManager().UntagPeer(peerId, "idena")
 	close(peer.term)
+	peer.disconnect()
+	h.log.Info("Peer disconnected", "id", peerId.Pretty())
+	h.host.ConnManager().UntagPeer(peerId, "idena")
 }
 
 func (h *IdenaGossipHandler) sortByDistance(conns []network.Conn) []connDistance {
-	ownId, _ := h.host.ID().Marshal()
+	ownId := h.host.ID()
 	var result []connDistance
 
 	for _, c := range conns {
-		peerId, _ := c.RemotePeer().Marshal()
-		distance := util.XOR(ownId, peerId)
+		distance := distance(ownId, c.RemotePeer())
 		result = append(result, connDistance{
 			c, distance,
 		})
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
-		return bytes.Compare(result[i].distance, result[j].distance) > 0
+		return bytes.Compare(result[i].distance, result[j].distance) < 0
 	})
 	return result
 }
 
+func distance(ownId, remotePeer peer.ID) []byte {
+	own, _ := ownId.Marshal()
+	peer, _ := remotePeer.Marshal()
+	hash1 := rlp.Hash(own)
+	hash2 := rlp.Hash(peer)
+	return util.XOR(hash1[:], hash2[:])
+}
+
+func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream, error) {
+	streams := conn.GetStreams()
+
+	var idenaStream network.Stream
+	for _, s := range streams {
+		if s.Protocol() == IdenaProtocol {
+			idenaStream = s
+		}
+	}
+	if idenaStream != nil {
+		return idenaStream, nil
+	}
+
+	h.log.Trace("try to open a new stream", "peer", conn.RemotePeer())
+	return h.newStream(conn.RemotePeer())
+}
+
 func (h *IdenaGossipHandler) refreshPeers() {
+	go func() {
+		activePeers := 0
+		for _, c := range h.sortedConnections {
+			idenaStream, err := h.findOrOpenStream(c.conn)
+			if err != nil {
+				h.log.Debug("failed to open a new stream", "err", err)
+			}
+			if idenaStream == nil {
+				continue
+			}
+			peer := h.peers.Peer(idenaStream.Conn().RemotePeer())
+			if peer == nil {
+				peer, _ = h.runPeer(idenaStream, c.distance)
+			}
+			if peer != nil {
+				activePeers++
+			}
+			if activePeers >= h.cfg.MaxPeers {
+				break
+			}
+		}
+		h.peers.DisconnectExtraPeers(h.cfg.MaxPeers)
+	}()
+}
+
+func (h *IdenaGossipHandler) refreshConnections() {
 
 	go func() {
 		select {
@@ -386,38 +446,8 @@ func (h *IdenaGossipHandler) refreshPeers() {
 		defer func() {
 			<-h.refreshCh
 		}()
-		conns := h.sortByDistance(h.filterBannedConnections(h.host.Network().Conns()))
-
-		activeStreams := 0
-		h.log.Info("connected conns", "cnt", len(conns))
-		for _, c := range conns {
-			streams := c.conn.GetStreams()
-
-			var idenaStream network.Stream
-			for _, s := range streams {
-				if s.Protocol() == IdenaProtocol {
-					idenaStream = s
-				}
-			}
-			if idenaStream == nil && activeStreams < h.cfg.MaxPeers {
-				h.log.Info("try to open stream", "peer", c.conn.RemotePeer())
-
-				if stream, err := h.newStream(c.conn.RemotePeer()); err != nil {
-					h.log.Debug("Failed to open new idena stream", "protoPeer", c.conn.RemotePeer().Pretty(), "err", err)
-				} else {
-					if _, err := h.runPeer(stream); err == nil {
-						activeStreams++
-						continue
-					}
-				}
-			}
-
-			if idenaStream != nil && activeStreams > h.cfg.MaxPeers {
-				h.log.Info("too much peers, close one", "peer", idenaStream.Conn().RemotePeer())
-				activeStreams++
-				idenaStream.Close()
-			}
-		}
+		h.sortedConnections = h.sortByDistance(h.filterBannedConnections(h.host.Network().Conns()))
+		h.refreshPeers()
 	}()
 }
 
@@ -455,7 +485,7 @@ func (h *IdenaGossipHandler) BanPeer(peerId peer.ID, reason error) {
 	peer := h.peers.Peer(peerId)
 	if peer != nil {
 		if reason != nil {
-			peer.log.Info("protoPeer has been banned", "reason", reason)
+			peer.log.Info("peer has been banned", "reason", reason)
 		}
 		peer.stream.Close()
 	}
@@ -572,7 +602,7 @@ func (h *IdenaGossipHandler) GetBlocksRange(peerId peer.ID, from uint64, to uint
 func (h *IdenaGossipHandler) GetForkBlockRange(peerId peer.ID, ownBlocks []common.Hash) (*batch, error) {
 	peer := h.peers.Peer(peerId)
 	if peer == nil {
-		return nil, errors.New("protoPeer is not found")
+		return nil, errors.New("peer is not found")
 	}
 	b := &batch{
 		p:       peer,
@@ -719,6 +749,21 @@ func (h *IdenaGossipHandler) Endpoint() string {
 	return h.host.ID().Pretty()
 }
 
+func (h *IdenaGossipHandler) AddPeer(peerId peer.ID, addr string) error {
+	ma, err := multiaddr.NewMultiaddr(addr)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+
+	err = h.host.Connect(ctx, peer.AddrInfo{
+		ID:    peerId,
+		Addrs: []multiaddr.Multiaddr{ma},
+	})
+	cancel()
+	return err
+}
+
 type idenaNotifiee struct {
 	handler *IdenaGossipHandler
 }
@@ -733,27 +778,19 @@ func (i *idenaNotifiee) ListenClose(network.Network, multiaddr.Multiaddr) {
 
 func (i *idenaNotifiee) Connected(net network.Network, conn network.Conn) {
 	go func() {
-		i.handler.log.Info("new connection")
 		time.Sleep(time.Second * 5)
-		i.handler.refreshPeers()
+		i.handler.refreshConnections()
 	}()
 }
 
 func (i *idenaNotifiee) Disconnected(net network.Network, conn network.Conn) {
-	i.handler.refreshPeers()
-	i.handler.unregisterPeer(conn.RemotePeer())
+	i.handler.refreshConnections()
 }
 
 func (i *idenaNotifiee) OpenedStream(net network.Network, conn network.Stream) {
-
 }
 
 func (i *idenaNotifiee) ClosedStream(net network.Network, stream network.Stream) {
-	if stream.Protocol() != IdenaProtocol {
-		return
-	}
-	i.handler.unregisterPeer(stream.Conn().RemotePeer())
-	i.handler.refreshPeers()
 }
 
 type connDistance struct {

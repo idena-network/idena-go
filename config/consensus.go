@@ -35,6 +35,7 @@ type ConsensusConf struct {
 	VrfSensitivityCoef                float64
 	MinFeePerByte                     *big.Int
 	MinBlockDistance                  time.Duration
+	MaxCommitteeSize                  int
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -54,7 +55,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		StakeRewardRate:                   0.2,
 		FeeBurnRate:                       0.9,
 		FinalCommitteeReward:              big.NewInt(4e+18),
-		SnapshotRange:                     3000,
+		SnapshotRange:                     1000,
 		OfflinePenaltyBlocksCount:         1800,
 		SuccessfulValidationRewardPercent: 0.24,
 		FlipRewardPercent:                 0.32,
@@ -67,5 +68,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		FeeSensitivityCoef:                0.25,
 		MinFeePerByte:                     big.NewInt(1e+2),
 		MinBlockDistance:                  time.Second * 20,
+		MaxCommitteeSize:                  100,
 	}
 }

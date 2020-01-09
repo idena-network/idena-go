@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/golang/snappy"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
@@ -40,9 +41,10 @@ type protoPeer struct {
 	appVersion           string
 	timeouts             int
 	log                  log.Logger
+	distance             []byte
 }
 
-func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
+func newPeer(stream network.Stream, maxDelayMs int, distance []byte) *protoPeer {
 	stream.Conn().RemotePeer()
 	rw := msgio.NewReadWriter(stream)
 
@@ -57,6 +59,7 @@ func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
 		maxDelayMs:           maxDelayMs,
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
 		log:                  log.New("id", stream.Conn().RemotePeer().Pretty()),
+		distance:             distance,
 	}
 	return p
 }
@@ -117,7 +120,6 @@ func (p *protoPeer) broadcast() {
 }
 
 func makeMsg(msgcode uint64, payload interface{}) []byte {
-
 	data, err := rlp.EncodeToBytes(payload)
 	if err != nil {
 		panic(err)
@@ -126,7 +128,7 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 	if err != nil {
 		panic(err)
 	}
-	return msg
+	return snappy.Encode(nil, msg)
 }
 
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
@@ -169,7 +171,12 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 		return nil, err
 	}
 	result := new(Msg)
-	if err := rlp.DecodeBytes(msg, result); err != nil {
+	msg, err = snappy.Decode(nil, msg)
+	if err != nil {
+		return nil, err
+	}
+	if err := rlp.DecodeBytes(msg, result)
+		err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -237,4 +244,12 @@ func (p *protoPeer) resetTimeouts() {
 
 func (p *protoPeer) disconnect() {
 	p.stream.Close()
+}
+
+func (p *protoPeer) ID() string {
+	return p.id.Pretty()
+}
+
+func (p *protoPeer) RemoteAddr() string {
+	return p.stream.Conn().RemoteMultiaddr().String()
 }

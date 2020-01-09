@@ -1,8 +1,10 @@
 package protocol
 
 import (
+	"bytes"
 	"errors"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
+	"sort"
 	"sync"
 )
 
@@ -114,4 +116,28 @@ func (ps *peerSet) HasPayload(payload interface{}) bool {
 		}
 	}
 	return false
+}
+
+func (ps *peerSet) BetterDistance(distance []byte) bool {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+	for _, p := range ps.peers {
+		if bytes.Compare(distance, p.distance) < 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (ps *peerSet) DisconnectExtraPeers(maxPeers int) {
+	peers := ps.Peers()
+	if len(peers) <= maxPeers {
+		return
+	}
+	sort.SliceStable(peers, func(i, j int) bool {
+		return bytes.Compare(peers[i].distance, peers[j].distance) < 0
+	})
+	for _, p := range peers[maxPeers:] {
+		p.disconnect()
+	}
 }
