@@ -1,58 +1,34 @@
 package ceremony
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/pkg/errors"
-	"math/big"
+	"math/rand"
 )
 
-const (
-	a = 1103515245
-	c = 12345
-	m = 1 << 16
-)
-
-func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
+func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int, epoch uint16) (nums []int, proof []byte) {
+	if epoch <= epochToUseOldWords {
+		return vc.generatePairsOld(seed, dictionarySize, pairCount)
+	}
 	hash, proof := vc.secStore.VrfEvaluate(seed)
-	rnd := generatePseudoRndSeed(hash, dictionarySize)
+	rnd := newRand(hash[:])
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var num1, num2 int
-		num1, num2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
+		num1, num2 = nextPair(rnd, dictionarySize, pairCount, pairs)
 		nums = append(nums, num1, num2)
 	}
 	return nums, proof
 }
 
-func CheckPair(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, num1, num2 int) bool {
-	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
-	if err != nil {
-		return false
+func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, pairIndex int, epoch uint16) (word1, word2 int, err error) {
+	if epoch <= epochToUseOldWords {
+		return getWordsOld(seed, proof, pubKeyData, dictionarySize, pairCount, pairIndex)
 	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return false
-	}
-	hash, err := verifier.ProofToHash(seed, proof)
-	if err != nil {
-		return false
-	}
-	rnd := generatePseudoRndSeed(hash, dictionarySize)
-	pairs := mapset.NewSet()
-	for i := 0; i < pairCount; i++ {
-		var val1, val2 int
-		val1, val2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
-		if val1 == num1 && val2 == num2 {
-			return true
-		}
-	}
-	return false
-}
-
-func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, pairIndex int) (word1, word2 int, err error) {
 	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
 	if err != nil {
 		return 0, 0, err
@@ -65,11 +41,11 @@ func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pair
 	if err != nil {
 		return 0, 0, err
 	}
-	rnd := generatePseudoRndSeed(hash, dictionarySize)
+	rnd := newRand(hash[:])
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var val1, val2 int
-		val1, val2, rnd = nextPair(rnd, dictionarySize, pairCount, pairs)
+		val1, val2 = nextPair(rnd, dictionarySize, pairCount, pairs)
 		if i == pairIndex {
 			return val1, val2, nil
 		}
@@ -77,34 +53,23 @@ func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pair
 	return 0, 0, errors.New("index is not found")
 }
 
+func newRand(seed []byte) *rand.Rand {
+	return rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed))))
+}
+
 func maxUniquePairs(dictionarySize int) int {
 	return (dictionarySize - 1) * dictionarySize / 2
 }
 
-func generatePseudoRndSeed(hash [32]byte, dictionarySize int) int {
-	vrfVal := new(big.Int).SetBytes(hash[:])
-	numSeed := new(big.Int)
-	vrfVal.QuoRem(vrfVal, big.NewInt(int64(dictionarySize)), numSeed)
-	return int(numSeed.Int64())
-}
-
-func nextPair(prevRnd, dictionarySize, pairCount int, pairs mapset.Set) (num1, num2, rnd int) {
-	num1, num2, rnd = generatePair(prevRnd, dictionarySize)
+func nextPair(rnd *rand.Rand, dictionarySize, pairCount int, pairs mapset.Set) (num1, num2 int) {
+	num1, num2 = rnd.Intn(dictionarySize), rnd.Intn(dictionarySize)
 	maxPairs := maxUniquePairs(dictionarySize)
 	for pairCount <= maxPairs && !checkPair(num1, num2, pairs) {
-		num1, num2, rnd = generatePair(rnd, dictionarySize)
+		num1, num2 = rnd.Intn(dictionarySize), rnd.Intn(dictionarySize)
 	}
 
 	pairs.Add(pairToString(num1, num2))
 	pairs.Add(pairToString(num2, num1))
-	return
-}
-
-func generatePair(prevRnd, dictionarySize int) (num1, num2, rnd int) {
-	rnd = nextRnd(prevRnd)
-	num1 = rnd % dictionarySize
-	rnd = nextRnd(rnd)
-	num2 = rnd % dictionarySize
 	return
 }
 
@@ -114,8 +79,4 @@ func checkPair(num1, num2 int, pairs mapset.Set) bool {
 
 func pairToString(num1, num2 int) string {
 	return fmt.Sprintf("%d;%d", num1, num2)
-}
-
-func nextRnd(prev int) int {
-	return (a*prev + c) % m
 }

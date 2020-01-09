@@ -30,7 +30,7 @@ func Test_GeneratePairs(t *testing.T) {
 		{1, 1, false},
 		{3, 4, false},
 	} {
-		nums, proof := vc.GeneratePairs([]byte("data"), tc.dictionarySize, tc.pairCount)
+		nums, proof := vc.GeneratePairs([]byte("data"), tc.dictionarySize, tc.pairCount, 50)
 
 		require.Equal(t, tc.pairCount*2, len(nums))
 		require.NotNil(t, proof)
@@ -58,29 +58,6 @@ func Test_GeneratePairs(t *testing.T) {
 	}
 }
 
-func Test_CheckPair(t *testing.T) {
-	secStore := &secstore.SecStore{}
-	vc := &ValidationCeremony{
-		secStore: secStore,
-	}
-
-	key, _ := crypto.GenerateKey()
-	secStore.AddKey(crypto.FromECDSA(key))
-	pk := secStore.GetPubKey()
-	wrongKey, _ := crypto.GenerateKey()
-	seed := []byte("data1")
-	dictionarySize := 3300
-	pairCount := 9
-	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount)
-
-	require.True(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, nums[0], nums[1]))
-	require.True(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, nums[2], nums[3]))
-
-	require.False(t, CheckPair([]byte("data2"), proof, pk, dictionarySize, 9, nums[0], nums[1]))
-	require.False(t, CheckPair(seed, proof, crypto.FromECDSAPub(&wrongKey.PublicKey), dictionarySize, pairCount, nums[0], nums[1]))
-	require.False(t, CheckPair(seed, proof, pk, dictionarySize, pairCount, dictionarySize+100, nums[3]))
-}
-
 func Test_GetWords(t *testing.T) {
 	require := require.New(t)
 	secStore := &secstore.SecStore{}
@@ -95,23 +72,23 @@ func Test_GetWords(t *testing.T) {
 	seed := []byte("data1")
 	dictionarySize := 3300
 	pairCount := 9
-	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount)
+	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount, 50)
 
-	w1, w2, _ := GetWords(seed, proof, pk, dictionarySize, pairCount, 1)
+	w1, w2, _ := GetWords(seed, proof, pk, dictionarySize, pairCount, 1, 50)
 	require.Equal(nums[2], w1)
 	require.Equal(nums[3], w2)
 
-	w1, w2, _ = GetWords(seed, proof, pk, dictionarySize, pairCount, 8)
+	w1, w2, _ = GetWords(seed, proof, pk, dictionarySize, pairCount, 8, 50)
 	require.Equal(nums[16], w1)
 	require.Equal(nums[17], w2)
 
-	w1, w2, err := GetWords(seed, proof, pk, dictionarySize, pairCount, 15)
+	w1, w2, err := GetWords(seed, proof, pk, dictionarySize, pairCount, 15, 50)
 	require.Error(err, "out of bounds pair index should throw error")
 
-	_, _, err = GetWords([]byte("data2"), proof, pk, dictionarySize, pairCount, 1)
+	_, _, err = GetWords([]byte("data2"), proof, pk, dictionarySize, pairCount, 1, 50)
 	require.EqualErrorf(err, "invalid VRF proof", "invalid proof should throw error")
 
-	_, _, err = GetWords(seed, proof, crypto.FromECDSAPub(&wrongKey.PublicKey), dictionarySize, pairCount, 1)
+	_, _, err = GetWords(seed, proof, crypto.FromECDSAPub(&wrongKey.PublicKey), dictionarySize, pairCount, 1, 50)
 	require.EqualErrorf(err, "invalid VRF proof", "invalid proof should throw error")
 }
 
