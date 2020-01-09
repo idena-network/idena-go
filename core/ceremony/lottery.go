@@ -107,7 +107,6 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 }
 
 func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
-
 	distinct := func(arr []int) []int {
 		m := make(map[int]struct{})
 		var output []int
@@ -121,52 +120,111 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 		return output
 	}
 
+	usedAuthors := make([]int, candidatesCount)
 	hashMap := make(map[common.Hash]int)
 	for idx, item := range flips {
 		hashMap[common.Hash(rlp.Hash(item))] = idx
 	}
+
 	randSeed := binary.LittleEndian.Uint64(seed)
 	random := rand.New(rand.NewSource(int64(randSeed)*12 + 3))
+	permutation := random.Perm(candidatesCount)
+
+	getMinUsedAuthor := func(a []int) int {
+		min := 999
+		author := 0
+		for _, item := range a {
+			if usedAuthors[item] < min {
+				author = item
+				min = usedAuthors[item]
+			}
+		}
+		return author
+	}
+
+	addFlip := func(arr []int, f []byte) []int {
+		flipHash := common.Hash(rlp.Hash(f))
+		flipGlobalIndex := hashMap[flipHash]
+		return append(arr, flipGlobalIndex)
+	}
 
 	shortFlipsPerCandidate = make([][]int, candidatesCount)
 	longFlipsPerCandidate = make([][]int, candidatesCount)
 
-	for candidateIndex := 0; candidateIndex < candidatesCount; candidateIndex++ {
-		authors, ok := authorsPerCandidate[candidateIndex]
+	for _, candidate := range permutation {
+
+		authors, ok := authorsPerCandidate[candidate]
 		if !ok {
 			continue
 		}
 
-		randomizedAuthors := random.Perm(len(authors))
+		authors = distinct(authors)
+
 		var shortFlips []int
 		var longFlips []int
-		for j := 0; j < len(authors); j++ {
-			author := authors[randomizedAuthors[j]]
-			flips := flipsPerAuthor[author]
-			if len(shortFlips) < shortFlipsCount {
-				flipGlobalIndex := -1
-				for i := 0; i < len(flips); i++ {
-					randomIndex := random.Intn(len(flips))
-					flipHash := common.Hash(rlp.Hash(flips[randomIndex]))
-					flipGlobalIndex = hashMap[flipHash]
-					if !contains(shortFlips, flipGlobalIndex) {
-						break
+
+		if len(authors) < shortFlipsCount {
+			for j := 0; j < shortFlipsCount; j++ {
+				author := getMinUsedAuthor(authors)
+				authorFlips := flipsPerAuthor[author]
+				currentAuthorFlipIdx := usedAuthors[author]
+
+				// all authors already used, need to clear and search again
+				if usedAuthors[author] == len(authorFlips) {
+					for _, author := range authors {
+						usedAuthors[author] = 0
 					}
+					author = getMinUsedAuthor(authors)
+					authorFlips = flipsPerAuthor[author]
+					currentAuthorFlipIdx = usedAuthors[author]
 				}
 
-				shortFlips = append(shortFlips, flipGlobalIndex)
+				shortFlips = addFlip(shortFlips, authorFlips[currentAuthorFlipIdx])
+
+				usedAuthors[author] += 1
 			}
 
-			for k := 0; k < len(flips); k++ {
-				flipHash := common.Hash(rlp.Hash(flips[k]))
-				flipGlobalIndex := hashMap[flipHash]
-				if !contains(shortFlips, flipGlobalIndex) {
-					longFlips = append(longFlips, flipGlobalIndex)
+			// add all flips to long session
+			for _, author := range authors {
+				authorFlips := flipsPerAuthor[author]
+				for _, f := range authorFlips {
+					longFlips = addFlip(longFlips, f)
+				}
+			}
+		} else {
+			used := make(map[int]bool)
+			for j := 0; j < shortFlipsCount; j++ {
+				author := getMinUsedAuthor(authors)
+				used[author] = true
+				authorFlips := flipsPerAuthor[author]
+
+				currentAuthorFlipIdx := usedAuthors[author]
+				shortFlips = addFlip(shortFlips, authorFlips[currentAuthorFlipIdx])
+
+				for idx, f := range authorFlips {
+					if idx == currentAuthorFlipIdx {
+						continue
+					}
+					longFlips = addFlip(longFlips, f)
+				}
+
+				usedAuthors[author] += 1
+			}
+			for _, author := range authors {
+				authorFlips := flipsPerAuthor[author]
+				if usedAuthors[author] >= len(authorFlips) {
+					usedAuthors[author] = 0
+				}
+				if _, ok := used[author]; !ok {
+					for _, f := range authorFlips {
+						longFlips = addFlip(longFlips, f)
+					}
 				}
 			}
 		}
-		shortFlipsPerCandidate[candidateIndex] = distinct(shortFlips)
-		longFlipsPerCandidate[candidateIndex] = distinct(longFlips)
+
+		shortFlipsPerCandidate[candidate] = distinct(shortFlips)
+		longFlipsPerCandidate[candidate] = distinct(longFlips)
 	}
 
 	// case when only 1 flip is available
