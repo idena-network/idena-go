@@ -5,13 +5,15 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/pkg/errors"
+	"time"
 )
 
 const (
 	DecodeErr              = 1
 	MaxTimestampLagSeconds = 15
 	MaxBannedPeers         = 500000
-	IdenaProtocolWeight    = 50
+	IdenaProtocolWeight    = 5
+	GracePeriod            = time.Minute
 )
 
 type request struct {

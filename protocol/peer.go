@@ -41,10 +41,10 @@ type protoPeer struct {
 	appVersion           string
 	timeouts             int
 	log                  log.Logger
-	distance             []byte
+	createdAt            time.Time
 }
 
-func newPeer(stream network.Stream, maxDelayMs int, distance []byte) *protoPeer {
+func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
 	stream.Conn().RemotePeer()
 	rw := msgio.NewReadWriter(stream)
 
@@ -59,7 +59,7 @@ func newPeer(stream network.Stream, maxDelayMs int, distance []byte) *protoPeer 
 		maxDelayMs:           maxDelayMs,
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
 		log:                  log.New("id", stream.Conn().RemotePeer().Pretty()),
-		distance:             distance,
+		createdAt:            time.Now().UTC(),
 	}
 	return p
 }
@@ -245,7 +245,7 @@ func (p *protoPeer) resetTimeouts() {
 }
 
 func (p *protoPeer) disconnect() {
-	p.stream.Close()
+	p.stream.Reset()
 }
 
 func (p *protoPeer) ID() string {

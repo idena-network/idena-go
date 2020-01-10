@@ -155,12 +155,14 @@ func (engine *Engine) loop() {
 		engine.synced = true
 		head := engine.chain.Head
 
+		round := head.Height() + 1
+		engine.completeRound(round - 1)
+
 		engine.alignTime()
 
 		engine.prevRoundDuration = 0
 		roundStart := time.Now().UTC()
 
-		round := head.Height() + 1
 		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers",
 			engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
 			"network", engine.appState.ValidatorsCache.NetworkSize())
@@ -243,7 +245,6 @@ func (engine *Engine) loop() {
 				engine.log.Warn("Confirmed block is not found", "block", blockHash.Hex())
 			}
 		}
-		engine.completeRound(round)
 		engine.prevRoundDuration = time.Now().UTC().Sub(roundStart)
 	}
 }

@@ -204,10 +204,7 @@ func (p *ipfsProxy) watchPeers() {
 		if len(info) > 0 {
 			p.lastPeersUpdatedTime = time.Now().UTC()
 		}
-		logger.Trace("last time with non-peers", "time", p.lastPeersUpdatedTime)
-		for index, i := range info {
-			logger.Trace(strconv.Itoa(index), "id", i.ID().String(), "addr", i.Address().String())
-		}
+		logger.Trace("last time with non-peers", "time", p.lastPeersUpdatedTime, "peers count", len(info))
 		time.Sleep(time.Second * 10)
 	}
 }

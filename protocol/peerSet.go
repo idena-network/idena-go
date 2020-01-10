@@ -1,10 +1,9 @@
 package protocol
 
 import (
-	"bytes"
 	"errors"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
-	"sort"
+	"math/rand"
 	"sync"
 )
 
@@ -15,15 +14,17 @@ var (
 )
 
 type peerSet struct {
-	peers  map[peer2.ID]*protoPeer
-	lock   sync.RWMutex
-	closed bool
+	peers    map[peer2.ID]*protoPeer
+	lock     sync.RWMutex
+	closed   bool
+	maxPeers int
 }
 
 // newPeerSet creates a new peer set to track the active participants.
-func newPeerSet() *peerSet {
+func newPeerSet(maxPeers int) *peerSet {
 	return &peerSet{
-		peers: make(map[peer2.ID]*protoPeer),
+		peers:    make(map[peer2.ID]*protoPeer),
+		maxPeers: maxPeers,
 	}
 }
 
@@ -87,10 +88,20 @@ func (ps *peerSet) Peers() []*protoPeer {
 }
 
 func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPriority bool) {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
+
+	peers := ps.Peers()
 	key := msgKey(payload)
-	for _, p := range ps.peers {
+
+	if len(peers) > ps.maxPeers && !highPriority {
+		indexes := rand.Perm(len(peers))[:ps.maxPeers]
+		for _, idx := range indexes {
+			peers[idx].markKey(key)
+			peers[idx].sendMsg(msgcode, payload, highPriority)
+		}
+		return
+	}
+
+	for _, p := range peers {
 		if _, ok := p.msgCache.Get(key); !ok {
 			p.markKey(key)
 			p.sendMsg(msgcode, payload, highPriority)
@@ -99,9 +110,16 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPrior
 }
 
 func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-	for _, p := range ps.peers {
+	peers := ps.Peers()
+	if len(peers) > ps.maxPeers {
+		indexes := rand.Perm(len(peers))[:ps.maxPeers]
+		for _, idx := range indexes {
+			peers[idx].sendMsg(msgcode, payload, false)
+		}
+		return
+	}
+
+	for _, p := range peers {
 		p.sendMsg(msgcode, payload, false)
 	}
 }
@@ -116,28 +134,4 @@ func (ps *peerSet) HasPayload(payload interface{}) bool {
 		}
 	}
 	return false
-}
-
-func (ps *peerSet) BetterDistance(distance []byte) bool {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-	for _, p := range ps.peers {
-		if bytes.Compare(distance, p.distance) < 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (ps *peerSet) DisconnectExtraPeers(maxPeers int) {
-	peers := ps.Peers()
-	if len(peers) <= maxPeers {
-		return
-	}
-	sort.SliceStable(peers, func(i, j int) bool {
-		return bytes.Compare(peers[i].distance, peers[j].distance) < 0
-	})
-	for _, p := range peers[maxPeers:] {
-		p.disconnect()
-	}
 }
