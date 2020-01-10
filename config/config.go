@@ -8,9 +8,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/p2p"
-	"github.com/idena-network/idena-go/p2p/enode"
-	"github.com/idena-network/idena-go/p2p/nat"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/pkg/errors"
 	"gopkg.in/urfave/cli.v1"
@@ -30,7 +27,7 @@ type Config struct {
 	DataDir          string
 	Network          uint32
 	Consensus        *ConsensusConf
-	P2P              *p2p.Config
+	P2P              P2P
 	RPC              *rpc.Config
 	GenesisConf      *GenesisConf
 	IpfsConf         *IpfsConfig
@@ -83,10 +80,6 @@ func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) er
 }
 
 func (c *Config) NodeKey() *ecdsa.PrivateKey {
-	// Use any specifically configured key.
-	if c.P2P.PrivateKey != nil {
-		return c.P2P.PrivateKey
-	}
 	// Generate ephemeral key if no datadir is being used.
 	if c.DataDir == "" {
 		key, err := crypto.GenerateKey()
@@ -191,7 +184,6 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 func applyProfile(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
 		cfg.P2P.MaxPeers = LowPowerMaxPeers
-		cfg.P2P.DialRatio = 2
 		cfg.IpfsConf.LowWater = 5
 		cfg.IpfsConf.HighWater = 10
 		cfg.IpfsConf.GracePeriod = "1m0s"
@@ -228,20 +220,12 @@ func MakeConfigFromFile(file string) (*Config, error) {
 }
 
 func getDefaultConfig(dataDir string) *Config {
-	var bootNodes []*enode.Node
-	for _, item := range DefaultBootstrapNodes {
-		bootNode, _ := enode.ParseV4(item)
-		bootNodes = append(bootNodes, bootNode)
-	}
 
 	return &Config{
 		DataDir: dataDir,
 		Network: 0x1, // testnet
-		P2P: &p2p.Config{
-			ListenAddr:     fmt.Sprintf(":%d", DefaultPort),
-			MaxPeers:       DefaultMaxPeers,
-			NAT:            nat.Any(),
-			BootstrapNodes: bootNodes,
+		P2P: P2P{
+			MaxPeers: DefaultMaxPeers,
 		},
 		Consensus: GetDefaultConsensusConfig(),
 		RPC:       rpc.GetDefaultRPCConfig(DefaultRpcHost, DefaultRpcPort),
@@ -292,25 +276,6 @@ func applySyncFlags(ctx *cli.Context, cfg *Config) {
 }
 
 func applyP2PFlags(ctx *cli.Context, cfg *Config) {
-
-	if ctx.IsSet(BootNodeFlag.Name) {
-		var nodes []*enode.Node
-		p, err := enode.ParseV4(ctx.String(BootNodeFlag.Name))
-		if err == nil {
-			nodes = append(nodes, p)
-		} else {
-			log.Warn("Cant parse bootstrap node")
-		}
-		cfg.P2P.BootstrapNodes = nodes
-	}
-	cfg.P2P.NodeDatabase = cfg.NodeDB()
-
-	if ctx.IsSet(TcpPortFlag.Name) {
-		cfg.P2P.ListenAddr = fmt.Sprintf(":%d", ctx.Int(TcpPortFlag.Name))
-	}
-	if ctx.IsSet(NoDiscoveryFlag.Name) {
-		cfg.P2P.NoDiscovery = ctx.Bool(NoDiscoveryFlag.Name)
-	}
 	if ctx.IsSet(MaxNetworkDelayFlag.Name) {
 		cfg.P2P.MaxDelay = ctx.Int(MaxNetworkDelayFlag.Name)
 	}

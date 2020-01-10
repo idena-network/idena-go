@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"sort"
 	"time"
@@ -38,12 +39,12 @@ func NewForkResolver(forkDetectors []ForkDetector, downloader *protocol.Download
 
 func (resolver *ForkResolver) loadAndVerifyFork() {
 
-	var peerId string
+	var peerId peer.ID
 	for _, d := range resolver.forkDetectors {
 		if d.HasPotentialFork() {
 			peers := d.GetForkedPeers().Difference(resolver.triedPeers)
 			if peers.Cardinality() > 0 {
-				peerId = peers.Pop().(string)
+				peerId = peers.Pop().( peer.ID)
 				break
 			}
 		}
@@ -65,7 +66,7 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	}
 }
 
-func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId string) error {
+func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId  peer.ID) error {
 	forkBlocks := make([]types.BlockBundle, 0)
 	for {
 		bundle, ok := <-blocks

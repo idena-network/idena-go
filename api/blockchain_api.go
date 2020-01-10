@@ -40,10 +40,10 @@ type BlockchainApi struct {
 	ipfs    ipfs.Proxy
 	pool    *mempool.TxPool
 	d       *protocol.Downloader
-	pm      *protocol.ProtocolManager
+	pm      *protocol.IdenaGossipHandler
 }
 
-func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.ProtocolManager) *BlockchainApi {
+func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler) *BlockchainApi {
 	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm}
 }
 

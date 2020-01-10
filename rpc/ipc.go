@@ -18,10 +18,10 @@ package rpc
 
 import (
 	"context"
+	"github.com/idena-network/idena-go/rpc/netutil"
 	"net"
 
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/p2p/netutil"
 )
 
 // ServeListener accepts connections on l, serving JSON-RPC on them.

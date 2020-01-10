@@ -16,6 +16,7 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"time"
 )
 
@@ -43,11 +44,11 @@ type ForkResolver interface {
 }
 
 type BlockSeeker interface {
-	SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle
+	SeekBlocks(fromBlock, toBlock uint64, peers []peer.ID) chan *types.BlockBundle
 }
 
 type Downloader struct {
-	pm                   *ProtocolManager
+	pm                   *IdenaGossipHandler
 	cfg                  *config.Config
 	log                  log.Logger
 	chain                *blockchain.Blockchain
@@ -74,7 +75,7 @@ func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 	return height, d.top
 }
 
-func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager, bus eventbus.Bus, secStore *secstore.SecStore) *Downloader {
+func NewDownloader(pm *IdenaGossipHandler, cfg *config.Config, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, sm *state.SnapshotManager, bus eventbus.Bus, secStore *secstore.SecStore) *Downloader {
 	return &Downloader{
 		pm:                   pm,
 		cfg:                  cfg,
@@ -90,7 +91,7 @@ func NewDownloader(pm *ProtocolManager, cfg *config.Config, chain *blockchain.Bl
 	}
 }
 
-func getTopHeight(heights map[string]uint64) uint64 {
+func getTopHeight(heights map[peer.ID]uint64) uint64 {
 	max := uint64(0)
 	for _, value := range heights {
 		if value > max {
@@ -100,9 +101,9 @@ func getTopHeight(heights map[string]uint64) uint64 {
 	return max
 }
 
-func (d *Downloader) filterForkedPeers(peers map[string]uint64) {
+func (d *Downloader) filterForkedPeers(peers map[peer.ID]uint64) {
 	for _, p := range d.potentialForkedPeers.ToSlice() {
-		delete(peers, p.(string))
+		delete(peers, p.(peer.ID))
 	}
 }
 
@@ -230,11 +231,11 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 	}
 }
 
-func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []string) chan *types.BlockBundle {
+func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []peer.ID) chan *types.BlockBundle {
 	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekBlocks(fromBlock, toBlock, peers)
 }
 
-func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId string) chan types.BlockBundle {
+func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId peer.ID) chan types.BlockBundle {
 	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekForkedBlocks(ownBlocks, peerId)
 }
 
@@ -314,7 +315,7 @@ func (d *Downloader) stopSync() {
 	d.top = 0
 }
 
-func (d *Downloader) BanPeer(peerId string, reason error) {
+func (d *Downloader) BanPeer(peerId peer.ID, reason error) {
 	if d.pm != nil {
 		d.pm.BanPeer(peerId, reason)
 	}
