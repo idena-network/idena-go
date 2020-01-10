@@ -61,6 +61,8 @@ type IdenaGossipHandler struct {
 	mutex               sync.Mutex
 	filteredConnections []network.Conn
 	pendingPeers        map[peer.ID]struct{}
+	discTimes           map[peer.ID]time.Time
+	discMutex           sync.Mutex
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
@@ -85,6 +87,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		refreshCh:           make(chan struct{}, 1),
 		log:                 log.New(),
 		pendingPeers:        make(map[peer.ID]struct{}),
+		discTimes:           make(map[peer.ID]time.Time),
 	}
 	return handler
 }
@@ -310,10 +313,15 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 }
 
 func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
-	if h.bannedPeers.Contains(stream.Conn().RemotePeer()) {
+	id := stream.Conn().RemotePeer()
+	if h.bannedPeers.Contains(id) {
 		stream.Reset()
 		return
 	}
+	if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
+		return
+	}
+
 	h.runPeer(stream)
 }
 
@@ -355,7 +363,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 	go h.syncFlipKeyPool(peer)
 	h.sendManifest(peer)
 
-	h.log.Info("Peer connected", "id", peer.id.Pretty())
+	h.log.Debug("Peer connected", "id", peer.id.Pretty())
 	return peer, nil
 }
 
@@ -369,8 +377,11 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	}
 	close(peer.term)
 	peer.disconnect()
-	h.log.Info("Peer disconnected", "id", peerId.Pretty())
+	h.log.Debug("Peer disconnected", "id", peerId.Pretty())
 	h.host.ConnManager().UntagPeer(peerId, "idena")
+	h.discMutex.Lock()
+	h.discTimes[peerId] = time.Now().UTC()
+	h.discMutex.Unlock()
 }
 
 func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream, error) {
@@ -419,7 +430,7 @@ func (h *IdenaGossipHandler) refreshConnections() {
 		defer func() {
 			<-h.refreshCh
 		}()
-		h.filteredConnections = h.filterBannedConnections(h.host.Network().Conns())
+		h.filteredConnections = h.filterUselessConnections(h.host.Network().Conns())
 		h.refreshPeers()
 	}()
 }
@@ -439,13 +450,17 @@ func (h *IdenaGossipHandler) newStream(peerID peer.ID) (network.Stream, error) {
 	return stream, err
 }
 
-func (h *IdenaGossipHandler) filterBannedConnections(conns []network.Conn) []network.Conn {
+func (h *IdenaGossipHandler) filterUselessConnections(conns []network.Conn) []network.Conn {
 	var result []network.Conn
 	for _, c := range conns {
-		if !h.bannedPeers.Contains(c.RemotePeer()) {
+		id := c.RemotePeer()
+		if discTime, ok := h.discTimes[id]; (!ok ||
+			time.Now().UTC().Sub(discTime) > ReconnectAfterDiscTimeout ||
+			h.peers.Len() < h.cfg.MaxPeers) && !h.bannedPeers.Contains(id) {
 			result = append(result, c)
 		}
 	}
+
 	return result
 }
 
@@ -761,4 +776,3 @@ func (i *idenaNotifiee) OpenedStream(net network.Network, conn network.Stream) {
 
 func (i *idenaNotifiee) ClosedStream(net network.Network, stream network.Stream) {
 }
-
