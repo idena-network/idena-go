@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/log"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -48,7 +49,7 @@ type Proposals struct {
 type blockPeer struct {
 	block         *types.Block
 	receivingTime time.Time
-	peerId        string
+	peerId        peer.ID
 }
 
 type proposedBlock struct {
@@ -178,7 +179,7 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId string, receivingTime time.Time) (added bool, pending bool) {
+func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId peer.ID, receivingTime time.Time) (added bool, pending bool) {
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
 		if proposals.proposeCache.Add(block.Hash().Hex(), nil, cache.DefaultExpiration) != nil {

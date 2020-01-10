@@ -521,7 +521,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	if block.IsEmpty() {
 		return
 	}
-	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), 1000, chain.GetCommitteSize(appState.ValidatorsCache, true))
+	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), 1000, chain.GetCommitteeSize(appState.ValidatorsCache, true))
 	if identities == nil || identities.Cardinality() == 0 {
 		return
 	}
@@ -737,8 +737,11 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 	if currentThreshold == 0 {
 		currentThreshold = minVrf
 	}
-
-	newThreshold := math2.Min(maxVrf, math2.Max(currentThreshold*(1.0+k*(0.1-appState.State.EmptyBlocksRatio())), minVrf))
+	emptyRatio := appState.State.EmptyBlocksRatio()
+	newThreshold := math2.Min(maxVrf, math2.Max(currentThreshold*(1.0+k*(0.1-emptyRatio)), minVrf))
+	if emptyRatio > 0 && newThreshold > currentThreshold {
+		newThreshold = currentThreshold
+	}
 	appState.State.SetVrfProposerThreshold(newThreshold)
 }
 
@@ -1031,7 +1034,7 @@ func (chain *Blockchain) ValidateBlockCertOnHead(block *types.Header, cert *type
 func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
 
 	step := cert.Votes[0].Header.Step
-	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteSize(validatorsCache, step == types.Final))
+	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteeSize(validatorsCache, step == types.Final))
 
 	voters := mapset.NewSet()
 
@@ -1052,7 +1055,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		voters.Add(vote.VoterAddr())
 	}
 
-	if voters.Cardinality() < chain.GetCommitteeVotesTreshold(validatorsCache, step == types.Final) {
+	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final) {
 		return errors.New("not enough votes")
 	}
 	return nil
@@ -1223,7 +1226,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 	return tx, idx
 }
 
-func (chain *Blockchain) GetCommitteSize(vc *validators.ValidatorsCache, final bool) int {
+func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final bool) int {
 	var cnt = vc.OnlineSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
@@ -1232,17 +1235,17 @@ func (chain *Blockchain) GetCommitteSize(vc *validators.ValidatorsCache, final b
 	if cnt <= 8 {
 		return cnt
 	}
-	return int(float64(cnt) * percent)
+
+	size := int(float64(cnt) * percent)
+	if size > chain.config.Consensus.MaxCommitteeSize {
+		return chain.config.Consensus.MaxCommitteeSize
+	}
+	return size
 }
 
-func (chain *Blockchain) GetCommitteeVotesTreshold(vc *validators.ValidatorsCache, final bool) int {
+func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCache, final bool) int {
 
 	var cnt = vc.OnlineSize()
-	percent := chain.config.Consensus.CommitteePercent
-	if final {
-		percent = chain.config.Consensus.FinalCommitteePercent
-	}
-
 	switch cnt {
 	case 0, 1:
 		return 1
@@ -1255,7 +1258,8 @@ func (chain *Blockchain) GetCommitteeVotesTreshold(vc *validators.ValidatorsCach
 	case 8:
 		return 5
 	}
-	return int(float64(cnt) * percent * chain.config.Consensus.AgreementThreshold)
+	size := chain.GetCommitteeSize(vc, final)
+	return int(float64(size) * chain.config.Consensus.AgreementThreshold)
 }
 
 func (chain *Blockchain) Genesis() common.Hash {

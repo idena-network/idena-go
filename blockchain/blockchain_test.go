@@ -304,6 +304,11 @@ func Test_applyVrfProposerThreshold(t *testing.T) {
 	chain.GenerateEmptyBlocks(3)
 	require.Equal(t, 0.9979002, chain.appState.State.VrfProposerThreshold())
 
+	chain.GenerateBlocks(23)
+	th := chain.appState.State.VrfProposerThreshold()
+	chain.GenerateBlocks(1)
+
+	require.Equal(t, th, chain.appState.State.VrfProposerThreshold())
 }
 
 type txWithTimestamp struct {
