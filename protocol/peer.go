@@ -9,7 +9,7 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/libp2p/go-libp2p-core/network"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-msgio"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	handshakeTimeout     = 10 * time.Second
+	handshakeTimeout     = 20 * time.Second
 	msgCacheAliveTime    = 3 * time.Minute
 	msgCacheGcTime       = 5 * time.Minute
 	maxTimeoutsBeforeBan = 7
@@ -134,7 +134,7 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
 	errc := make(chan error, 2)
 	handShake := new(handshakeData)
-
+	p.log.Trace("start handshake")
 	go func() {
 		msg := makeMsg(Handshake, &handshakeData{
 			NetworkId:    network,
@@ -144,6 +144,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 			AppVersion:   appVersion,
 		})
 		errc <- p.rw.WriteMsg(msg)
+		p.log.Trace("handshake message sent")
 	}()
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
@@ -170,11 +171,11 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := new(Msg)
 	msg, err = snappy.Decode(nil, msg)
 	if err != nil {
 		return nil, err
 	}
+	result := new(Msg)
 	if err := rlp.DecodeBytes(msg, result)
 		err != nil {
 		return nil, err
@@ -183,6 +184,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 }
 
 func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+	p.log.Trace("read handshake data")
 	msg, err := p.ReadMsg()
 	if err != nil {
 		return err

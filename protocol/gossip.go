@@ -64,6 +64,7 @@ type IdenaGossipHandler struct {
 	log                 log.Logger
 	mutex               sync.Mutex
 	sortedConnections   []connDistance
+	pendingPeers        map[peer.ID]struct{}
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
@@ -87,6 +88,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		bannedPeers:         mapset.NewSet(),
 		refreshCh:           make(chan struct{}, 1),
 		log:                 log.New(),
+		pendingPeers:        make(map[peer.ID]struct{}),
 	}
 	return handler
 }
@@ -99,7 +101,7 @@ func (h *IdenaGossipHandler) Start() {
 	}
 	h.host.Network().Notify(notifiee)
 	go func() {
-		ticker := time.NewTicker(time.Second * 30)
+		ticker := time.NewTicker(time.Second * 15)
 		for {
 			select {
 			case <-ticker.C:
@@ -322,11 +324,24 @@ func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
 }
 
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, distance []byte) (*protoPeer, error) {
+	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
-	if p := h.peers.Peer(stream.Conn().RemotePeer()); p != nil {
+	if p := h.peers.Peer(peerId); p != nil {
 		h.mutex.Unlock()
 		return p, errors.New("peer already connected")
 	}
+	if _, ok := h.pendingPeers[peerId]; ok {
+		h.mutex.Unlock()
+		return nil, errors.New("peer is already connecting")
+	}
+	h.pendingPeers[peerId] = struct{}{}
+	h.mutex.Unlock()
+
+	defer func() {
+		h.mutex.Lock()
+		delete(h.pendingPeers, peerId)
+		h.mutex.Unlock()
+	}()
 
 	peer := newPeer(stream, h.cfg.MaxDelay, distance)
 
@@ -335,13 +350,10 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, distance []byte) (*p
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
 		}
-		h.mutex.Unlock()
 		return nil, err
 	}
 	h.peers.Register(peer)
 	h.host.ConnManager().TagPeer(peer.id, "idena", IdenaProtocolWeight)
-
-	h.mutex.Unlock()
 
 	go h.runListening(peer)
 	go peer.broadcast()
@@ -497,6 +509,7 @@ func (h *IdenaGossipHandler) isProcessed(payload interface{}) bool {
 
 func (h *IdenaGossipHandler) provideBlocks(p *protoPeer, batchId uint32, from uint64, to uint64) {
 	var result []*block
+	p.log.Trace("blocks requested", "from", from, "to", to)
 	for i := from; i <= to; i++ {
 		b := h.bcn.GetBlockHeaderByHeight(i)
 		if b != nil {
@@ -505,12 +518,12 @@ func (h *IdenaGossipHandler) provideBlocks(p *protoPeer, batchId uint32, from ui
 				Cert:         h.bcn.GetCertificate(b.Hash()),
 				IdentityDiff: h.bcn.GetIdentityDiff(b.Height()),
 			})
-			p.log.Trace("Publish block", "height", b.Height())
 		} else {
 			p.log.Warn("Do not have requested block", "height", i)
 			break
 		}
 	}
+	p.log.Trace("blocks returned", "len", len(result))
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
@@ -777,14 +790,9 @@ func (i *idenaNotifiee) ListenClose(network.Network, multiaddr.Multiaddr) {
 }
 
 func (i *idenaNotifiee) Connected(net network.Network, conn network.Conn) {
-	go func() {
-		time.Sleep(time.Second * 5)
-		i.handler.refreshConnections()
-	}()
 }
 
 func (i *idenaNotifiee) Disconnected(net network.Network, conn network.Conn) {
-	i.handler.refreshConnections()
 }
 
 func (i *idenaNotifiee) OpenedStream(net network.Network, conn network.Stream) {
