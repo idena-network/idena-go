@@ -264,7 +264,7 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 	}
 
 	keysPackage, ok := p.flipKeyPackages[address]
-	if !ok {
+	if !ok || keysPackage.RawPackage == nil {
 		return nil
 	}
 
@@ -275,7 +275,7 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 
 	encryptedFlipKey, err := getEncryptedKeyFromPackage(publicFlipKey, keysPackage.RawPackage.Data, idx)
 	if err != nil {
-		log.Error("Cannot get key from package", "err", err)
+		log.Error("Cannot get key from package", "err", err, "len", len(keysPackage.RawPackage.Data))
 		return nil
 	}
 
