@@ -42,6 +42,7 @@ type protoPeer struct {
 	timeouts             int
 	log                  log.Logger
 	createdAt            time.Time
+	readErr              error
 }
 
 func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {

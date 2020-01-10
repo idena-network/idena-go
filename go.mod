@@ -27,6 +27,7 @@ require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	github.com/libp2p/go-libp2p-core v0.3.0
 	github.com/libp2p/go-msgio v0.0.4
+	github.com/libp2p/go-yamux v1.2.3
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multiaddr v0.2.0

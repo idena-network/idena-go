@@ -20,6 +20,7 @@ import (
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"strings"
@@ -62,7 +63,8 @@ type IdenaGossipHandler struct {
 	filteredConnections []network.Conn
 	pendingPeers        map[peer.ID]struct{}
 	discTimes           map[peer.ID]time.Time
-	discMutex           sync.Mutex
+	resetTimes          map[peer.ID]time.Time
+	discMutex           sync.RWMutex
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
@@ -88,6 +90,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		log:                 log.New(),
 		pendingPeers:        make(map[peer.ID]struct{}),
 		discTimes:           make(map[peer.ID]time.Time),
+		resetTimes:          make(map[peer.ID]time.Time),
 	}
 	return handler
 }
@@ -144,6 +147,7 @@ func (h *IdenaGossipHandler) WrongTime() bool {
 func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 	msg, err := p.ReadMsg()
 	if err != nil {
+		p.readErr = err
 		return err
 	}
 	switch msg.Code {
@@ -318,7 +322,10 @@ func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
 		stream.Reset()
 		return
 	}
+	h.discMutex.RLock()
+	defer h.discMutex.RUnlock()
 	if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
+		stream.Reset()
 		return
 	}
 
@@ -381,6 +388,9 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	h.host.ConnManager().UntagPeer(peerId, "idena")
 	h.discMutex.Lock()
 	h.discTimes[peerId] = time.Now().UTC()
+	if peer.readErr == yamux.ErrConnectionReset {
+		h.resetTimes[peerId] = time.Now().UTC()
+	}
 	h.discMutex.Unlock()
 }
 
@@ -404,6 +414,9 @@ func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream
 func (h *IdenaGossipHandler) refreshPeers() {
 	go func() {
 		for _, c := range h.filteredConnections {
+			if protos, err := h.host.Peerstore().SupportsProtocols(c.RemotePeer(), string(IdenaProtocol)); err != nil || len(protos) == 0 {
+				continue
+			}
 			idenaStream, err := h.findOrOpenStream(c)
 			if err != nil {
 				h.log.Debug("failed to open a new stream", "err", err)
@@ -452,13 +465,20 @@ func (h *IdenaGossipHandler) newStream(peerID peer.ID) (network.Stream, error) {
 
 func (h *IdenaGossipHandler) filterUselessConnections(conns []network.Conn) []network.Conn {
 	var result []network.Conn
+	h.discMutex.RLock()
+	defer h.discMutex.RUnlock()
 	for _, c := range conns {
 		id := c.RemotePeer()
-		if discTime, ok := h.discTimes[id]; (!ok ||
-			time.Now().UTC().Sub(discTime) > ReconnectAfterDiscTimeout ||
-			h.peers.Len() < h.cfg.MaxPeers) && !h.bannedPeers.Contains(id) {
-			result = append(result, c)
+		if h.bannedPeers.Contains(id) {
+			continue
 		}
+		if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
+			continue
+		}
+		if resetTime, ok := h.resetTimes[id]; ok && time.Now().UTC().Sub(resetTime) < ReconnectAfterResetTimeout {
+			continue
+		}
+		result = append(result, c)
 	}
 
 	return result
