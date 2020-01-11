@@ -323,12 +323,12 @@ func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
 		return
 	}
 	h.discMutex.RLock()
-	defer h.discMutex.RUnlock()
 	if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
+		h.discMutex.RUnlock()
 		stream.Reset()
 		return
 	}
-
+	h.discMutex.RUnlock()
 	h.runPeer(stream)
 }
 
