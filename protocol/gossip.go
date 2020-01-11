@@ -147,7 +147,6 @@ func (h *IdenaGossipHandler) WrongTime() bool {
 func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 	msg, err := p.ReadMsg()
 	if err != nil {
-		p.readErr = err
 		return err
 	}
 	switch msg.Code {

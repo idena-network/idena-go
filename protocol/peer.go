@@ -170,6 +170,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	msg, err := p.rw.ReadMsg()
 	defer p.rw.ReleaseMsg(msg)
 	if err != nil {
+		p.readErr = err
 		return nil, err
 	}
 	msg, err = snappy.Decode(nil, msg)
