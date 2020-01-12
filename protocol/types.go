@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	DecodeErr              = 1
-	MaxTimestampLagSeconds = 15
-	MaxBannedPeers         = 500000
-	IdenaProtocolWeight    = 5
-	GracePeriod            = time.Minute
+	DecodeErr                  = 1
+	MaxTimestampLagSeconds     = 15
+	MaxBannedPeers             = 500000
+	IdenaProtocolWeight        = 5
+	ReconnectAfterDiscTimeout  = time.Minute * 3
+	ReconnectAfterResetTimeout = time.Minute * 1
 )
 
 type request struct {
