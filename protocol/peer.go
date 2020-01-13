@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 	"github.com/golang/snappy"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -134,7 +135,7 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 }
 
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
-	errc := make(chan error, 3)
+	errc := make(chan error, 4)
 	handShake := new(handshakeDataV2)
 	p.log.Trace("start handshake")
 	go func() {
@@ -160,10 +161,17 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 	}()
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
+		//TODO : remove after removing handshake v1
+		current := semver.New(appVersion)
+		if other, errS := semver.NewVersion(p.appVersion); errS == nil && (other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major && other.Patch >= current.Patch) {
+			errc <- p.readStatus(handShake, network, genesis)
+		} else {
+			errc <- nil
+		}
 	}()
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errc:
 			if err != nil {
