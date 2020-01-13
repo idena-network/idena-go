@@ -43,6 +43,7 @@ type protoPeer struct {
 	log                  log.Logger
 	createdAt            time.Time
 	readErr              error
+	peers                uint32
 }
 
 func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
@@ -132,9 +133,9 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 	return snappy.Encode(nil, msg)
 }
 
-func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string) error {
+func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
 	errc := make(chan error, 2)
-	handShake := new(handshakeData)
+	handShake := new(handshakeDataV2)
 	p.log.Trace("start handshake")
 	go func() {
 		msg := makeMsg(Handshake, &handshakeData{
@@ -145,6 +146,16 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 			AppVersion:   appVersion,
 		})
 		errc <- p.rw.WriteMsg(msg)
+
+		msg = makeMsg(Handshake, &handshakeDataV2{
+			NetworkId:    network,
+			Height:       height,
+			GenesisBlock: genesis,
+			Timestamp:    uint64(time.Now().UTC().Unix()),
+			AppVersion:   appVersion,
+			Peers:        peersCount,
+		})
+		errc <- p.rw.WriteMsg(msg)
 		p.log.Trace("handshake message sent")
 	}()
 	go func() {
@@ -152,7 +163,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 	}()
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		select {
 		case err := <-errc:
 			if err != nil {
@@ -163,6 +174,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 		}
 	}
 	p.knownHeight = handShake.Height
+	p.peers = handShake.Peers
 	return nil
 }
 
@@ -185,7 +197,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	return result, nil
 }
 
-func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+func (p *protoPeer) readStatus(handShake *handshakeDataV2, network types.Network, genesis common.Hash) (err error) {
 	p.log.Trace("read handshake data")
 	msg, err := p.ReadMsg()
 	if err != nil {
@@ -195,7 +207,17 @@ func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, 
 		return errors.New(fmt.Sprintf("first msg has code %x (!= %x)", msg.Code, Handshake))
 	}
 	if err := msg.Decode(&handShake); err != nil {
-		return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
+		handShakeDataV1 := new(handshakeData)
+		if err := msg.Decode(handShakeDataV1); err != nil {
+			return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
+		} else {
+			handShake.Peers = 0
+			handShake.Height = handShakeDataV1.Height
+			handShake.AppVersion = handShakeDataV1.AppVersion
+			handShake.GenesisBlock = handShakeDataV1.GenesisBlock
+			handShake.NetworkId = handShakeDataV1.NetworkId
+			handShake.Timestamp = handShakeDataV1.Timestamp
+		}
 	}
 	p.appVersion = handShake.AppVersion
 	if handShake.GenesisBlock != genesis {
@@ -256,4 +278,11 @@ func (p *protoPeer) ID() string {
 
 func (p *protoPeer) RemoteAddr() string {
 	return p.stream.Conn().RemoteMultiaddr().String()
+}
+
+func (p *protoPeer) shouldSyncMempool() bool {
+	if p.peers < MaxMempoolSyncs {
+		return true
+	}
+	return rand.Float32() > ExtraSyncThreshold
 }

@@ -353,7 +353,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 
 	peer := newPeer(stream, h.cfg.MaxDelay)
 
-	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion); err != nil {
+	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion, uint32(h.peers.Len())); err != nil {
 		current := semver.New(h.appVersion)
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
@@ -365,8 +365,11 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 
 	go h.runListening(peer)
 	go peer.broadcast()
-	go h.syncTxPool(peer)
-	go h.syncFlipKeyPool(peer)
+
+	if peer.shouldSyncMempool() {
+		go h.syncTxPool(peer)
+		go h.syncFlipKeyPool(peer)
+	}
 	h.sendManifest(peer)
 
 	h.log.Debug("Peer connected", "id", peer.id.Pretty())
