@@ -134,7 +134,7 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 }
 
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
 	handShake := new(handshakeDataV2)
 	p.log.Trace("start handshake")
 	go func() {
