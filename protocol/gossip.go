@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
+	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -413,10 +414,21 @@ func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream
 	return h.newStream(conn.RemotePeer())
 }
 
+func (h *IdenaGossipHandler) canOpenStream() bool {
+	if h.peers.Len() < h.cfg.MaxPeers {
+		return true
+	}
+	//randomly open stream to ~10% of connected nodes
+	return rand.Float32() > 0.9
+}
+
 func (h *IdenaGossipHandler) refreshPeers() {
 	go func() {
 		for _, c := range h.filteredConnections {
 			if protos, err := h.host.Peerstore().SupportsProtocols(c.RemotePeer(), string(IdenaProtocol)); err != nil || len(protos) == 0 {
+				continue
+			}
+			if !h.canOpenStream() {
 				continue
 			}
 			idenaStream, err := h.findOrOpenStream(c)
