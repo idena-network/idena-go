@@ -162,8 +162,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
 		//TODO : remove after removing handshake v1
-		current := semver.New(appVersion)
-		if other, errS := semver.NewVersion(p.appVersion); errS == nil && (other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major && other.Patch >= current.Patch) {
+		if other, errS := semver.NewVersion(p.appVersion); errS == nil && !other.LessThan(*semver.New("0.16.2")) {
 			errc <- p.readStatus(handShake, network, genesis)
 		} else {
 			errc <- nil
