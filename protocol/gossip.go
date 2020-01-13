@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
+	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -353,7 +354,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 
 	peer := newPeer(stream, h.cfg.MaxDelay)
 
-	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion); err != nil {
+	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion, uint32(h.peers.Len())); err != nil {
 		current := semver.New(h.appVersion)
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
@@ -365,8 +366,11 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 
 	go h.runListening(peer)
 	go peer.broadcast()
-	go h.syncTxPool(peer)
-	go h.syncFlipKeyPool(peer)
+
+	if peer.shouldSyncMempool() {
+		go h.syncTxPool(peer)
+		go h.syncFlipKeyPool(peer)
+	}
 	h.sendManifest(peer)
 
 	h.log.Debug("Peer connected", "id", peer.id.Pretty())
@@ -410,10 +414,21 @@ func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream
 	return h.newStream(conn.RemotePeer())
 }
 
+func (h *IdenaGossipHandler) canOpenStream() bool {
+	if h.peers.Len() < h.cfg.MaxPeers {
+		return true
+	}
+	//randomly open stream to ~10% of connected nodes
+	return rand.Float32() > 0.9
+}
+
 func (h *IdenaGossipHandler) refreshPeers() {
 	go func() {
 		for _, c := range h.filteredConnections {
 			if protos, err := h.host.Peerstore().SupportsProtocols(c.RemotePeer(), string(IdenaProtocol)); err != nil || len(protos) == 0 {
+				continue
+			}
+			if !h.canOpenStream() {
 				continue
 			}
 			idenaStream, err := h.findOrOpenStream(c)

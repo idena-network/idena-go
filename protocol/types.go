@@ -15,6 +15,8 @@ const (
 	IdenaProtocolWeight        = 5
 	ReconnectAfterDiscTimeout  = time.Minute * 3
 	ReconnectAfterResetTimeout = time.Minute * 1
+	MaxMempoolSyncs            = 10
+	ExtraSyncThreshold         = 0.9
 )
 
 type request struct {
@@ -40,6 +42,15 @@ type handshakeData struct {
 	GenesisBlock common.Hash
 	Timestamp    uint64
 	AppVersion   string
+}
+
+type handshakeDataV2 struct {
+	NetworkId    types.Network
+	Height       uint64
+	GenesisBlock common.Hash
+	Timestamp    uint64
+	AppVersion   string
+	Peers        uint32
 }
 
 type getBlockBodyRequest struct {
