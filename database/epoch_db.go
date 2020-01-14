@@ -202,6 +202,10 @@ func (edb *EpochDb) HasFlipCid(cid []byte) bool {
 	return edb.db.Has(append(FlipCidPrefix, cid...))
 }
 
+func (edb *EpochDb) DeleteFlipCid(cid []byte) {
+	edb.db.Delete(append(FlipCidPrefix, cid...))
+}
+
 func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 	it := edb.db.Iterator(append(FlipCidPrefix, ipfs.MinCid[:]...), append(FlipCidPrefix, ipfs.MaxCid[:]...))
 	for ; it.Valid(); it.Next() {

@@ -350,7 +350,7 @@ func TestBlockchain_SaveTxs(t *testing.T) {
 				FeePerByte: big.NewInt(1),
 			},
 		}
-		chain.SaveTxs(header, []*types.Transaction{item.tx})
+		chain.HandleTxs(header, []*types.Transaction{item.tx})
 	}
 
 	data, token := chain.ReadTxs(addr, 5, nil)
@@ -482,7 +482,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	}
 
 	// Block height=1
-	chain.SaveTxs(createHeader(1), []*types.Transaction{
+	chain.HandleTxs(createHeader(1), []*types.Transaction{
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(3), nil,
 			attachments.CreateBurnAttachment("3")),
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil,
@@ -510,7 +510,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(3), burntCoins[2].Amount)
 
 	// Block height=2
-	chain.SaveTxs(createHeader(2), []*types.Transaction{
+	chain.HandleTxs(createHeader(2), []*types.Transaction{
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil,
 			attachments.CreateBurnAttachment("2")),
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
@@ -532,7 +532,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(3), burntCoins[2].Amount)
 
 	// Block height=4
-	chain.SaveTxs(createHeader(4), []*types.Transaction{
+	chain.HandleTxs(createHeader(4), []*types.Transaction{
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
 			attachments.CreateBurnAttachment("1")),
 	})
@@ -545,7 +545,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(4), burntCoins[1].Amount)
 
 	// Block height=7
-	chain.SaveTxs(createHeader(7), []*types.Transaction{
+	chain.HandleTxs(createHeader(7), []*types.Transaction{
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
 			attachments.CreateBurnAttachment("1")),
 	})

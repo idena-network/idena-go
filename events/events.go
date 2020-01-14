@@ -14,6 +14,7 @@ const (
 	NewFlipEventID         = eventbus.EventID("flip-new")
 	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
 	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
+	DeleteFlipEventID      = eventbus.EventID("flip-delete")
 )
 
 type NewTxEvent struct {
@@ -72,4 +73,12 @@ type IpfsPortChangedEvent struct {
 
 func (i IpfsPortChangedEvent) EventID() eventbus.EventID {
 	return IpfsPortChangedEventId
+}
+
+type DeleteFlipEvent struct {
+	FlipCid []byte
+}
+
+func (DeleteFlipEvent) EventID() eventbus.EventID {
+	return DeleteFlipEventID
 }
