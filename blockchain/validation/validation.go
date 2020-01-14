@@ -45,6 +45,7 @@ var (
 	BigFee               = errors.New("current fee is greater than tx max fee")
 	InvalidMaxFee        = errors.New("invalid max fee")
 	InvalidSender        = errors.New("invalid sender")
+	FlipIsMissing        = errors.New("flip is missing")
 	validators           map[types.TxType]validator
 )
 
@@ -66,6 +67,7 @@ func init() {
 		types.ChangeGodAddressTx:   validateChangeGodAddressTx,
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
+		types.DeleteFlipTx:         validateDeleteFlipTx,
 	}
 }
 
@@ -539,5 +541,42 @@ func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction,
 	if attachment == nil {
 		return InvalidPayload
 	}
+	return nil
+}
+
+func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+		return err
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+
+	attachment := attachments.ParseDeleteFlipAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+
+	identity := appState.State.GetIdentity(sender)
+
+	exist := false
+	for _, flip := range identity.Flips {
+		if bytes.Compare(flip.Cid, attachment.Cid) == 0 {
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		return FlipIsMissing
+	}
+
 	return nil
 }

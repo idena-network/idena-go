@@ -31,6 +31,7 @@ var (
 		types.ChangeGodAddressTx:   "changeGodAddress",
 		types.BurnTx:               "burn",
 		types.ChangeProfileTx:      "changeProfile",
+		types.DeleteFlipTx:         "deleteFlip",
 	}
 )
 

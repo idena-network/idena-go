@@ -555,3 +555,43 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(addr, burntCoins[0].Address)
 	require.Equal(big.NewInt(1), burntCoins[0].Amount)
 }
+
+func Test_DeleteFlipTx(t *testing.T) {
+	senderKey, _ := crypto.GenerateKey()
+	balance := big.NewInt(1_000_000)
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	sender := crypto.PubkeyToAddress(senderKey.PublicKey)
+	alloc[sender] = config.GenesisAllocation{
+		Balance: balance,
+	}
+
+	chain, _, _, _ := NewTestBlockchain(true, alloc)
+
+	tx := &types.Transaction{
+		Type:         types.DeleteFlipTx,
+		AccountNonce: 1,
+		Amount:       big.NewInt(100),
+		MaxFee:       big.NewInt(620_000),
+		Tips:         big.NewInt(10),
+		Payload:      attachments.CreateDeleteFlipAttachment([]byte{0x1, 0x2, 0x3}),
+	}
+	signedTx, _ := types.SignTx(tx, senderKey)
+
+	appState := chain.appState
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x2}, 0)
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x3}, 1)
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x4}, 2)
+	appState.State.SetFeePerByte(big.NewInt(1))
+
+	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	expectedBalance := big.NewInt(999_990)
+	expectedBalance.Sub(expectedBalance, fee)
+
+	chain.ApplyTxOnState(appState, signedTx)
+
+	require.Equal(t, 1, fee.Sign())
+	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
+	identity := appState.State.GetIdentity(sender)
+	require.Equal(t, 2, len(identity.Flips))
+}

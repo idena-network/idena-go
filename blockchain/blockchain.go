@@ -684,6 +684,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
+	case types.DeleteFlipTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		attachment := attachments.ParseDeleteFlipAttachment(tx)
+		stateDB.DeleteFlip(sender, attachment.Cid)
 		break
 	}
 

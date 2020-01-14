@@ -85,6 +85,22 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	}, nil
 }
 
+func (api *FlipApi) Delete(hash string) (common.Hash, error) {
+	c, err := cid.Decode(hash)
+	if err != nil {
+		return common.Hash{}, errors.New("invalid flip hash")
+	}
+	cidBytes := c.Bytes()
+	addr := api.baseApi.getCurrentCoinbase()
+
+	if txHash, err := api.baseApi.sendTx(addr, nil, types.DeleteFlipTx, decimal.Zero, decimal.Zero, decimal.Zero,
+		0, 0, attachments.CreateDeleteFlipAttachment(cidBytes), nil); err != nil {
+		return common.Hash{}, err
+	} else {
+		return txHash, nil
+	}
+}
+
 type FlipHashesResponse struct {
 	Hash  string `json:"hash"`
 	Ready bool   `json:"ready"`
