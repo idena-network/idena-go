@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
+	"github.com/rcrowley/go-metrics"
 	"math/rand"
 	"strings"
 	"sync"
@@ -66,6 +67,12 @@ type IdenaGossipHandler struct {
 	discTimes           map[peer.ID]time.Time
 	resetTimes          map[peer.ID]time.Time
 	discMutex           sync.RWMutex
+	metrics             *metricCollector
+}
+
+type metricCollector struct {
+	incomeMessage  func(msg *Msg)
+	outcomeMessage func(msg *Msg)
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
@@ -92,8 +99,87 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		pendingPeers:        make(map[peer.ID]struct{}),
 		discTimes:           make(map[peer.ID]time.Time),
 		resetTimes:          make(map[peer.ID]time.Time),
+		metrics:             new(metricCollector),
 	}
+	handler.registerMetrics()
 	return handler
+}
+
+func (h *IdenaGossipHandler) registerMetrics() {
+
+	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
+	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
+
+	msgCodeToString := func(code uint64) string {
+		switch code {
+		case Handshake:
+			return "handshake"
+		case ProposeBlock:
+			return "proposeBlock"
+		case ProposeProof:
+			return "proposeProof"
+		case Vote:
+			return "vote"
+		case NewTx:
+			return "newTx"
+		case GetBlockByHash:
+			return "getBlockByHash"
+
+		case GetBlocksRange:
+			return "getBlocksRange"
+		case BlocksRange:
+			return "glockRange"
+		case FlipBody:
+			return "flipBody"
+		case FlipKey:
+			return "flipKey"
+		case SnapshotManifest:
+			return "snapshotManifest"
+
+		case PushFlipCid:
+			return "pushFlipCid"
+		case PullFlip:
+			return "pullFlip"
+		case GetForkBlockRange:
+			return "getForkBlockRange"
+		case FlipKeysPackage:
+			return "flipKeysPackage"
+		case FlipKeysPackageCid:
+			return "flipKeysPackageCid"
+		default:
+			return fmt.Sprintf("unknown code %v", code)
+		}
+	}
+
+	h.metrics.incomeMessage = func(msg *Msg) {
+		if !h.cfg.CollectMetrics {
+			return
+		}
+		collector := metrics.GetOrRegisterCounter("bytes_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		collector.Inc(int64(len(msg.Payload)))
+
+		counter := metrics.GetOrRegisterCounter("msg_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		counter.Inc(1)
+
+		totalReceived.Inc(int64(len(msg.Payload)))
+	}
+
+	h.metrics.outcomeMessage = func(msg *Msg) {
+		if !h.cfg.CollectMetrics {
+			return
+		}
+		collector := metrics.GetOrRegisterCounter("bytes_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		collector.Inc(int64(len(msg.Payload)))
+
+		counter := metrics.GetOrRegisterCounter("msg_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		counter.Inc(1)
+
+		totalSent.Inc(int64(len(msg.Payload)))
+	}
+
+	if h.cfg.CollectMetrics {
+		go metrics.Log(metrics.DefaultRegistry, time.Second*20, metricsLog{h.log})
+	}
 }
 
 func (h *IdenaGossipHandler) Start() {
@@ -352,7 +438,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 		h.mutex.Unlock()
 	}()
 
-	peer := newPeer(stream, h.cfg.MaxDelay)
+	peer := newPeer(stream, h.cfg.MaxDelay, h.metrics)
 
 	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.Genesis(), h.appVersion, uint32(h.peers.Len())); err != nil {
 		current := semver.New(h.appVersion)
@@ -809,4 +895,12 @@ func (i *idenaNotifiee) OpenedStream(net network.Network, conn network.Stream) {
 }
 
 func (i *idenaNotifiee) ClosedStream(net network.Network, stream network.Stream) {
+}
+
+type metricsLog struct {
+	log log.Logger
+}
+
+func (m metricsLog) Printf(format string, v ...interface{}) {
+	log.Info(fmt.Sprintf(format, v))
 }

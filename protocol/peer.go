@@ -44,9 +44,10 @@ type protoPeer struct {
 	createdAt            time.Time
 	readErr              error
 	peers                uint32
+	metrics              *metricCollector
 }
 
-func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
+func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
 	stream.Conn().RemotePeer()
 	rw := msgio.NewReadWriter(stream)
 
@@ -62,6 +63,7 @@ func newPeer(stream network.Stream, maxDelayMs int) *protoPeer {
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
 		log:                  log.New("id", stream.Conn().RemotePeer().Pretty()),
 		createdAt:            time.Now().UTC(),
+		metrics:              metrics,
 	}
 	return p
 }
@@ -89,6 +91,7 @@ func (p *protoPeer) broadcast() {
 			p.log.Error(err.Error())
 			return err
 		}
+		p.metrics.outcomeMessage(&Msg{request.msgcode, msg})
 		return nil
 	}
 	for {
@@ -194,6 +197,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 		err != nil {
 		return nil, err
 	}
+	p.metrics.incomeMessage(result)
 	return result, nil
 }
 
