@@ -902,5 +902,5 @@ type metricsLog struct {
 }
 
 func (m metricsLog) Printf(format string, v ...interface{}) {
-	log.Info(fmt.Sprintf(format, v))
+	log.Info(fmt.Sprintf(format, v...))
 }
