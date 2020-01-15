@@ -60,6 +60,7 @@ type KeysPool struct {
 	cancelLoadingCtx          context.CancelFunc
 	self                      common.Address
 	epochDb                   *database.EpochDb
+	stopProcessKeys           bool
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore, ipfsProxy ipfs.Proxy) *KeysPool {
@@ -190,8 +191,13 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 }
 
 func (p *KeysPool) AddPrivateKeysPackageCid(packageCid *types.PrivateFlipKeysPackageCid) {
+
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+
+	if p.stopProcessKeys {
+		return
+	}
 
 	c, err := cid.Parse(packageCid.Cid)
 	if err != nil {
@@ -296,10 +302,27 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 	return result
 }
 
+func (p *KeysPool) StopProcessKeys() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.stopProcessKeys = true
+	p.flipKeyPackages = make(map[common.Address]*KeysPackage)
+	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
+}
+
+func (p *KeysPool) StartProcessKeys() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.stopProcessKeys = false
+}
+
 func (p *KeysPool) Clear() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
+	p.stopProcessKeys = true
 	p.cancelLoadingCtx()
 	p.privateKeyIndexes = nil
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
