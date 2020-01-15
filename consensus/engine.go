@@ -2,7 +2,6 @@ package consensus
 
 import (
 	"fmt"
-	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -427,7 +426,7 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 	engine.log.Debug("Start count votes", "step", step, "min-votes", necessaryVotesCount)
 	defer engine.log.Debug("Finish count votes", "step", step)
 
-	byBlock := make(map[common.Hash]mapset.Set)
+	byBlock := make(map[common.Hash]map[common.Address]*types.Vote)
 	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteeSize(engine.appState.ValidatorsCache, step == types.Final))
 	if validators == nil {
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
@@ -445,11 +444,11 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 
 				roundVotes, ok := byBlock[vote.Header.VotedHash]
 				if !ok {
-					roundVotes = mapset.NewSet()
+					roundVotes = make(map[common.Address]*types.Vote)
 					byBlock[vote.Header.VotedHash] = roundVotes
 				}
 
-				if !roundVotes.Contains(vote.Hash()) {
+				if _, ok := roundVotes[vote.VoterAddr()]; !ok {
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
@@ -459,21 +458,21 @@ func (engine *Engine) countVotes(round uint64, step uint16, parentHash common.Ha
 					if vote.Header.Step != step {
 						return true
 					}
-					roundVotes.Add(vote.Hash())
+					roundVotes[vote.VoterAddr()] = vote
 
-					if roundVotes.Cardinality() >= necessaryVotesCount {
+					if len(roundVotes) >= necessaryVotesCount {
 						list := make([]*types.Vote, 0, necessaryVotesCount)
-						roundVotes.Each(func(value interface{}) bool {
-							v := engine.votes.GetVoteByHash(value.(common.Hash))
-							if v != nil {
-								list = append(list, v)
+
+						for _, v := range roundVotes {
+							list = append(list, v)
+							if len(list) >= necessaryVotesCount {
+								break
 							}
-							return len(list) >= necessaryVotesCount
-						})
+						}
 						cert = types.BlockCert{Votes: list}
 						bestHash = vote.Header.VotedHash
 						found = cert.Len() >= necessaryVotesCount
-						engine.log.Debug("Has votes", "cnt", roundVotes.Cardinality(), "need", necessaryVotesCount, "step", step, "hash", bestHash.Hex())
+						engine.log.Debug("Has votes", "cnt", len(roundVotes), "need", necessaryVotesCount, "step", step, "hash", bestHash.Hex())
 						return !found
 					}
 				}
