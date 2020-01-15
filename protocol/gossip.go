@@ -98,11 +98,15 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 
 func (h *IdenaGossipHandler) Start() {
 
-	h.host.SetStreamHandler(IdenaProtocol, h.streamHandler)
-	notifiee := &idenaNotifiee{
-		handler: h,
+	setHandler := func() {
+		h.host.SetStreamHandler(IdenaProtocol, h.streamHandler)
+		notifiee := &idenaNotifiee{
+			handler: h,
+		}
+		h.host.Network().Notify(notifiee)
 	}
-	h.host.Network().Notify(notifiee)
+	setHandler()
+
 	go func() {
 		ticker := time.NewTicker(time.Second * 15)
 		for {
@@ -113,21 +117,26 @@ func (h *IdenaGossipHandler) Start() {
 		}
 	}()
 
-	_ = h.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
+	h.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
 		h.txChan <- newTxEvent
 	})
-	_ = h.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
+	h.bus.Subscribe(events.NewFlipKeyID, func(e eventbus.Event) {
 		newFlipKeyEvent := e.(*events.NewFlipKeyEvent)
 		h.flipKeyChan <- newFlipKeyEvent
 	})
-	_ = h.bus.Subscribe(events.NewFlipKeysPackageID, func(e eventbus.Event) {
+	h.bus.Subscribe(events.NewFlipKeysPackageID, func(e eventbus.Event) {
 		newFlipKeysPackageEvent := e.(*events.NewFlipKeysPackageEvent)
 		h.flipKeysPackageChan <- newFlipKeysPackageEvent
 	})
-	_ = h.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
+	h.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
 		h.broadcastFlipCid(newFlipEvent.FlipCid)
+	})
+	h.bus.Subscribe(events.IpfsPortChangedEventId, func(e eventbus.Event) {
+		portChangedEvent := e.(*events.IpfsPortChangedEvent)
+		h.host = portChangedEvent.Host
+		setHandler()
 	})
 
 	go h.broadcastLoop()

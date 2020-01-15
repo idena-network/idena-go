@@ -144,7 +144,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, blockStatsCo
 		return nil, errors.Wrap(err, "cannot set API key")
 	}
 
-	ipfsProxy, err := ipfs.NewIpfsProxy(config.IpfsConf)
+	ipfsProxy, err := ipfs.NewIpfsProxy(config.IpfsConf, bus)
 	if err != nil {
 		return nil, err
 	}
