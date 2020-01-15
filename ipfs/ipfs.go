@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-blockservice"
@@ -81,13 +83,14 @@ type ipfsProxy struct {
 	nodeCtxCancel        context.CancelFunc
 	nilNode              *core.IpfsNode
 	lastPeersUpdatedTime time.Time
+	bus                  eventbus.Bus
 }
 
 func (p *ipfsProxy) Host() core2.Host {
 	return p.node.PeerHost
 }
 
-func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
+func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	logging.SetLevel(0, "core")
 
 	err := loadPlugins(cfg)
@@ -122,6 +125,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig) (Proxy, error) {
 		nodeCtxCancel:        cancelCtx,
 		lastPeersUpdatedTime: time.Now().UTC(),
 		nilNode:              nilNode,
+		bus:                  bus,
 	}
 
 	go p.watchPeers()
@@ -181,6 +185,7 @@ func (p *ipfsProxy) changePort() {
 		p.node = node
 		p.nodeCtx = ctx
 		p.nodeCtxCancel = cancelCtx
+		p.bus.Publish(&events.IpfsPortChangedEvent{Host: node.PeerHost})
 		p.log.Info("Finish changing IPFS port", "new", p.cfg.IpfsPort)
 		break
 	}
