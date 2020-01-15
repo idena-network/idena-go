@@ -2,6 +2,7 @@ package ipfs
 
 import (
 	"github.com/google/tink/go/subtle/random"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -28,7 +29,7 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 		IpfsPort:    4012,
 		DataDir:     "./datadir-ipfs",
 		GracePeriod: "20s",
-	})
+	}, eventbus.New())
 	require.NoError(err)
 	cid, _ := proxy.Cid([]byte{0x1})
 	cid2, _ := proxy.Cid([]byte{0x1})

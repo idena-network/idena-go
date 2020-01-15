@@ -3,15 +3,17 @@ package events
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/libp2p/go-libp2p-core"
 )
 
 const (
-	NewTxEventID         = eventbus.EventID("transaction-new")
-	AddBlockEventID      = eventbus.EventID("block-add")
-	NewFlipKeyID         = eventbus.EventID("flip-key-new")
-	FastSyncCompleted    = eventbus.EventID("fast-sync-completed")
-	NewFlipEventID       = eventbus.EventID("flip-new")
-	NewFlipKeysPackageID = eventbus.EventID("flip-keys-package-new")
+	NewTxEventID           = eventbus.EventID("transaction-new")
+	AddBlockEventID        = eventbus.EventID("block-add")
+	NewFlipKeyID           = eventbus.EventID("flip-key-new")
+	FastSyncCompleted      = eventbus.EventID("fast-sync-completed")
+	NewFlipEventID         = eventbus.EventID("flip-new")
+	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
+	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
 )
 
 type NewTxEvent struct {
@@ -62,4 +64,12 @@ type NewFlipKeysPackageEvent struct {
 
 func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
 	return NewFlipKeysPackageID
+}
+
+type IpfsPortChangedEvent struct {
+	Host core.Host
+}
+
+func (i IpfsPortChangedEvent) EventID() eventbus.EventID {
+	return IpfsPortChangedEventId
 }
