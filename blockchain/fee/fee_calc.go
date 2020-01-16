@@ -20,7 +20,7 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 		return big.NewInt(0)
 	}
 	size := getTxSizeForFee(tx)
-	return new(big.Int).Mul(feePerByte, big.NewInt(int64(size)))
+	return new(big.Int).Mul(txFeePerByte, big.NewInt(int64(size)))
 }
 
 func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
