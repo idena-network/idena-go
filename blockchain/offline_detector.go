@@ -147,7 +147,7 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 				return errors.New("if OfflineCommit is set, IdentityUpdate should be set too")
 			}
 			if !dt.verifyOfflineProposing(block.Header.ParentHash()) {
-				return errors.New(fmt.Sprintf("addr %v should not be set offline, block %v", addr.Hex(), block.Hash()))
+				return errors.New(fmt.Sprintf("addr %v should not be set offline, block %v", addr.Hex(), block.Hash().Hex()))
 			}
 		}
 	}
