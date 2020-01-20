@@ -42,6 +42,12 @@ import (
 const (
 	MaxSavedStatesCount = 100
 	GeneticCodeSize     = 12
+
+	SyncTreeKeepEvery  = int64(100)
+	SyncTreeKeepRecent = int64(3)
+
+	DefaultTreeKeepEvery  = int64(1)
+	DefaultTreeKeepRecent = int64(0)
 )
 
 var (
@@ -73,7 +79,7 @@ type StateDB struct {
 
 func NewLazy(db dbm.DB) *StateDB {
 	pdb := dbm.NewPrefixDB(db, loadPrefix(db))
-	tree := NewMutableTree(pdb)
+	tree := NewMutableTreeWithOpts(pdb, dbm.NewMemDB(), DefaultTreeKeepEvery, DefaultTreeKeepRecent)
 	return &StateDB{
 		original:           db,
 		db:                 pdb,
@@ -87,7 +93,7 @@ func NewLazy(db dbm.DB) *StateDB {
 
 func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTree(db)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -105,7 +111,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 
 func (s *StateDB) Readonly(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTree(db)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -691,7 +697,6 @@ func (s *StateDB) CommitTree(newVersion int64) (root []byte, version int64, err 
 				}
 			}
 		}
-
 	}
 
 	s.Clear()
@@ -856,7 +861,7 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 }
 
 func loadPrefix(db dbm.DB) []byte {
-	p := db.Get(currentStateDbPrefixKey)
+	p, _ := db.Get(currentStateDbPrefixKey)
 	if p == nil {
 		p = prefix(0)
 		setPrefix(db, p)
@@ -890,7 +895,11 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 		return common.Hash{}, err
 	}
 
-	it := db.Iterator(nil, nil)
+	it, err := db.Iterator(nil, nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	defer it.Close()
 
 	sb := &snapshot.Block{}
 
@@ -929,7 +938,7 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 }
 
 func clearDb(db dbm.DB) {
-	it := db.Iterator(nil, nil)
+	it, _ := db.Iterator(nil, nil)
 	for ; it.Valid(); it.Next() {
 		db.Delete(it.Key())
 	}
@@ -1052,6 +1061,16 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.Penalty = identity.Penalty
 		stateObject.touch()
 	}
+}
+
+func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {
+	version := s.tree.Version()
+	s.tree = NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), keepEvery, keepRecent)
+	if _, err := s.tree.LoadVersion(version); err != nil {
+		return err
+	}
+	s.Clear()
+	return nil
 }
 
 type readCloser struct {

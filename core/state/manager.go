@@ -209,10 +209,14 @@ func (m *SnapshotManager) StopSync() {
 
 func (m *SnapshotManager) IsInvalidManifest(cid []byte) bool {
 	key := append(InvalidManifestPrefix, cid...)
-	if !m.db.Has(key) {
+	if has, err := m.db.Has(key); err != nil || !has {
 		return false
 	}
-	return m.db.Get(key)[0] >= MaxManifestTimeouts
+	v, err := m.db.Get(key)
+	if err != nil {
+		return false
+	}
+	return v[0] >= MaxManifestTimeouts
 }
 
 func (m *SnapshotManager) AddInvalidManifest(cid []byte) {
@@ -222,9 +226,10 @@ func (m *SnapshotManager) AddInvalidManifest(cid []byte) {
 func (m *SnapshotManager) AddTimeoutManifest(cid []byte) {
 	key := append(InvalidManifestPrefix, cid...)
 	value := []byte{0x1}
-	if m.db.Has(key) {
-		value = m.db.Get(key)
-		value[0]++
+	if has, err := m.db.Has(key); err == nil && has {
+		if value, err = m.db.Get(key); err == nil {
+			value[0]++
+		}
 	}
 	m.db.Set(key, value)
 }

@@ -26,7 +26,6 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 		EvidenceMap:   NewEvidenceMap(bus),
 	}
 }
-
 func (s *AppState) Readonly(height uint64) *AppState {
 	st, err := s.State.Readonly(height)
 	if err != nil {
@@ -140,4 +139,24 @@ func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
 	s.State.SetPredefinedAccounts(predefinedState)
 	s.State.SetPredefinedIdentities(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)
+}
+
+func (s *AppState) UseSyncTree() error {
+	if err := s.State.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
+		return err
+	}
+	if err := s.IdentityState.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *AppState) UseDefaultTree() error {
+	if err := s.State.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
+		return err
+	}
+	if err := s.IdentityState.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
+		return err
+	}
+	return nil
 }

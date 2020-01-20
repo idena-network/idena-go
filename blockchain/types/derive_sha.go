@@ -31,7 +31,7 @@ type DerivableList interface {
 
 func DeriveSha(list DerivableList) common.Hash {
 	keybuf := new(bytes.Buffer)
-	tree := iavl.NewMutableTree(db.NewMemDB(), 1024)
+	tree, _ := iavl.NewMutableTree(db.NewMemDB(), 1024)
 	for i := 0; i < list.Len(); i++ {
 		keybuf.Reset()
 		rlp.Encode(keybuf, uint(i))

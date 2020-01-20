@@ -344,6 +344,6 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	})
 	require.Equal(t, 1, cnt)
 
-	it := prevStateDb.Iterator(nil, nil)
+	it, _ := prevStateDb.Iterator(nil, nil)
 	require.False(t, it.Valid())
 }
