@@ -43,7 +43,7 @@ type protoPeer struct {
 	timeouts             int
 	log                  log.Logger
 	createdAt            time.Time
-	readErr              error
+	transportErr         error
 	peers                uint32
 	metrics              *metricCollector
 }
@@ -90,6 +90,7 @@ func (p *protoPeer) broadcast() {
 
 		if err := p.rw.WriteMsg(msg); err != nil {
 			p.log.Error(err.Error())
+			p.transportErr = err
 			return err
 		}
 		p.metrics.outcomeMessage(&Msg{request.msgcode, msg})
@@ -192,7 +193,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	msg, err := p.rw.ReadMsg()
 	defer p.rw.ReleaseMsg(msg)
 	if err != nil {
-		p.readErr = err
+		p.transportErr = err
 		return nil, err
 	}
 	msg, err = snappy.Decode(nil, msg)
