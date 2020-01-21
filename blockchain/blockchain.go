@@ -684,6 +684,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
+	case types.DeleteFlipTx:
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		attachment := attachments.ParseDeleteFlipAttachment(tx)
+		stateDB.DeleteFlip(sender, attachment.Cid)
 		break
 	}
 
@@ -940,7 +945,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	chain.insertHeader(block.Header)
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
-	chain.SaveTxs(block.Header, block.Body.Transactions)
+	chain.HandleTxs(block.Header, block.Body.Transactions)
 	chain.setCurrentHead(block.Header)
 	return nil
 }
@@ -1473,21 +1478,44 @@ func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
 }
 
-func (chain *Blockchain) SaveTxs(header *types.Header, txs []*types.Transaction) {
+func (chain *Blockchain) HandleTxs(header *types.Header, txs []*types.Transaction) {
 	chain.repo.DeleteOutdatedBurntCoins(header.Height(), chain.config.Blockchain.BurnTxRange)
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
-		if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
-			chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
-		}
-		if tx.Type == types.BurnTx {
-			attachment := attachments.ParseBurnAttachment(tx)
-			if attachment == nil {
-				continue
-			}
-			chain.repo.SaveBurntCoins(header.Height(), tx.Hash(), sender, attachment.Key, tx.AmountOrZero())
-		}
+		chain.handleOwnTx(header, sender, tx)
+		chain.handleBurnTx(header.Height(), sender, tx)
+		chain.handleOwnDeleteFlipTx(sender, tx)
 	}
+}
+
+func (chain *Blockchain) handleOwnTx(header *types.Header, sender common.Address, tx *types.Transaction) {
+	if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
+		chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
+	}
+}
+
+func (chain *Blockchain) handleBurnTx(height uint64, sender common.Address, tx *types.Transaction) {
+	if tx.Type != types.BurnTx {
+		return
+	}
+	attachment := attachments.ParseBurnAttachment(tx)
+	if attachment == nil {
+		return
+	}
+	chain.repo.SaveBurntCoins(height, tx.Hash(), sender, attachment.Key, tx.AmountOrZero())
+}
+
+func (chain *Blockchain) handleOwnDeleteFlipTx(sender common.Address, tx *types.Transaction) {
+	if tx.Type != types.DeleteFlipTx || sender != chain.coinBaseAddress {
+		return
+	}
+	attachment := attachments.ParseDeleteFlipAttachment(tx)
+	if attachment == nil {
+		return
+	}
+	chain.bus.Publish(&events.DeleteFlipEvent{
+		FlipCid: attachment.Cid,
+	})
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {

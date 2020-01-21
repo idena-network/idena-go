@@ -121,3 +121,23 @@ func ParseChangeProfileAttachment(tx *types.Transaction) *ChangeProfileAttachmen
 	}
 	return &attachment
 }
+
+type DeleteFlipAttachment struct {
+	Cid []byte
+}
+
+func CreateDeleteFlipAttachment(cid []byte) []byte {
+	attachment := &DeleteFlipAttachment{
+		Cid: cid,
+	}
+	payload, _ := rlp.EncodeToBytes(attachment)
+	return payload
+}
+
+func ParseDeleteFlipAttachment(tx *types.Transaction) *DeleteFlipAttachment {
+	var attachment DeleteFlipAttachment
+	if err := rlp.Decode(bytes.NewReader(tx.Payload), &attachment); err != nil {
+		return nil
+	}
+	return &attachment
+}
