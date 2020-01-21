@@ -333,6 +333,10 @@ func (s *StateDB) AddFlip(addr common.Address, cid []byte, pair uint8) {
 	s.GetOrNewIdentityObject(addr).AddFlip(cid, pair)
 }
 
+func (s *StateDB) DeleteFlip(addr common.Address, cid []byte) {
+	s.GetOrNewIdentityObject(addr).DeleteFlip(cid)
+}
+
 func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }

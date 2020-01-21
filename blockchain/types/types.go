@@ -24,6 +24,7 @@ const (
 	ChangeGodAddressTx   uint16 = 0xB
 	BurnTx               uint16 = 0xC
 	ChangeProfileTx      uint16 = 0xD
+	DeleteFlipTx         uint16 = 0xE
 )
 
 const (

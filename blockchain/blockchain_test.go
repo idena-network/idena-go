@@ -350,7 +350,7 @@ func TestBlockchain_SaveTxs(t *testing.T) {
 				FeePerByte: big.NewInt(1),
 			},
 		}
-		chain.SaveTxs(header, []*types.Transaction{item.tx})
+		chain.HandleTxs(header, []*types.Transaction{item.tx})
 	}
 
 	data, token := chain.ReadTxs(addr, 5, nil)
@@ -482,7 +482,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	}
 
 	// Block height=1
-	chain.SaveTxs(createHeader(1), []*types.Transaction{
+	chain.HandleTxs(createHeader(1), []*types.Transaction{
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(3), nil,
 			attachments.CreateBurnAttachment("3")),
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil,
@@ -510,7 +510,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(3), burntCoins[2].Amount)
 
 	// Block height=2
-	chain.SaveTxs(createHeader(2), []*types.Transaction{
+	chain.HandleTxs(createHeader(2), []*types.Transaction{
 		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil,
 			attachments.CreateBurnAttachment("2")),
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
@@ -532,7 +532,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(3), burntCoins[2].Amount)
 
 	// Block height=4
-	chain.SaveTxs(createHeader(4), []*types.Transaction{
+	chain.HandleTxs(createHeader(4), []*types.Transaction{
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
 			attachments.CreateBurnAttachment("1")),
 	})
@@ -545,7 +545,7 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(big.NewInt(4), burntCoins[1].Amount)
 
 	// Block height=7
-	chain.SaveTxs(createHeader(7), []*types.Transaction{
+	chain.HandleTxs(createHeader(7), []*types.Transaction{
 		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
 			attachments.CreateBurnAttachment("1")),
 	})
@@ -554,4 +554,44 @@ func Test_Blockchain_SaveBurntCoins(t *testing.T) {
 	require.Equal(1, len(burntCoins))
 	require.Equal(addr, burntCoins[0].Address)
 	require.Equal(big.NewInt(1), burntCoins[0].Amount)
+}
+
+func Test_DeleteFlipTx(t *testing.T) {
+	senderKey, _ := crypto.GenerateKey()
+	balance := big.NewInt(1_000_000)
+
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	sender := crypto.PubkeyToAddress(senderKey.PublicKey)
+	alloc[sender] = config.GenesisAllocation{
+		Balance: balance,
+	}
+
+	chain, _, _, _ := NewTestBlockchain(true, alloc)
+
+	tx := &types.Transaction{
+		Type:         types.DeleteFlipTx,
+		AccountNonce: 1,
+		Amount:       big.NewInt(100),
+		MaxFee:       big.NewInt(620_000),
+		Tips:         big.NewInt(10),
+		Payload:      attachments.CreateDeleteFlipAttachment([]byte{0x1, 0x2, 0x3}),
+	}
+	signedTx, _ := types.SignTx(tx, senderKey)
+
+	appState := chain.appState
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x2}, 0)
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x3}, 1)
+	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x4}, 2)
+	appState.State.SetFeePerByte(big.NewInt(1))
+
+	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	expectedBalance := big.NewInt(999_990)
+	expectedBalance.Sub(expectedBalance, fee)
+
+	chain.ApplyTxOnState(appState, signedTx)
+
+	require.Equal(t, 1, fee.Sign())
+	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
+	identity := appState.State.GetIdentity(sender)
+	require.Equal(t, 2, len(identity.Flips))
 }

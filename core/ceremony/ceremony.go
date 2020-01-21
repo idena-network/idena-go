@@ -153,6 +153,12 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 		vc.restoreState()
 	})
 
+	_ = vc.bus.Subscribe(events.DeleteFlipEventID,
+		func(e eventbus.Event) {
+			event := e.(*events.DeleteFlipEvent)
+			vc.dropFlip(event.FlipCid)
+		})
+
 	vc.restoreState()
 	vc.addBlock(currentBlock)
 }
@@ -970,6 +976,11 @@ func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
 	db.IterateOverFlipCids(func(cid []byte) {
 		vc.flipper.UnpinFlip(cid)
 	})
+}
+
+func (vc *ValidationCeremony) dropFlip(cid []byte) {
+	vc.epochDb.DeleteFlipCid(cid)
+	vc.flipper.UnpinFlip(cid)
 }
 
 func (vc *ValidationCeremony) logInfoWithInteraction(msg string, ctx ...interface{}) {
