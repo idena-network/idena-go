@@ -15,6 +15,7 @@ type AppState struct {
 	NonceCache      *state.NonceCache
 	IdentityState   *state.IdentityStateDB
 	EvidenceMap     *EvidenceMap
+	defaultTree     bool
 }
 
 func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
@@ -24,6 +25,7 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 		State:         stateDb,
 		IdentityState: identityStateDb,
 		EvidenceMap:   NewEvidenceMap(bus),
+		defaultTree:   true,
 	}
 }
 func (s *AppState) Readonly(height uint64) *AppState {
@@ -142,21 +144,37 @@ func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
 }
 
 func (s *AppState) UseSyncTree() error {
+	if !s.defaultTree {
+		return nil
+	}
 	if err := s.State.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
 		return err
 	}
 	if err := s.IdentityState.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
 		return err
 	}
+	s.defaultTree = false
 	return nil
 }
 
 func (s *AppState) UseDefaultTree() error {
+	if s.defaultTree {
+		return nil
+	}
+	if err := s.State.FlushToDisk(); err != nil {
+		return err
+	}
+
+	if err := s.IdentityState.FlushToDisk(); err != nil {
+		return err
+	}
+
 	if err := s.State.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
 		return err
 	}
 	if err := s.IdentityState.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
 		return err
 	}
+	s.defaultTree = true
 	return nil
 }

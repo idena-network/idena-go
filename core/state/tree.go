@@ -27,6 +27,8 @@ type Tree interface {
 	SetVirtualVersion(version int64)
 	ValidateTree() bool
 	RecentDb() dbm.DB
+	KeepRecent() int64
+	KeepEvery() int64
 }
 
 func NewMutableTree(db dbm.DB) *MutableTree {
@@ -36,8 +38,9 @@ func NewMutableTree(db dbm.DB) *MutableTree {
 		panic(err)
 	}
 	return &MutableTree{
-		tree:     tree,
-		recentDb: recentDb,
+		tree:       tree,
+		recentDb:   recentDb,
+		keepRecent: 0,
 	}
 }
 
@@ -47,15 +50,27 @@ func NewMutableTreeWithOpts(db, recentDb dbm.DB, keepEvery, keepRecent int64) *M
 		panic(err)
 	}
 	return &MutableTree{
-		tree:     tree,
-		recentDb: recentDb,
+		tree:       tree,
+		recentDb:   recentDb,
+		keepRecent: keepRecent,
+		keepEvery:  keepEvery,
 	}
 }
 
 type MutableTree struct {
-	tree     *iavl.MutableTree
-	recentDb dbm.DB
-	lock     sync.RWMutex
+	tree       *iavl.MutableTree
+	recentDb   dbm.DB
+	lock       sync.RWMutex
+	keepEvery  int64
+	keepRecent int64
+}
+
+func (t *MutableTree) KeepEvery() int64 {
+	return t.keepEvery
+}
+
+func (t *MutableTree) KeepRecent() int64 {
+	return t.keepRecent
 }
 
 func (t *MutableTree) RecentDb() dbm.DB {
@@ -182,6 +197,14 @@ func (t *MutableTree) AvailableVersions() []int {
 
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
+}
+
+func (t *ImmutableTree) KeepEvery() int64 {
+	panic("implement me")
+}
+
+func (t *ImmutableTree) KeepRecent() int64 {
+	panic("implement me")
 }
 
 func (t *ImmutableTree) RecentDb() dbm.DB {

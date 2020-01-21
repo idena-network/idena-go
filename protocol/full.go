@@ -109,8 +109,11 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 }
 
 func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
-	if err := fs.appState.UseSyncTree(); err != nil {
-		return 0, errors.Wrap(err, "cannot switch state tree to sync tree")
+	if fs.targetHeight-head.Height() > FlushToDiskLastStates {
+		fs.log.Info("switch sync tree to fast version")
+		if err := fs.appState.UseSyncTree(); err != nil {
+			return 0, errors.Wrap(err, "cannot switch state tree to sync tree")
+		}
 	}
 	return head.Height() + 1, nil
 }

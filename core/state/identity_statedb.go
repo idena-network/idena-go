@@ -40,7 +40,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 
 func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 
 func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -378,6 +378,22 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
 	}
+}
+
+//save loaded version of state to dist
+func (s *IdentityStateDB) FlushToDisk() error {
+	it, err := s.tree.RecentDb().Iterator(nil, nil)
+	if err != nil {
+		return err
+	}
+	defer it.Close()
+
+	for ; it.Valid(); it.Next() {
+		if err := s.db.Set(it.Key(), it.Value()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *IdentityStateDB) SwitchTree(keepEvery, keepRecent int64) error {

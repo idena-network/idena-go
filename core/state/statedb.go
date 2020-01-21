@@ -44,7 +44,7 @@ const (
 	GeneticCodeSize     = 12
 
 	SyncTreeKeepEvery  = int64(100)
-	SyncTreeKeepRecent = int64(3)
+	SyncTreeKeepRecent = int64(2)
 
 	DefaultTreeKeepEvery  = int64(1)
 	DefaultTreeKeepRecent = int64(0)
@@ -93,7 +93,7 @@ func NewLazy(db dbm.DB) *StateDB {
 
 func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 
 func (s *StateDB) Readonly(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), 1, 1)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -1061,6 +1061,21 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.Penalty = identity.Penalty
 		stateObject.touch()
 	}
+}
+
+func (s *StateDB) FlushToDisk() error {
+	it, err := s.tree.RecentDb().Iterator(nil, nil)
+	if err!=nil{
+		return err
+	}
+	defer it.Close()
+
+	for ; it.Valid(); it.Next() {
+		if err:=s.db.Set(it.Key(), it.Value());err!=nil{
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {

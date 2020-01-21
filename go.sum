@@ -206,6 +206,8 @@ github.com/idena-network/iavl v0.12.3-0.20190919135148-89e4ad773677 h1:r9FAMQVrK
 github.com/idena-network/iavl v0.12.3-0.20190919135148-89e4ad773677/go.mod h1:8LHakzt8/0G3/I8FUU0ReNx98S/EP6eyPJkAUvEXT/o=
 github.com/idena-network/iavl v0.12.3-0.20200120102243-63464c8983b7 h1:uNcNrosbcT53pMHMuIONssPnUHV+G67Ju2VfZr76yaQ=
 github.com/idena-network/iavl v0.12.3-0.20200120102243-63464c8983b7/go.mod h1:7nSUPdrsHEZ2nNZa+9gaIrcJciWd1jCQZXtcyARU82k=
+github.com/idena-network/iavl v0.12.3-0.20200121071137-b36d38778cc2 h1:R37vMM1NNAh84lFGqMMbR3dSl/IUNEOoNy98uvcGKrw=
+github.com/idena-network/iavl v0.12.3-0.20200121071137-b36d38778cc2/go.mod h1:7nSUPdrsHEZ2nNZa+9gaIrcJciWd1jCQZXtcyARU82k=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/ipfs/bbloom v0.0.1 h1:s7KkiBPfxCeDVo47KySjK0ACPc5GJRUxFpdyWEuDjhw=
 github.com/ipfs/bbloom v0.0.1/go.mod h1:oqo8CVWsJFMOZqTglBG4wydCE4IQA/G2/SEofB0rjUI=
