@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
@@ -404,6 +405,17 @@ func (s *stateIdentity) AddFlip(cid []byte, pair uint8) {
 			Pair: pair,
 		})
 		s.touch()
+	}
+}
+
+func (s *stateIdentity) DeleteFlip(cid []byte) {
+	for i, flip := range s.data.Flips {
+		if bytes.Compare(flip.Cid, cid) != 0 {
+			continue
+		}
+		s.data.Flips = append(s.data.Flips[:i], s.data.Flips[i+1:]...)
+		s.touch()
+		return
 	}
 }
 

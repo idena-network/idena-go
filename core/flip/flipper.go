@@ -27,10 +27,6 @@ import (
 	"time"
 )
 
-const (
-	MaxFlipSize = 1024 * 600
-)
-
 var (
 	DuplicateFlipError = errors.New("duplicate flip")
 )
@@ -120,8 +116,8 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 
 	data, _ := rlp.EncodeToBytes(ipf)
 
-	if len(data) > MaxFlipSize {
-		return errors.Errorf("flip is too big, max expected size %v, actual %v", MaxFlipSize, len(data))
+	if len(data) > common.MaxFlipSize {
+		return errors.Errorf("flip is too big, max expected size %v, actual %v", common.MaxFlipSize, len(data))
 	}
 
 	c, err := fp.ipfsProxy.Cid(data)
