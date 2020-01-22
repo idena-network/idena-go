@@ -354,7 +354,7 @@ func TestIdentityStateDB_SwitchTree(t *testing.T) {
 
 	stateDb.Commit(true)
 
-	require.NoError(t, stateDb.SwitchTree(SyncTreeKeepEvery, SyncTreeKeepRecent))
+	require.NoError(t, stateDb.SwitchTree(100, 2))
 
 	for i := 0; i < 150; i++ {
 		stateDb.AddBalance(common.Address{}, big.NewInt(1))
