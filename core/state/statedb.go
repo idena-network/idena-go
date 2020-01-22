@@ -1063,19 +1063,9 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 	}
 }
 
+// flush recent version to disk
 func (s *StateDB) FlushToDisk() error {
-	it, err := s.tree.RecentDb().Iterator(nil, nil)
-	if err!=nil{
-		return err
-	}
-	defer it.Close()
-
-	for ; it.Valid(); it.Next() {
-		if err:=s.db.Set(it.Key(), it.Value());err!=nil{
-			return err
-		}
-	}
-	return nil
+	return common.Copy(s.tree.RecentDb(), s.db)
 }
 
 func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {

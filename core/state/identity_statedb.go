@@ -380,20 +380,8 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
 	}
 }
 
-//save loaded version of state to dist
 func (s *IdentityStateDB) FlushToDisk() error {
-	it, err := s.tree.RecentDb().Iterator(nil, nil)
-	if err != nil {
-		return err
-	}
-	defer it.Close()
-
-	for ; it.Valid(); it.Next() {
-		if err := s.db.Set(it.Key(), it.Value()); err != nil {
-			return err
-		}
-	}
-	return nil
+	return common.Copy(s.tree.RecentDb(), s.db)
 }
 
 func (s *IdentityStateDB) SwitchTree(keepEvery, keepRecent int64) error {
