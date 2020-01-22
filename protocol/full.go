@@ -15,7 +15,7 @@ import (
 )
 
 const FullSyncBatchSize = 200
-const FlushToDiskLastStates = 100
+const FlushToDiskLastStates = 200
 
 var (
 	BlockCertIsMissing = errors.New("block cert is missing")

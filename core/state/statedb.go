@@ -43,7 +43,7 @@ const (
 	MaxSavedStatesCount = 100
 	GeneticCodeSize     = 12
 
-	SyncTreeKeepEvery  = int64(100)
+	SyncTreeKeepEvery  = int64(200)
 	SyncTreeKeepRecent = int64(2)
 
 	DefaultTreeKeepEvery  = int64(1)

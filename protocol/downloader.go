@@ -159,6 +159,7 @@ loop:
 			}
 			to := math.Min(from+applier.batchSize(), math.Min(toHeight, height))
 			if batch, err := d.pm.GetBlocksRange(peer, from, to); err != nil {
+				knownHeights[peer] = 0
 				continue
 			} else {
 				select {
