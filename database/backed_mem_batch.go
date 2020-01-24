@@ -20,18 +20,26 @@ func (b *backedMemBatch) Delete(key []byte) {
 	b.batch.Delete(key)
 }
 
-func (b *backedMemBatch) Write() {
-	b.batch.Write()
+func (b *backedMemBatch) Write() error {
+	err := b.batch.Write()
+	if err != nil {
+		return err
+	}
 	for _, key := range b.touched {
 		b.touch(key)
 	}
+	return nil
 }
 
-func (b *backedMemBatch) WriteSync() {
-	b.batch.WriteSync()
+func (b *backedMemBatch) WriteSync() error {
+	err := b.batch.WriteSync()
+	if err != nil {
+		return err
+	}
 	for _, key := range b.touched {
 		b.touch(key)
 	}
+	return nil
 }
 
 func (b *backedMemBatch) Close() {

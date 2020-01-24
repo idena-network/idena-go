@@ -88,7 +88,8 @@ func identityStateDiffKey(height uint64) []byte {
 }
 
 func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
-	data := r.db.Get(headerKey(hash))
+	data, err := r.db.Get(headerKey(hash))
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -101,7 +102,8 @@ func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 }
 
 func (r *Repo) ReadHead() *types.Header {
-	data := r.db.Get(headBlockKey)
+	data, err := r.db.Get(headBlockKey)
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -156,7 +158,8 @@ func (r *Repo) RemoveCanonicalHash(height uint64) {
 
 func (r *Repo) ReadCanonicalHash(height uint64) common.Hash {
 	key := headerHashKey(height)
-	data := r.db.Get(key)
+	data, err := r.db.Get(key)
+	assertNoError(err)
 	if len(data) == 0 {
 		return common.Hash{}
 	}
@@ -189,7 +192,8 @@ func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 
 func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	key := txIndexKey(hash)
-	data := r.db.Get(key)
+	data, err := r.db.Get(key)
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -202,7 +206,8 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 }
 
 func (r *Repo) ReadCertificate(hash common.Hash) *types.BlockCert {
-	data := r.db.Get(certKey(hash))
+	data, err := r.db.Get(certKey(hash))
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -219,7 +224,8 @@ type weakCeritificates struct {
 }
 
 func (r *Repo) readWeakCertificates() *weakCeritificates {
-	data := r.db.Get(weakCertificatesKey)
+	data, err := r.db.Get(weakCertificatesKey)
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -266,7 +272,8 @@ type dbSnapshotManifest struct {
 }
 
 func (r *Repo) LastSnapshotManifest() (cid []byte, root common.Hash, height uint64, fileName string) {
-	data := r.db.Get(lastSnapshotKey)
+	data, err := r.db.Get(lastSnapshotKey)
+	assertNoError(err)
 	if data == nil {
 		return nil, common.Hash{}, 0, ""
 	}
@@ -299,7 +306,9 @@ func (r *Repo) WriteIdentityStateDiff(height uint64, diff []byte) {
 }
 
 func (r *Repo) ReadIdentityStateDiff(height uint64) []byte {
-	return r.db.Get(identityStateDiffKey(height))
+	data, err := r.db.Get(identityStateDiffKey(height))
+	assertNoError(err)
+	return data
 }
 
 func (r *Repo) WritePreliminaryHead(header *types.Header) {
@@ -308,11 +317,12 @@ func (r *Repo) WritePreliminaryHead(header *types.Header) {
 		log.Crit("Failed to RLP encode header", "err", err)
 		return
 	}
-	r.db.Set(preliminaryHeadKey, data)
+	assertNoError(r.db.Set(preliminaryHeadKey, data))
 }
 
 func (r *Repo) ReadPreliminaryHead() *types.Header {
-	data := r.db.Get(preliminaryHeadKey)
+	data, err := r.db.Get(preliminaryHeadKey)
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -325,7 +335,7 @@ func (r *Repo) ReadPreliminaryHead() *types.Header {
 }
 
 func (r *Repo) RemovePreliminaryHead() {
-	r.db.Delete(preliminaryHeadKey)
+	assertNoError(r.db.Delete(preliminaryHeadKey))
 }
 
 type activityMonitorDb struct {
@@ -339,7 +349,8 @@ type addrActivityDb struct {
 }
 
 func (r *Repo) ReadActivity() *types.ActivityMonitor {
-	data := r.db.Get(activityMonitorKey)
+	data, err := r.db.Get(activityMonitorKey)
+	assertNoError(err)
 	if data == nil {
 		return nil
 	}
@@ -403,8 +414,9 @@ func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs
 		token = append(token, common.MaxHash...)
 	}
 
-	it := r.db.ReverseIterator(savedTxKey(address, 0, 0, common.BytesToHash(common.MinHash[:])), token)
-
+	it, err := r.db.ReverseIterator(savedTxKey(address, 0, 0, common.BytesToHash(common.MinHash[:])), token)
+	assertNoError(err)
+	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		key, value := it.Key(), it.Value()
 		if len(txs) == count {
@@ -425,8 +437,9 @@ func (r *Repo) DeleteOutdatedBurntCoins(blockHeight uint64, blockRange uint64) {
 	if blockHeight <= blockRange {
 		return
 	}
-	it := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(blockHeight-blockRange,
+	it, err := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(blockHeight-blockRange,
 		common.BytesToHash(common.MaxHash[:])))
+	assertNoError(err)
 	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		r.db.Delete(it.Key())
@@ -448,7 +461,8 @@ func (r *Repo) SaveBurntCoins(blockHeight uint64, txHash common.Hash, address co
 }
 
 func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
-	it := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(math.MaxUint64, common.BytesToHash(common.MaxHash[:])))
+	it, err := r.db.Iterator(burntCoinsMinKey(), burntCoinsKey(math.MaxUint64, common.BytesToHash(common.MaxHash[:])))
+	assertNoError(err)
 	defer it.Close()
 
 	var coinsByAddressAndKey map[common.Address]map[string]*types.BurntCoins

@@ -344,6 +344,30 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	})
 	require.Equal(t, 1, cnt)
 
-	it := prevStateDb.Iterator(nil, nil)
+	it, _ := prevStateDb.Iterator(nil, nil)
 	require.False(t, it.Valid())
+}
+
+func TestIdentityStateDB_SwitchTree(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	stateDb.Commit(true)
+
+	require.NoError(t, stateDb.SwitchTree(100, 2))
+
+	for i := 0; i < 150; i++ {
+		stateDb.AddBalance(common.Address{}, big.NewInt(1))
+		stateDb.Commit(true)
+	}
+
+	require.NoError(t, stateDb.FlushToDisk())
+
+	stateDb = NewLazy(database)
+	stateDb.Load(0)
+
+	require.Equal(t, []int{1, 100, 150, 151}, stateDb.tree.AvailableVersions())
+
+	stateDb.Commit(false)
+	stateDb.Commit(false)
 }

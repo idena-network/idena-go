@@ -26,18 +26,55 @@ type Tree interface {
 	SaveVersionAt(version int64) ([]byte, int64, error)
 	SetVirtualVersion(version int64)
 	ValidateTree() bool
+	RecentDb() dbm.DB
+	KeepRecent() int64
+	KeepEvery() int64
 }
 
 func NewMutableTree(db dbm.DB) *MutableTree {
+	recentDb := dbm.NewMemDB()
+	tree, err := iavl.NewMutableTreeWithOpts(db, recentDb, 1024, iavl.PruningOptions(1, 0))
+	if err != nil {
+		panic(err)
+	}
 	return &MutableTree{
-		tree: iavl.NewMutableTree(db, 1024),
+		tree:       tree,
+		recentDb:   recentDb,
+		keepRecent: 0,
+	}
+}
+
+func NewMutableTreeWithOpts(db, recentDb dbm.DB, keepEvery, keepRecent int64) *MutableTree {
+	tree, err := iavl.NewMutableTreeWithOpts(db, recentDb, 1024, iavl.PruningOptions(keepEvery, keepRecent))
+	if err != nil {
+		panic(err)
+	}
+	return &MutableTree{
+		tree:       tree,
+		recentDb:   recentDb,
+		keepRecent: keepRecent,
+		keepEvery:  keepEvery,
 	}
 }
 
 type MutableTree struct {
-	tree *iavl.MutableTree
+	tree       *iavl.MutableTree
+	recentDb   dbm.DB
+	lock       sync.RWMutex
+	keepEvery  int64
+	keepRecent int64
+}
 
-	lock sync.RWMutex
+func (t *MutableTree) KeepEvery() int64 {
+	return t.keepEvery
+}
+
+func (t *MutableTree) KeepRecent() int64 {
+	return t.keepRecent
+}
+
+func (t *MutableTree) RecentDb() dbm.DB {
+	return t.recentDb
 }
 
 func (t *MutableTree) ValidateTree() bool {
@@ -160,6 +197,18 @@ func (t *MutableTree) AvailableVersions() []int {
 
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
+}
+
+func (t *ImmutableTree) KeepEvery() int64 {
+	panic("implement me")
+}
+
+func (t *ImmutableTree) KeepRecent() int64 {
+	panic("implement me")
+}
+
+func (t *ImmutableTree) RecentDb() dbm.DB {
+	panic("Not implemented")
 }
 
 func (t *ImmutableTree) ValidateTree() bool {

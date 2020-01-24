@@ -222,7 +222,9 @@ func (node *Node) StartWithHeight(height uint64) {
 	}
 
 	if err := node.appState.Initialize(node.blockchain.Head.Height()); err != nil {
-		node.log.Error("Cannot initialize state", "error", err.Error())
+		if err := node.appState.Initialize(0); err != nil {
+			node.log.Error("Cannot initialize state", "error", err.Error())
+		}
 	}
 
 	if err := node.blockchain.EnsureIntegrity(); err != nil {

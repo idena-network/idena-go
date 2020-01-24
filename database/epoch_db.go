@@ -48,15 +48,24 @@ func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
 	return &EpochDb{db: dbm.NewPrefixDB(db, prefix)}
 }
 
+func assertNoError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (edb *EpochDb) Clear() {
-	it := edb.db.Iterator(nil, nil)
+	it, err := edb.db.Iterator(nil, nil)
+	assertNoError(err)
+	defer it.Close()
+
 	var keys [][]byte
 
 	for ; it.Valid(); it.Next() {
 		keys = append(keys, it.Key())
 	}
 	for _, key := range keys {
-		edb.db.Delete(key)
+		assertNoError(edb.db.Delete(key))
 	}
 }
 
@@ -67,11 +76,14 @@ func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash, ti
 		Timestamp: uint64(timestamp.Unix()),
 	}
 	encoded, _ := rlp.EncodeToBytes(a)
-	edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), encoded)
+	assertNoError(edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), encoded))
 }
 
 func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
-	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
+	it, err := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
+	assertNoError(err)
+	defer it.Close()
+
 	answers := make(map[common.Address]common.Hash)
 
 	for ; it.Valid(); it.Next() {
@@ -87,7 +99,8 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 
 func (edb *EpochDb) GetAnswerHash(address common.Address) common.Hash {
 	key := append(AnswerHashPrefix, address.Bytes()...)
-	data := edb.db.Get(key)
+	data, err := edb.db.Get(key)
+	assertNoError(err)
 	if data == nil {
 		return common.Hash{}
 	}
@@ -100,7 +113,9 @@ func (edb *EpochDb) GetAnswerHash(address common.Address) common.Hash {
 }
 
 func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []common.Address {
-	it := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
+	it, err := edb.db.Iterator(append(AnswerHashPrefix, common.MinAddr[:]...), append(AnswerHashPrefix, common.MaxAddr[:]...))
+	assertNoError(err)
+	defer it.Close()
 	var result []common.Address
 	for ; it.Valid(); it.Next() {
 		a := &shortAnswerDb{}
@@ -117,11 +132,13 @@ func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []co
 }
 
 func (edb *EpochDb) WriteOwnShortAnswers(answers *types.Answers) {
-	edb.db.Set(OwnShortAnswerKey, answers.Bytes())
+	assertNoError(edb.db.Set(OwnShortAnswerKey, answers.Bytes()))
 }
 
 func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
-	return edb.db.Get(OwnShortAnswerKey)
+	data, err := edb.db.Get(OwnShortAnswerKey)
+	assertNoError(err)
+	return data
 }
 
 func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
@@ -129,12 +146,16 @@ func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
 	shortRlp, _ := rlp.EncodeToBytes(short)
 	longRlp, _ := rlp.EncodeToBytes(long)
 
-	edb.db.Set(ShortAnswersKey, shortRlp)
-	edb.db.Set(LongShortAnswersKey, longRlp)
+	assertNoError(edb.db.Set(ShortAnswersKey, shortRlp))
+	assertNoError(edb.db.Set(LongShortAnswersKey, longRlp))
 }
 
 func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
-	shortRlp, longRlp := edb.db.Get(ShortAnswersKey), edb.db.Get(LongShortAnswersKey)
+	shortRlp, err := edb.db.Get(ShortAnswersKey)
+	assertNoError(err)
+	longRlp, err := edb.db.Get(LongShortAnswersKey)
+	assertNoError(err)
+
 	if shortRlp != nil {
 		if err := rlp.Decode(bytes.NewReader(shortRlp), &short); err != nil {
 			log.Error("invalid short answers rlp", "err", err)
@@ -149,7 +170,9 @@ func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
 }
 
 func (edb *EpochDb) ReadEvidenceMaps() [][]byte {
-	it := edb.db.Iterator(append(EvidencePrefix, common.MinAddr[:]...), append(EvidencePrefix, common.MaxAddr[:]...))
+	it, err := edb.db.Iterator(append(EvidencePrefix, common.MinAddr[:]...), append(EvidencePrefix, common.MaxAddr[:]...))
+	assertNoError(err)
+	defer it.Close()
 	var result [][]byte
 	for ; it.Valid(); it.Next() {
 		result = append(result, it.Value())
@@ -173,37 +196,47 @@ func (edb *EpochDb) RemoveOwnTx(txType uint16) {
 
 func (edb *EpochDb) ReadOwnTx(txType uint16) []byte {
 	key := append(TxOwnPrefix, uint8(txType>>8), uint8(txType&0xff))
-	return edb.db.Get(key)
+	data, err := edb.db.Get(key)
+	assertNoError(err)
+	return data
 }
 
 func (edb *EpochDb) WriteSuccessfulOwnTx(txHash common.Hash) {
 	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
-	edb.db.Set(key, []byte{})
+	assertNoError(edb.db.Set(key, []byte{}))
 }
 
 func (edb *EpochDb) HasSuccessfulOwnTx(txHash common.Hash) bool {
 	key := append(SuccessfulTxOwnPrefix, txHash.Bytes()...)
-	return edb.db.Has(key)
+	has, err := edb.db.Has(key)
+	assertNoError(err)
+	return has
 }
 
 func (edb *EpochDb) WriteLotterySeed(seed []byte) {
-	edb.db.Set(LotterySeedKey, seed)
+	assertNoError(edb.db.Set(LotterySeedKey, seed))
 }
 
 func (edb *EpochDb) ReadLotterySeed() []byte {
-	return edb.db.Get(LotterySeedKey)
+	data, err := edb.db.Get(LotterySeedKey)
+	assertNoError(err)
+	return data
 }
 
 func (edb *EpochDb) WriteFlipCid(cid []byte) {
-	edb.db.Set(append(FlipCidPrefix, cid...), []byte{})
+	assertNoError(edb.db.Set(append(FlipCidPrefix, cid...), []byte{}))
 }
 
 func (edb *EpochDb) HasFlipCid(cid []byte) bool {
-	return edb.db.Has(append(FlipCidPrefix, cid...))
+	has, err := edb.db.Has(append(FlipCidPrefix, cid...))
+	assertNoError(err)
+	return has
 }
 
 func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
-	it := edb.db.Iterator(append(FlipCidPrefix, ipfs.MinCid[:]...), append(FlipCidPrefix, ipfs.MaxCid[:]...))
+	it, err := edb.db.Iterator(append(FlipCidPrefix, ipfs.MinCid[:]...), append(FlipCidPrefix, ipfs.MaxCid[:]...))
+	assertNoError(err)
+	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(FlipCidPrefix):])
 	}
@@ -211,20 +244,26 @@ func (edb *EpochDb) IterateOverFlipCids(callback func(cid []byte)) {
 
 func (edb *EpochDb) HasEvidenceMap(addr common.Address) bool {
 	key := append(EvidencePrefix, addr[:]...)
-	return edb.db.Has(key)
+	has, err := edb.db.Has(key)
+	assertNoError(err)
+	return has
 }
 
 func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
 	key := append(AnswerHashPrefix, addr.Bytes()...)
-	return edb.db.Has(key)
+	has, err := edb.db.Has(key)
+	assertNoError(err)
+	return has
 }
 
 func (edb *EpochDb) WriteKeysPackageCid(cid []byte) {
-	edb.db.Set(append(KeysPackagePrefix, cid...), []byte{})
+	assertNoError(edb.db.Set(append(KeysPackagePrefix, cid...), []byte{}))
 }
 
 func (edb *EpochDb) IterateOverKeysPackageCids(callback func(cid []byte)) {
-	it := edb.db.Iterator(append(KeysPackagePrefix, ipfs.MinCid[:]...), append(KeysPackagePrefix, ipfs.MaxCid[:]...))
+	it, err := edb.db.Iterator(append(KeysPackagePrefix, ipfs.MinCid[:]...), append(KeysPackagePrefix, ipfs.MaxCid[:]...))
+	assertNoError(err)
+	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		callback(it.Key()[len(KeysPackagePrefix):])
 	}

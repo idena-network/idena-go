@@ -141,7 +141,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	db := db.NewMemDB()
 	bus := eventbus.New()
 
-	it := chain.db.Iterator(nil, nil)
+	it, _ := chain.db.Iterator(nil, nil)
 	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		db.Set(it.Key(), it.Value())

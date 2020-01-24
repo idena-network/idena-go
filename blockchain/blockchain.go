@@ -1324,7 +1324,17 @@ func (chain *Blockchain) EnsureIntegrity() error {
 	for chain.Head.Root() != chain.appState.State.Root() ||
 		chain.Head.IdentityRoot() != chain.appState.IdentityState.Root() {
 		wasReset = true
-		if err := chain.ResetTo(chain.Head.Height() - 1); err != nil {
+		resetTo := uint64(0)
+		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.SyncTreeKeepEvery)+1; h, tryCnt = h-1, tryCnt+1 {
+			if chain.appState.IdentityState.HasVersion(h) {
+				resetTo = h
+				break
+			}
+		}
+		if resetTo == 0 {
+			return errors.New("state db is corrupted, try to delete idenachain.db folder from your data directory and sync from scratch")
+		}
+		if err := chain.ResetTo(resetTo); err != nil {
 			return err
 		}
 	}

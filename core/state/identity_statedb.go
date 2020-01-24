@@ -27,7 +27,7 @@ type IdentityStateDB struct {
 
 func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	pdb := dbm.NewPrefixDB(db, loadIdentityPrefix(db, false))
-	tree := NewMutableTree(pdb)
+	tree := NewMutableTreeWithOpts(pdb, dbm.NewMemDB(), DefaultTreeKeepEvery, DefaultTreeKeepRecent)
 	return &IdentityStateDB{
 		db:                   pdb,
 		original:             db,
@@ -40,7 +40,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 
 func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTree(db)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 
 func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTree(db)
+	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -358,9 +358,14 @@ func (s *IdentityStateDB) DropPreliminary() {
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
 	preliminaryPrefix := identityStatePrefix(height + 1)
 	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
-	it := s.db.Iterator(nil, nil)
+	it, err := s.db.Iterator(nil, nil)
+	if err != nil {
+		return nil, err
+	}
 	for ; it.Valid(); it.Next() {
-		pdb.Set(it.Key(), it.Value())
+		if err := pdb.Set(it.Key(), it.Value()); err != nil {
+			return nil, err
+		}
 	}
 	setIdentityPrefix(s.original, preliminaryPrefix, true)
 	return s.LoadPreliminary(height)
@@ -373,6 +378,20 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
 	}
+}
+
+func (s *IdentityStateDB) FlushToDisk() error {
+	return common.Copy(s.tree.RecentDb(), s.db)
+}
+
+func (s *IdentityStateDB) SwitchTree(keepEvery, keepRecent int64) error {
+	version := s.tree.Version()
+	s.tree = NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), keepEvery, keepRecent)
+	if _, err := s.tree.LoadVersion(version); err != nil {
+		return err
+	}
+	s.Clear()
+	return nil
 }
 
 type IdentityStateDiffValue struct {
@@ -403,7 +422,7 @@ func loadIdentityPrefix(db dbm.DB, preliminary bool) []byte {
 	if preliminary {
 		key = preliminaryIdentityStateDbPrefixKey
 	}
-	p := db.Get(key)
+	p, _ := db.Get(key)
 	if p == nil {
 		p = identityStatePrefix(0)
 		setIdentityPrefix(db, p, preliminary)

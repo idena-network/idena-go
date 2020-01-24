@@ -81,7 +81,7 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	preliminary.DropPreliminary()
 
-	it := preliminary.db.Iterator(nil, nil)
+	it, _ := preliminary.db.Iterator(nil, nil)
 	require.False(t, it.Valid())
 
 	require.True(t, stateDb.HasVersion(100))
@@ -130,7 +130,7 @@ func TestIdentityStateDB_SwitchToPreliminary(t *testing.T) {
 	require.NotNil(t, prefix)
 	require.Equal(t, prevVreliminaryPrefix, prefix)
 
-	it := database.Iterator(nil, nil)
+	it, _ := database.Iterator(nil, nil)
 	require.False(t, it.Valid())
 
 	require.Equal(t, root, stateDb.Root())

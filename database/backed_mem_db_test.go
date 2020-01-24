@@ -17,16 +17,17 @@ func TestBackedMemDb_Get(t *testing.T) {
 	db := createDb("get.db")
 	db.permanent.Set([]byte{0x1}, []byte{0x2})
 
-	require.Equal(db.Get([]byte{0x1}), []byte{0x2})
+	v, _ := db.Get([]byte{0x1})
+	require.Equal(v, []byte{0x2})
 
 	db.Set([]byte{0x1}, []byte{0x3})
-
-	require.Equal(db.Get([]byte{0x1}), []byte{0x3})
+	v, _ = db.Get([]byte{0x1})
+	require.Equal(v, []byte{0x3})
 	require.True(db.touched.Contains(string([]byte{0x1})))
+	v, _ = db.permanent.Get([]byte{0x1})
+	require.Equal(v, []byte{0x2})
 
-	require.Equal(db.permanent.Get([]byte{0x1}), []byte{0x2})
-
-	it := db.Iterator(nil, nil)
+	it, _ := db.Iterator(nil, nil)
 	require.True(it.Valid())
 }
 
@@ -36,12 +37,14 @@ func TestBackedMemDb_Delete(t *testing.T) {
 	db.permanent.Set([]byte{0x1}, []byte{0x2})
 
 	db.Delete([]byte{0x1})
-	require.Equal([]byte(nil), db.Get([]byte{0x1}))
+	v, _ := db.Get([]byte{0x1})
+	require.Equal([]byte(nil), v)
 	require.True(db.touched.Contains(string([]byte{0x1})))
 
-	require.Equal(db.permanent.Get([]byte{0x1}), []byte{0x2})
+	v, _ = db.permanent.Get([]byte{0x1})
+	require.Equal(v, []byte{0x2})
 
-	it := db.Iterator(nil, nil)
+	it, _ := db.Iterator(nil, nil)
 	require.False(it.Valid())
 }
 
@@ -111,13 +114,15 @@ func TestBackedMemDb_NewBatch(t *testing.T) {
 	batch.Write()
 
 	require.Equal(3, db.touched.Cardinality())
-	require.Equal([]byte{0x2}, db.Get([]byte{0x1}))
-	require.Equal([]byte{0x3}, db.Get([]byte{0x2}))
+	get, _ := db.Get([]byte{0x1})
+	require.Equal([]byte{0x2}, get)
+	get, _ = db.Get([]byte{0x2})
+	require.Equal([]byte{0x3}, get)
 }
 
 func assertIterators(require *require.Assertions, db *BackedMemDb, assertions []keyValue, start, end []byte) {
 	cnt := 0
-	it := db.Iterator(start, end)
+	it, _ := db.Iterator(start, end)
 
 	for i := 0; it.Valid(); it.Next() {
 		require.Equal(assertions[i].key, it.Key())
@@ -128,7 +133,7 @@ func assertIterators(require *require.Assertions, db *BackedMemDb, assertions []
 	require.Equal(len(assertions), cnt)
 
 	cnt = 0
-	it = db.ReverseIterator(start, end)
+	it, _ = db.ReverseIterator(start, end)
 
 	for i := len(assertions) - 1; it.Valid(); it.Next() {
 		require.Equal(assertions[i].key, it.Key())

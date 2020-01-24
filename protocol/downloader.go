@@ -159,6 +159,7 @@ loop:
 			}
 			to := math.Min(from+applier.batchSize(), math.Min(toHeight, height))
 			if batch, err := d.pm.GetBlocksRange(peer, from, to); err != nil {
+				knownHeights[peer] = 0
 				continue
 			} else {
 				select {
@@ -232,11 +233,11 @@ func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
 }
 
 func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []peer.ID) chan *types.BlockBundle {
-	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekBlocks(fromBlock, toBlock, peers)
+	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, 0).SeekBlocks(fromBlock, toBlock, peers)
 }
 
 func (d *Downloader) SeekForkedBlocks(ownBlocks []common.Hash, peerId peer.ID) chan types.BlockBundle {
-	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers).SeekForkedBlocks(ownBlocks, peerId)
+	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, 0).SeekForkedBlocks(ownBlocks, peerId)
 }
 
 func (d *Downloader) HasPotentialFork() bool {
@@ -271,7 +272,8 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm, d.bus, d.secStore.GetAddress()), manifest.Height
 	} else {
 		d.log.Info("Full sync will be used")
-		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers), d.top
+		top := d.top
+		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, top), top
 	}
 }
 

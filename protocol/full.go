@@ -15,6 +15,7 @@ import (
 )
 
 const FullSyncBatchSize = 200
+const FlushToDiskLastStates = 200
 
 var (
 	BlockCertIsMissing = errors.New("block cert is missing")
@@ -30,17 +31,14 @@ type fullSync struct {
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
 	deferredHeaders      []blockPeer
+	targetHeight         uint64
 }
 
 func (fs *fullSync) batchSize() uint64 {
 	return FullSyncBatchSize
 }
 
-func NewFullSync(pm *IdenaGossipHandler, log log.Logger,
-	chain *blockchain.Blockchain,
-	ipfs ipfs.Proxy,
-	appState *appstate.AppState,
-	potentialForkedPeers mapset.Set) *fullSync {
+func NewFullSync(pm *IdenaGossipHandler, log log.Logger, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, potentialForkedPeers mapset.Set, targetHeight uint64) *fullSync {
 
 	return &fullSync{
 		appState:             appState,
@@ -51,6 +49,7 @@ func NewFullSync(pm *IdenaGossipHandler, log log.Logger,
 		pm:                   pm,
 		isSyncing:            true,
 		ipfs:                 ipfs,
+		targetHeight:         targetHeight,
 	}
 }
 
@@ -81,6 +80,12 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 			fs.log.Error("fail to retrieve block", "err", err)
 			return b.Header.Height(), err
 		} else {
+
+			if fs.targetHeight-b.Header.Height() <= FlushToDiskLastStates {
+				if err := fs.appState.UseDefaultTree(); err != nil {
+					return block.Height(), errors.Wrap(err, "cannot switch state tree to defaults")
+				}
+			}
 			if err := fs.chain.AddBlock(block, checkState); err != nil {
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
 					return block.Height(), err
@@ -103,7 +108,20 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 	return 0, nil
 }
 
+func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
+	if fs.targetHeight-head.Height() > FlushToDiskLastStates {
+		fs.log.Info("switch sync tree to fast version")
+		if err := fs.appState.UseSyncTree(); err != nil {
+			return 0, errors.Wrap(err, "cannot switch state tree to sync tree")
+		}
+	}
+	return head.Height() + 1, nil
+}
+
 func (fs *fullSync) postConsuming() error {
+	if err := fs.appState.UseDefaultTree(); err != nil {
+		return err
+	}
 	if len(fs.deferredHeaders) > 0 {
 		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers have not been added to chain"))
 	}
@@ -116,7 +134,10 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 		return errors.New("number of attempts exceeded limit")
 	}
 
-	checkState, _ := fs.appState.ForCheckWithNewCache(fs.chain.Head.Height())
+	checkState, err := fs.appState.ForCheckWithNewCache(fs.chain.Head.Height())
+	if err != nil {
+		return err
+	}
 
 	reload := func(from uint64) error {
 		b := fs.requestBatch(from, batch.to, batch.p.id)
@@ -162,10 +183,6 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 	}
 	fs.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil
-}
-
-func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
-	return head.Height() + 1, nil
 }
 
 func (fs *fullSync) validateHeader(block *block, p *protoPeer) error {
