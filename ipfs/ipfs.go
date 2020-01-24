@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -529,6 +530,16 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 	} else {
 		ipfsConfig, err := fsrepo.ConfigAt(datadir)
 		if err != nil {
+			if strings.Contains(err.Error(), "failure to decode config") {
+				configFilename, err := ipfsConf.Filename(datadir)
+				if err != nil {
+					return nil, err
+				}
+				if err := os.Remove(configFilename); err != nil {
+					return nil, err
+				}
+				return configureIpfs(cfg)
+			}
 			return nil, err
 		}
 		err = updateIpfsConfig(ipfsConfig)
