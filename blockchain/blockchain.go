@@ -755,10 +755,15 @@ func getSeedData(prevBlock *types.Header) []byte {
 	return result
 }
 
+
+const desiredProposersCount = float64(10)
+
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
 	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
-		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold())
+		online := float64(chain.appState.ValidatorsCache.OnlineSize())
+		threshold := math2.Max(chain.appState.State.VrfProposerThreshold(), 1-math2.Min(0.5, desiredProposersCount/online))
+		return chain.getSortition(chain.getProposerData(), threshold)
 	}
 
 	return false, common.Hash{}, nil
