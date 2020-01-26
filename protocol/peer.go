@@ -70,14 +70,24 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 }
 
 func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
+	timer := time.NewTimer(time.Second * 20)
+	defer timer.Stop()
 	if highPriority {
 		select {
 		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
+		case <-timer.C:
+			err := errors.New("TIMEOUT while sending message (high priority)")
+			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.highPriorityRequests))
+			p.disconnect()
 		case <-p.finished:
 		}
 	} else {
 		select {
 		case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
+		case <-timer.C:
+			err := errors.New("TIMEOUT while sending message")
+			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.queuedRequests))
+			p.disconnect()
 		case <-p.finished:
 		}
 	}
@@ -88,10 +98,27 @@ func (p *protoPeer) broadcast() {
 	send := func(request *request) error {
 		msg := makeMsg(request.msgcode, request.data)
 
-		if err := p.rw.WriteMsg(msg); err != nil {
-			p.log.Error(err.Error())
+		ch := make(chan error, 1)
+		timer := time.NewTimer(time.Second * 20)
+		defer timer.Stop()
+		go func() {
+			if err := p.rw.WriteMsg(msg); err != nil {
+				ch <- err
+			}
+			ch <- nil
+		}()
+		select {
+		case err := <-ch:
+			if err != nil {
+				p.log.Error("error while writing to stream", "err", err)
+				return err
+			}
+		case <-timer.C:
+			err := errors.New("TIMEOUT while writing to stream")
+			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String())
 			return err
 		}
+
 		p.metrics.outcomeMessage(&Msg{request.msgcode, msg})
 		return nil
 	}
@@ -200,8 +227,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 		return nil, err
 	}
 	result := new(Msg)
-	if err := rlp.DecodeBytes(msg, result)
-		err != nil {
+	if err := rlp.DecodeBytes(msg, result); err != nil {
 		return nil, err
 	}
 	p.metrics.incomeMessage(result)
