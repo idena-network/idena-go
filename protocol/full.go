@@ -81,11 +81,11 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 			return b.Header.Height(), err
 		} else {
 
-			if fs.targetHeight-b.Header.Height() <= FlushToDiskLastStates {
+			/*if fs.targetHeight-b.Header.Height() <= FlushToDiskLastStates {
 				if err := fs.appState.UseDefaultTree(); err != nil {
 					return block.Height(), errors.Wrap(err, "cannot switch state tree to defaults")
 				}
-			}
+			}*/
 			if err := fs.chain.AddBlock(block, checkState); err != nil {
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
 					return block.Height(), err
@@ -109,19 +109,19 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 }
 
 func (fs *fullSync) preConsuming(head *types.Header) (uint64, error) {
-	if fs.targetHeight-head.Height() > FlushToDiskLastStates {
+	/*if fs.targetHeight-head.Height() > FlushToDiskLastStates {
 		fs.log.Info("switch sync tree to fast version")
 		if err := fs.appState.UseSyncTree(); err != nil {
 			return 0, errors.Wrap(err, "cannot switch state tree to sync tree")
 		}
-	}
+	}*/
 	return head.Height() + 1, nil
 }
 
 func (fs *fullSync) postConsuming() error {
-	if err := fs.appState.UseDefaultTree(); err != nil {
+	/*if err := fs.appState.UseDefaultTree(); err != nil {
 		return err
-	}
+	}*/
 	if len(fs.deferredHeaders) > 0 {
 		fs.log.Warn(fmt.Sprintf("All blocks was consumed but last headers have not been added to chain"))
 	}
