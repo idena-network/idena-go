@@ -56,7 +56,7 @@ type stateApprovedIdentity struct {
 type stateGlobal struct {
 	data Global
 
-	onDirty func() // Callback method to mark a state object newly dirty
+	onDirty func(withEpoch bool) // Callback method to mark a state object newly dirty
 }
 
 type ValidationPeriod uint32
@@ -137,7 +137,7 @@ type ApprovedIdentity struct {
 }
 
 // newAccountObject creates a state object.
-func newAccountObject(db *StateDB, address common.Address, data Account, onDirty func(addr common.Address)) *stateAccount {
+func newAccountObject(address common.Address, data Account, onDirty func(addr common.Address)) *stateAccount {
 	if data.Balance == nil {
 		data.Balance = new(big.Int)
 	}
@@ -150,7 +150,7 @@ func newAccountObject(db *StateDB, address common.Address, data Account, onDirty
 }
 
 // newAccountObject creates a state object.
-func newIdentityObject(db *StateDB, address common.Address, data Identity, onDirty func(addr common.Address)) *stateIdentity {
+func newIdentityObject(address common.Address, data Identity, onDirty func(addr common.Address)) *stateIdentity {
 
 	return &stateIdentity{
 		address: address,
@@ -160,14 +160,14 @@ func newIdentityObject(db *StateDB, address common.Address, data Identity, onDir
 }
 
 // newGlobalObject creates a global state object.
-func newGlobalObject(db *StateDB, data Global, onDirty func()) *stateGlobal {
+func newGlobalObject(data Global, onDirty func(withEpoch bool)) *stateGlobal {
 
 	return &stateGlobal{
 		data:    data,
 		onDirty: onDirty,
 	}
 }
-func newApprovedIdentityObject(db *IdentityStateDB, address common.Address, data ApprovedIdentity, onDirty func(addr common.Address)) *stateApprovedIdentity {
+func newApprovedIdentityObject(address common.Address, data ApprovedIdentity, onDirty func(addr common.Address)) *stateApprovedIdentity {
 	return &stateApprovedIdentity{
 		address: address,
 		data:    data,
@@ -219,14 +219,11 @@ func (s *stateAccount) setBalance(amount *big.Int) {
 		s.data.Balance = new(big.Int)
 	}
 	s.data.Balance = amount
-	if s.onDirty != nil {
-		s.onDirty(s.Address())
-		s.onDirty = nil
-	}
+	s.touch()
 }
 
 func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) *stateAccount {
-	stateObject := newAccountObject(db, s.address, s.data, onDirty)
+	stateObject := newAccountObject(s.address, s.data, onDirty)
 	stateObject.deleted = s.deleted
 	return stateObject
 }
@@ -505,7 +502,7 @@ func (s *stateGlobal) Epoch() uint16 {
 
 func (s *stateGlobal) IncEpoch() {
 	s.data.Epoch++
-	s.touch()
+	s.touch(true)
 }
 
 func (s *stateGlobal) VrfProposerThreshold() float64 {
@@ -518,7 +515,7 @@ func (s *stateGlobal) VrfProposerThresholdRaw() uint64 {
 
 func (s *stateGlobal) SetVrfProposerThreshold(value float64) {
 	s.data.VrfProposerThreshold = math2.Float64bits(value)
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) AddBlockBit(empty bool) {
@@ -530,7 +527,7 @@ func (s *stateGlobal) AddBlockBit(empty bool) {
 		s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, 0, 1)
 	}
 	s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, EmptyBlocksBitsSize, 0)
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) EmptyBlocksRatio() float64 {
@@ -553,16 +550,16 @@ func (s *stateGlobal) LastSnapshot() uint64 {
 
 func (s *stateGlobal) SetLastSnapshot(height uint64) {
 	s.data.LastSnapshot = height
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) ValidationPeriod() ValidationPeriod {
 	return s.data.ValidationPeriod
 }
 
-func (s *stateGlobal) touch() {
+func (s *stateGlobal) touch(withEpoch bool) {
 	if s.onDirty != nil {
-		s.onDirty()
+		s.onDirty(withEpoch)
 	}
 }
 
@@ -572,17 +569,17 @@ func (s *stateGlobal) NextValidationTime() *big.Int {
 
 func (s *stateGlobal) SetNextValidationTime(unix int64) {
 	s.data.NextValidationTime = big.NewInt(unix)
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) SetValidationPeriod(period ValidationPeriod) {
 	s.data.ValidationPeriod = period
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) SetGodAddress(godAddress common.Address) {
 	s.data.GodAddress = godAddress
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) GodAddress() common.Address {
@@ -591,7 +588,7 @@ func (s *stateGlobal) GodAddress() common.Address {
 
 func (s *stateGlobal) SetFlipWordsSeed(seed types.Seed) {
 	s.data.WordsSeed = seed
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) FlipWordsSeed() types.Seed {
@@ -600,12 +597,12 @@ func (s *stateGlobal) FlipWordsSeed() types.Seed {
 
 func (s *stateGlobal) SetEpoch(epoch uint16) {
 	s.data.Epoch = epoch
-	s.touch()
+	s.touch(true)
 }
 
 func (s *stateGlobal) SetEpochBlock(height uint64) {
 	s.data.EpochBlock = height
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) EpochBlock() uint64 {
@@ -614,7 +611,7 @@ func (s *stateGlobal) EpochBlock() uint64 {
 
 func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
 	s.data.FeePerByte = fee
-	s.touch()
+	s.touch(false)
 }
 
 func (s *stateGlobal) FeePerByte() *big.Int {
