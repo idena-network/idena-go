@@ -192,16 +192,16 @@ func (m *ConnManager) AddConnection(conn network.Conn) {
 
 		if m.host.Network().Connectedness(id) == network.Connected {
 			m.connMutex.Lock()
-			defer m.connMutex.Unlock()
 			m.activeConnections[id] = conn
+			m.connMutex.Unlock()
 		}
 	}()
 }
 
 func (m *ConnManager) RemoveConnection(conn network.Conn) {
 	m.connMutex.Lock()
-	defer m.connMutex.Unlock()
 	delete(m.activeConnections, conn.RemotePeer())
+	m.connMutex.Unlock()
 }
 
 func (m *ConnManager) CanAcceptStream() bool {
