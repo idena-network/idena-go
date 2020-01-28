@@ -102,11 +102,7 @@ func (p *protoPeer) broadcast() {
 		timer := time.NewTimer(time.Second * 20)
 		defer timer.Stop()
 		go func() {
-			if err := p.rw.WriteMsg(msg); err != nil {
-				ch <- err
-			} else {
-				ch <- nil
-			}
+			ch <- p.rw.WriteMsg(msg)
 		}()
 		select {
 		case err := <-ch:
