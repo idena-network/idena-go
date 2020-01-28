@@ -183,10 +183,11 @@ func MakeConfig(ctx *cli.Context) (*Config, error) {
 
 func applyProfile(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
-		cfg.P2P.MaxPeers = LowPowerMaxPeers
-		cfg.IpfsConf.LowWater = 5
+		cfg.P2P.MaxInboundPeers = LowPowerMaxInboundPeers
+		cfg.P2P.MaxOutboundPeers = LowPowerMaxOutboundPeers
+		cfg.IpfsConf.LowWater = 8
 		cfg.IpfsConf.HighWater = 10
-		cfg.IpfsConf.GracePeriod = "1m0s"
+		cfg.IpfsConf.GracePeriod = "30s"
 		cfg.IpfsConf.ReproviderInterval = "0"
 		cfg.IpfsConf.Routing = "dhtclient"
 	} else {
@@ -225,8 +226,9 @@ func getDefaultConfig(dataDir string) *Config {
 		DataDir: dataDir,
 		Network: 0x1, // testnet
 		P2P: P2P{
-			MaxPeers:       DefaultMaxPeers,
-			CollectMetrics: false,
+			MaxInboundPeers:  DefaultMaxInboundPeers,
+			MaxOutboundPeers: DefaultMaxOutboundPeers,
+			CollectMetrics:   false,
 		},
 		Consensus: GetDefaultConsensusConfig(),
 		RPC:       rpc.GetDefaultRPCConfig(DefaultRpcHost, DefaultRpcPort),
