@@ -72,6 +72,7 @@ type StateDB struct {
 
 	stateGlobal      *stateGlobal
 	stateGlobalDirty bool
+	epochDirty       bool
 
 	log  log.Logger
 	lock sync.Mutex
@@ -517,7 +518,7 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 		return nil
 	}
 	// Insert into the live set.
-	obj := newAccountObject(s, addr, data, s.MarkStateAccountObjectDirty)
+	obj := newAccountObject(addr, data, s.MarkStateAccountObjectDirty)
 	s.setStateAccountObject(obj)
 	return obj
 }
@@ -543,7 +544,7 @@ func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdent
 		return nil
 	}
 	// Insert into the live set.
-	obj := newIdentityObject(s, addr, data, s.MarkStateIdentityObjectDirty)
+	obj := newIdentityObject(addr, data, s.MarkStateIdentityObjectDirty)
 	s.setStateIdentityObject(obj)
 	return obj
 }
@@ -566,7 +567,7 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 		return nil
 	}
 	// Insert into the live set.
-	obj := newGlobalObject(s, data, s.MarkStateGlobalObjectDirty)
+	obj := newGlobalObject(data, s.MarkStateGlobalObjectDirty)
 	s.setStateGlobalObject(obj)
 	return obj
 }
@@ -639,16 +640,17 @@ func (s *StateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 
 // MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
-func (s *StateDB) MarkStateGlobalObjectDirty() {
+func (s *StateDB) MarkStateGlobalObjectDirty(withEpoch bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.stateGlobalDirty = true
+	s.epochDirty = s.epochDirty || withEpoch
 }
 
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
-	newobj = newAccountObject(s, addr, Account{}, s.MarkStateAccountObjectDirty)
+	newobj = newAccountObject(addr, Account{}, s.MarkStateAccountObjectDirty)
 	newobj.setNonce(0) // sets the object to dirty
 	s.setStateAccountObject(newobj)
 	return newobj, prev
@@ -656,15 +658,15 @@ func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount
 
 func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdentity) {
 	prev = s.getStateIdentity(addr)
-	newobj = newIdentityObject(s, addr, Identity{}, s.MarkStateIdentityObjectDirty)
+	newobj = newIdentityObject(addr, Identity{}, s.MarkStateIdentityObjectDirty)
 	newobj.touch()
 	s.setStateIdentityObject(newobj)
 	return newobj, prev
 }
 
 func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
-	stateObject = newGlobalObject(s, Global{}, s.MarkStateGlobalObjectDirty)
-	stateObject.touch()
+	stateObject = newGlobalObject(Global{}, s.MarkStateGlobalObjectDirty)
+	stateObject.touch(true)
 	s.setStateGlobalObject(stateObject)
 	return stateObject
 }
@@ -726,12 +728,14 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		delete(s.stateIdentitiesDirty, addr)
 	}
 
-	// if epoch has changed
 	if s.stateGlobalDirty {
-		currentEpoch := s.Epoch()
 		s.updateStateGlobalObject(s.stateGlobal)
 		s.stateGlobalDirty = false
+	}
 
+	// if epoch has changed
+	if s.epochDirty {
+		currentEpoch := s.Epoch()
 		// remove account if epoch is lower
 		s.IterateAccounts(func(key []byte, value []byte) bool {
 			if key == nil {
@@ -746,12 +750,12 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 			}
 
 			if data.Epoch < currentEpoch && data.Balance.Sign() == 0 {
-				s.deleteStateAccountObject(newAccountObject(s, addr, data, s.MarkStateAccountObjectDirty))
+				s.deleteStateAccountObject(newAccountObject(addr, data, s.MarkStateAccountObjectDirty))
 			}
 
 			return false
 		})
-
+		s.epochDirty = false
 	}
 }
 
