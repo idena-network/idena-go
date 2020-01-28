@@ -70,7 +70,7 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 }
 
 func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
-	timer := time.NewTimer(time.Second * 20)
+	timer := time.NewTimer(time.Minute)
 	defer timer.Stop()
 	if highPriority {
 		select {
@@ -99,7 +99,7 @@ func (p *protoPeer) broadcast() {
 		msg := makeMsg(request.msgcode, request.data)
 
 		ch := make(chan error, 1)
-		timer := time.NewTimer(time.Second * 20)
+		timer := time.NewTimer(time.Minute)
 		defer timer.Stop()
 		go func() {
 			ch <- p.rw.WriteMsg(msg)
