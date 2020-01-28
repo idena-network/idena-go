@@ -108,7 +108,7 @@ func (p *protoPeer) broadcast() {
 		case err := <-ch:
 			if err != nil {
 				p.log.Error("error while writing to stream", "err", err)
-        p.transportErr = err
+				p.transportErr = err
 				return err
 			}
 		case <-timer.C:
