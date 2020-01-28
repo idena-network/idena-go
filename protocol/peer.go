@@ -104,8 +104,9 @@ func (p *protoPeer) broadcast() {
 		go func() {
 			if err := p.rw.WriteMsg(msg); err != nil {
 				ch <- err
+			} else {
+				ch <- nil
 			}
-			ch <- nil
 		}()
 		select {
 		case err := <-ch:
