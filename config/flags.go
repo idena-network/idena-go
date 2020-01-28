@@ -14,11 +14,11 @@ const (
 	DefaultSwarmKey         = "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"
 	DefaultForceFullSync    = 100
 	DefaultStoreCertRange   = 2000
-	DefaultMaxInboundPeers  = 9
+	DefaultMaxInboundPeers  = 12
 	DefaultMaxOutboundPeers = 6
 	DefaultBurntTxRange     = 180
 
-	LowPowerMaxInboundPeers  = 5
+	LowPowerMaxInboundPeers  = 6
 	LowPowerMaxOutboundPeers = 3
 )
 

@@ -173,7 +173,10 @@ func (m *ConnManager) filterUselessConnections(conns []network.Conn) []network.C
 		if resetTime, ok := m.resetTimes[id]; ok && time.Now().UTC().Sub(resetTime) < ReconnectAfterResetTimeout {
 			continue
 		}
-		result = append(result, c)
+
+		if protos, err := m.host.Peerstore().SupportsProtocols(id, string(IdenaProtocol)); err == nil && len(protos) > 0 {
+			result = append(result, c)
+		}
 	}
 	return result
 }
@@ -187,12 +190,10 @@ func (m *ConnManager) AddConnection(conn network.Conn) {
 		}
 		time.Sleep(time.Second * 5)
 
-		if protos, err := m.host.Peerstore().SupportsProtocols(id, string(IdenaProtocol)); err == nil && len(protos) > 0 {
-			if m.host.Network().Connectedness(id) == network.Connected {
-				m.connMutex.Lock()
-				defer m.connMutex.Unlock()
-				m.activeConnections[id] = conn
-			}
+		if m.host.Network().Connectedness(id) == network.Connected {
+			m.connMutex.Lock()
+			defer m.connMutex.Unlock()
+			m.activeConnections[id] = conn
 		}
 	}()
 }

@@ -187,7 +187,7 @@ func applyProfile(ctx *cli.Context, cfg *Config) {
 		cfg.P2P.MaxOutboundPeers = LowPowerMaxOutboundPeers
 		cfg.IpfsConf.LowWater = 8
 		cfg.IpfsConf.HighWater = 10
-		cfg.IpfsConf.GracePeriod = "5s"
+		cfg.IpfsConf.GracePeriod = "30s"
 		cfg.IpfsConf.ReproviderInterval = "0"
 		cfg.IpfsConf.Routing = "dhtclient"
 	} else {

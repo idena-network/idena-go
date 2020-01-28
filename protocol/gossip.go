@@ -400,6 +400,7 @@ func (h *IdenaGossipHandler) dialPeers() {
 			}
 			stream, err := h.connManager.DialRandomPeer()
 			if err != nil {
+				h.log.Error("dial failed", "err", err)
 				return
 			}
 			peer := h.peers.Peer(stream.Conn().RemotePeer())
