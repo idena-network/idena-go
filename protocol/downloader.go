@@ -152,14 +152,15 @@ func (d *Downloader) Load() {
 
 	knownHeights := d.pm.GetKnownHeights()
 loop:
-	for from <= toHeight {
+	for from <= toHeight && len(knownHeights) > 0 {
 		for peer, height := range knownHeights {
 			if height < from {
+				delete(knownHeights, peer)
 				continue
 			}
 			to := math.Min(from+applier.batchSize(), math.Min(toHeight, height))
 			if batch, err := d.pm.GetBlocksRange(peer, from, to); err != nil {
-				knownHeights[peer] = 0
+				delete(knownHeights, peer)
 				continue
 			} else {
 				select {
