@@ -203,9 +203,9 @@ func (api *BlockchainApi) FeePerByte() *big.Int {
 	return api.baseApi.getAppState().State.FeePerByte()
 }
 
-func (api *BlockchainApi) SendRawTX(bytesTX hexutil.Bytes) (common.Hash, error) {
+func (api *BlockchainApi) SendRawTx(bytesTx hexutil.Bytes) (common.Hash, error) {
 	var tx types.Transaction
-	if err := rlp.DecodeBytes(bytesTX, &tx); err != nil {
+	if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
 		return common.Hash{}, err
 	}
 
