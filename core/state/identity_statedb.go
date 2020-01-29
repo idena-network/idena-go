@@ -194,7 +194,7 @@ func (s *IdentityStateDB) GetOrNewIdentityObject(addr common.Address) *stateAppr
 
 func (s *IdentityStateDB) createIdentity(addr common.Address) (newobj, prev *stateApprovedIdentity) {
 	prev = s.getStateIdentity(addr)
-	newobj = newApprovedIdentityObject(s, addr, ApprovedIdentity{}, s.MarkStateIdentityObjectDirty)
+	newobj = newApprovedIdentityObject(addr, ApprovedIdentity{}, s.MarkStateIdentityObjectDirty)
 	newobj.touch()
 	s.setStateIdentityObject(newobj)
 	return newobj, prev
@@ -221,7 +221,7 @@ func (s *IdentityStateDB) getStateIdentity(addr common.Address) (stateObject *st
 		return nil
 	}
 	// Insert into the live set.
-	obj := newApprovedIdentityObject(s, addr, data, s.MarkStateIdentityObjectDirty)
+	obj := newApprovedIdentityObject(addr, data, s.MarkStateIdentityObjectDirty)
 	s.setStateIdentityObject(obj)
 	return obj
 }

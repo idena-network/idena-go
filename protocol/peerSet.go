@@ -3,28 +3,25 @@ package protocol
 import (
 	"errors"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
-	"math/rand"
 	"sync"
 )
 
 var (
-	errClosed            = errors.New("protoPeer set is closed")
-	errAlreadyRegistered = errors.New("protoPeer is already registered")
-	errNotRegistered     = errors.New("protoPeer is not registered")
+	errClosed            = errors.New("proto set is closed")
+	errAlreadyRegistered = errors.New("proto is already registered")
+	errNotRegistered     = errors.New("proto is not registered")
 )
 
 type peerSet struct {
-	peers    map[peer2.ID]*protoPeer
-	lock     sync.RWMutex
-	closed   bool
-	maxPeers int
+	peers  map[peer2.ID]*protoPeer
+	lock   sync.RWMutex
+	closed bool
 }
 
 // newPeerSet creates a new peer set to track the active participants.
-func newPeerSet(maxPeers int) *peerSet {
+func newPeerSet() *peerSet {
 	return &peerSet{
-		peers:    make(map[peer2.ID]*protoPeer),
-		maxPeers: maxPeers,
+		peers: make(map[peer2.ID]*protoPeer),
 	}
 }
 
@@ -92,15 +89,6 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPrior
 	peers := ps.Peers()
 	key := msgKey(payload)
 
-	if len(peers) > ps.maxPeers && !highPriority {
-		indexes := rand.Perm(len(peers))[:ps.maxPeers]
-		for _, idx := range indexes {
-			peers[idx].markKey(key)
-			peers[idx].sendMsg(msgcode, payload, highPriority)
-		}
-		return
-	}
-
 	for _, p := range peers {
 		if _, ok := p.msgCache.Get(key); !ok {
 			p.markKey(key)
@@ -111,13 +99,6 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPrior
 
 func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 	peers := ps.Peers()
-	if len(peers) > ps.maxPeers {
-		indexes := rand.Perm(len(peers))[:ps.maxPeers]
-		for _, idx := range indexes {
-			peers[idx].sendMsg(msgcode, payload, false)
-		}
-		return
-	}
 
 	for _, p := range peers {
 		p.sendMsg(msgcode, payload, false)

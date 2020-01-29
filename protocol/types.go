@@ -12,9 +12,9 @@ const (
 	DecodeErr                  = 1
 	MaxTimestampLagSeconds     = 15
 	MaxBannedPeers             = 500000
-	IdenaProtocolWeight        = 5
-	ReconnectAfterDiscTimeout  = time.Minute * 3
-	ReconnectAfterResetTimeout = time.Minute * 1
+	IdenaProtocolWeight        = 25
+	ReconnectAfterDiscTimeout  = time.Minute * 1
+	ReconnectAfterResetTimeout = time.Minute * 3
 	MaxMempoolSyncs            = 10
 	ExtraSyncThreshold         = 0.9
 )

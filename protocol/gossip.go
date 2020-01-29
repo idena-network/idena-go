@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/coreos/go-semver/semver"
-	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -20,11 +19,8 @@ import (
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-yamux"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
-	"github.com/rcrowley/go-metrics"
-	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,16 +54,12 @@ type IdenaGossipHandler struct {
 	bus                 eventbus.Bus
 	wrongTime           bool
 	appVersion          string
-	bannedPeers         mapset.Set
-	refreshCh           chan struct{}
-	log                 log.Logger
-	mutex               sync.Mutex
-	filteredConnections []network.Conn
-	pendingPeers        map[peer.ID]struct{}
-	discTimes           map[peer.ID]time.Time
-	resetTimes          map[peer.ID]time.Time
-	discMutex           sync.RWMutex
-	metrics             *metricCollector
+
+	log          log.Logger
+	mutex        sync.Mutex
+	pendingPeers map[peer.ID]struct{}
+	metrics      *metricCollector
+	connManager  *ConnManager
 }
 
 type metricCollector struct {
@@ -80,7 +72,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		host:                host,
 		cfg:                 cfg,
 		bcn:                 chain,
-		peers:               newPeerSet(cfg.MaxPeers),
+		peers:               newPeerSet(),
 		incomeBlocks:        make(chan *types.Block, 1000),
 		incomeBatches:       &sync.Map{},
 		proposals:           proposals,
@@ -93,115 +85,25 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		bus:                 bus,
 		flipKeyPool:         flipKeyPool,
 		appVersion:          appVersion,
-		bannedPeers:         mapset.NewSet(),
-		refreshCh:           make(chan struct{}, 1),
 		log:                 log.New(),
 		pendingPeers:        make(map[peer.ID]struct{}),
-		discTimes:           make(map[peer.ID]time.Time),
-		resetTimes:          make(map[peer.ID]time.Time),
 		metrics:             new(metricCollector),
+		connManager:         NewConnManager(host, cfg),
 	}
 	handler.registerMetrics()
 	return handler
 }
 
-func (h *IdenaGossipHandler) registerMetrics() {
-
-	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
-	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
-
-	msgCodeToString := func(code uint64) string {
-		switch code {
-		case Handshake:
-			return "handshake"
-		case ProposeBlock:
-			return "proposeBlock"
-		case ProposeProof:
-			return "proposeProof"
-		case Vote:
-			return "vote"
-		case NewTx:
-			return "newTx"
-		case GetBlockByHash:
-			return "getBlockByHash"
-
-		case GetBlocksRange:
-			return "getBlocksRange"
-		case BlocksRange:
-			return "glockRange"
-		case FlipBody:
-			return "flipBody"
-		case FlipKey:
-			return "flipKey"
-		case SnapshotManifest:
-			return "snapshotManifest"
-
-		case PushFlipCid:
-			return "pushFlipCid"
-		case PullFlip:
-			return "pullFlip"
-		case GetForkBlockRange:
-			return "getForkBlockRange"
-		case FlipKeysPackage:
-			return "flipKeysPackage"
-		case FlipKeysPackageCid:
-			return "flipKeysPackageCid"
-		default:
-			return fmt.Sprintf("unknown code %v", code)
-		}
-	}
-
-	h.metrics.incomeMessage = func(msg *Msg) {
-		if !h.cfg.CollectMetrics {
-			return
-		}
-		collector := metrics.GetOrRegisterCounter("bytes_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		collector.Inc(int64(len(msg.Payload)))
-
-		counter := metrics.GetOrRegisterCounter("msg_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		counter.Inc(1)
-
-		totalReceived.Inc(int64(len(msg.Payload)))
-	}
-
-	h.metrics.outcomeMessage = func(msg *Msg) {
-		if !h.cfg.CollectMetrics {
-			return
-		}
-		collector := metrics.GetOrRegisterCounter("bytes_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		collector.Inc(int64(len(msg.Payload)))
-
-		counter := metrics.GetOrRegisterCounter("msg_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		counter.Inc(1)
-
-		totalSent.Inc(int64(len(msg.Payload)))
-	}
-
-	if h.cfg.CollectMetrics {
-		go metrics.Log(metrics.DefaultRegistry, time.Second*20, metricsLog{h.log})
-	}
-}
-
 func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
-		h.host.SetStreamHandler(IdenaProtocol, h.streamHandler)
-		notifiee := &idenaNotifiee{
-			handler: h,
+		h.host.SetStreamHandler(IdenaProtocol, h.acceptStream)
+		notifiee := &notifiee{
+			connManager: h.connManager,
 		}
 		h.host.Network().Notify(notifiee)
 	}
 	setHandler()
-
-	go func() {
-		ticker := time.NewTicker(time.Second * 15)
-		for {
-			select {
-			case <-ticker.C:
-				h.refreshConnections()
-			}
-		}
-	}()
 
 	h.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
@@ -227,6 +129,21 @@ func (h *IdenaGossipHandler) Start() {
 
 	go h.broadcastLoop()
 	go h.checkTime()
+	go h.background()
+}
+
+func (h *IdenaGossipHandler) background() {
+	dialTicker := time.NewTicker(time.Second * 15)
+	renewTicker := time.NewTimer(time.Minute * 5)
+
+	for {
+		select {
+		case <-dialTicker.C:
+			h.dialPeers()
+		case <-renewTicker.C:
+			h.renewPeers()
+		}
+	}
 }
 
 func (h *IdenaGossipHandler) checkTime() {
@@ -234,10 +151,6 @@ func (h *IdenaGossipHandler) checkTime() {
 		h.wrongTime = !checkClockDrift()
 		time.Sleep(time.Minute)
 	}
-}
-
-func (h *IdenaGossipHandler) WrongTime() bool {
-	return h.wrongTime
 }
 
 func (h *IdenaGossipHandler) handle(p *protoPeer) error {
@@ -411,23 +324,13 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 	return nil
 }
 
-func (h *IdenaGossipHandler) streamHandler(stream network.Stream) {
-	id := stream.Conn().RemotePeer()
-	if h.bannedPeers.Contains(id) {
-		stream.Reset()
-		return
+func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
+	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && h.connManager.CanAcceptStream() {
+		h.runPeer(stream, true)
 	}
-	h.discMutex.RLock()
-	if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
-		h.discMutex.RUnlock()
-		stream.Reset()
-		return
-	}
-	h.discMutex.RUnlock()
-	h.runPeer(stream)
 }
 
-func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) {
+func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
 	if p := h.peers.Peer(peerId); p != nil {
@@ -457,6 +360,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 		return nil, err
 	}
 	h.peers.Register(peer)
+	h.connManager.Connected(peer.id, inbound)
 	h.host.ConnManager().TagPeer(peer.id, "idena", IdenaProtocolWeight)
 
 	go h.runListening(peer)
@@ -468,7 +372,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream) (*protoPeer, error) 
 	}
 	h.sendManifest(peer)
 
-	h.log.Debug("Peer connected", "id", peer.id.Pretty())
+	h.log.Info("Peer connected", "id", peer.id.Pretty(), "inbound", inbound)
 	return peer, nil
 }
 
@@ -482,129 +386,58 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	}
 	close(peer.term)
 	peer.disconnect()
-	h.log.Debug("Peer disconnected", "id", peerId.Pretty())
+	h.connManager.Disconnected(peerId, peer.transportErr)
 	h.host.ConnManager().UntagPeer(peerId, "idena")
-	h.discMutex.Lock()
-	h.discTimes[peerId] = time.Now().UTC()
-	if peer.readErr == yamux.ErrConnectionReset {
-		h.resetTimes[peerId] = time.Now().UTC()
-	}
-	h.discMutex.Unlock()
+
+	h.log.Info("Peer disconnected", "id", peerId.Pretty())
 }
 
-func (h *IdenaGossipHandler) findOrOpenStream(conn network.Conn) (network.Stream, error) {
-	streams := conn.GetStreams()
-
-	var idenaStream network.Stream
-	for _, s := range streams {
-		if s.Protocol() == IdenaProtocol {
-			idenaStream = s
-		}
-	}
-	if idenaStream != nil {
-		return idenaStream, nil
-	}
-
-	h.log.Trace("try to open a new stream", "peer", conn.RemotePeer())
-	return h.newStream(conn.RemotePeer())
-}
-
-func (h *IdenaGossipHandler) canOpenStream() bool {
-	if h.peers.Len() < h.cfg.MaxPeers {
-		return true
-	}
-	//randomly open stream to ~10% of connected nodes
-	return rand.Float32() > 0.9
-}
-
-func (h *IdenaGossipHandler) refreshPeers() {
+func (h *IdenaGossipHandler) dialPeers() {
 	go func() {
-		for _, c := range h.filteredConnections {
-			if protos, err := h.host.Peerstore().SupportsProtocols(c.RemotePeer(), string(IdenaProtocol)); err != nil || len(protos) == 0 {
-				continue
+		for {
+			if !h.connManager.CanDial() {
+				return
 			}
-			if !h.canOpenStream() {
-				continue
-			}
-			idenaStream, err := h.findOrOpenStream(c)
+			stream, err := h.connManager.DialRandomPeer()
 			if err != nil {
-				h.log.Debug("failed to open a new stream", "err", err)
+				h.log.Error("dial failed", "err", err)
+				return
 			}
-			if idenaStream == nil {
-				continue
-			}
-			peer := h.peers.Peer(idenaStream.Conn().RemotePeer())
+			peer := h.peers.Peer(stream.Conn().RemotePeer())
 			if peer == nil {
-				h.runPeer(idenaStream)
+				h.runPeer(stream, false)
 			}
 		}
 	}()
 }
 
-func (h *IdenaGossipHandler) refreshConnections() {
-
-	go func() {
-		select {
-		case h.refreshCh <- struct{}{}:
-		default:
-			return
+func (h *IdenaGossipHandler) renewPeers() {
+	if !h.connManager.CanDial() {
+		peerId := h.connManager.GetRandomOutboundPeer()
+		peer := h.peers.Peer(peerId)
+		if peer != nil {
+			peer.disconnect()
 		}
-		defer func() {
-			<-h.refreshCh
-		}()
-		h.filteredConnections = h.filterUselessConnections(h.host.Network().Conns())
-		h.refreshPeers()
-	}()
-}
-
-func (h *IdenaGossipHandler) newStream(peerID peer.ID) (network.Stream, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	stream, err := h.host.NewStream(ctx, peerID, IdenaProtocol)
-
-	select {
-	case <-ctx.Done():
-		err = errors.New("timeout while opening idena stream")
-	default:
-		break
-	}
-	cancel()
-	return stream, err
-}
-
-func (h *IdenaGossipHandler) filterUselessConnections(conns []network.Conn) []network.Conn {
-	var result []network.Conn
-	h.discMutex.RLock()
-	defer h.discMutex.RUnlock()
-	for _, c := range conns {
-		id := c.RemotePeer()
-		if h.bannedPeers.Contains(id) {
-			continue
-		}
-		if discTime, ok := h.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
-			continue
-		}
-		if resetTime, ok := h.resetTimes[id]; ok && time.Now().UTC().Sub(resetTime) < ReconnectAfterResetTimeout {
-			continue
-		}
-		result = append(result, c)
 	}
 
-	return result
+	if !h.connManager.CanAcceptStream() {
+		peerId := h.connManager.GetRandomInboundPeer()
+		peer := h.peers.Peer(peerId)
+		if peer != nil {
+			peer.disconnect()
+		}
+	}
 }
 
 func (h *IdenaGossipHandler) BanPeer(peerId peer.ID, reason error) {
-	h.bannedPeers.Add(peerId)
-	if h.bannedPeers.Cardinality() > MaxBannedPeers {
-		h.bannedPeers.Pop()
-	}
+	h.connManager.BanPeer(peerId)
 
 	peer := h.peers.Peer(peerId)
 	if peer != nil {
 		if reason != nil {
 			peer.log.Info("peer has been banned", "reason", reason)
 		}
-		peer.stream.Close()
+		peer.stream.Reset()
 	}
 }
 
@@ -658,6 +491,19 @@ func (h *IdenaGossipHandler) runListening(peer *protoPeer) {
 		if err := h.handle(peer); err != nil {
 			peer.log.Debug("Idena message handling failed", "err", err)
 			return
+		}
+	}
+}
+
+func (h *IdenaGossipHandler) broadcastLoop() {
+	for {
+		select {
+		case tx := <-h.txChan:
+			h.broadcastTx(tx.Tx, tx.Own)
+		case key := <-h.flipKeyChan:
+			h.broadcastFlipKey(key.Key, key.Own)
+		case key := <-h.flipKeysPackageChan:
+			h.broadcastFlipKeysPackage(key.Key, key.Own)
 		}
 	}
 }
@@ -767,18 +613,6 @@ func errResp(code int, format string, v ...interface{}) error {
 	return fmt.Errorf("%v - %v", code, fmt.Sprintf(format, v...))
 }
 
-func (h *IdenaGossipHandler) broadcastLoop() {
-	for {
-		select {
-		case tx := <-h.txChan:
-			h.broadcastTx(tx.Tx, tx.Own)
-		case key := <-h.flipKeyChan:
-			h.broadcastFlipKey(key.Key, key.Own)
-		case key := <-h.flipKeysPackageChan:
-			h.broadcastFlipKeysPackage(key.Key, key.Own)
-		}
-	}
-}
 func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 	h.peers.SendWithFilter(NewTx, tx, own)
 }
@@ -882,34 +716,6 @@ func (h *IdenaGossipHandler) AddPeer(peerId peer.ID, addr string) error {
 	return err
 }
 
-type idenaNotifiee struct {
-	handler *IdenaGossipHandler
-}
-
-func (i *idenaNotifiee) Listen(network.Network, multiaddr.Multiaddr) {
-
-}
-
-func (i *idenaNotifiee) ListenClose(network.Network, multiaddr.Multiaddr) {
-
-}
-
-func (i *idenaNotifiee) Connected(net network.Network, conn network.Conn) {
-}
-
-func (i *idenaNotifiee) Disconnected(net network.Network, conn network.Conn) {
-}
-
-func (i *idenaNotifiee) OpenedStream(net network.Network, conn network.Stream) {
-}
-
-func (i *idenaNotifiee) ClosedStream(net network.Network, stream network.Stream) {
-}
-
-type metricsLog struct {
-	log log.Logger
-}
-
-func (m metricsLog) Printf(format string, v ...interface{}) {
-	log.Info(fmt.Sprintf(format, v...))
+func (h *IdenaGossipHandler) WrongTime() bool {
+	return h.wrongTime
 }
