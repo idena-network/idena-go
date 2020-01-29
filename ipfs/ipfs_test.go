@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
+	"sync/atomic"
 	"testing"
 )
 
@@ -57,4 +58,24 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 
 		require.Equal(data, data2)
 	}
+}
+
+type Tttt struct{
+	cnt uint32
+}
+
+func TestIpfsProxy_Add(t *testing.T) {
+
+	v := new(Tttt)
+
+	update:=func(){
+		new:=atomic.AddUint32(&v.cnt,1)
+		t.Logf("%v", new)
+	}
+
+
+	for i:=0;i<20;i++{
+		go update()
+	}
+
 }

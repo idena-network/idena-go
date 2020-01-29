@@ -78,3 +78,20 @@ type proposeProof struct {
 type flipCid struct {
 	Cid []byte
 }
+
+type pushType uint8
+
+const (
+	pushVote  pushType = 1
+	pushBlock pushType = 2
+	pushProof pushType = 3
+)
+
+type pushPullHash struct {
+	Type pushType
+	Hash common.Hash128
+}
+
+func (h *pushPullHash) String() string {
+	return string(h.Type) + string(h.Hash.Bytes())
+}

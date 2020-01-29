@@ -10,3 +10,10 @@ func Hash(x interface{}) (h [32]byte) {
 	hw.Sum(h[:0])
 	return h
 }
+
+func Hash128(x interface{}) (h [16]byte) {
+	hw := sha3.NewShake128()
+	Encode(hw, x)
+	hw.Read(h[:])
+	return h
+}

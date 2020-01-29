@@ -126,7 +126,6 @@ func (p *protoPeer) broadcast() {
 			delay := time.Duration(rand.Int31n(int32(p.maxDelayMs)))
 			time.Sleep(delay * time.Millisecond)
 		}
-
 		select {
 		case request := <-p.highPriorityRequests:
 			if send(request) != nil {
