@@ -95,6 +95,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 
 func (p *protoPeer) broadcast() {
 	defer close(p.finished)
+	defer p.disconnect()
 	send := func(request *request) error {
 		msg := makeMsg(request.msgcode, request.data)
 
