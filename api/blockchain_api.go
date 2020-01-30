@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/protocol"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -196,6 +197,19 @@ func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transaction
 		Transactions: list,
 		Token:        nil,
 	}
+}
+
+func (api *BlockchainApi) FeePerByte() *big.Int {
+	return api.baseApi.getAppState().State.FeePerByte()
+}
+
+func (api *BlockchainApi) SendRawTx(bytesTx hexutil.Bytes) (common.Hash, error) {
+	var tx types.Transaction
+	if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
+		return common.Hash{}, err
+	}
+
+	return api.baseApi.sendInternalTx(&tx)
 }
 
 func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
