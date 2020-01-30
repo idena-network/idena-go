@@ -545,6 +545,8 @@ github.com/libp2p/go-libp2p-peerstore v0.1.4 h1:d23fvq5oYMJ/lkkbO4oTwBp/JP+I/1m5
 github.com/libp2p/go-libp2p-peerstore v0.1.4/go.mod h1:+4BDbDiiKf4PzpANZDAT+knVdLxvqh7hXOujessqdzs=
 github.com/libp2p/go-libp2p-pnet v0.1.0 h1:kRUES28dktfnHNIRW4Ro78F7rKBHBiw5MJpl0ikrLIA=
 github.com/libp2p/go-libp2p-pnet v0.1.0/go.mod h1:ZkyZw3d0ZFOex71halXRihWf9WH/j3OevcJdTmD0lyE=
+github.com/libp2p/go-libp2p-pnet v0.1.1-0.20200129224249-a25f8a99dcf4 h1:XpNCylswMansp0j0/fRqeNGy2m1gdmpDZ07xI/Zayik=
+github.com/libp2p/go-libp2p-pnet v0.1.1-0.20200129224249-a25f8a99dcf4/go.mod h1:+YGst7usPvrcWQxBN1spd9Lg8WkPoOqNnoMqHYWNZsw=
 github.com/libp2p/go-libp2p-protocol v0.0.1 h1:+zkEmZ2yFDi5adpVE3t9dqh/N9TbpFWywowzeEzBbLM=
 github.com/libp2p/go-libp2p-protocol v0.0.1/go.mod h1:Af9n4PiruirSDjHycM1QuiMi/1VZNHYcK8cLgFJLZ4s=
 github.com/libp2p/go-libp2p-protocol v0.1.0 h1:HdqhEyhg0ToCaxgMhnOmUO8snQtt/kQlcjVk3UoJU3c=
