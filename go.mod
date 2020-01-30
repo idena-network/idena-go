@@ -26,6 +26,7 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.2.5
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	github.com/libp2p/go-libp2p-core v0.3.0
+	github.com/libp2p/go-libp2p-pnet v0.1.1-0.20200129224249-a25f8a99dcf4 // indirect
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.2.3
 	github.com/mattn/go-isatty v0.0.9 // indirect
