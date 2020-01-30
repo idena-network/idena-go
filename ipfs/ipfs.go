@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	core2 "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -105,6 +106,7 @@ type ipfsProxy struct {
 	lastGcCancel         time.Time
 	gcCancel             context.CancelFunc
 	gcMutex              sync.RWMutex
+	p                    map[peer.ID]string
 }
 
 func (p *ipfsProxy) Host() core2.Host {
@@ -147,6 +149,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 		lastPeersUpdatedTime: time.Now().UTC(),
 		nilNode:              nilNode,
 		bus:                  bus,
+		p:                    make(map[peer.ID]string),
 	}
 
 	go p.watchPeers()
@@ -251,10 +254,22 @@ func (p *ipfsProxy) changePort() {
 	}
 }
 
+func (p *ipfsProxy) writeToFile() {
+	f, err := os.OpenFile("peers.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for key, value := range p.p {
+		f.WriteString(fmt.Sprintf("%v:%v\n", key.String(), value))
+	}
+}
+
 func (p *ipfsProxy) watchPeers() {
 	api, _ := coreapi.NewCoreAPI(p.node)
 	logger := log.New("component", "ipfs watch")
 
+	idx := 1
 	for {
 		if !p.cfg.StaticPort && time.Now().UTC().Sub(p.lastPeersUpdatedTime) > ZeroPeersTimeout {
 			p.changePort()
@@ -268,8 +283,17 @@ func (p *ipfsProxy) watchPeers() {
 		if len(info) > 0 {
 			p.lastPeersUpdatedTime = time.Now().UTC()
 		}
+
+		for _, item := range info {
+			p.p[item.ID()] = item.Address().String()
+		}
+
+		if idx%30 == 0 {
+			p.writeToFile()
+		}
 		logger.Trace("last time with non-peers", "time", p.lastPeersUpdatedTime, "peers count", len(info))
 		time.Sleep(time.Second * 10)
+		idx++
 	}
 }
 
