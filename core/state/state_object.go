@@ -59,6 +59,11 @@ type stateGlobal struct {
 
 	onDirty func(withEpoch bool) // Callback method to mark a state object newly dirty
 }
+type stateStatusSwitch struct {
+	data IdentityStatusSwitch
+
+	onDirty func()
+}
 
 type ValidationPeriod uint32
 
@@ -69,6 +74,10 @@ const (
 	LongSessionPeriod      ValidationPeriod = 3
 	AfterLongSessionPeriod ValidationPeriod = 4
 )
+
+type IdentityStatusSwitch struct {
+	Addrs []common.Address
+}
 
 type Global struct {
 	Epoch                uint16
@@ -162,12 +171,19 @@ func newIdentityObject(address common.Address, data Identity, onDirty func(addr 
 
 // newGlobalObject creates a global state object.
 func newGlobalObject(data Global, onDirty func(withEpoch bool)) *stateGlobal {
-
 	return &stateGlobal{
 		data:    data,
 		onDirty: onDirty,
 	}
 }
+
+func newStatusSwitchObject(data IdentityStatusSwitch, onDirty func()) *stateStatusSwitch {
+	return &stateStatusSwitch{
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
 func newApprovedIdentityObject(address common.Address, data ApprovedIdentity, onDirty func(addr common.Address)) *stateApprovedIdentity {
 	return &stateApprovedIdentity{
 		address: address,
@@ -670,4 +686,19 @@ func IsCeremonyCandidate(identity Identity) bool {
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
 		state == Zombie) && identity.HasDoneAllRequiredFlips()
+}
+
+func (s *stateStatusSwitch) Addrs() []common.Address {
+	return s.data.Addrs
+}
+
+func (s *stateStatusSwitch) SetAddrs(addrs []common.Address) {
+	s.data.Addrs = addrs
+	s.touch()
+}
+
+func (s *stateStatusSwitch) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
 }

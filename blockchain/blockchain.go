@@ -326,6 +326,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 
 	chain.applyNewEpoch(appState, block)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock)
+	chain.applyStatusSwitch(appState, block)
 	chain.applyGlobalParams(appState, block)
 	chain.applyNextBlockFee(appState, block)
 	chain.applyVrfProposerThreshold(appState, block)
@@ -750,6 +751,19 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 	appState.State.SetVrfProposerThreshold(newThreshold)
 }
 
+func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *types.Block) {
+	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		return
+	}
+	addrs := appState.State.StatusSwitchAddresses()
+	for _, addr := range addrs {
+		currentStatus := appState.IdentityState.IsOnline(addr)
+		appState.IdentityState.SetOnline(addr, !currentStatus)
+	}
+
+	appState.State.C
+}
+
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
 	return fee.CalculateCost(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
@@ -870,7 +884,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.OnlineStatusTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx {
 			flags |= types.IdentityUpdate
 		}
 	}
@@ -907,6 +921,10 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if block.Header.Flags().HasFlag(types.OfflineCommit) {
+		flags |= types.IdentityUpdate
+	}
+
+	if (flags.HasFlag(types.Snapshot) || block.Height()%50 == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
 
