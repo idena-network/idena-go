@@ -76,7 +76,7 @@ const (
 )
 
 type IdentityStatusSwitch struct {
-	Addrs []common.Address
+	Addrs []common.Address `rlp:"nil"`
 }
 
 type Global struct {
@@ -688,13 +688,43 @@ func IsCeremonyCandidate(identity Identity) bool {
 		state == Zombie) && identity.HasDoneAllRequiredFlips()
 }
 
-func (s *stateStatusSwitch) Addrs() []common.Address {
+// EncodeRLP implements rlp.Encoder.
+func (s *stateStatusSwitch) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
+}
+
+func (s *stateStatusSwitch) Addresses() []common.Address {
 	return s.data.Addrs
 }
 
-func (s *stateStatusSwitch) SetAddrs(addrs []common.Address) {
-	s.data.Addrs = addrs
+func (s *stateStatusSwitch) AddAddress(addr common.Address) {
+	s.data.Addrs = append(s.data.Addrs, addr)
 	s.touch()
+}
+
+func (s *stateStatusSwitch) Clear() {
+	s.data.Addrs = nil
+	s.touch()
+}
+
+func (s *stateStatusSwitch) ToggleAddress(sender common.Address) {
+	defer s.touch()
+	for i := 0; i < len(s.data.Addrs); i++ {
+		if s.data.Addrs[i] == sender {
+			s.data.Addrs = append(s.data.Addrs[:i], s.data.Addrs[i+1:]...)
+			return
+		}
+	}
+	s.data.Addrs = append(s.data.Addrs, sender)
+}
+
+func (s *stateStatusSwitch) HasAddress(addr common.Address) bool {
+	for _, item := range s.data.Addrs {
+		if item == addr {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *stateStatusSwitch) touch() {

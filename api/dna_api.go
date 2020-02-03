@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/ceremony"
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
@@ -234,7 +235,7 @@ func (api *DnaApi) Identities() []Identity {
 	})
 
 	for idx := range identities {
-		identities[idx].Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(identities[idx].Address)
+		identities[idx].Online = getIdentityOnlineStatus(api.baseApi.getAppState(), identities[idx].Address)
 	}
 
 	return identities
@@ -249,8 +250,18 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 	}
 
 	converted := convertIdentity(api.baseApi.getAppState().State.Epoch(), *address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
-	converted.Online = api.baseApi.getAppState().ValidatorsCache.IsOnlineIdentity(*address)
+	converted.Online = getIdentityOnlineStatus(api.baseApi.getAppState(), *address)
 	return converted
+}
+
+func getIdentityOnlineStatus(state *appstate.AppState, addr common.Address) bool {
+	isOnline := state.ValidatorsCache.IsOnlineIdentity(addr)
+	hasPendingStatusSwitch := state.State.HasStatusSwitchAddresses(addr)
+	if isOnline {
+		return !hasPendingStatusSwitch
+	} else {
+		return hasPendingStatusSwitch
+	}
 }
 
 func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {

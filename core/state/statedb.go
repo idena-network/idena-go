@@ -1155,9 +1155,29 @@ func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {
 	return nil
 }
 
+func (s *StateDB) HasStatusSwitchAddresses(addr common.Address) bool {
+	statusSwitch := s.GetOrNewStateStatusObject()
+	return statusSwitch.HasAddress(addr)
+}
+
 func (s *StateDB) StatusSwitchAddresses() []common.Address {
 	statusSwitch := s.GetOrNewStateStatusObject()
-	return statusSwitch.Addrs()
+	return statusSwitch.Addresses()
+}
+
+func (s *StateDB) AddStatusSwitchAddress(addr common.Address) {
+	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch.AddAddress(addr)
+}
+
+func (s *StateDB) ClearStatusSwitchAddresses() {
+	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch.Clear()
+}
+
+func (s *StateDB) ToggleStatusSwitchAddress(sender common.Address) {
+	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch.ToggleAddress(sender)
 }
 
 type readCloser struct {
