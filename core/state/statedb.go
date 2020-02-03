@@ -514,6 +514,13 @@ func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
 	s.tree.Remove(append(identityPrefix, addr[:]...))
 }
 
+// deleteStateAccountObject removes the given object from the state trie.
+func (s *StateDB) deleteStateStatusSwitchObject() {
+	s.stateStatusSwitch.deleted = true
+
+	s.tree.Remove(statusSwitchPrefix)
+}
+
 // Retrieve a state account given my the address. Returns nil if not found.
 func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccount) {
 	// Prefer 'live' objects.
@@ -592,6 +599,9 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 func (s *StateDB) getStateStatusSwitch() (stateObject *stateStatusSwitch) {
 	// Prefer 'live' objects.
 	if obj := s.stateStatusSwitch; obj != nil {
+		if obj.deleted {
+			return nil
+		}
 		return obj
 	}
 
@@ -668,7 +678,7 @@ func (s *StateDB) GetOrNewGlobalObject() *stateGlobal {
 
 func (s *StateDB) GetOrNewStateStatusObject() *stateStatusSwitch {
 	stateObject := s.getStateStatusSwitch()
-	if stateObject == nil {
+	if stateObject == nil || stateObject.deleted {
 		stateObject = s.createStatusSwitch()
 	}
 	return stateObject
@@ -802,7 +812,11 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	}
 
 	if s.stateStatusSwitchDirty {
-		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+		if deleteEmptyObjects && s.stateStatusSwitch.empty() {
+			s.deleteStateStatusSwitchObject()
+		} else {
+			s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+		}
 		s.stateStatusSwitchDirty = false
 	}
 
@@ -850,7 +864,7 @@ func getOrderedObjectsKeys(objects map[common.Address]struct{}) []common.Address
 	return keys
 }
 
-func (s *StateDB) nAccountExists(address common.Address) bool {
+func (s *StateDB) AccountExists(address common.Address) bool {
 	return s.getStateAccount(address) != nil
 }
 

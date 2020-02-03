@@ -306,7 +306,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 
 	if root != block.Root() || identityRoot != block.IdentityRoot() {
 		chain.appState.Reset()
-		return nil, errors.Errorf("Invalid block root. Expected=%x, blockroot=%x", root, block.Root())
+		return nil, errors.Errorf("Process block. Invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
 	if err := chain.appState.Commit(block); err != nil {

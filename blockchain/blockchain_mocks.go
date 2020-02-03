@@ -48,6 +48,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		FeeSensitivityCoef:                0.25,
 		VrfSensitivityCoef:                0.1,
 		MinFeePerByte:                     big.NewInt(1e+4),
+		StatusSwitchRange:                 50,
 	}
 }
 

@@ -63,6 +63,7 @@ type stateStatusSwitch struct {
 	data IdentityStatusSwitch
 
 	onDirty func()
+	deleted bool
 }
 
 type ValidationPeriod uint32
@@ -731,4 +732,8 @@ func (s *stateStatusSwitch) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
+}
+
+func (s *stateStatusSwitch) empty() bool {
+	return len(s.data.Addrs) == 0
 }

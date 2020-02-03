@@ -681,4 +681,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.Equal(uint64(30), chain.Head.Height())
 	require.False(state.IdentityState.IsOnline(addr))
 	require.False(chain.Head.Flags().HasFlag(types.IdentityUpdate))
+
+	chain.GenerateBlocks(70)
+	require.Equal(uint64(100), chain.Head.Height())
 }
