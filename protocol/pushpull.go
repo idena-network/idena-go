@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-const MaxPullsForOneHash = 3
+const (
+	MaxVotePullsForOneHash = 3
+	MaxFlipPullsForOneHash = 1
+)
 
 type pendingPush struct {
 	cnt  uint32
@@ -33,6 +36,18 @@ func NewPushPullManager() *PushPullManager {
 		pendingPushes: cache.New(time.Minute*3, time.Minute*5),
 		requests:      make(chan pullRequest, 2000),
 	}
+}
+
+func maxPulls(t pushType) uint32 {
+	if t == pushFlip {
+		return MaxFlipPullsForOneHash
+	}
+	return MaxVotePullsForOneHash
+}
+
+func (m *PushPullManager) existInMemory(hash pushPullHash) bool {
+	// TODO : check key packages
+	return false
 }
 
 func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
@@ -61,11 +76,11 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 	value, _ := m.pendingPushes.Get(key)
 
 	pendingPush := value.(*pendingPush)
-	if pendingPush.cnt > MaxPullsForOneHash {
+	if pendingPush.cnt >= maxPulls(hash.Type) {
 		return
 	}
 	cnt := atomic.AddUint32(&pendingPush.cnt, 1)
-	if cnt > MaxPullsForOneHash {
+	if cnt >= maxPulls(hash.Type) {
 		return
 	}
 	m.makeRequest(id, hash)

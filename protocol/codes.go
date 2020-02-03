@@ -12,8 +12,6 @@ const (
 	FlipBody           = 0x09
 	FlipKey            = 0x0A
 	SnapshotManifest   = 0x0B
-	PushFlipCid        = 0x0C
-	PullFlip           = 0x0D
 	GetForkBlockRange  = 0x0E
 	FlipKeysPackage    = 0x0F
 	FlipKeysPackageCid = 0x10

@@ -37,11 +37,10 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			return "flipKey"
 		case SnapshotManifest:
 			return "snapshotManifest"
-
-		case PushFlipCid:
-			return "pushFlipCid"
-		case PullFlip:
-			return "pullFlip"
+		case Push:
+			return "push"
+		case Pull:
+			return "pull"
 		case GetForkBlockRange:
 			return "getForkBlockRange"
 		case FlipKeysPackage:

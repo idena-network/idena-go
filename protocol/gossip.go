@@ -122,7 +122,7 @@ func (h *IdenaGossipHandler) Start() {
 	})
 	h.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
-		h.broadcastFlipCid(newFlipEvent.FlipCid)
+		h.sendFlip(newFlipEvent.Flip)
 	})
 	h.bus.Subscribe(events.IpfsPortChangedEventId, func(e eventbus.Event) {
 		portChangedEvent := e.(*events.IpfsPortChangedEvent)
@@ -282,26 +282,6 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.manifest = manifest
-	case PushFlipCid:
-		cid := new(flipCid)
-		if err := msg.Decode(cid); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		if h.isProcessed(cid) {
-			return nil
-		}
-		p.markPayload(cid)
-		if !h.flipper.Has(cid.Cid) {
-			p.sendMsg(PullFlip, cid, false)
-		}
-	case PullFlip:
-		cid := new(flipCid)
-		if err := msg.Decode(cid); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		if f, err := h.flipper.ReadFlip(cid.Cid); err == nil {
-			p.sendMsg(FlipBody, f, false)
-		}
 	case FlipKeysPackage:
 		keysPackage := new(types.PrivateFlipKeysPackage)
 		if err := msg.Decode(keysPackage); err != nil {
@@ -619,21 +599,33 @@ func (h *IdenaGossipHandler) ProposeProof(round uint64, hash common.Hash, proof 
 }
 
 func (h *IdenaGossipHandler) proposeProof(payload *proposeProof) {
-	h.peers.SendWithFilter(ProposeProof, payload, false)
+	hash := pushPullHash{
+		Type: pushProof,
+		Hash: rlp.Hash128(payload),
+	}
+	h.pushPullManager.AddEntry(hash, payload)
+	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) ProposeBlock(block *types.Block) {
-	h.peers.SendWithFilter(ProposeBlock, block, false)
+	hash := pushPullHash{
+		Type: pushBlock,
+		Hash: rlp.Hash128(block),
+	}
+	h.pushPullManager.AddEntry(hash, block)
+	h.sendPush(hash)
 }
 func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
-	h.sendPush(pushVote, rlp.Hash128(vote))
+	hash := pushPullHash{
+		Type: pushVote,
+		Hash: rlp.Hash128(vote),
+	}
+	h.pushPullManager.AddEntry(hash, vote)
+	h.sendPush(hash)
 }
 
-func (h *IdenaGossipHandler) sendPush(objType pushType, hash common.Hash128) {
-	h.peers.SendWithFilter(Push, pushPullHash{
-		Type: objType,
-		Hash: hash,
-	}, false)
+func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
+	h.peers.SendWithFilter(Push, hash, false)
 }
 
 func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}) {
@@ -644,6 +636,8 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 		p.sendMsg(ProposeBlock, entry, false)
 	case pushProof:
 		p.sendMsg(ProposeProof, entry, false)
+	case pushFlip:
+		p.sendMsg(FlipBody, entry, false)
 	default:
 	}
 }
@@ -656,8 +650,14 @@ func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 	h.peers.SendWithFilter(NewTx, tx, own)
 }
 
-func (h *IdenaGossipHandler) broadcastFlipCid(cid []byte) {
-	h.peers.SendWithFilter(PushFlipCid, &flipCid{cid}, false)
+func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
+
+	hash := pushPullHash{
+		Type: pushFlip,
+		Hash: rlp.Hash128(flip),
+	}
+	h.pushPullManager.AddEntry(hash, flip)
+	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {

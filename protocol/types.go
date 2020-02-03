@@ -75,16 +75,14 @@ type proposeProof struct {
 	Round  uint64
 }
 
-type flipCid struct {
-	Cid []byte
-}
-
 type pushType uint8
 
 const (
-	pushVote  pushType = 1
-	pushBlock pushType = 2
-	pushProof pushType = 3
+	pushVote       pushType = 1
+	pushBlock      pushType = 2
+	pushProof      pushType = 3
+	pushFlip       pushType = 4
+	pushKeyPackage pushType = 5
 )
 
 type pushPullHash struct {
