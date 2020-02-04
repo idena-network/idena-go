@@ -257,10 +257,10 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 func getIdentityOnlineStatus(state *appstate.AppState, addr common.Address) bool {
 	isOnline := state.ValidatorsCache.IsOnlineIdentity(addr)
 	hasPendingStatusSwitch := state.State.HasStatusSwitchAddresses(addr)
-	if isOnline {
-		return !hasPendingStatusSwitch
+	if hasPendingStatusSwitch {
+		return !isOnline
 	} else {
-		return hasPendingStatusSwitch
+		return isOnline
 	}
 }
 
