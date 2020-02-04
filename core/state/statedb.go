@@ -53,8 +53,8 @@ const (
 var (
 	addressPrefix                       = []byte("a")
 	identityPrefix                      = []byte("i")
-	globalPrefix                        = []byte("global")
-	statusSwitchPrefix                  = []byte("status-switch")
+	globalKey                           = []byte("global")
+	statusSwitchKey                     = []byte("status-switch")
 	currentStateDbPrefixKey             = []byte("statedb-prefix")
 	currentIdentityStateDbPrefixKey     = []byte("id-statedb-prefix")
 	preliminaryIdentityStateDbPrefixKey = []byte("pre-id-statedb-prefix")
@@ -485,7 +485,7 @@ func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
 		panic(fmt.Errorf("can't encode object, %v", err))
 	}
 
-	s.tree.Set(globalPrefix, data)
+	s.tree.Set(globalKey, data)
 }
 
 // updateStateAccountObject writes the given object to the trie.
@@ -495,7 +495,7 @@ func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) 
 		panic(fmt.Errorf("can't encode object, %v", err))
 	}
 
-	s.tree.Set(statusSwitchPrefix, data)
+	s.tree.Set(statusSwitchKey, data)
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
@@ -512,13 +512,6 @@ func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
 	addr := stateObject.Address()
 
 	s.tree.Remove(append(identityPrefix, addr[:]...))
-}
-
-// deleteStateAccountObject removes the given object from the state trie.
-func (s *StateDB) deleteStateStatusSwitchObject() {
-	s.stateStatusSwitch.deleted = true
-
-	s.tree.Remove(statusSwitchPrefix)
 }
 
 // Retrieve a state account given my the address. Returns nil if not found.
@@ -581,7 +574,7 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 	}
 
 	// Load the object from the database.
-	_, enc := s.tree.Get(globalPrefix)
+	_, enc := s.tree.Get(globalKey)
 	if len(enc) == 0 {
 		return nil
 	}
@@ -599,14 +592,11 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 func (s *StateDB) getStateStatusSwitch() (stateObject *stateStatusSwitch) {
 	// Prefer 'live' objects.
 	if obj := s.stateStatusSwitch; obj != nil {
-		if obj.deleted {
-			return nil
-		}
 		return obj
 	}
 
 	// Load the object from the database.
-	_, enc := s.tree.Get(statusSwitchPrefix)
+	_, enc := s.tree.Get(statusSwitchKey)
 	if len(enc) == 0 {
 		return nil
 	}
@@ -676,9 +666,9 @@ func (s *StateDB) GetOrNewGlobalObject() *stateGlobal {
 	return stateObject
 }
 
-func (s *StateDB) GetOrNewStateStatusObject() *stateStatusSwitch {
+func (s *StateDB) GetOrNewStatusSwitchObject() *stateStatusSwitch {
 	stateObject := s.getStateStatusSwitch()
-	if stateObject == nil || stateObject.deleted {
+	if stateObject == nil {
 		stateObject = s.createStatusSwitch()
 	}
 	return stateObject
@@ -812,11 +802,7 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	}
 
 	if s.stateStatusSwitchDirty {
-		if deleteEmptyObjects && s.stateStatusSwitch.empty() {
-			s.deleteStateStatusSwitchObject()
-		} else {
-			s.updateStateStatusSwitchObject(s.stateStatusSwitch)
-		}
+		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
 		s.stateStatusSwitchDirty = false
 	}
 
@@ -1114,6 +1100,12 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
 }
 
+func (s *StateDB) SetPredefinedStatusSwitch(state *PredefinedState) {
+	stateObject := s.GetOrNewStatusSwitchObject()
+	stateObject.data.Addresses = state.StatusSwitch.Addresses
+	stateObject.touch()
+}
+
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 	for _, acc := range state.Accounts {
 		stateObject := s.GetOrNewAccountObject(acc.Address)
@@ -1170,27 +1162,22 @@ func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {
 }
 
 func (s *StateDB) HasStatusSwitchAddresses(addr common.Address) bool {
-	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch := s.GetOrNewStatusSwitchObject()
 	return statusSwitch.HasAddress(addr)
 }
 
 func (s *StateDB) StatusSwitchAddresses() []common.Address {
-	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch := s.GetOrNewStatusSwitchObject()
 	return statusSwitch.Addresses()
 }
 
-func (s *StateDB) AddStatusSwitchAddress(addr common.Address) {
-	statusSwitch := s.GetOrNewStateStatusObject()
-	statusSwitch.AddAddress(addr)
-}
-
 func (s *StateDB) ClearStatusSwitchAddresses() {
-	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch := s.GetOrNewStatusSwitchObject()
 	statusSwitch.Clear()
 }
 
 func (s *StateDB) ToggleStatusSwitchAddress(sender common.Address) {
-	statusSwitch := s.GetOrNewStateStatusObject()
+	statusSwitch := s.GetOrNewStatusSwitchObject()
 	statusSwitch.ToggleAddress(sender)
 }
 

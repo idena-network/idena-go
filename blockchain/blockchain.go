@@ -205,6 +205,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		}
 		chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
 		chain.appState.State.SetFlipWordsSeed(seed)
+		chain.appState.State.ClearStatusSwitchAddresses()
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}

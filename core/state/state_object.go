@@ -63,7 +63,6 @@ type stateStatusSwitch struct {
 	data IdentityStatusSwitch
 
 	onDirty func()
-	deleted bool
 }
 
 type ValidationPeriod uint32
@@ -77,7 +76,7 @@ const (
 )
 
 type IdentityStatusSwitch struct {
-	Addrs []common.Address `rlp:"nil"`
+	Addresses []common.Address `rlp:"nil"`
 }
 
 type Global struct {
@@ -695,32 +694,27 @@ func (s *stateStatusSwitch) EncodeRLP(w io.Writer) error {
 }
 
 func (s *stateStatusSwitch) Addresses() []common.Address {
-	return s.data.Addrs
-}
-
-func (s *stateStatusSwitch) AddAddress(addr common.Address) {
-	s.data.Addrs = append(s.data.Addrs, addr)
-	s.touch()
+	return s.data.Addresses
 }
 
 func (s *stateStatusSwitch) Clear() {
-	s.data.Addrs = nil
+	s.data.Addresses = nil
 	s.touch()
 }
 
 func (s *stateStatusSwitch) ToggleAddress(sender common.Address) {
 	defer s.touch()
-	for i := 0; i < len(s.data.Addrs); i++ {
-		if s.data.Addrs[i] == sender {
-			s.data.Addrs = append(s.data.Addrs[:i], s.data.Addrs[i+1:]...)
+	for i := 0; i < len(s.data.Addresses); i++ {
+		if s.data.Addresses[i] == sender {
+			s.data.Addresses = append(s.data.Addresses[:i], s.data.Addresses[i+1:]...)
 			return
 		}
 	}
-	s.data.Addrs = append(s.data.Addrs, sender)
+	s.data.Addresses = append(s.data.Addresses, sender)
 }
 
 func (s *stateStatusSwitch) HasAddress(addr common.Address) bool {
-	for _, item := range s.data.Addrs {
+	for _, item := range s.data.Addresses {
 		if item == addr {
 			return true
 		}
@@ -732,8 +726,4 @@ func (s *stateStatusSwitch) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
-}
-
-func (s *stateStatusSwitch) empty() bool {
-	return len(s.data.Addrs) == 0
 }
