@@ -14,7 +14,6 @@ const (
 	SnapshotManifest   = 0x0B
 	GetForkBlockRange  = 0x0E
 	FlipKeysPackage    = 0x0F
-	FlipKeysPackageCid = 0x10
 	Push               = 0x11
 	Pull               = 0x12
 )

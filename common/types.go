@@ -376,6 +376,10 @@ func (h *Hash128) Bytes() []byte {
 	return h[:]
 }
 
+func (h *Hash128) String() string {
+	return string(h.Bytes())
+}
+
 // BytesToHash128 sets b to hash.
 // If b is larger than len(h), b will be cropped from the left.
 func BytesToHash128(b []byte) Hash128 {

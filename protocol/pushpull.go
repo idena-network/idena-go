@@ -1,16 +1,12 @@
 package protocol
 
 import (
+	"github.com/idena-network/idena-go/common/entry"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"sync"
 	"sync/atomic"
 	"time"
-)
-
-const (
-	MaxVotePullsForOneHash = 3
-	MaxFlipPullsForOneHash = 1
 )
 
 type pendingPush struct {
@@ -23,40 +19,38 @@ type pullRequest struct {
 	hash pushPullHash
 }
 
+
 type PushPullManager struct {
 	pendingPushes *cache.Cache
-	entryCache    *cache.Cache
 	mutex         sync.Mutex
 	requests      chan pullRequest
+	entryHolders  map[pushType]entry.Holder
 }
 
 func NewPushPullManager() *PushPullManager {
 	return &PushPullManager{
-		entryCache:    cache.New(time.Minute*3, time.Minute*5),
 		pendingPushes: cache.New(time.Minute*3, time.Minute*5),
 		requests:      make(chan pullRequest, 2000),
+		entryHolders:  make(map[pushType]entry.Holder),
 	}
 }
 
-func maxPulls(t pushType) uint32 {
-	if t == pushFlip {
-		return MaxFlipPullsForOneHash
-	}
-	return MaxVotePullsForOneHash
-}
-
-func (m *PushPullManager) existInMemory(hash pushPullHash) bool {
-	// TODO : check key packages
-	return false
+func (m *PushPullManager) AddEntryHolder(pushId pushType, holder entry.Holder) {
+	m.entryHolders[pushId] = holder
 }
 
 func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 
 	key := hash.String()
 
-	if _, ok := m.entryCache.Get(key); ok {
+	holder := m.entryHolders[hash.Type]
+	if holder == nil {
+		panic("entry holder is not found")
+	}
+	if holder.Has(hash.Hash) {
 		return
 	}
+
 	_, ok := m.pendingPushes.Get(key)
 
 	if !ok {
@@ -76,11 +70,11 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 	value, _ := m.pendingPushes.Get(key)
 
 	pendingPush := value.(*pendingPush)
-	if pendingPush.cnt >= maxPulls(hash.Type) {
+	if pendingPush.cnt >= holder.MaxPulls() {
 		return
 	}
 	cnt := atomic.AddUint32(&pendingPush.cnt, 1)
-	if cnt >= maxPulls(hash.Type) {
+	if cnt >= holder.MaxPulls() {
 		return
 	}
 	m.makeRequest(id, hash)
@@ -94,11 +88,11 @@ func (m *PushPullManager) makeRequest(peer peer.ID, hash pushPullHash) {
 }
 
 func (m *PushPullManager) AddEntry(key pushPullHash, entry interface{}) {
-	m.entryCache.SetDefault(key.String(), entry)
+	m.entryHolders[key.Type].Add(key.Hash, entry)
 }
 
 func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, bool) {
-	return m.entryCache.Get(hash.String())
+	return m.entryHolders[hash.Type].Get(hash.Hash)
 }
 
 func (m *PushPullManager) Requests() chan pullRequest {

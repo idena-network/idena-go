@@ -93,3 +93,7 @@ type pushPullHash struct {
 func (h *pushPullHash) String() string {
 	return string(h.Type) + string(h.Hash.Bytes())
 }
+
+func (h *pushPullHash) Invalid() bool {
+	return h.Type < pushVote || h.Type > pushKeyPackage
+}
