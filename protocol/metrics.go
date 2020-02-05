@@ -26,7 +26,6 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			return "newTx"
 		case GetBlockByHash:
 			return "getBlockByHash"
-
 		case GetBlocksRange:
 			return "getBlocksRange"
 		case BlocksRange:
@@ -37,17 +36,14 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			return "flipKey"
 		case SnapshotManifest:
 			return "snapshotManifest"
-
-		case PushFlipCid:
-			return "pushFlipCid"
-		case PullFlip:
-			return "pullFlip"
+		case Push:
+			return "push"
+		case Pull:
+			return "pull"
 		case GetForkBlockRange:
 			return "getForkBlockRange"
 		case FlipKeysPackage:
 			return "flipKeysPackage"
-		case FlipKeysPackageCid:
-			return "flipKeysPackageCid"
 		default:
 			return fmt.Sprintf("unknown code %v", code)
 		}
@@ -83,7 +79,6 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		go metrics.Log(metrics.DefaultRegistry, time.Second*20, metricsLog{h.log})
 	}
 }
-
 
 type metricsLog struct {
 	log log.Logger

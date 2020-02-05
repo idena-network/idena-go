@@ -447,11 +447,6 @@ func (k PublicFlipKey) Hash() common.Hash {
 	return rlp.Hash(k)
 }
 
-type PrivateFlipKeysPackageCid struct {
-	Address common.Address
-	Cid     []byte
-}
-
 type PrivateFlipKeysPackage struct {
 	Data      []byte
 	Epoch     uint16
@@ -460,8 +455,12 @@ type PrivateFlipKeysPackage struct {
 	from atomic.Value
 }
 
-func (k PrivateFlipKeysPackage) Hash() common.Hash {
+func (k *PrivateFlipKeysPackage) Hash() common.Hash {
 	return rlp.Hash(k)
+}
+
+func (k *PrivateFlipKeysPackage) Hash128() common.Hash128 {
+	return rlp.Hash128(k)
 }
 
 type Answer byte

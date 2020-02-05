@@ -83,7 +83,6 @@ type ValidationCeremony struct {
 	validationStartMutex     sync.Mutex
 	candidatesPerAuthor      map[int][]int
 	authorsPerCandidate      map[int][]int
-	nextValidationTime       time.Time
 }
 
 type epochApplyingCache struct {
@@ -120,21 +119,13 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
-		state.NonePeriod:             vc.handleNonePeriod,
+		state.NonePeriod:             func(block *types.Block) {},
 		state.FlipLotteryPeriod:      vc.handleFlipLotteryPeriod,
 		state.ShortSessionPeriod:     vc.handleShortSessionPeriod,
 		state.LongSessionPeriod:      vc.handleLongSessionPeriod,
 		state.AfterLongSessionPeriod: vc.handleAfterLongSessionPeriod,
 	}
 	return vc
-}
-
-//TODO: remove this after next fork
-func (vc *ValidationCeremony) handleNonePeriod(block *types.Block) {
-	diff := vc.nextValidationTime.Sub(time.Now().UTC())
-	if diff < time.Minute*10 {
-		vc.keysPool.StartProcessKeys()
-	}
 }
 
 func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
@@ -238,16 +229,6 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
 	vc.startValidationShortSessionTimer()
-
-	vc.nextValidationTime = vc.appState.State.NextValidationTime()
-
-	//TODO: remove this after next fork
-	if vc.appState.State.ValidationPeriod() == state.NonePeriod {
-		diff := vc.nextValidationTime.Sub(time.Now().UTC())
-		if diff > time.Minute*30 {
-			vc.keysPool.StopProcessKeys()
-		}
-	}
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
@@ -284,13 +265,11 @@ func (vc *ValidationCeremony) completeEpoch() {
 		edb := vc.epochDb
 		go func() {
 			vc.dropFlips(edb)
-			vc.dropKeysPackages(edb)
 			edb.Clear()
 		}()
 	}
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
-	vc.nextValidationTime = vc.appState.State.NextValidationTime()
 
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Clear()
@@ -1161,11 +1140,4 @@ func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
 			}
 		}
 	}
-	go vc.keysPool.LoadNecessaryPackages(m)
-}
-
-func (vc *ValidationCeremony) dropKeysPackages(db *database.EpochDb) {
-	db.IterateOverKeysPackageCids(func(cid []byte) {
-		vc.keysPool.UnpinPackage(cid)
-	})
 }

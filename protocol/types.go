@@ -75,6 +75,25 @@ type proposeProof struct {
 	Round  uint64
 }
 
-type flipCid struct {
-	Cid []byte
+type pushType uint8
+
+const (
+	pushVote       pushType = 1
+	pushBlock      pushType = 2
+	pushProof      pushType = 3
+	pushFlip       pushType = 4
+	pushKeyPackage pushType = 5
+)
+
+type pushPullHash struct {
+	Type pushType
+	Hash common.Hash128
+}
+
+func (h *pushPullHash) String() string {
+	return string(h.Type) + string(h.Hash.Bytes())
+}
+
+func (h *pushPullHash) Invalid() bool {
+	return h.Type < pushVote || h.Type > pushKeyPackage
 }
