@@ -82,18 +82,7 @@ func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
 
 func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block) {
 	v.god = godAddress
-	shouldUpdate := block.Header.Flags().HasFlag(types.IdentityUpdate)
-
-	if !shouldUpdate {
-		for _, tx := range block.Body.Transactions {
-			if tx.Type == types.OnlineStatusTx {
-				shouldUpdate = true
-				break
-			}
-		}
-	}
-
-	if shouldUpdate {
+	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		v.loadValidNodes()
 		v.log.Info("Validators updated", "total", v.nodesSet.Cardinality(), "online", v.onlineNodesSet.Cardinality())
 	}

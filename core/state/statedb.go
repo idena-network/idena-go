@@ -53,7 +53,8 @@ const (
 var (
 	addressPrefix                       = []byte("a")
 	identityPrefix                      = []byte("i")
-	globalPrefix                        = []byte("global")
+	globalKey                           = []byte("global")
+	statusSwitchKey                     = []byte("status-switch")
 	currentStateDbPrefixKey             = []byte("statedb-prefix")
 	currentIdentityStateDbPrefixKey     = []byte("id-statedb-prefix")
 	preliminaryIdentityStateDbPrefixKey = []byte("pre-id-statedb-prefix")
@@ -70,9 +71,11 @@ type StateDB struct {
 	stateIdentities      map[common.Address]*stateIdentity
 	stateIdentitiesDirty map[common.Address]struct{}
 
-	stateGlobal      *stateGlobal
-	stateGlobalDirty bool
-	epochDirty       bool
+	stateGlobal            *stateGlobal
+	stateGlobalDirty       bool
+	epochDirty             bool
+	stateStatusSwitch      *stateStatusSwitch
+	stateStatusSwitchDirty bool
 
 	log  log.Logger
 	lock sync.Mutex
@@ -482,7 +485,17 @@ func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
 		panic(fmt.Errorf("can't encode object, %v", err))
 	}
 
-	s.tree.Set(globalPrefix, data)
+	s.tree.Set(globalKey, data)
+}
+
+// updateStateAccountObject writes the given object to the trie.
+func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) {
+	data, err := rlp.EncodeToBytes(stateObject)
+	if err != nil {
+		panic(fmt.Errorf("can't encode object, %v", err))
+	}
+
+	s.tree.Set(statusSwitchKey, data)
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
@@ -561,7 +574,7 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 	}
 
 	// Load the object from the database.
-	_, enc := s.tree.Get(globalPrefix)
+	_, enc := s.tree.Get(globalKey)
 	if len(enc) == 0 {
 		return nil
 	}
@@ -573,6 +586,28 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 	// Insert into the live set.
 	obj := newGlobalObject(data, s.MarkStateGlobalObjectDirty)
 	s.setStateGlobalObject(obj)
+	return obj
+}
+
+func (s *StateDB) getStateStatusSwitch() (stateObject *stateStatusSwitch) {
+	// Prefer 'live' objects.
+	if obj := s.stateStatusSwitch; obj != nil {
+		return obj
+	}
+
+	// Load the object from the database.
+	_, enc := s.tree.Get(statusSwitchKey)
+	if len(enc) == 0 {
+		return nil
+	}
+	var data IdentityStatusSwitch
+	if err := rlp.DecodeBytes(enc, &data); err != nil {
+		s.log.Error("Failed to decode state status switch object", "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newStatusSwitchObject(data, s.MarkStateStatusSwitchObjectDirty)
+	s.setStateStatusSwitchObject(obj)
 	return obj
 }
 
@@ -595,6 +630,13 @@ func (s *StateDB) setStateGlobalObject(object *stateGlobal) {
 	defer s.lock.Unlock()
 
 	s.stateGlobal = object
+}
+
+func (s *StateDB) setStateStatusSwitchObject(object *stateStatusSwitch) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateStatusSwitch = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -620,6 +662,14 @@ func (s *StateDB) GetOrNewGlobalObject() *stateGlobal {
 	stateObject := s.getStateGlobal()
 	if stateObject == nil {
 		stateObject = s.createGlobal()
+	}
+	return stateObject
+}
+
+func (s *StateDB) GetOrNewStatusSwitchObject() *stateStatusSwitch {
+	stateObject := s.getStateStatusSwitch()
+	if stateObject == nil {
+		stateObject = s.createStatusSwitch()
 	}
 	return stateObject
 }
@@ -652,6 +702,13 @@ func (s *StateDB) MarkStateGlobalObjectDirty(withEpoch bool) {
 	s.epochDirty = s.epochDirty || withEpoch
 }
 
+func (s *StateDB) MarkStateStatusSwitchObjectDirty() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateStatusSwitchDirty = true
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
 	newobj = newAccountObject(addr, Account{}, s.MarkStateAccountObjectDirty)
@@ -672,6 +729,13 @@ func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 	stateObject = newGlobalObject(Global{}, s.MarkStateGlobalObjectDirty)
 	stateObject.touch(true)
 	s.setStateGlobalObject(stateObject)
+	return stateObject
+}
+
+func (s *StateDB) createStatusSwitch() *stateStatusSwitch {
+	stateObject := newStatusSwitchObject(IdentityStatusSwitch{}, s.MarkStateStatusSwitchObjectDirty)
+	stateObject.touch()
+	s.setStateStatusSwitchObject(stateObject)
 	return stateObject
 }
 
@@ -735,6 +799,11 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	if s.stateGlobalDirty {
 		s.updateStateGlobalObject(s.stateGlobal)
 		s.stateGlobalDirty = false
+	}
+
+	if s.stateStatusSwitchDirty {
+		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+		s.stateStatusSwitchDirty = false
 	}
 
 	// if epoch has changed
@@ -1031,6 +1100,12 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
 }
 
+func (s *StateDB) SetPredefinedStatusSwitch(state *PredefinedState) {
+	stateObject := s.GetOrNewStatusSwitchObject()
+	stateObject.data.Addresses = state.StatusSwitch.Addresses
+	stateObject.touch()
+}
+
 func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
 	for _, acc := range state.Accounts {
 		stateObject := s.GetOrNewAccountObject(acc.Address)
@@ -1084,6 +1159,26 @@ func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {
 	}
 	s.Clear()
 	return nil
+}
+
+func (s *StateDB) HasStatusSwitchAddresses(addr common.Address) bool {
+	statusSwitch := s.GetOrNewStatusSwitchObject()
+	return statusSwitch.HasAddress(addr)
+}
+
+func (s *StateDB) StatusSwitchAddresses() []common.Address {
+	statusSwitch := s.GetOrNewStatusSwitchObject()
+	return statusSwitch.Addresses()
+}
+
+func (s *StateDB) ClearStatusSwitchAddresses() {
+	statusSwitch := s.GetOrNewStatusSwitchObject()
+	statusSwitch.Clear()
+}
+
+func (s *StateDB) ToggleStatusSwitchAddress(sender common.Address) {
+	statusSwitch := s.GetOrNewStatusSwitchObject()
+	statusSwitch.ToggleAddress(sender)
 }
 
 type readCloser struct {

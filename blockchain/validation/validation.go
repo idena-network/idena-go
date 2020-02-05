@@ -38,8 +38,8 @@ var (
 	NotCandidate         = errors.New("user is not a candidate")
 	NotIdentity          = errors.New("user is not identity")
 	InsufficientFlips    = errors.New("insufficient flips")
-	IsAlreadyOnline      = errors.New("identity is already online")
-	IsAlreadyOffline     = errors.New("identity is already offline")
+	IsAlreadyOnline      = errors.New("identity is already online or has pending online status")
+	IsAlreadyOffline     = errors.New("identity is already offline or has pending offline status")
 	DuplicatedFlip       = errors.New("duplicated flip")
 	DuplicatedFlipPair   = errors.New("flip with these words already exists")
 	BigFee               = errors.New("current fee is greater than tx max fee")
@@ -427,10 +427,14 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 		return InvalidPayload
 	}
 
-	if attachment.Online && appState.ValidatorsCache.IsOnlineIdentity(sender) {
+	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(sender)
+	isOnline := appState.ValidatorsCache.IsOnlineIdentity(sender)
+	isOffline := !isOnline
+
+	if attachment.Online && (isOnline && !hasPendingStatusSwitch || isOffline && hasPendingStatusSwitch) {
 		return IsAlreadyOnline
 	}
-	if !attachment.Online && !appState.ValidatorsCache.IsOnlineIdentity(sender) {
+	if !attachment.Online && (isOffline && !hasPendingStatusSwitch || isOnline && hasPendingStatusSwitch) {
 		return IsAlreadyOffline
 	}
 
