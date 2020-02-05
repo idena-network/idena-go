@@ -76,6 +76,10 @@ func main() {
 			EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
 		}
 
+		snapshot.StatusSwitch = state.StateStatusSwitch{
+			Addresses: appState.State.StatusSwitchAddresses(),
+		}
+
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
 			if key == nil {
 				return true

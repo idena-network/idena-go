@@ -595,3 +595,93 @@ func Test_DeleteFlipTx(t *testing.T) {
 	identity := appState.State.GetIdentity(sender)
 	require.Equal(t, 2, len(identity.Flips))
 }
+
+func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
+	require := require.New(t)
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	consensus := GetDefaultConsensusConfig(true)
+	consensus.StatusSwitchRange = 10
+	cfg := &config.Config{
+		Network:   0x99,
+		Consensus: consensus,
+		GenesisConf: &config.GenesisConf{
+			Alloc: map[common.Address]config.GenesisAllocation{
+				addr: {
+					State: uint8(state.Verified),
+				},
+			},
+			GodAddress:        addr,
+			FirstCeremonyTime: 4070908800, //01.01.2099
+		},
+		Validation: &config.ValidationConfig{},
+		Blockchain: &config.BlockchainConfig{},
+	}
+	chain, state := NewCustomTestBlockchainWithConfig(5, 0, key, cfg)
+
+	//  add pending request to switch online
+	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err := chain.txpool.Add(tx)
+	require.NoError(err)
+
+	// apply pending status switch
+	chain.GenerateBlocks(1)
+	require.Equal(1, len(state.State.StatusSwitchAddresses()))
+	require.False(state.IdentityState.IsOnline(addr))
+
+	// fail to switch online again
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err = chain.txpool.Add(tx)
+	require.Error(err, "should not validate tx if switch is already pending")
+
+	// switch status to online
+	chain.GenerateBlocks(3)
+	require.Equal(uint64(10), chain.Head.Height())
+	require.Zero(len(state.State.StatusSwitchAddresses()))
+	require.True(state.IdentityState.IsOnline(addr))
+	require.True(chain.Head.Flags().HasFlag(types.IdentityUpdate))
+
+	// fail to switch online again
+	chain.GenerateBlocks(5)
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err = chain.txpool.Add(tx)
+	require.Error(err, "should not validate tx if identity already has online status")
+
+	// add pending request to switch offline
+	chain.GenerateBlocks(4)
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
+	err = chain.txpool.Add(tx)
+	require.NoError(err)
+
+	// switch status to offline
+	chain.GenerateBlocks(1)
+	require.Equal(uint64(20), chain.Head.Height())
+	require.Zero(len(state.State.StatusSwitchAddresses()))
+	require.False(state.IdentityState.IsOnline(addr))
+	require.True(chain.Head.Flags().HasFlag(types.IdentityUpdate))
+
+	// add pending request to switch offline
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err = chain.txpool.Add(tx)
+	require.NoError(err)
+	chain.GenerateBlocks(1)
+
+	require.Equal(1, len(state.State.StatusSwitchAddresses()))
+
+	// remove pending request to switch online
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
+	err = chain.txpool.Add(tx)
+	require.NoError(err)
+	chain.GenerateBlocks(1)
+
+	require.Zero(len(state.State.StatusSwitchAddresses()))
+
+	// 30th block should not update identity statuses, no pending requests
+	chain.GenerateBlocks(8)
+	require.Equal(uint64(30), chain.Head.Height())
+	require.False(state.IdentityState.IsOnline(addr))
+	require.False(chain.Head.Flags().HasFlag(types.IdentityUpdate))
+
+	chain.GenerateBlocks(70)
+	require.Equal(uint64(100), chain.Head.Height())
+}

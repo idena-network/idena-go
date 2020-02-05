@@ -59,6 +59,11 @@ type stateGlobal struct {
 
 	onDirty func(withEpoch bool) // Callback method to mark a state object newly dirty
 }
+type stateStatusSwitch struct {
+	data IdentityStatusSwitch
+
+	onDirty func()
+}
 
 type ValidationPeriod uint32
 
@@ -69,6 +74,10 @@ const (
 	LongSessionPeriod      ValidationPeriod = 3
 	AfterLongSessionPeriod ValidationPeriod = 4
 )
+
+type IdentityStatusSwitch struct {
+	Addresses []common.Address `rlp:"nil"`
+}
 
 type Global struct {
 	Epoch                uint16
@@ -162,12 +171,19 @@ func newIdentityObject(address common.Address, data Identity, onDirty func(addr 
 
 // newGlobalObject creates a global state object.
 func newGlobalObject(data Global, onDirty func(withEpoch bool)) *stateGlobal {
-
 	return &stateGlobal{
 		data:    data,
 		onDirty: onDirty,
 	}
 }
+
+func newStatusSwitchObject(data IdentityStatusSwitch, onDirty func()) *stateStatusSwitch {
+	return &stateStatusSwitch{
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
 func newApprovedIdentityObject(address common.Address, data ApprovedIdentity, onDirty func(addr common.Address)) *stateApprovedIdentity {
 	return &stateApprovedIdentity{
 		address: address,
@@ -670,4 +686,44 @@ func IsCeremonyCandidate(identity Identity) bool {
 	return (state == Candidate || state == Newbie ||
 		state == Verified || state == Suspended ||
 		state == Zombie) && identity.HasDoneAllRequiredFlips()
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (s *stateStatusSwitch) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, s.data)
+}
+
+func (s *stateStatusSwitch) Addresses() []common.Address {
+	return s.data.Addresses
+}
+
+func (s *stateStatusSwitch) Clear() {
+	s.data.Addresses = nil
+	s.touch()
+}
+
+func (s *stateStatusSwitch) ToggleAddress(sender common.Address) {
+	defer s.touch()
+	for i := 0; i < len(s.data.Addresses); i++ {
+		if s.data.Addresses[i] == sender {
+			s.data.Addresses = append(s.data.Addresses[:i], s.data.Addresses[i+1:]...)
+			return
+		}
+	}
+	s.data.Addresses = append(s.data.Addresses, sender)
+}
+
+func (s *stateStatusSwitch) HasAddress(addr common.Address) bool {
+	for _, item := range s.data.Addresses {
+		if item == addr {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *stateStatusSwitch) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
 }
