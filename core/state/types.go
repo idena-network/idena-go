@@ -56,10 +56,15 @@ type StateGlobal struct {
 	EmptyBlocksBits      *big.Int
 }
 
+type StateStatusSwitch struct {
+	Addresses []common.Address `rlp:"nil"`
+}
+
 type PredefinedState struct {
 	Block              uint64
 	Seed               types.Seed
 	Global             StateGlobal
+	StatusSwitch       StateStatusSwitch
 	Accounts           []*StateAccount
 	Identities         []*StateIdentity
 	ApprovedIdentities []*StateApprovedIdentity

@@ -103,6 +103,10 @@ func (dt *OfflineDetector) VoteForOffline(block *types.Block) bool {
 		return false
 	}
 
+	if dt.appState.State.HasStatusSwitchAddresses(*addr) {
+		return false
+	}
+
 	dt.mutex.Lock()
 	defer dt.mutex.Unlock()
 
@@ -137,6 +141,9 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 		if dt.appState.State.ValidationPeriod() != state.NonePeriod {
 			return errors.New("block cannot be accepted due to validation ceremony")
 		}
+		if dt.appState.State.HasStatusSwitchAddresses(*addr) {
+			return errors.New("address already has pending status switch")
+		}
 
 		if offlineCommitSet {
 			prevAddr := head.OfflineAddr()
@@ -146,6 +153,7 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 			if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 				return errors.New("if OfflineCommit is set, IdentityUpdate should be set too")
 			}
+
 			if !dt.verifyOfflineProposing(block.Header.ParentHash()) {
 				return errors.New(fmt.Sprintf("addr %v should not be set offline, block %v", addr.Hex(), block.Hash().Hex()))
 			}
@@ -191,6 +199,9 @@ func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, 
 			}
 
 			if shouldBecomeOffline {
+				if dt.appState.State.HasStatusSwitchAddresses(addr) {
+					continue
+				}
 				if prevProposeTime, ok := dt.offlineProposals[addr]; ok {
 					if time.Now().UTC().Sub(prevProposeTime) < dt.config.IntervalBetweenOfflineRetry {
 						continue

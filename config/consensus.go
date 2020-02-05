@@ -36,6 +36,7 @@ type ConsensusConf struct {
 	MinFeePerByte                     *big.Int
 	MinBlockDistance                  time.Duration
 	MaxCommitteeSize                  int
+	StatusSwitchRange                 uint64
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -69,5 +70,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		MinFeePerByte:                     big.NewInt(1e+2),
 		MinBlockDistance:                  time.Second * 20,
 		MaxCommitteeSize:                  100,
+		StatusSwitchRange:                 50,
 	}
 }

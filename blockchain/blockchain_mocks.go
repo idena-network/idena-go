@@ -48,6 +48,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		FeeSensitivityCoef:                0.25,
 		VrfSensitivityCoef:                0.1,
 		MinFeePerByte:                     big.NewInt(1e+4),
+		StatusSwitchRange:                 50,
 	}
 }
 
@@ -102,12 +103,7 @@ func NewTestBlockchainWithBlocks(blocksCount int, emptyBlocksCount int) (*TestBl
 }
 
 func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.PrivateKey) (*TestBlockchain, *appstate.AppState) {
-	db := db.NewMemDB()
-	bus := eventbus.New()
-	appState := appstate.NewAppState(db, bus)
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	secStore := secstore.NewSecStore()
-	secStore.AddKey(crypto.FromECDSA(key))
 	cfg := &config.Config{
 		Network:   0x99,
 		Consensus: GetDefaultConsensusConfig(true),
@@ -119,6 +115,16 @@ func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.P
 		Validation: &config.ValidationConfig{},
 		Blockchain: &config.BlockchainConfig{},
 	}
+	return NewCustomTestBlockchainWithConfig(blocksCount, emptyBlocksCount, key, cfg)
+}
+
+func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, key *ecdsa.PrivateKey, cfg *config.Config) (*TestBlockchain, *appstate.AppState) {
+	db := db.NewMemDB()
+	bus := eventbus.New()
+	appState := appstate.NewAppState(db, bus)
+	secStore := secstore.NewSecStore()
+	secStore.AddKey(crypto.FromECDSA(key))
+
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
@@ -146,7 +152,6 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	for ; it.Valid(); it.Next() {
 		db.Set(it.Key(), it.Value())
 	}
-
 	appState := appstate.NewAppState(db, bus)
 	cfg := &config.Config{
 		Network:   0x99,

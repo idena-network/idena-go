@@ -205,6 +205,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		}
 		chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
 		chain.appState.State.SetFlipWordsSeed(seed)
+		chain.appState.State.ClearStatusSwitchAddresses()
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}
@@ -298,7 +299,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 	if block.IsEmpty() {
 		root, identityRoot, diff = chain.applyEmptyBlockOnState(chain.appState, block)
 	} else {
-		if root, identityRoot, diff, err = chain.applyBlockOnState(chain.appState, block, chain.Head); err != nil {
+		if root, identityRoot, diff, err = chain.applyBlockAndTxsOnState(chain.appState, block, chain.Head); err != nil {
 			chain.appState.Reset()
 			return nil, err
 		}
@@ -306,7 +307,7 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 
 	if root != block.Root() || identityRoot != block.IdentityRoot() {
 		chain.appState.Reset()
-		return nil, errors.Errorf("Invalid block root. Expected=%x, blockroot=%x", root, block.Root())
+		return nil, errors.Errorf("Process block. Invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
 	if err := chain.appState.Commit(block); err != nil {
@@ -318,26 +319,33 @@ func (chain *Blockchain) processBlock(block *types.Block) (diff *state.IdentityS
 	return diff, nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
+func (chain *Blockchain) applyBlockAndTxsOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, err error) {
 	var totalFee, totalTips *big.Int
 	if totalFee, totalTips, err = chain.processTxs(appState, block); err != nil {
 		return
 	}
 
+	root, identityRoot, diff = chain.applyBlockOnState(appState, block, prevBlock, totalFee, totalTips)
+	return root, identityRoot, diff, nil
+}
+
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
+
 	chain.applyNewEpoch(appState, block)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock)
+	chain.applyStatusSwitch(appState, block)
 	chain.applyGlobalParams(appState, block)
 	chain.applyNextBlockFee(appState, block)
 	chain.applyVrfProposerThreshold(appState, block)
-
 	diff = appState.Precommit()
 
-	return appState.State.Root(), appState.IdentityState.Root(), diff, nil
+	return appState.State.Root(), appState.IdentityState.Root(), diff
 }
 
 func (chain *Blockchain) applyEmptyBlockOnState(appState *appstate.AppState, block *types.Block) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyNewEpoch(appState, block)
+	chain.applyStatusSwitch(appState, block)
 	chain.applyGlobalParams(appState, block)
 	chain.applyVrfProposerThreshold(appState, block)
 	diff = appState.Precommit()
@@ -673,8 +681,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		attachment := attachments.ParseOnlineStatusAttachment(tx)
-		appState.IdentityState.SetOnline(sender, attachment.Online)
+		stateDB.ToggleStatusSwitchAddress(sender)
 	case types.ChangeGodAddressTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
@@ -748,6 +755,19 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 		newThreshold = currentThreshold
 	}
 	appState.State.SetVrfProposerThreshold(newThreshold)
+}
+
+func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *types.Block) {
+	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		return
+	}
+	addrs := appState.State.StatusSwitchAddresses()
+	for _, addr := range addrs {
+		currentStatus := appState.IdentityState.IsOnline(addr)
+		appState.IdentityState.SetOnline(addr, !currentStatus)
+	}
+
+	appState.State.ClearStatusSwitchAddresses()
 }
 
 func (chain *Blockchain) getTxCost(feePerByte *big.Int, tx *types.Transaction) *big.Int {
@@ -827,15 +847,7 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 	}
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
-	chain.applyNewEpoch(checkState, block)
-	chain.applyBlockRewards(totalFee, totalTips, checkState, block, chain.Head)
-	chain.applyGlobalParams(checkState, block)
-	chain.applyNextBlockFee(checkState, block)
-	chain.applyVrfProposerThreshold(checkState, block)
-	checkState.Precommit()
-
-	block.Header.ProposedHeader.Root = checkState.State.Root()
-	block.Header.ProposedHeader.IdentityRoot = checkState.IdentityState.Root()
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips)
 
 	return block
 }
@@ -870,7 +882,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.OnlineStatusTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx {
 			flags |= types.IdentityUpdate
 		}
 	}
@@ -907,6 +919,10 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if block.Header.Flags().HasFlag(types.OfflineCommit) {
+		flags |= types.IdentityUpdate
+	}
+
+	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
 
@@ -1014,15 +1030,19 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.New("tx bloom is invalid")
 	}
 
-	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
-
-	if expexted := chain.calculateFlags(checkState, block); expexted != persistentFlags {
-		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expexted, persistentFlags)
+	var totalFee, totalTips *big.Int
+	var err error
+	if totalFee, totalTips, err = chain.processTxs(checkState, block); err != nil {
+		return err
 	}
 
-	if root, identityRoot, _, err := chain.applyBlockOnState(checkState, block, prevBlock); err != nil {
-		return err
-	} else if root != block.Root() || identityRoot != block.IdentityRoot() {
+	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
+
+	if expected := chain.calculateFlags(checkState, block); expected != persistentFlags {
+		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
+	}
+
+	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
