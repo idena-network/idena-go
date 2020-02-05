@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/entry"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/maputil"
 	"github.com/idena-network/idena-go/config"
@@ -16,6 +17,7 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
+	"github.com/idena-network/idena-go/rlp"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -38,10 +40,11 @@ type IdenaGossipHandler struct {
 	cfg  config.P2P
 	bcn  *blockchain.Blockchain
 
-	peers        *peerSet
-	incomeBlocks chan *types.Block
-	proposals    *pengings.Proposals
-	votes        *pengings.Votes
+	peers           *peerSet
+	incomeBlocks    chan *types.Block
+	proposals       *pengings.Proposals
+	votes           *pengings.Votes
+	pushPullManager *PushPullManager
 
 	txpool              mempool.TransactionPool
 	flipKeyPool         *mempool.KeysPool
@@ -77,6 +80,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		incomeBatches:       &sync.Map{},
 		proposals:           proposals,
 		votes:               votes,
+		pushPullManager:     NewPushPullManager(),
 		txpool:              mempool.NewAsyncTxPool(txpool),
 		txChan:              make(chan *events.NewTxEvent, 100),
 		flipKeyChan:         make(chan *events.NewFlipKeyEvent, 200),
@@ -90,6 +94,11 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		metrics:             new(metricCollector),
 		connManager:         NewConnManager(host, cfg),
 	}
+	handler.pushPullManager.AddEntryHolder(pushVote, entry.NewDefaultHolder(3))
+	handler.pushPullManager.AddEntryHolder(pushBlock, entry.NewDefaultHolder(3))
+	handler.pushPullManager.AddEntryHolder(pushProof, entry.NewDefaultHolder(3))
+	handler.pushPullManager.AddEntryHolder(pushFlip, entry.NewDefaultHolder(1))
+	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
 	handler.registerMetrics()
 	return handler
 }
@@ -119,7 +128,7 @@ func (h *IdenaGossipHandler) Start() {
 	})
 	h.bus.Subscribe(events.NewFlipEventID, func(e eventbus.Event) {
 		newFlipEvent := e.(*events.NewFlipEvent)
-		h.broadcastFlipCid(newFlipEvent.FlipCid)
+		h.sendFlip(newFlipEvent.Flip)
 	})
 	h.bus.Subscribe(events.IpfsPortChangedEventId, func(e eventbus.Event) {
 		portChangedEvent := e.(*events.IpfsPortChangedEvent)
@@ -279,26 +288,6 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.manifest = manifest
-	case PushFlipCid:
-		cid := new(flipCid)
-		if err := msg.Decode(cid); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		if h.isProcessed(cid) {
-			return nil
-		}
-		p.markPayload(cid)
-		if !h.flipper.Has(cid.Cid) {
-			p.sendMsg(PullFlip, cid, false)
-		}
-	case PullFlip:
-		cid := new(flipCid)
-		if err := msg.Decode(cid); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
-		}
-		if f, err := h.flipper.ReadFlip(cid.Cid); err == nil {
-			p.sendMsg(FlipBody, f, false)
-		}
 	case FlipKeysPackage:
 		keysPackage := new(types.PrivateFlipKeysPackage)
 		if err := msg.Decode(keysPackage); err != nil {
@@ -309,16 +298,27 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		p.markPayload(keysPackage)
 		h.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
-	case FlipKeysPackageCid:
-		packageCid := new(types.PrivateFlipKeysPackageCid)
-		if err := msg.Decode(packageCid); err != nil {
+	case Push:
+		pushHash := new(pushPullHash)
+		if err := msg.Decode(pushHash); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(packageCid) {
+		if pushHash.Invalid() {
 			return nil
 		}
-		p.markPayload(packageCid)
-		h.flipKeyPool.AddPrivateKeysPackageCid(packageCid)
+		p.markPayload(pushHash)
+		h.pushPullManager.addPush(p.id, *pushHash)
+	case Pull:
+		var pullHash pushPullHash
+		if err := msg.Decode(&pullHash); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if pullHash.Invalid() {
+			return nil
+		}
+		if entry, ok := h.pushPullManager.GetEntry(pullHash); ok {
+			h.sendEntry(p, pullHash, entry)
+		}
 	}
 
 	return nil
@@ -504,6 +504,8 @@ func (h *IdenaGossipHandler) broadcastLoop() {
 			h.broadcastFlipKey(key.Key, key.Own)
 		case key := <-h.flipKeysPackageChan:
 			h.broadcastFlipKeysPackage(key.Key, key.Own)
+		case pullReq := <-h.pushPullManager.Requests():
+			h.sendPull(pullReq.peer, pullReq.hash)
 		}
 	}
 }
@@ -599,14 +601,49 @@ func (h *IdenaGossipHandler) ProposeProof(round uint64, hash common.Hash, proof 
 }
 
 func (h *IdenaGossipHandler) proposeProof(payload *proposeProof) {
-	h.peers.SendWithFilter(ProposeProof, payload, false)
+	hash := pushPullHash{
+		Type: pushProof,
+		Hash: rlp.Hash128(payload),
+	}
+	h.pushPullManager.AddEntry(hash, payload)
+	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) ProposeBlock(block *types.Block) {
-	h.peers.SendWithFilter(ProposeBlock, block, false)
+	hash := pushPullHash{
+		Type: pushBlock,
+		Hash: rlp.Hash128(block),
+	}
+	h.pushPullManager.AddEntry(hash, block)
+	h.sendPush(hash)
 }
 func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
-	h.peers.SendWithFilter(Vote, vote, false)
+	hash := pushPullHash{
+		Type: pushVote,
+		Hash: rlp.Hash128(vote),
+	}
+	h.pushPullManager.AddEntry(hash, vote)
+	h.sendPush(hash)
+}
+
+func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
+	h.peers.SendWithFilter(Push, hash, false)
+}
+
+func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}) {
+	switch hash.Type {
+	case pushVote:
+		p.sendMsg(Vote, entry, false)
+	case pushBlock:
+		p.sendMsg(ProposeBlock, entry, false)
+	case pushProof:
+		p.sendMsg(ProposeProof, entry, false)
+	case pushFlip:
+		p.sendMsg(FlipBody, entry, false)
+	case pushKeyPackage:
+		p.sendMsg(FlipKeysPackage, entry, false)
+	default:
+	}
 }
 
 func errResp(code int, format string, v ...interface{}) error {
@@ -617,15 +654,32 @@ func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 	h.peers.SendWithFilter(NewTx, tx, own)
 }
 
-func (h *IdenaGossipHandler) broadcastFlipCid(cid []byte) {
-	h.peers.SendWithFilter(PushFlipCid, &flipCid{cid}, false)
+func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
+
+	hash := pushPullHash{
+		Type: pushFlip,
+		Hash: rlp.Hash128(flip),
+	}
+	h.pushPullManager.AddEntry(hash, flip)
+	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	h.peers.SendWithFilter(FlipKey, flipKey, own)
 }
 func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
-	h.peers.SendWithFilter(FlipKeysPackage, flipKeysPackage, own)
+	hash := pushPullHash{
+		Type: pushKeyPackage,
+		Hash: rlp.Hash128(flipKeysPackage),
+	}
+	h.sendPush(hash)
+}
+
+func (h *IdenaGossipHandler) sendPull(peerId peer.ID, hash pushPullHash) {
+	peer := h.peers.Peer(peerId)
+	if peer != nil {
+		peer.sendMsg(Pull, hash, false)
+	}
 }
 
 func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
@@ -656,9 +710,12 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 		p.sendMsg(FlipKey, key, false)
 	}
 
-	keysPackages := h.flipKeyPool.GetFlipPackagesCids()
-	for _, flipPackageCid := range keysPackages {
-		p.sendMsg(FlipKeysPackageCid, flipPackageCid, false)
+	keysPackages := h.flipKeyPool.GetFlipPackagesHashes()
+	for _, hash := range keysPackages {
+		p.sendMsg(Push, pushPullHash{
+			Type: pushKeyPackage,
+			Hash: hash,
+		}, false)
 	}
 }
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {
