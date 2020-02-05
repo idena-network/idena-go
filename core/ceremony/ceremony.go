@@ -83,7 +83,6 @@ type ValidationCeremony struct {
 	validationStartMutex     sync.Mutex
 	candidatesPerAuthor      map[int][]int
 	authorsPerCandidate      map[int][]int
-	nextValidationTime       time.Time
 }
 
 type epochApplyingCache struct {
@@ -230,8 +229,6 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
 	vc.startValidationShortSessionTimer()
-
-	vc.nextValidationTime = vc.appState.State.NextValidationTime()
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
@@ -273,7 +270,6 @@ func (vc *ValidationCeremony) completeEpoch() {
 	}
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
-	vc.nextValidationTime = vc.appState.State.NextValidationTime()
 
 	vc.qualification = NewQualification(vc.epochDb)
 	vc.flipper.Clear()
