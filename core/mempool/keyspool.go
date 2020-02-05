@@ -46,27 +46,6 @@ type KeysPool struct {
 	self                      common.Address
 }
 
-func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
-}
-
-func (p *KeysPool) Has(hash common.Hash128) bool {
-	p.mutex.Lock()
-	_, ok := p.flipKeyPackagesByHash[hash]
-	p.mutex.Unlock()
-	return ok
-}
-
-func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
-	p.mutex.Lock()
-	value, ok := p.flipKeyPackagesByHash[hash]
-	p.mutex.Unlock()
-	return value, ok
-}
-
-func (p *KeysPool) MaxPulls() uint32 {
-	return 3
-}
-
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KeysPool{
@@ -93,6 +72,27 @@ func (p *KeysPool) Initialize(head *types.Header) {
 			newBlockEvent := e.(*events.NewBlockEvent)
 			p.head = newBlockEvent.Block.Header
 		})
+}
+
+func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
+}
+
+func (p *KeysPool) Has(hash common.Hash128) bool {
+	p.mutex.Lock()
+	_, ok := p.flipKeyPackagesByHash[hash]
+	p.mutex.Unlock()
+	return ok
+}
+
+func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
+	p.mutex.Lock()
+	value, ok := p.flipKeyPackagesByHash[hash]
+	p.mutex.Unlock()
+	return value, ok
+}
+
+func (p *KeysPool) MaxPulls() uint32 {
+	return 3
 }
 
 func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
