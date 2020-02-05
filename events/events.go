@@ -51,7 +51,7 @@ func (FastSyncCompletedEvent) EventID() eventbus.EventID {
 }
 
 type NewFlipEvent struct {
-	FlipCid []byte
+	Flip *types.Flip
 }
 
 func (NewFlipEvent) EventID() eventbus.EventID {

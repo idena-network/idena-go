@@ -35,6 +35,8 @@ const (
 	HashLength = 32
 	// AddressLength is the expected length of the address
 	AddressLength = 20
+
+	Hash128Length = 16
 )
 
 var (
@@ -356,4 +358,32 @@ func (ma *MixedcaseAddress) ValidChecksum() bool {
 // Original returns the mixed-case input string
 func (ma *MixedcaseAddress) Original() string {
 	return ma.original
+}
+
+type Hash128 [Hash128Length]byte
+
+// SetBytes sets the hash to the value of b.
+// If b is larger than len(h), b will be cropped from the left.
+func (h *Hash128) SetBytes(b []byte) {
+	if len(b) > len(h) {
+		b = b[len(b)-Hash128Length:]
+	}
+
+	copy(h[Hash128Length-len(b):], b)
+}
+
+func (h *Hash128) Bytes() []byte {
+	return h[:]
+}
+
+func (h *Hash128) String() string {
+	return string(h.Bytes())
+}
+
+// BytesToHash128 sets b to hash.
+// If b is larger than len(h), b will be cropped from the left.
+func BytesToHash128(b []byte) Hash128 {
+	var h Hash128
+	h.SetBytes(b)
+	return h
 }

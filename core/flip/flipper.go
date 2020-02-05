@@ -153,7 +153,7 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 
 	fp.flipsCache.Add(string(c.Bytes()), flip, cache.DefaultExpiration)
 
-	fp.bus.Publish(&events.NewFlipEvent{FlipCid: c.Bytes()})
+	fp.bus.Publish(&events.NewFlipEvent{Flip: flip})
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
 
