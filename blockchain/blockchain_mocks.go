@@ -52,16 +52,20 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 	}
 }
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
+	key, _ := crypto.GenerateKey()
+	secStore := secstore.NewSecStore()
 
+	secStore.AddKey(crypto.FromECDSA(key))
 	cfg := &config.Config{
 		Network:   0x99,
 		Consensus: conf,
 		GenesisConf: &config.GenesisConf{
-			Alloc: alloc,
+			Alloc:      alloc,
+			GodAddress: secStore.GetAddress(),
 		},
 		Validation: valConf,
 		Blockchain: &config.BlockchainConfig{},
@@ -71,9 +75,6 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	bus := eventbus.New()
 	appState := appstate.NewAppState(db, bus)
 
-	key, _ := crypto.GenerateKey()
-	secStore := secstore.NewSecStore()
-	secStore.AddKey(crypto.FromECDSA(key))
 	if withIdentity {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		cfg.GenesisConf.Alloc[addr] = config.GenesisAllocation{
@@ -90,10 +91,10 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	appState.Initialize(chain.Head.Height())
 	txPool.Initialize(chain.Head, secStore.GetAddress())
 
-	return chain, appState, txPool, key
+	return &TestBlockchain{db, chain}, appState, txPool, key
 }
 
-func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, -1, -1)
 }
 
@@ -190,7 +191,7 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
 		block := chain.ProposeBlock()
-		block.Header.ProposedHeader.Time = big.NewInt(0).Add(chain.Head.Time(), big.NewInt(20))
+		block.Header.ProposedHeader.Time = big.NewInt(0).Add( chain.Head.Time(), big.NewInt(20))
 		err := chain.AddBlock(block, nil)
 		if err != nil {
 			panic(err)

@@ -362,7 +362,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	}
 }
 
-func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.Blockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	conf := blockchain.GetDefaultConsensusConfig(false)
 	conf.MinFeePerByte = big.NewInt(0)
 	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
