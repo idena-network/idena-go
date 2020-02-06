@@ -1150,6 +1150,7 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.Invitees = identity.Invitees
 		stateObject.data.Inviter = identity.Inviter
 		stateObject.data.Penalty = identity.Penalty
+		stateObject.data.ValidationTxsBits = identity.ValidationTxsBits
 		stateObject.touch()
 	}
 }
