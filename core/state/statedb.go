@@ -404,6 +404,14 @@ func (s *StateDB) GetProfileHash(addr common.Address) []byte {
 	return s.GetOrNewIdentityObject(addr).GetProfileHash()
 }
 
+func (s *StateDB) SetValidationTxBit(addr common.Address, txType types.TxType) {
+	s.GetOrNewIdentityObject(addr).SetValidationTxBit(txType)
+}
+
+func (s *StateDB) HasValidationTx(addr common.Address, txType types.TxType) bool {
+	return s.GetOrNewIdentityObject(addr).HasValidationTx(txType)
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }

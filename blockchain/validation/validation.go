@@ -46,6 +46,7 @@ var (
 	InvalidMaxFee        = errors.New("invalid max fee")
 	InvalidSender        = errors.New("invalid sender")
 	FlipIsMissing        = errors.New("flip is missing")
+	DuplicatedTx         = errors.New("duplicated tx")
 	validators           map[types.TxType]validator
 )
 
@@ -119,6 +120,13 @@ func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *t
 	}
 	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
+	}
+	return nil
+}
+
+func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *types.Transaction) error {
+	if appState.State.HasValidationTx(sender, tx.Type) {
+		return DuplicatedTx
 	}
 	return nil
 }
@@ -303,6 +311,9 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
+	if err := validateCeremonyTx(sender, appState, tx); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -329,6 +340,10 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 	identity := appState.State.GetIdentity(sender)
 	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
+	}
+
+	if err := validateCeremonyTx(sender, appState, tx); err != nil {
+		return err
 	}
 
 	// we do not check VRF proof until first validation
@@ -377,6 +392,9 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return NotCandidate
 	}
 
+	if err := validateCeremonyTx(sender, appState, tx); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -398,7 +416,9 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
 		return NotCandidate
 	}
-
+	if err := validateCeremonyTx(sender, appState, tx); err != nil {
+		return err
+	}
 	return nil
 }
 
