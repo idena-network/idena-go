@@ -1,9 +1,11 @@
 package blockchain
 
 import (
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
@@ -53,14 +55,12 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	intFeeReward.Sub(fee, intBurn)
 
 	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward.Add(totalReward, chain.config.Consensus.FinalCommitteeReward)
 	totalReward.Add(totalReward, tips)
-	_, stake := splitReward(totalReward, chain.config.Consensus)
 
-	expectedBalance := big.NewInt(0)
-	expectedBalance.Add(expectedBalance, chain.config.Consensus.BlockReward)
-	expectedBalance.Add(expectedBalance, intFeeReward)
-	expectedBalance.Add(expectedBalance, tips)
-	expectedBalance.Sub(expectedBalance, stake)
+	expectedBalance, stake := splitReward(totalReward, chain.config.Consensus)
+
+	fmt.Printf("%v\n%v", expectedBalance, appState.State.GetBalance(chain.coinBaseAddress))
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, stake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
@@ -684,4 +684,72 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 
 	chain.GenerateBlocks(70)
 	require.Equal(uint64(100), chain.Head.Height())
+}
+
+func Test_ApplySubmitCeremonyTxs(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	consensus := GetDefaultConsensusConfig(true)
+	consensus.StatusSwitchRange = 10
+	cfg := &config.Config{
+		Network:   0x99,
+		Consensus: consensus,
+		GenesisConf: &config.GenesisConf{
+			Alloc: map[common.Address]config.GenesisAllocation{
+				addr: {
+					State: uint8(state.Verified),
+				},
+			},
+			GodAddress:        addr,
+			FirstCeremonyTime: 1, //01.01.2099
+		},
+		Validation: &config.ValidationConfig{
+			ShortSessionDuration: 1 * time.Second,
+			LongSessionDuration:  1 * time.Second,
+		},
+		Blockchain: &config.BlockchainConfig{},
+	}
+	chain, _ := NewCustomTestBlockchainWithConfig(0, 0, key, cfg)
+
+	stateDb := chain.appState.State
+
+	tx := &types.Transaction{
+		Type:         types.SubmitAnswersHashTx,
+		AccountNonce: 1,
+		Epoch:        0,
+		Payload:      common.Hash{0x1}.Bytes(),
+	}
+
+	signed, err := types.SignTx(tx, key)
+	require.NoError(t, err)
+	err = chain.txpool.Add(signed)
+	require.NoError(t, err)
+
+	chain.GenerateBlocks(3)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+
+	tx = &types.Transaction{
+		Type:         types.EvidenceTx,
+		AccountNonce: 2,
+		Payload:      []byte{0x1},
+	}
+	signed, _ = types.SignTx(tx, key)
+	err = chain.txpool.Add(signed)
+	require.NoError(t, err)
+
+	chain.GenerateBlocks(1)
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+
+	tx = &types.Transaction{
+		Type:         types.EvidenceTx,
+		AccountNonce: 3,
+		Payload:      []byte{0x1},
+	}
+	signed, _ = types.SignTx(tx, key)
+
+	err = chain.txpool.Add(signed)
+	require.True(t, err == validation.DuplicatedTx)
 }

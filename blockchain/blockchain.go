@@ -625,14 +625,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
 			stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash)
 		}
-		break
 	case types.SendTx:
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
-		break
 	case types.BurnTx:
 		stateDB.SubBalance(sender, totalCost)
-		break
 	case types.InviteTx:
 		if sender != stateDB.GodAddress() {
 			stateDB.SubInvite(sender, 1)
@@ -646,7 +643,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
 
 		stateDB.SetInviter(*tx.To, sender, tx.Hash())
-		break
 	case types.KillTx:
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
@@ -656,7 +652,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.AddBalance(*tx.To, new(big.Int).Sub(stateDB.GetStakeBalance(sender), fee))
 		stateDB.AddBalance(*tx.To, amount)
-		break
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
@@ -672,7 +667,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 				stateDB.AddInvite(sender, 1)
 			}
 		}
-		break
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
@@ -696,7 +690,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
-		break
+	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
+		stateDB.SetValidationTxBit(sender, tx.Type)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)

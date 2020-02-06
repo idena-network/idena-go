@@ -113,15 +113,16 @@ type Identity struct {
 	State          IdentityState
 	QualifiedFlips uint32
 	// should use GetShortFlipPoints instead of reading directly
-	ShortFlipPoints uint32
-	PubKey          []byte `rlp:"nil"`
-	RequiredFlips   uint8
-	Flips           []IdentityFlip `rlp:"nil"`
-	Generation      uint32
-	Code            []byte   `rlp:"nil"`
-	Invitees        []TxAddr `rlp:"nil"`
-	Inviter         *TxAddr  `rlp:"nil"`
-	Penalty         *big.Int
+	ShortFlipPoints   uint32
+	PubKey            []byte `rlp:"nil"`
+	RequiredFlips     uint8
+	Flips             []IdentityFlip `rlp:"nil"`
+	Generation        uint32
+	Code              []byte   `rlp:"nil"`
+	Invitees          []TxAddr `rlp:"nil"`
+	Inviter           *TxAddr  `rlp:"nil"`
+	Penalty           *big.Int
+	ValidationTxsBits byte
 }
 
 type TxAddr struct {
@@ -517,6 +518,23 @@ func (s *stateIdentity) SetProfileHash(hash []byte) {
 
 func (s *stateIdentity) GetProfileHash() []byte {
 	return s.data.ProfileHash
+}
+
+func (s *stateIdentity) SetValidationTxBit(txType types.TxType) {
+	mask := validationTxBitMask(txType)
+	if mask == 0 {
+		return
+	}
+	s.data.ValidationTxsBits = s.data.ValidationTxsBits | mask
+	s.touch()
+}
+
+func (s *stateIdentity) HasValidationTx(txType types.TxType) bool {
+	mask := validationTxBitMask(txType)
+	if mask == 0 {
+		return false
+	}
+	return s.data.ValidationTxsBits&mask > 0
 }
 
 // EncodeRLP implements rlp.Encoder.
