@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
@@ -370,4 +371,56 @@ func TestIdentityStateDB_SwitchTree(t *testing.T) {
 
 	stateDb.Commit(false)
 	stateDb.Commit(false)
+}
+
+func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	addr := common.Address{0x1}
+	stateDb.SetValidationTxBit(addr, types.SubmitAnswersHashTx)
+	stateDb.Commit(true)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
+
+	stateDb.SetValidationTxBit(addr, types.SubmitShortAnswersTx)
+	stateDb.Commit(true)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
+
+	stateDb.SetValidationTxBit(addr, types.EvidenceTx)
+	stateDb.Commit(true)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
+
+	stateDb.SetValidationTxBit(addr, types.SubmitLongAnswersTx)
+	stateDb.Commit(true)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
+
+
+	stateDb.SetValidationTxBit(addr, types.SendTx)
+	stateDb.Commit(true)
+
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.True(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
+	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
 }
