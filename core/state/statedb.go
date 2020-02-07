@@ -460,6 +460,18 @@ func (s *StateDB) FeePerByte() *big.Int {
 	return s.GetOrNewGlobalObject().FeePerByte()
 }
 
+func (s *StateDB) GodAddressInvites() uint16 {
+	return s.GetOrNewGlobalObject().GodAddressInvites()
+}
+
+func (s *StateDB) SubGodAddressInvite() {
+	s.GetOrNewGlobalObject().SubGodAddressInvite()
+}
+
+func (s *StateDB) SetGodAddressInvites(count uint16) {
+	s.GetOrNewGlobalObject().SetGodAddressInvites(count)
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -1106,6 +1118,7 @@ func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
 	stateObject.data.FeePerByte = state.Global.FeePerByte
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
+	stateObject.data.GodAddressInvites = state.Global.GodAddressInvites
 }
 
 func (s *StateDB) SetPredefinedStatusSwitch(state *PredefinedState) {
