@@ -224,7 +224,11 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
 		return err
 	}
-	if appState.State.GetInvites(sender) == 0 && sender != appState.State.GodAddress() {
+	godAddress := appState.State.GodAddress()
+	if sender != godAddress && appState.State.GetInvites(sender) == 0 {
+		return InsufficientInvites
+	}
+	if sender == godAddress && appState.State.GodAddressInvites() == 0 {
 		return InsufficientInvites
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {

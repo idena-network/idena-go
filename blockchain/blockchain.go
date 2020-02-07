@@ -206,6 +206,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
 		chain.appState.State.SetFlipWordsSeed(seed)
 		chain.appState.State.ClearStatusSwitchAddresses()
+		chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0))
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}
@@ -424,6 +425,8 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetFlipWordsSeed(block.Seed())
 
 	appState.State.SetEpochBlock(block.Height())
+
+	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool) {
@@ -631,11 +634,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.BurnTx:
 		stateDB.SubBalance(sender, totalCost)
 	case types.InviteTx:
-		if sender != stateDB.GodAddress() {
+		if sender == stateDB.GodAddress() {
+			stateDB.SubGodAddressInvite()
+		} else {
 			stateDB.SubInvite(sender, 1)
 		}
-		stateDB.SubBalance(sender, totalCost)
 
+		stateDB.SubBalance(sender, totalCost)
 		generation, code := stateDB.GeneticCode(sender)
 
 		stateDB.SetState(*tx.To, state.Invite)

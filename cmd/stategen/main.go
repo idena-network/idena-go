@@ -74,6 +74,7 @@ func main() {
 			FeePerByte:           globalObject.FeePerByte(),
 			VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
 			EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
+			GodAddressInvites:    globalObject.GodAddressInvites(),
 		}
 
 		snapshot.StatusSwitch = state.StateStatusSwitch{

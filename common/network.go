@@ -68,3 +68,7 @@ func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Dur
 	}
 	return day * time.Duration(math2.MinInt(91, int(math.Round(math.Pow(float64(networkSize), 0.33)/21)*21)))
 }
+
+func GodAddressInvitesCount(networkSize int) uint16 {
+	return uint16(math2.MinInt(500, math2.MaxInt(50, networkSize/3)))
+}
