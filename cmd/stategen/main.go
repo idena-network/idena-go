@@ -77,9 +77,6 @@ func main() {
 			GodAddressInvites:    globalObject.GodAddressInvites(),
 		}
 
-		// TODO: remove next line after 0.17.0 fork
-		snapshot.Global.GodAddressInvites = common.GodAddressInvitesCount(0)
-
 		snapshot.StatusSwitch = state.StateStatusSwitch{
 			Addresses: appState.State.StatusSwitchAddresses(),
 		}
@@ -167,6 +164,10 @@ func main() {
 			})
 			return false
 		})
+
+		// TODO: remove next line after 0.17.0 fork
+		snapshot.Global.GodAddressInvites = common.GodAddressInvitesCount(len(snapshot.ApprovedIdentities))
+
 		file, err := os.Create("stategen.out")
 		if err != nil {
 			return err
