@@ -537,6 +537,11 @@ func (s *stateIdentity) HasValidationTx(txType types.TxType) bool {
 	return s.data.ValidationTxsBits&mask > 0
 }
 
+func (s *stateIdentity) ResetValidationTxBits() {
+	s.data.ValidationTxsBits = 0
+	s.touch()
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateGlobal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)

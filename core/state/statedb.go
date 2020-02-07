@@ -408,6 +408,10 @@ func (s *StateDB) SetValidationTxBit(addr common.Address, txType types.TxType) {
 	s.GetOrNewIdentityObject(addr).SetValidationTxBit(txType)
 }
 
+func (s *StateDB) ResetValidationTxBits(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).ResetValidationTxBits()
+}
+
 func (s *StateDB) HasValidationTx(addr common.Address, txType types.TxType) bool {
 	return s.GetOrNewIdentityObject(addr).HasValidationTx(txType)
 }

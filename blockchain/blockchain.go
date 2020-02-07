@@ -453,6 +453,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, va
 		}
 		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
+		appState.State.ResetValidationTxBits(addr)
 	})
 }
 
