@@ -753,3 +753,24 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	err = chain.txpool.Add(signed)
 	require.True(t, err == validation.DuplicatedTx)
 }
+
+func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
+	require := require.New(t)
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	chain, state := NewCustomTestBlockchain(5, 0, key)
+
+	count := int(common.GodAddressInvitesCount(0))
+	for i := 0; i < count; i++ {
+		keyReceiver, _ := crypto.GenerateKey()
+		receiver := crypto.PubkeyToAddress(keyReceiver.PublicKey)
+		tx, _ := chain.secStore.SignTx(BuildTx(state, addr, &receiver, types.InviteTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, nil))
+		require.NoError(chain.txpool.Add(tx))
+		chain.GenerateBlocks(1)
+	}
+
+	keyReceiver, _ := crypto.GenerateKey()
+	receiver := crypto.PubkeyToAddress(keyReceiver.PublicKey)
+	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, &receiver, types.InviteTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, nil))
+	require.Equal(validation.InsufficientInvites, chain.txpool.Add(tx), "we should not issue invite if we exceed limit")
+}

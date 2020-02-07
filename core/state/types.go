@@ -55,6 +55,7 @@ type StateGlobal struct {
 	FeePerByte           *big.Int
 	VrfProposerThreshold uint64
 	EmptyBlocksBits      *big.Int
+	GodAddressInvites    uint16
 }
 
 type StateStatusSwitch struct {

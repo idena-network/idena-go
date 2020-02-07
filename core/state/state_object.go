@@ -90,6 +90,7 @@ type Global struct {
 	FeePerByte           *big.Int
 	VrfProposerThreshold uint64
 	EmptyBlocksBits      *big.Int
+	GodAddressInvites    uint16
 }
 
 // Account is the Idena consensus representation of accounts.
@@ -662,6 +663,20 @@ func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
 
 func (s *stateGlobal) FeePerByte() *big.Int {
 	return s.data.FeePerByte
+}
+
+func (s *stateGlobal) SubGodAddressInvite() {
+	s.data.GodAddressInvites -= 1
+	s.touch(false)
+}
+
+func (s *stateGlobal) GodAddressInvites() uint16 {
+	return s.data.GodAddressInvites
+}
+
+func (s *stateGlobal) SetGodAddressInvites(count uint16) {
+	s.data.GodAddressInvites = count
+	s.touch(false)
 }
 
 // EncodeRLP implements rlp.Encoder.
