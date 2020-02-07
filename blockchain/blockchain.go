@@ -206,7 +206,11 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		chain.appState.State.SetNextValidationTime(time.Unix(nextValidationTimestamp, 0))
 		chain.appState.State.SetFlipWordsSeed(seed)
 		chain.appState.State.ClearStatusSwitchAddresses()
-		chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0))
+		if chain.config.GenesisConf.GodAddressInvites > 0 {
+			chain.appState.State.SetGodAddressInvites(chain.config.GenesisConf.GodAddressInvites)
+		} else {
+			chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0))
+		}
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}

@@ -77,6 +77,9 @@ func main() {
 			GodAddressInvites:    globalObject.GodAddressInvites(),
 		}
 
+		// TODO: remove next line after 0.17.0 fork
+		snapshot.Global.GodAddressInvites = common.GodAddressInvitesCount(0)
+
 		snapshot.StatusSwitch = state.StateStatusSwitch{
 			Addresses: appState.State.StatusSwitchAddresses(),
 		}
