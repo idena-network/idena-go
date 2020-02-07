@@ -15,4 +15,5 @@ type GenesisConf struct {
 	Alloc             map[common.Address]GenesisAllocation
 	GodAddress        common.Address
 	FirstCeremonyTime int64
+	GodAddressInvites uint16
 }

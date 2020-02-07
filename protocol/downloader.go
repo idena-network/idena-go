@@ -70,7 +70,7 @@ func (d *Downloader) IsSyncing() bool {
 func (d *Downloader) SyncProgress() (head uint64, top uint64) {
 	height := d.chain.Head.Height()
 	if d.chain.PreliminaryHead != nil {
-		height = math.MaxInt(height, d.chain.PreliminaryHead.Height())
+		height = math.Max(height, d.chain.PreliminaryHead.Height())
 	}
 	return height, d.top
 }
