@@ -373,13 +373,13 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	reward, stake := splitReward(totalReward, chain.config.Consensus)
 
 	// calculate penalty
-	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.ProposedHeader.Coinbase))
+	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.Coinbase()))
 
 	// update state
-	appState.State.AddBalance(block.Header.ProposedHeader.Coinbase, balanceAdd)
-	appState.State.AddStake(block.Header.ProposedHeader.Coinbase, stakeAdd)
+	appState.State.AddBalance(block.Header.Coinbase(), balanceAdd)
+	appState.State.AddStake(block.Header.Coinbase(), stakeAdd)
 	if penaltySub != nil {
-		appState.State.SubPenalty(block.Header.ProposedHeader.Coinbase, penaltySub)
+		appState.State.SubPenalty(block.Header.Coinbase(), penaltySub)
 	}
 
 	chain.rewardFinalCommittee(appState, block, prevBlock)
@@ -807,7 +807,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 	return false, common.Hash{}, nil
 }
 
-func (chain *Blockchain) ProposeBlock() *types.Block {
+func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
@@ -835,7 +835,6 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 		Time:           new(big.Int).SetInt64(newBlockTime),
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
-		Coinbase:       chain.coinBaseAddress,
 		IpfsHash:       cidBytes,
 		FeePerByte:     chain.appState.State.FeePerByte(),
 	}
@@ -860,7 +859,9 @@ func (chain *Blockchain) ProposeBlock() *types.Block {
 
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips)
 
-	return block
+	proposal := &types.BlockProposal{Block: block, Signature: chain.secStore.Sign(block.Hash().Bytes())}
+
+	return proposal
 }
 
 func calculateTxBloom(block *types.Block) []byte {
@@ -1432,6 +1433,11 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	if header.EmptyBlockHeader != nil {
 		//TODO: validate empty block hash
 		return nil
+	}
+
+	coinbase := header.Coinbase()
+	if coinbase == (common.Address{}) {
+		return errors.New("invalid coinbase")
 	}
 
 	var seedData = getSeedData(prevBlock)
