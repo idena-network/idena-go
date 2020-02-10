@@ -362,8 +362,8 @@ func (fp *Flipper) HasFlips() bool {
 	return fp.hasFlips
 }
 
-func (fp *Flipper) IsFlipReady(cid []byte) bool {
-	hash := common.Hash(rlp.Hash(cid))
+func (fp *Flipper) IsFlipReady(key []byte) bool {
+	hash := common.Hash(rlp.Hash(key))
 
 	fp.mutex.Lock()
 	flip := fp.flips[hash]
@@ -375,11 +375,14 @@ func (fp *Flipper) IsFlipReady(cid []byte) bool {
 	}
 
 	if !isReady {
-		if _, _, err := fp.GetFlip(cid); err == nil {
+		if _, _, err := fp.GetFlip(key); err == nil {
 			fp.mutex.Lock()
 			isReady = true
 			fp.flipReadiness[hash] = true
 			fp.mutex.Unlock()
+		} else {
+			c, _ := cid.Cast(key)
+			log.Warn("flip is not ready", "err", err, "cid", c.String())
 		}
 	}
 
