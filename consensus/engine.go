@@ -276,17 +276,17 @@ func (engine *Engine) completeRound(round uint64) {
 }
 
 func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
-	block := engine.chain.ProposeBlock()
+	proposal := engine.chain.ProposeBlock()
 
-	engine.log.Info("Proposed block", "block", block.Hash().Hex(), "txs", len(block.Body.Transactions))
+	engine.log.Info("Proposed block", "block", proposal.Hash().Hex(), "txs", len(proposal.Body.Transactions))
 
-	engine.pm.ProposeProof(block.Height(), hash, proof, engine.pubKey)
-	engine.pm.ProposeBlock(block)
+	engine.pm.ProposeProof(proposal.Height(), hash, proof, engine.pubKey)
+	engine.pm.ProposeBlock(proposal)
 
-	engine.proposals.AddProposedBlock(block, "", time.Now().UTC())
-	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, block.Height())
+	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC())
+	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, proposal.Height())
 
-	return block
+	return proposal.Block
 }
 
 func (engine *Engine) getHighestProposerPubKey(round uint64) []byte {

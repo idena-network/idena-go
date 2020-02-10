@@ -28,7 +28,6 @@ func Test_ApplyBlockRewards(t *testing.T) {
 		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
-		Coinbase:       chain.coinBaseAddress,
 	}
 
 	block := &types.Block{

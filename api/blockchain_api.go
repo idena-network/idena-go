@@ -317,7 +317,7 @@ func convertToBlock(block *types.Block) *Block {
 
 	var coinbase common.Address
 	if !block.IsEmpty() {
-		coinbase = block.Header.ProposedHeader.Coinbase
+		coinbase = block.Header.Coinbase()
 	}
 
 	return &Block{
