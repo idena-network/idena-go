@@ -1140,4 +1140,5 @@ func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
 			}
 		}
 	}
+	vc.keysPool.InitializePrivateKeyIndexes(m)
 }
