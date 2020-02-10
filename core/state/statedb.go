@@ -436,8 +436,8 @@ func (s *StateDB) AddBlockBit(empty bool) {
 	s.GetOrNewGlobalObject().AddBlockBit(empty)
 }
 
-func (s *StateDB) EmptyBlocksRatio() float64 {
-	return s.GetOrNewGlobalObject().EmptyBlocksRatio()
+func (s *StateDB) EmptyBlocksCount() int {
+	return s.GetOrNewGlobalObject().EmptyBlocksCount()
 }
 
 func (s *StateDB) SetEpochBlock(height uint64) {

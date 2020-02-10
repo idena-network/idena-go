@@ -7,8 +7,6 @@ import (
 
 type ConsensusConf struct {
 	MaxSteps                          uint16
-	MinProposerThreshold              float64
-	MaxProposerThreshold              float64
 	AgreementThreshold                float64
 	CommitteePercent                  float64
 	FinalCommitteePercent             float64
@@ -32,7 +30,6 @@ type ConsensusConf struct {
 	SecondInvitationRewardCoef        float32
 	ThirdInvitationRewardCoef         float32
 	FeeSensitivityCoef                float32
-	VrfSensitivityCoef                float64
 	MinFeePerByte                     *big.Int
 	MinBlockDistance                  time.Duration
 	MaxCommitteeSize                  int
@@ -45,9 +42,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
 		AgreementThreshold:                0.65, // 65% of committee members should vote for block
-		MinProposerThreshold:              0.5,
-		MaxProposerThreshold:              0.9999,
-		VrfSensitivityCoef:                0.1,
 		WaitBlockDelay:                    time.Minute,
 		WaitSortitionProofDelay:           time.Second * 5,
 		EstimatedBaVariance:               time.Second * 5,

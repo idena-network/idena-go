@@ -24,8 +24,6 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		CommitteePercent:                  0.3,
 		FinalCommitteePercent:             0.7,
 		AgreementThreshold:                0.65,
-		MinProposerThreshold:              0.5,
-		MaxProposerThreshold:              0.9999,
 		WaitBlockDelay:                    time.Minute,
 		WaitSortitionProofDelay:           time.Second * 5,
 		EstimatedBaVariance:               time.Second * 5,
@@ -46,7 +44,6 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		SecondInvitationRewardCoef:        3.0,
 		ThirdInvitationRewardCoef:         6.0,
 		FeeSensitivityCoef:                0.25,
-		VrfSensitivityCoef:                0.1,
 		MinFeePerByte:                     big.NewInt(1e+4),
 		StatusSwitchRange:                 50,
 	}

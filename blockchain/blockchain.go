@@ -750,16 +750,29 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, block *types.Block) {
 	appState.State.AddBlockBit(block.IsEmpty())
 	currentThreshold := appState.State.VrfProposerThreshold()
-	maxVrf, minVrf, k := chain.config.Consensus.MaxProposerThreshold, chain.config.Consensus.MinProposerThreshold, chain.config.Consensus.VrfSensitivityCoef
-	if currentThreshold == 0 {
-		currentThreshold = minVrf
+
+	online := float64(appState.ValidatorsCache.OnlineSize())
+	if online == 0 {
+		online = 1
 	}
-	emptyRatio := appState.State.EmptyBlocksRatio()
-	newThreshold := math2.Min(maxVrf, math2.Max(currentThreshold*(1.0+k*(0.1-emptyRatio)), minVrf))
-	if emptyRatio > 0 && newThreshold > currentThreshold {
-		newThreshold = currentThreshold
+
+	emptyBlocks := appState.State.EmptyBlocksCount()
+
+	minVrf := math2.Max(0.5, 1.0-10.0/online)
+	maxVrf := math2.Max(0.5, 1.0-1.0/online)
+
+	step := (maxVrf - minVrf) / 60
+	switch emptyBlocks {
+	case 0:
+		currentThreshold += step
+	case 1, 2:
+	default:
+		currentThreshold -= step
 	}
-	appState.State.SetVrfProposerThreshold(newThreshold)
+
+	currentThreshold = math2.Max(minVrf, math2.Min(currentThreshold, maxVrf))
+
+	appState.State.SetVrfProposerThreshold(currentThreshold)
 }
 
 func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *types.Block) {
@@ -785,17 +798,10 @@ func getSeedData(prevBlock *types.Header) []byte {
 	return result
 }
 
-const desiredProposersCount = float64(10)
-
 func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 
 	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
-		online := float64(chain.appState.ValidatorsCache.OnlineSize())
-		if online == 0 {
-			online = 1
-		}
-		threshold := math2.Max(chain.appState.State.VrfProposerThreshold(), 1-math2.Min(0.5, desiredProposersCount/online))
-		return chain.getSortition(chain.getProposerData(), threshold)
+		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold())
 	}
 
 	return false, common.Hash{}, nil
