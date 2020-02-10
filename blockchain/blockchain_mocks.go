@@ -177,23 +177,23 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 			Round:       block.Height(),
 			Step:        1,
 			ParentHash:  block.Header.ParentHash(),
-			VotedHash:   block.Hash(),
+			VotedHash:   block.Header.Hash(),
 			TurnOffline: false,
 		},
 	}
 	vote.Signature = chain.secStore.Sign(vote.Header.SignatureHash().Bytes())
-	chain.WriteCertificate(block.Hash(), &types.BlockCert{Votes: []*types.Vote{vote}}, true)
+	chain.WriteCertificate(block.Header.Hash(), &types.BlockCert{Votes: []*types.Vote{vote}}, true)
 }
 
 func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
 		block := chain.ProposeBlock()
-		block.Header.ProposedHeader.Time = big.NewInt(0).Add( chain.Head.Time(), big.NewInt(20))
-		err := chain.AddBlock(block, nil)
+		block.Block.Header.ProposedHeader.Time = big.NewInt(0).Add(chain.Head.Time(), big.NewInt(20))
+		err := chain.AddBlock(block.Block, nil)
 		if err != nil {
 			panic(err)
 		}
-		chain.addCert(block)
+		chain.addCert(block.Block)
 	}
 	return chain
 }

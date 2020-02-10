@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/rlp"
@@ -69,9 +70,8 @@ type ProposedHeader struct {
 	Time           *big.Int    `json:"timestamp"`
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
-	Root           common.Hash    // root of state tree
-	IdentityRoot   common.Hash    // root of approved identities tree
-	Coinbase       common.Address // address of proposer
+	Root           common.Hash // root of state tree
+	IdentityRoot   common.Hash // root of approved identities tree
 	Flags          BlockFlag
 	IpfsHash       []byte          // ipfs hash of block body
 	OfflineAddr    *common.Address `rlp:"nil"`
@@ -135,6 +135,11 @@ type BlockCert struct {
 type BlockBundle struct {
 	Block *Block
 	Cert  *BlockCert
+}
+
+type BlockProposal struct {
+	*Block
+	Signature []byte
 }
 
 // Transactions is a Transaction slice type for basic sorting.
@@ -297,7 +302,8 @@ func (h *Header) Coinbase() common.Address {
 	if h.EmptyBlockHeader != nil {
 		return common.Address{}
 	} else {
-		return h.ProposedHeader.Coinbase
+		addr, _ := crypto.PubKeyBytesToAddress(h.ProposedHeader.ProposerPubKey)
+		return addr
 	}
 }
 
@@ -312,6 +318,7 @@ func (h *Header) OfflineAddr() *common.Address {
 func (h *ProposedHeader) Hash() common.Hash {
 	return rlp.Hash(h)
 }
+
 func (h *EmptyBlockHeader) Hash() common.Hash {
 	return rlp.Hash(h)
 }
@@ -433,6 +440,17 @@ func (b *Body) FromBytes(data []byte) {
 
 func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
+}
+
+func (p *BlockProposal) IsValid() bool {
+	if p.Block == nil || len(p.Signature) == 0 || p.Block.IsEmpty() {
+		return false
+	}
+	pubKey, err := crypto.Ecrecover(p.Block.Hash().Bytes(), p.Signature)
+	if err != nil {
+		return false
+	}
+	return bytes.Compare(pubKey, p.Block.Header.ProposedHeader.ProposerPubKey) == 0
 }
 
 type PublicFlipKey struct {

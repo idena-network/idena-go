@@ -2,12 +2,9 @@ package common
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/RoaringBitmap/roaring"
 	"github.com/stretchr/testify/require"
-	"math/rand"
 	"testing"
-	"time"
 )
 
 func TestBitmap_Size(t *testing.T) {
@@ -104,25 +101,4 @@ func TestBitmap_Serialize(t *testing.T) {
 	bitmap2.Read(buf.Bytes())
 
 	require.True(t, bitmap.rmap.Equals(bitmap2.rmap))
-}
-
-func TestBitmap_Size2(t *testing.T) {
-	size := uint32(10000)
-	bitmap := NewBitmap(size)
-
-	//part := uint32(40)
-	//
-	//for i := uint32(0); i < size; i++ {
-	//	if i < size/part || i > size/part*(part-1) {
-	//		bitmap.Add(i)
-	//	}
-	//}
-	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	for i := 0; i < 600; i++ {
-		bitmap.Add(rnd.Uint32() % size)
-	}
-
-	buf := new(bytes.Buffer)
-	bitmap.WriteTo(buf)
-	fmt.Println(buf.Len())
 }
