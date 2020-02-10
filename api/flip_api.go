@@ -113,6 +113,9 @@ func (api *FlipApi) isCeremonyCandidate() bool {
 }
 
 func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
+	log.Info("short hashes request")
+	defer log.Info("short hashes response")
+
 	period := api.baseApi.getAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
@@ -129,6 +132,9 @@ func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 }
 
 func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
+	log.Info("long hashes request")
+	defer log.Info("long hashes response")
+
 	period := api.baseApi.getAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
@@ -172,6 +178,9 @@ type FlipResponse struct {
 }
 
 func (api *FlipApi) Get(hash string) (FlipResponse, error) {
+	log.Info("get flip request", "hash", hash)
+	defer log.Info("get flip response", "hash", hash)
+
 	c, err := cid.Decode(hash)
 	if err != nil {
 		return FlipResponse{}, err
