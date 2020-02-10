@@ -366,10 +366,9 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	go h.runListening(peer)
 	go peer.broadcast()
 
-	if peer.shouldSyncMempool() {
-		go h.syncTxPool(peer)
-		go h.syncFlipKeyPool(peer)
-	}
+	go h.syncTxPool(peer)
+	go h.syncFlipKeyPool(peer)
+
 	h.sendManifest(peer)
 
 	h.log.Info("Peer connected", "id", peer.id.Pretty(), "inbound", inbound)

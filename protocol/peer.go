@@ -314,10 +314,3 @@ func (p *protoPeer) ID() string {
 func (p *protoPeer) RemoteAddr() string {
 	return p.stream.Conn().RemoteMultiaddr().String()
 }
-
-func (p *protoPeer) shouldSyncMempool() bool {
-	if p.peers < MaxMempoolSyncs {
-		return true
-	}
-	return rand.Float32() > ExtraSyncThreshold
-}
