@@ -165,9 +165,6 @@ func main() {
 			return false
 		})
 
-		// TODO: remove next line after 0.17.0 fork
-		snapshot.Global.GodAddressInvites = common.GodAddressInvitesCount(len(snapshot.ApprovedIdentities))
-
 		file, err := os.Create("stategen.out")
 		if err != nil {
 			return err
