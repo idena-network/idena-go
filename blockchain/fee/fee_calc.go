@@ -24,6 +24,9 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 }
 
 func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
+	if networkSize == 0 || feePerByte == nil {
+		return big.NewInt(0)
+	}
 	if tx.Type == types.SubmitFlipTx || tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitShortAnswersTx ||
 		tx.Type == types.SubmitLongAnswersTx || tx.Type == types.EvidenceTx || tx.Type == types.ActivationTx ||
 		tx.Type == types.InviteTx {
@@ -34,9 +37,6 @@ func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transact
 		if attachment != nil && attachment.Online {
 			return new(big.Int).Mul(big.NewInt(2), feePerByte)
 		}
-		return big.NewInt(0)
-	}
-	if networkSize == 0 || feePerByte == nil {
 		return big.NewInt(0)
 	}
 	return feePerByte
