@@ -12,30 +12,25 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/mock v1.3.1 // indirect
 	github.com/golang/snappy v0.0.1
-	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/tink v1.2.2
 	github.com/ipfs/go-blockservice v0.1.2
-	github.com/ipfs/go-cid v0.0.4
-	github.com/ipfs/go-ipfs v0.4.22-0.20191217184430-c9e8070082e2
-	github.com/ipfs/go-ipfs-config v0.1.0
-	github.com/ipfs/go-ipfs-files v0.0.4
-	github.com/ipfs/go-ipfs-util v0.0.1
+	github.com/ipfs/go-cid v0.0.5
+	github.com/ipfs/go-ipfs v0.4.22-0.20200207225350-45efea8aef15
+	github.com/ipfs/go-ipfs-config v0.2.0
+	github.com/ipfs/go-ipfs-files v0.0.6
 	github.com/ipfs/go-merkledag v0.3.1
 	github.com/ipfs/go-mfs v0.1.1
-	github.com/ipfs/go-unixfs v0.2.1
+	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.2.5
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	github.com/libp2p/go-libp2p-core v0.3.0
-	github.com/libp2p/go-libp2p-pnet v0.1.1-0.20200129224249-a25f8a99dcf4 // indirect
+	github.com/libp2p/go-libp2p-pnet v0.1.1-0.20200204202027-d227cde94463 // indirect
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.2.3
-	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multiaddr v0.2.0
-	github.com/multiformats/go-multihash v0.0.10
+	github.com/multiformats/go-multihash v0.0.13
 	github.com/nwaples/rardecode v1.0.0 // indirect
-	github.com/onsi/ginkgo v1.10.1 // indirect
-	github.com/onsi/gomega v1.7.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.0
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
@@ -52,9 +47,9 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413
+	golang.org/x/crypto v0.0.0-20200115085410-6d4e4cb37c7d
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
-	golang.org/x/sys v0.0.0-20190926180325-855e68c8590b
+	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/urfave/cli.v1 v1.20.0
