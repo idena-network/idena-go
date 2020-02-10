@@ -231,19 +231,19 @@ func TestStateGlobal_EmptyBlocksRatio(t *testing.T) {
 		stateDb.AddBlockBit(false)
 	}
 	stateDb.Commit(true)
-	require.Equal(t, 10.0/25.0, stateDb.EmptyBlocksRatio())
+	require.Equal(t, 10, stateDb.EmptyBlocksCount())
 
 	for i := 0; i < 100; i++ {
 		stateDb.AddBlockBit(true)
 	}
 	stateDb.Commit(true)
-	require.Equal(t, 1.0, stateDb.EmptyBlocksRatio())
+	require.Equal(t, 25, stateDb.EmptyBlocksCount())
 
 	for i := 0; i < 1000; i++ {
 		stateDb.AddBlockBit(false)
 	}
 	stateDb.Commit(true)
-	require.Equal(t, 0.0, stateDb.EmptyBlocksRatio())
+	require.Equal(t, 0, stateDb.EmptyBlocksCount())
 	require.Len(t, stateDb.GetOrNewGlobalObject().data.EmptyBlocksBits.Bytes(), 4)
 }
 
