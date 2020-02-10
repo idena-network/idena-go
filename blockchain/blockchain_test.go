@@ -578,7 +578,7 @@ func Test_DeleteFlipTx(t *testing.T) {
 	expectedBalance := big.NewInt(999_990)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, signedTx)
+	chain.ApplyTxOnState(appState, signedTx, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))

@@ -392,12 +392,12 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	if penaltySub != nil {
 		appState.State.SubPenalty(block.Header.Coinbase(), penaltySub)
 	}
-	collector.AfterBalanceUpdate(statsCollector, block.Header.ProposedHeader.Coinbase, appState)
+	collector.AfterBalanceUpdate(statsCollector, block.Header.Coinbase(), appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AfterAddStake(statsCollector, block.Header.ProposedHeader.Coinbase, stake)
-	collector.AfterSubPenalty(statsCollector, block.Header.ProposedHeader.Coinbase, penaltySub, appState)
-	collector.AddPenaltyBurntCoins(statsCollector, block.Header.ProposedHeader.Coinbase, penaltySub)
-	collector.AddProposerReward(statsCollector, block.Header.ProposedHeader.Coinbase, reward, stake)
+	collector.AfterAddStake(statsCollector, block.Header.Coinbase(), stake)
+	collector.AfterSubPenalty(statsCollector, block.Header.Coinbase(), penaltySub, appState)
+	collector.AddPenaltyBurntCoins(statsCollector, block.Header.Coinbase(), penaltySub)
+	collector.AddProposerReward(statsCollector, block.Header.Coinbase(), reward, stake)
 
 	chain.rewardFinalCommittee(appState, block, prevBlock, statsCollector)
 }
