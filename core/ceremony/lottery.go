@@ -11,6 +11,7 @@ import (
 
 const (
 	GeneticRelationLength = 3
+	CandidatesPerAuthor   = 13
 )
 
 func GetAuthorsDistribution(candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
@@ -80,7 +81,7 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 			continue
 		}
 		currentCount := len(value)
-		if currentCount >= 11 {
+		if currentCount >= CandidatesPerAuthor {
 			continue
 		}
 
@@ -89,7 +90,7 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 		}
 
 		// do until each candidate has 11 candidates
-		for currentCount < 11 {
+		for currentCount < CandidatesPerAuthor {
 			if candidatesQueue.Len() == 0 {
 				break
 			}
