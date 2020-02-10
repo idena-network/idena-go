@@ -47,13 +47,13 @@ type Proposals struct {
 }
 
 type blockPeer struct {
-	block         *types.Block
+	proposal      *types.BlockProposal
 	receivingTime time.Time
 	peerId        peer.ID
 }
 
 type proposedBlock struct {
-	block         *types.Block
+	proposal      *types.BlockProposal
 	receivingTime time.Time
 }
 
@@ -162,13 +162,13 @@ func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 	return result
 }
 
-func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
-	var result []*types.Block
+func (proposals *Proposals) ProcessPendingBlocks() []*types.BlockProposal {
+	var result []*types.BlockProposal
 
 	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
 		blockPeer := value.(*blockPeer)
-		if added, pending := proposals.AddProposedBlock(blockPeer.block, blockPeer.peerId, blockPeer.receivingTime); added {
-			result = append(result, blockPeer.block)
+		if added, pending := proposals.AddProposedBlock(blockPeer.proposal, blockPeer.peerId, blockPeer.receivingTime); added {
+			result = append(result, blockPeer.proposal)
 		} else if !pending {
 			proposals.pendingBlocks.Delete(key)
 		}
@@ -179,7 +179,11 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.Block {
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId peer.ID, receivingTime time.Time) (added bool, pending bool) {
+func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time) (added bool, pending bool) {
+	if !proposal.IsValid() {
+		return false, false
+	}
+	block := proposal.Block
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
 		if proposals.proposeCache.Add(block.Hash().Hex(), nil, cache.DefaultExpiration) != nil {
@@ -206,12 +210,12 @@ func (proposals *Proposals) AddProposedBlock(block *types.Block, peerId peer.ID,
 			return false, false
 		}
 
-		round.Store(block.Hash(), &proposedBlock{block: block, receivingTime: receivingTime})
+		round.Store(block.Hash(), &proposedBlock{proposal: proposal, receivingTime: receivingTime})
 
 		return true, false
 	} else if currentRound < block.Height() && block.Height()-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
-			block: block, peerId: peerId, receivingTime: receivingTime,
+			proposal: proposal, peerId: peerId, receivingTime: receivingTime,
 		})
 		return false, true
 	}
@@ -225,9 +229,9 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 			round := m.(*sync.Map)
 			var result *types.Block
 			round.Range(func(key, value interface{}) bool {
-				block := value.(*proposedBlock)
-				if bytes.Compare(block.block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
-					result = block.block
+				p := value.(*proposedBlock)
+				if bytes.Compare(p.proposal.Block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
+					result = p.proposal.Block
 					return false
 				}
 				return true
@@ -245,7 +249,7 @@ func (proposals *Proposals) GetBlockByHash(round uint64, hash common.Hash) (*typ
 	if m, ok := proposals.blocksByRound.Load(round); ok {
 		roundMap := m.(*sync.Map)
 		if block, ok := roundMap.Load(hash); ok {
-			return block.(*proposedBlock).block, nil
+			return block.(*proposedBlock).proposal.Block, nil
 		}
 	}
 	return nil, errors.New("Block is not found in proposals")
@@ -270,7 +274,7 @@ func (proposals *Proposals) AvgTimeDiff(round uint64, start int64) decimal.Decim
 		round := m.(*sync.Map)
 		round.Range(func(key, value interface{}) bool {
 			block := value.(*proposedBlock)
-			diffs = append(diffs, decimal.New(block.receivingTime.Unix(), 0).Sub(decimal.NewFromBigInt(block.block.Header.Time(), 0)))
+			diffs = append(diffs, decimal.New(block.receivingTime.Unix(), 0).Sub(decimal.NewFromBigInt(block.proposal.Header.Time(), 0)))
 			return true
 		})
 	}

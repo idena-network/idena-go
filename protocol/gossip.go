@@ -209,18 +209,21 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			h.proposeProof(query)
 		}
 	case ProposeBlock:
-		block := new(types.Block)
-		if err := msg.Decode(block); err != nil {
+		proposal := new(types.BlockProposal)
+		if err := msg.Decode(proposal); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(block) {
+		if h.isProcessed(proposal) {
 			return nil
 		}
-		p.markPayload(block)
+		p.markPayload(proposal)
+		if proposal.Block == nil || len(proposal.Signature) == 0 {
+			return nil
+		}
 		// if peer proposes this msg it should be on `query.Round-1` height
-		p.setHeight(block.Height() - 1)
-		if ok, _ := h.proposals.AddProposedBlock(block, p.id, time.Now().UTC()); ok {
-			h.ProposeBlock(block)
+		p.setHeight(proposal.Block.Height() - 1)
+		if ok, _ := h.proposals.AddProposedBlock(proposal, p.id, time.Now().UTC()); ok {
+			h.ProposeBlock(proposal)
 		}
 	case Vote:
 		vote := new(types.Vote)
@@ -608,7 +611,7 @@ func (h *IdenaGossipHandler) proposeProof(payload *proposeProof) {
 	h.sendPush(hash)
 }
 
-func (h *IdenaGossipHandler) ProposeBlock(block *types.Block) {
+func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
 	hash := pushPullHash{
 		Type: pushBlock,
 		Hash: rlp.Hash128(block),

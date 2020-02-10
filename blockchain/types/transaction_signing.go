@@ -55,6 +55,7 @@ func SenderPubKey(tx *Transaction) ([]byte, error) {
 func signatureHash(tx *Transaction) common.Hash {
 	return rlp.Hash([]interface{}{
 		tx.AccountNonce,
+		tx.Epoch,
 		tx.Type,
 		tx.To,
 		tx.Amount,
