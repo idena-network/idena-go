@@ -162,6 +162,7 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 	}()
 
 	if err != nil {
+		log.Warn("Unable to add private keys package", "err", err, "sender", sender.Hex())
 		return err
 	}
 
@@ -224,34 +225,37 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 
 	publicFlipKey := p.getPublicFlipKey(address)
 	if publicFlipKey == nil {
+		log.Warn("GetPrivateFlipKey: public flip key is missing", "address", address.Hex())
 		return nil
 	}
 
 	keysPackage, ok := p.flipKeyPackages[address]
 	if !ok {
+		log.Warn("GetPrivateFlipKey: package is missing", "address", address.Hex())
 		return nil
 	}
 
 	idx, ok := p.privateKeyIndexes[address]
 	if !ok {
+		log.Warn("GetPrivateFlipKey: indexes are missing", "address", address.Hex())
 		return nil
 	}
 
 	encryptedFlipKey, err := getEncryptedKeyFromPackage(publicFlipKey, keysPackage.Data, idx)
 	if err != nil {
-		log.Error("Cannot get key from package", "err", err, "len", len(keysPackage.Data))
+		log.Warn("GetPrivateFlipKey: Cannot get key from package", "err", err, "len", len(keysPackage.Data), "address", address.Hex())
 		return nil
 	}
 
 	rawKey, err := p.secStore.DecryptMessage(encryptedFlipKey)
 	if err != nil {
-		log.Error("Cannot decrypt key from package", "err", err)
+		log.Warn("GetPrivateFlipKey: Cannot decrypt key from package", "err", err, "address", address.Hex())
 		return nil
 	}
 
 	ecdsaKey, err := crypto.ToECDSA(rawKey)
 	if err != nil {
-		log.Error("Cannot convert decrypted key to ECDSA", "err", err)
+		log.Warn("GetPrivateFlipKey: Cannot convert decrypted key to ECDSA", "err", err, "address", address.Hex())
 		return nil
 	}
 
@@ -271,6 +275,12 @@ func (p *KeysPool) Clear() {
 	p.flipKeyPackagesByHash = make(map[common.Hash128]*types.PrivateFlipKeysPackage)
 	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
 	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
+}
+
+func (p *KeysPool) InitializePrivateKeyIndexes(indexes map[common.Address]int) {
+	p.mutex.Lock()
+	p.privateKeyIndexes = indexes
+	p.mutex.Unlock()
 }
 
 func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {
