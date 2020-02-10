@@ -175,7 +175,7 @@ func (engine *Engine) loop() {
 			engine.process = "Propose block"
 			block = engine.proposeBlock(proposerHash, proposerProof)
 			if block != nil {
-				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round)
+				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round, "thresholdVrf", engine.appState.State.VrfProposerThreshold())
 			}
 		}
 

@@ -582,14 +582,14 @@ func (s *stateGlobal) AddBlockBit(empty bool) {
 	s.touch(false)
 }
 
-func (s *stateGlobal) EmptyBlocksRatio() float64 {
+func (s *stateGlobal) EmptyBlocksCount() int {
 	cnt := 0
 	for i := 0; i < EmptyBlocksBitsSize; i++ {
 		if s.data.EmptyBlocksBits.Bit(i) == 0 {
 			cnt++
 		}
 	}
-	return float64(cnt) / float64(EmptyBlocksBitsSize)
+	return cnt
 }
 
 func (s *stateGlobal) EmptyBlocksBits() *big.Int {
