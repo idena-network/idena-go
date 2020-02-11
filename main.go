@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
+	"github.com/mitchellh/panicwrap"
 	"gopkg.in/urfave/cli.v1"
 	"io/ioutil"
 	"os"
@@ -81,6 +82,22 @@ func main() {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
+		panicHandler, err := getPanicHandler(cfg)
+		if err != nil {
+			return err
+		}
+
+		exitStatus, err := panicwrap.BasicWrap(panicHandler)
+		if err != nil {
+			panic(err)
+		}
+
+		// If exitStatus >= 0, then we're the parent process and the panicwrap
+		// re-executed ourselves and completed. Just exit with the proper status.
+		if exitStatus >= 0 {
+			os.Exit(exitStatus)
+		}
+
 		log.Info("Idena node is starting", "version", version)
 
 		n, err := node.NewNode(cfg, version)
@@ -96,6 +113,25 @@ func main() {
 	if err != nil {
 		log.Error(err.Error())
 	}
+}
+
+func getPanicHandler(cfg *config.Config) (func(string), error) {
+	path := filepath.Join(cfg.DataDir, LogDir)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return nil, err
+		}
+	}
+	f, err := os.OpenFile(filepath.Join(path, "panics.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(s string) {
+		f.WriteString(s)
+		f.Close()
+		os.Exit(1)
+	}, nil
 }
 
 func getLogFileHandler(cfg *config.Config, logFileSize int) (log.Handler, error) {
