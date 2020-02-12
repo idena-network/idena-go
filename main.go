@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/coreos/go-semver/semver"
+	"github.com/idena-network/idena-go/common/pncw"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 )
 
 const (
@@ -82,20 +84,9 @@ func main() {
 
 		log.Root().SetHandler(log.LvlFilterHandler(logLvl, log.MultiHandler(handler, fileHandler)))
 
-		panicHandler, err := getPanicHandler(cfg)
+		err = registerPanicWrapper(cfg)
 		if err != nil {
 			return err
-		}
-
-		exitStatus, err := panicwrap.BasicWrap(panicHandler)
-		if err != nil {
-			panic(err)
-		}
-
-		// If exitStatus >= 0, then we're the parent process and the panicwrap
-		// re-executed ourselves and completed. Just exit with the proper status.
-		if exitStatus >= 0 {
-			os.Exit(exitStatus)
 		}
 
 		log.Info("Idena node is starting", "version", version)
@@ -113,6 +104,45 @@ func main() {
 	if err != nil {
 		log.Error(err.Error())
 	}
+}
+
+func registerPanicWrapper(cfg *config.Config) error {
+	if !pncw.Enabled {
+		return nil
+	}
+	panicHandler, err := getPanicHandler(cfg)
+	if err != nil {
+		return err
+	}
+	exitStatus, err := panicwrap.Wrap(&panicwrap.WrapConfig{
+		Handler: panicHandler,
+
+		ForwardSignals: []os.Signal{
+			syscall.SIGTRAP,
+			syscall.SIGILL,
+			syscall.SIGHUP,
+			syscall.SIGQUIT,
+			syscall.SIGABRT,
+			syscall.SIGBUS,
+			syscall.SIGFPE,
+			syscall.SIGKILL,
+			syscall.SIGSEGV,
+			syscall.SIGPIPE,
+			syscall.SIGALRM,
+			syscall.SIGTERM,
+			syscall.SIGINT,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// If exitStatus >= 0, then we're the parent process and the panicwrap
+	// re-executed ourselves and completed. Just exit with the proper status.
+	if exitStatus >= 0 {
+		os.Exit(exitStatus)
+	}
+	return nil
 }
 
 func getPanicHandler(cfg *config.Config) (func(string), error) {

@@ -36,9 +36,9 @@ before_script:
 
 script:
   - go test -v ./...
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-linux-$VERSION; fi
-  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-win-$VERSION.exe; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then go build -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-mac-$VERSION; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go build -tags pncw -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-linux-$VERSION; fi
+  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then go build -tags pncw -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-win-$VERSION.exe; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then go build -tags pncw -ldflags "-X main.version=${VERSION}" -o=builds/idena-node-mac-$VERSION; fi
 
 deploy:
   provider: releases
