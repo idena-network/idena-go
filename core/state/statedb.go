@@ -157,6 +157,8 @@ func (s *StateDB) Clear() {
 	s.stateIdentitiesDirty = make(map[common.Address]struct{})
 	s.stateGlobal = nil
 	s.stateGlobalDirty = false
+	s.stateStatusSwitch = nil
+	s.stateStatusSwitchDirty = false
 	s.lock = sync.Mutex{}
 }
 
