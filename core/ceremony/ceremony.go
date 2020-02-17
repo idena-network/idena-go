@@ -676,11 +676,11 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, collector collector.BlockStatsCollector) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
-	defer collector.SetValidation(vc.validationStats)
+	defer collector.SetValidation(statsCollector, vc.validationStats)
 
 	applyOnState := func(addr common.Address, value cacheValue) {
 		appState.State.SetState(addr, value.state)
@@ -689,6 +689,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		appState.State.SetBirthday(addr, value.birthday)
 		if value.state == state.Verified || value.state == state.Newbie {
 			identitiesCount++
+		} else if value.state == state.Killed {
+			// Stake of killed identity is burnt
+			collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
+			collector.AfterBalanceUpdate(statsCollector, addr, appState)
+			collector.AfterKillIdentity(statsCollector, addr, appState)
 		}
 	}
 
@@ -722,8 +727,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for i, item := range flipQualification {
 		flipQualificationMap[i] = item
 		stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
-			Status: byte(item.status),
-			Answer: item.answer,
+			Status:     byte(item.status),
+			Answer:     item.answer,
+			WrongWords: item.wrongWords,
 		}
 	}
 	validationAuthors := new(types.ValidationAuthors)
