@@ -232,6 +232,61 @@ func Test_determineNewIdentityState(t *testing.T) {
 			MinShortScore, 0, 0.1, 10, false,
 			state.Killed, false, true,
 		},
+		{
+			state.Suspended,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Human, false, false,
+		},
+		{
+			state.Suspended,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 23, false,
+			state.Verified, false, false,
+		},
+		{
+			state.Zombie,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Human, false, false,
+		},
+		{
+			state.Zombie,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 23, false,
+			state.Verified, false, false,
+		},
+		{
+			state.Human,
+			0.1, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Suspended, false, false,
+		},
+		{
+			state.Human,
+			MinShortScore, 0.1, MinHumanTotalScore, 24, false,
+			state.Killed, false, false,
+		},
+		{
+			state.Human,
+			0.1, 0.1, MinHumanTotalScore, 24, false,
+			state.Suspended, false, true,
+		},
+		{
+			state.Human,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Human, false, true,
+		},
+		{
+			state.Human,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, true,
+			state.Suspended, false, false,
+		},
+		{
+			state.Human,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Human, true, true,
+		},
+		{
+			state.Verified,
+			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			state.Human, false, false,
+		},
 	}
 
 	require := require.New(t)

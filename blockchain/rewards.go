@@ -39,8 +39,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 
 	normalizedAges := float32(0)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified, state.Newbie:
+		if identity.State.NewbieOrBetter() {
 			if _, ok := authors.BadAuthors[addr]; !ok {
 				normalizedAges += normalAge(epoch - identity.Birthday)
 			}
@@ -55,8 +54,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	successfulValidationRewardShare := successfulValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		switch identity.State {
-		case state.Verified, state.Newbie:
+		if identity.State.NewbieOrBetter() {
 			if _, ok := authors.BadAuthors[addr]; !ok {
 				normalAge := normalAge(epoch - identity.Birthday)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
