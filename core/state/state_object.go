@@ -14,17 +14,27 @@ import (
 type IdentityState uint8
 
 const (
-	Undefined           IdentityState = 0
-	Invite              IdentityState = 1
-	Candidate           IdentityState = 2
-	Verified            IdentityState = 3
-	Suspended           IdentityState = 4
-	Killed              IdentityState = 5
-	Zombie              IdentityState = 6
-	Newbie              IdentityState = 7
-	MaxInvitesAmount                  = math.MaxUint8
-	EmptyBlocksBitsSize               = 25
+	Undefined IdentityState = 0
+	Invite    IdentityState = 1
+	Candidate IdentityState = 2
+	Verified  IdentityState = 3
+	Suspended IdentityState = 4
+	Killed    IdentityState = 5
+	Zombie    IdentityState = 6
+	Newbie    IdentityState = 7
+	Human     IdentityState = 8
+
+	MaxInvitesAmount    = math.MaxUint8
+	EmptyBlocksBitsSize = 25
 )
+
+func (s IdentityState) NewbieOrBetter() bool {
+	return s == Newbie || s == Verified || s == Human
+}
+
+func (s IdentityState) VerifiedOrBetter() bool {
+	return s == Verified || s == Human
+}
 
 // stateAccount represents an Idena account which is being modified.
 //
@@ -721,8 +731,7 @@ func (s *stateApprovedIdentity) SetOnline(online bool) {
 
 func IsCeremonyCandidate(identity Identity) bool {
 	state := identity.State
-	return (state == Candidate || state == Newbie ||
-		state == Verified || state == Suspended ||
+	return (state == Candidate || state.NewbieOrBetter() || state == Suspended ||
 		state == Zombie) && identity.HasDoneAllRequiredFlips()
 }
 
