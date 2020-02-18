@@ -41,7 +41,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	appState.State.SetState(auth1, state.Newbie)
 	appState.State.SetState(auth2, state.Candidate)
-	appState.State.SetState(auth3, state.Verified)
+	appState.State.SetState(auth3, state.Human)
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.Commit(nil)
 

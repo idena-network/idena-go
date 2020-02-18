@@ -37,9 +37,12 @@ const (
 )
 
 const (
-	MinTotalScore = 0.75
-	MinShortScore = 0.5
-	MinLongScore  = 0.75
+	MinTotalScore       = 0.75
+	MinShortScore       = 0.5
+	MinLongScore        = 0.75
+	MinHumanTotalScore  = 0.92
+	MinFlipsForVerified = 11
+	MinFlipsForHuman    = 24
 )
 
 type ValidationCeremony struct {
@@ -687,7 +690,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
 		appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
 		appState.State.SetBirthday(addr, value.birthday)
-		if value.state == state.Verified || value.state == state.Newbie {
+		if value.state.NewbieOrBetter() {
 			identitiesCount++
 		}
 	}
@@ -742,28 +745,23 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		addr := candidate.Address
 		var shortScore, longScore, totalScore float32
 		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
-		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
+		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort, noAnswersShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 		addFlipAnswersToStats(shortFlipAnswers, true, stats)
 
 		longFlipsToSolve := vc.longFlipsPerCandidate[idx]
-		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
+		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong, noAnswersLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
 		addFlipAnswersToStats(longFlipAnswers, false, stats)
 
 		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
 		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
 		approved := approvedCandidatesSet.Contains(addr)
-		missed := !approved
-		fullQual := !noQualShort && !noQualLong
+		missed := !approved || noAnswersShort || noAnswersLong
 
 		if shortQualifiedFlipsCount > 0 {
 			shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
-		} else if fullQual {
-			missed = true
 		}
 		if longQualifiedFlipsCount > 0 {
 			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
-		} else if fullQual {
-			missed = true
 		}
 		newTotalQualifiedFlipsCount := shortQualifiedFlipsCount + totalQualifiedFlipsCount
 		if newTotalQualifiedFlipsCount > 0 {
@@ -798,7 +796,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			LongFlipsToSolve:  longFlipsToSolve,
 		}
 
-		if value.state == state.Verified || value.state == state.Newbie {
+		if value.state.NewbieOrBetter() {
 			intermediateIdentitiesCount++
 		}
 	}
@@ -847,7 +845,7 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 	goodAuthors := validationAuthors.GoodAuthors
 	if vr, ok := goodAuthors[address]; ok {
 		vr.Missed = missed
-		vr.Validated = newState == state.Newbie || newState == state.Verified
+		vr.Validated = newState.NewbieOrBetter()
 	}
 }
 
@@ -977,6 +975,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 		return 0
 	case state.Newbie,
 		state.Verified,
+		state.Human,
 		state.Suspended,
 		state.Zombie:
 		return identity.Birthday
@@ -988,7 +987,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
-		case state.Verified:
+		case state.Verified, state.Human:
 			return state.Suspended
 		default:
 			return state.Killed
@@ -1003,60 +1002,92 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 	case state.Invite:
 		return state.Killed
 	case state.Candidate:
+		if missed {
+			return state.Killed
+		}
 		if noQualShort || nonQualLong && shortScore >= MinShortScore {
 			return state.Candidate
 		}
-		if missed || shortScore < MinShortScore || longScore < MinLongScore {
+		if shortScore < MinShortScore || longScore < MinLongScore {
 			return state.Killed
 		}
 		return state.Newbie
 	case state.Newbie:
-		if noQualShort ||
-			nonQualLong && totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
-			nonQualLong && totalQualifiedFlips <= 10 && shortScore >= MinShortScore {
-			return state.Newbie
-		}
 		if missed {
 			return state.Killed
 		}
-		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if noQualShort ||
+			nonQualLong && totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
+			nonQualLong && totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore {
+			return state.Newbie
+		}
+		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips <= 10 && shortScore >= MinShortScore && longScore >= 0.75 {
+		if totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Newbie
 		}
 		return state.Killed
 	case state.Verified:
-		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
-			return state.Verified
-		}
 		if missed {
 			return state.Suspended
 		}
-		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Verified
+		}
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Human
+		}
+		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
 	case state.Suspended:
+		if missed {
+			return state.Zombie
+		}
 		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Suspended
 		}
-		if missed {
-			return state.Zombie
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Human
 		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
 	case state.Zombie:
-		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
-			return state.Zombie
-		}
 		if missed {
 			return state.Killed
 		}
+		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+			return state.Zombie
+		}
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Human
+		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Verified
+		}
+		return state.Killed
+	case state.Human:
+		if missed {
+			return state.Suspended
+		}
+		if noQualShort || nonQualLong && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore {
+			return state.Human
+		}
+		if nonQualLong {
+			return state.Suspended
+		}
+		if totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Human
+		}
+		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+			return state.Verified
+		}
+		if totalScore >= MinTotalScore && longScore >= MinLongScore {
+			return state.Suspended
 		}
 		return state.Killed
 	case state.Killed:

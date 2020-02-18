@@ -171,7 +171,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			chain.appState.State.AddStake(addr, alloc.Stake)
 		}
 		chain.appState.State.SetState(addr, state.IdentityState(alloc.State))
-		if state.IdentityState(alloc.State) == state.Verified {
+		if state.IdentityState(alloc.State).NewbieOrBetter() {
 			chain.appState.IdentityState.Add(addr)
 		}
 	}
@@ -438,7 +438,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, va
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
 			switch identity.State {
-			case state.Verified:
+			case state.Verified, state.Human:
 				removeLinkWithInviter(appState.State, addr)
 				appState.State.SetInvites(addr, uint8(invites))
 				appState.State.SetRequiredFlips(addr, uint8(flips))
@@ -670,7 +670,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
-		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified &&
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
 			if int(stateDB.GetInvites(sender)) < invites {
