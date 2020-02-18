@@ -269,28 +269,22 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	switch data.State {
 	case state.Invite:
 		s = "Invite"
-		break
 	case state.Candidate:
 		s = "Candidate"
-		break
 	case state.Newbie:
 		s = "Newbie"
-		break
 	case state.Verified:
 		s = "Verified"
-		break
 	case state.Suspended:
 		s = "Suspended"
-		break
 	case state.Zombie:
 		s = "Zombie"
-		break
 	case state.Killed:
 		s = "Killed"
-		break
+	case state.Human:
+		s = "Human"
 	default:
 		s = "Undefined"
-		break
 	}
 
 	var profileHash string
