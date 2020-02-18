@@ -37,10 +37,12 @@ const (
 )
 
 const (
-	MinTotalScore      = 0.75
-	MinShortScore      = 0.5
-	MinLongScore       = 0.75
-	MinHumanTotalScore = 0.92
+	MinTotalScore       = 0.75
+	MinShortScore       = 0.5
+	MinLongScore        = 0.75
+	MinHumanTotalScore  = 0.92
+	MinFlipsForVerified = 11
+	MinFlipsForHuman    = 24
 )
 
 type ValidationCeremony struct {
@@ -1015,14 +1017,14 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			return state.Killed
 		}
 		if noQualShort ||
-			nonQualLong && totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
-			nonQualLong && totalQualifiedFlips <= 10 && shortScore >= MinShortScore {
+			nonQualLong && totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
+			nonQualLong && totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore {
 			return state.Newbie
 		}
-		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips <= 10 && shortScore >= MinShortScore && longScore >= 0.75 {
+		if totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Newbie
 		}
 		return state.Killed
@@ -1033,10 +1035,10 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips >= 24 && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Human
 		}
-		if totalQualifiedFlips > 10 && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
@@ -1047,7 +1049,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Suspended
 		}
-		if totalQualifiedFlips >= 24 && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Human
 		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
@@ -1061,7 +1063,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
 			return state.Zombie
 		}
-		if totalQualifiedFlips >= 24 && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
 			return state.Human
 		}
 		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
