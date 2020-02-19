@@ -26,6 +26,9 @@ const (
 
 	MaxInvitesAmount    = math.MaxUint8
 	EmptyBlocksBitsSize = 25
+
+	AdditionalVerifiedFlips = 1
+	AdditionalHumanFlips    = 2
 )
 
 func (s IdentityState) NewbieOrBetter() bool {
@@ -151,6 +154,16 @@ func (i *Identity) HasDoneAllRequiredFlips() bool {
 
 func (i *Identity) GetTotalWordPairsCount() int {
 	return common.WordPairsPerFlip * int(i.RequiredFlips)
+}
+
+func (i *Identity) GetMaximumAvailableFlips() uint8 {
+	if i.State == Verified {
+		return i.RequiredFlips + AdditionalVerifiedFlips
+	}
+	if i.State == Human {
+		return i.RequiredFlips + AdditionalHumanFlips
+	}
+	return i.RequiredFlips
 }
 
 type ApprovedIdentity struct {
