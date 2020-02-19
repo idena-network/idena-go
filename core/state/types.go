@@ -19,23 +19,24 @@ type StateIdentityFlip struct {
 }
 
 type StateIdentity struct {
-	Address           common.Address
-	ProfileHash       []byte `rlp:"nil"`
-	Stake             *big.Int
-	Invites           uint8
-	Birthday          uint16
-	State             IdentityState
-	QualifiedFlips    uint32
-	ShortFlipPoints   uint32
-	PubKey            []byte `rlp:"nil"`
-	RequiredFlips     uint8
-	Flips             []StateIdentityFlip `rlp:"nil"`
-	Generation        uint32
-	Code              []byte   `rlp:"nil"`
-	Invitees          []TxAddr `rlp:"nil"`
-	Inviter           *TxAddr  `rlp:"nil"`
-	Penalty           *big.Int
-	ValidationTxsBits byte
+	Address              common.Address
+	ProfileHash          []byte `rlp:"nil"`
+	Stake                *big.Int
+	Invites              uint8
+	Birthday             uint16
+	State                IdentityState
+	QualifiedFlips       uint32
+	ShortFlipPoints      uint32
+	PubKey               []byte `rlp:"nil"`
+	RequiredFlips        uint8
+	Flips                []StateIdentityFlip `rlp:"nil"`
+	Generation           uint32
+	Code                 []byte   `rlp:"nil"`
+	Invitees             []TxAddr `rlp:"nil"`
+	Inviter              *TxAddr  `rlp:"nil"`
+	Penalty              *big.Int
+	ValidationTxsBits    byte
+	LastValidationStatus ValidationStatusFlag
 }
 
 type StateApprovedIdentity struct {
