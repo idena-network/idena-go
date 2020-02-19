@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"time"
@@ -32,13 +33,23 @@ type fullSync struct {
 	potentialForkedPeers mapset.Set
 	deferredHeaders      []blockPeer
 	targetHeight         uint64
+	statsCollector       collector.StatsCollector
 }
 
 func (fs *fullSync) batchSize() uint64 {
 	return FullSyncBatchSize
 }
 
-func NewFullSync(pm *IdenaGossipHandler, log log.Logger, chain *blockchain.Blockchain, ipfs ipfs.Proxy, appState *appstate.AppState, potentialForkedPeers mapset.Set, targetHeight uint64) *fullSync {
+func NewFullSync(
+	pm *IdenaGossipHandler,
+	log log.Logger,
+	chain *blockchain.Blockchain,
+	ipfs ipfs.Proxy,
+	appState *appstate.AppState,
+	potentialForkedPeers mapset.Set,
+	targetHeight uint64,
+	statsCollector collector.StatsCollector,
+) *fullSync {
 
 	return &fullSync{
 		appState:             appState,
@@ -50,6 +61,7 @@ func NewFullSync(pm *IdenaGossipHandler, log log.Logger, chain *blockchain.Block
 		isSyncing:            true,
 		ipfs:                 ipfs,
 		targetHeight:         targetHeight,
+		statsCollector:       statsCollector,
 	}
 }
 
@@ -86,7 +98,7 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 					return block.Height(), errors.Wrap(err, "cannot switch state tree to defaults")
 				}
 			}*/
-			if err := fs.chain.AddBlock(block, checkState); err != nil {
+			if err := fs.chain.AddBlock(block, checkState, fs.statsCollector); err != nil {
 				if err := fs.appState.ResetTo(fs.chain.Head.Height()); err != nil {
 					return block.Height(), err
 				}

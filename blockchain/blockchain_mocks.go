@@ -82,7 +82,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, collector.NewBlockStatsCollector())
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
@@ -126,7 +126,7 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, collector.NewBlockStatsCollector())
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 
@@ -165,7 +165,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, chain.secStore, bus)
 
-	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, collector.NewBlockStatsCollector())
+	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline)
 	copy.InitializeChain()
 	appState.Initialize(copy.Head.Height())
 	return &TestBlockchain{db, copy}, appState
@@ -189,7 +189,7 @@ func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
 		block := chain.ProposeBlock()
 		block.Block.Header.ProposedHeader.Time = big.NewInt(0).Add(chain.Head.Time(), big.NewInt(20))
-		err := chain.AddBlock(block.Block, nil)
+		err := chain.AddBlock(block.Block, nil, collector.NewStatsCollector())
 		if err != nil {
 			panic(err)
 		}
@@ -201,7 +201,7 @@ func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 func (chain *TestBlockchain) GenerateEmptyBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
 		block := chain.GenerateEmptyBlock()
-		err := chain.AddBlock(block, nil)
+		err := chain.AddBlock(block, nil, collector.NewStatsCollector())
 		if err != nil {
 			panic(err)
 		}

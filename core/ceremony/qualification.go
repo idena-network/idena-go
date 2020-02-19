@@ -167,7 +167,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
 		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, answers, shortSession)
-		answer, _ := answers.Answer(uint(i))
+		answer, wrongWords := answers.Answer(uint(i))
 
 		//extra flip
 		if shortSession && i >= int(common.ShortSessionFlipsCount()) {
@@ -204,6 +204,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			Respondent: candidate,
 			Answer:     answer,
 			Point:      answerPoint,
+			WrongWords: wrongWords,
 		}
 	}
 	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0
