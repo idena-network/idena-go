@@ -28,6 +28,7 @@ require (
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.2.3
 	github.com/mholt/archiver v3.1.1+incompatible
+	github.com/mitchellh/panicwrap v1.0.0
 	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/multiformats/go-multihash v0.0.13
 	github.com/nwaples/rardecode v1.0.0 // indirect
