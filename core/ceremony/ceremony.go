@@ -38,10 +38,10 @@ const (
 
 const (
 	MinTotalScore       = 0.75
-	MinShortScore       = 0.5
+	MinShortScore       = 0.6
 	MinLongScore        = 0.75
 	MinHumanTotalScore  = 0.92
-	MinFlipsForVerified = 11
+	MinFlipsForVerified = 13
 	MinFlipsForHuman    = 24
 )
 

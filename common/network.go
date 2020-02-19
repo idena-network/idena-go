@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ShortSessionFlips      = 5
+	ShortSessionFlips      = 6
 	LongSessionTesters     = 10
 	ShortSessionExtraFlips = 2
 
