@@ -88,6 +88,15 @@ const (
 	AfterLongSessionPeriod ValidationPeriod = 4
 )
 
+type ValidationStatus byte
+
+const (
+	None                       ValidationStatus = 0
+	AtLeastOneFlipReported     ValidationStatus = 1
+	AtLeastOneFlipNotQualified ValidationStatus = 2
+	AllFlipsNotQualified       ValidationStatus = 3
+)
+
 type IdentityStatusSwitch struct {
 	Addresses []common.Address `rlp:"nil"`
 }
@@ -127,16 +136,17 @@ type Identity struct {
 	State          IdentityState
 	QualifiedFlips uint32
 	// should use GetShortFlipPoints instead of reading directly
-	ShortFlipPoints   uint32
-	PubKey            []byte `rlp:"nil"`
-	RequiredFlips     uint8
-	Flips             []IdentityFlip `rlp:"nil"`
-	Generation        uint32
-	Code              []byte   `rlp:"nil"`
-	Invitees          []TxAddr `rlp:"nil"`
-	Inviter           *TxAddr  `rlp:"nil"`
-	Penalty           *big.Int
-	ValidationTxsBits byte
+	ShortFlipPoints      uint32
+	PubKey               []byte `rlp:"nil"`
+	RequiredFlips        uint8
+	Flips                []IdentityFlip `rlp:"nil"`
+	Generation           uint32
+	Code                 []byte   `rlp:"nil"`
+	Invitees             []TxAddr `rlp:"nil"`
+	Inviter              *TxAddr  `rlp:"nil"`
+	Penalty              *big.Int
+	ValidationTxsBits    byte
+	LastValidationStatus ValidationStatus
 }
 
 type TxAddr struct {
