@@ -115,6 +115,11 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Newbie,
 			MinShortScore, MinLongScore, MinTotalScore, 11, false,
+			state.Newbie, false, false,
+		},
+		{
+			state.Newbie,
+			MinShortScore, MinLongScore, MinTotalScore, 13, false,
 			state.Verified, false, false,
 		},
 		{
@@ -194,7 +199,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Newbie,
-			MinShortScore, 0, 0.1, 11, false,
+			MinShortScore, 0, 0.1, 13, false,
 			state.Killed, false, true,
 		},
 		{
@@ -291,8 +296,8 @@ func Test_determineNewIdentityState(t *testing.T) {
 
 	require := require.New(t)
 
-	for _, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong))
+	for i, c := range cases {
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
 }
 
