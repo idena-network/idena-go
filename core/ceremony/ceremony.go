@@ -358,7 +358,7 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 	vc.broadcastShortAnswersTx()
 	vc.broadcastPublicFipKey(vc.appState)
 	vc.processCeremonyTxs(block)
-	vc.broadcastEvidenceMap(block)
+	vc.broadcastEvidenceMap()
 }
 
 func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
@@ -602,7 +602,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	}
 }
 
-func (vc *ValidationCeremony) broadcastEvidenceMap(block *types.Block) {
+func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent {
 		return
 	}
