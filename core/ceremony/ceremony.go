@@ -736,7 +736,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		}
 	}
 	validationAuthors := new(types.ValidationAuthors)
-	validationAuthors.BadAuthors, validationAuthors.GoodAuthors = vc.analizeAuthors(flipQualification)
+	validationAuthors.BadAuthors, validationAuthors.GoodAuthors, validationAuthors.AuthorResults = vc.analyzeAuthors(flipQualification)
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
 
@@ -875,10 +875,11 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	}
 }
 
-func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]struct{}, goodAuthors map[common.Address]*types.ValidationResult) {
+func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]struct{}, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults) {
 
 	badAuthors = make(map[common.Address]struct{})
 	goodAuthors = make(map[common.Address]*types.ValidationResult)
+	authorResults = make(map[common.Address]*types.AuthorResults)
 
 	madeFlips := make(map[common.Address]int)
 	nonQualifiedFlips := make(map[common.Address]int)
@@ -886,11 +887,16 @@ func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification)
 	for i, item := range qualifications {
 		cid := vc.flips[i]
 		author := vc.flipAuthorMap[rlp.Hash(cid)]
+		if _, ok := authorResults[author]; !ok {
+			authorResults[author] = new(types.AuthorResults)
+		}
 		if item.wrongWords || item.status == QualifiedByNone || item.answer == types.Inappropriate {
 			badAuthors[author] = struct{}{}
+			authorResults[author].HasOneReportedFlip = true
 		}
 		if item.status == NotQualified {
 			nonQualifiedFlips[author] += 1
+			authorResults[author].HasOneNotQualifiedFlip = true
 		}
 		madeFlips[author] += 1
 
@@ -912,13 +918,14 @@ func (vc *ValidationCeremony) analizeAuthors(qualifications []FlipQualification)
 	for author, nonQual := range nonQualifiedFlips {
 		if madeFlips[author] == nonQual {
 			badAuthors[author] = struct{}{}
+			authorResults[author].AllFlipsNotQualified = true
 		}
 	}
 
 	for author := range badAuthors {
 		delete(goodAuthors, author)
 	}
-	return badAuthors, goodAuthors
+	return badAuthors, goodAuthors, authorResults
 }
 
 func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort bool, stats *statsTypes.ValidationStats) {
