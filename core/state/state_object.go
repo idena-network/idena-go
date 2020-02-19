@@ -88,15 +88,6 @@ const (
 	AfterLongSessionPeriod ValidationPeriod = 4
 )
 
-type ValidationStatus byte
-
-const (
-	None                       ValidationStatus = 0
-	AtLeastOneFlipReported     ValidationStatus = 1
-	AtLeastOneFlipNotQualified ValidationStatus = 2
-	AllFlipsNotQualified       ValidationStatus = 3
-)
-
 type IdentityStatusSwitch struct {
 	Addresses []common.Address `rlp:"nil"`
 }
@@ -128,6 +119,14 @@ type IdentityFlip struct {
 	Pair uint8
 }
 
+type ValidationStatusFlag uint16
+
+const (
+	AtLeastOneFlipReported ValidationStatusFlag = 1 << iota
+	AtLeastOneFlipNotQualified
+	AllFlipsNotQualified
+)
+
 type Identity struct {
 	ProfileHash    []byte `rlp:"nil"`
 	Stake          *big.Int
@@ -146,7 +145,7 @@ type Identity struct {
 	Inviter              *TxAddr  `rlp:"nil"`
 	Penalty              *big.Int
 	ValidationTxsBits    byte
-	LastValidationStatus ValidationStatus
+	LastValidationStatus ValidationStatusFlag
 }
 
 type TxAddr struct {
@@ -576,6 +575,11 @@ func (s *stateIdentity) ResetValidationTxBits() {
 	s.touch()
 }
 
+func (s *stateIdentity) SetValidationStatus(status ValidationStatusFlag) {
+	s.data.LastValidationStatus = status
+	s.touch()
+}
+
 // EncodeRLP implements rlp.Encoder.
 func (s *stateGlobal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, s.data)
@@ -796,4 +800,8 @@ func (s *stateStatusSwitch) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
+}
+
+func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {
+	return f&flag != 0
 }

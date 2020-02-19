@@ -570,7 +570,14 @@ type ValidationResult struct {
 	Missed               bool
 }
 
+type AuthorResults struct {
+	HasOneReportedFlip     bool
+	HasOneNotQualifiedFlip bool
+	AllFlipsNotQualified   bool
+}
+
 type ValidationAuthors struct {
-	BadAuthors  map[common.Address]struct{}
-	GoodAuthors map[common.Address]*ValidationResult
+	BadAuthors    map[common.Address]struct{}
+	GoodAuthors   map[common.Address]*ValidationResult
+	AuthorResults map[common.Address]*AuthorResults
 }

@@ -191,25 +191,26 @@ type FlipWords struct {
 }
 
 type Identity struct {
-	Address          common.Address  `json:"address"`
-	ProfileHash      string          `json:"profileHash"`
-	Stake            decimal.Decimal `json:"stake"`
-	Invites          uint8           `json:"invites"`
-	Age              uint16          `json:"age"`
-	State            string          `json:"state"`
-	PubKey           string          `json:"pubkey"`
-	RequiredFlips    uint8           `json:"requiredFlips"`
-	AvailableFlips   uint8           `json:"availableFlips"`
-	FlipKeyWordPairs []FlipWords     `json:"flipKeyWordPairs"`
-	MadeFlips        uint8           `json:"madeFlips"`
-	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
-	ShortFlipPoints  float32         `json:"totalShortFlipPoints"`
-	Flips            []string        `json:"flips"`
-	Online           bool            `json:"online"`
-	Generation       uint32          `json:"generation"`
-	Code             hexutil.Bytes   `json:"code"`
-	Invitees         []state.TxAddr  `json:"invitees"`
-	Penalty          decimal.Decimal `json:"penalty"`
+	Address             common.Address  `json:"address"`
+	ProfileHash         string          `json:"profileHash"`
+	Stake               decimal.Decimal `json:"stake"`
+	Invites             uint8           `json:"invites"`
+	Age                 uint16          `json:"age"`
+	State               string          `json:"state"`
+	PubKey              string          `json:"pubkey"`
+	RequiredFlips       uint8           `json:"requiredFlips"`
+	AvailableFlips      uint8           `json:"availableFlips"`
+	FlipKeyWordPairs    []FlipWords     `json:"flipKeyWordPairs"`
+	MadeFlips           uint8           `json:"madeFlips"`
+	QualifiedFlips      uint32          `json:"totalQualifiedFlips"`
+	ShortFlipPoints     float32         `json:"totalShortFlipPoints"`
+	Flips               []string        `json:"flips"`
+	Online              bool            `json:"online"`
+	Generation          uint32          `json:"generation"`
+	Code                hexutil.Bytes   `json:"code"`
+	Invitees            []state.TxAddr  `json:"invitees"`
+	Penalty             decimal.Decimal `json:"penalty"`
+	LastValidationFlags []string        `json:"lastValidationFlags"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -288,6 +289,17 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		s = "Undefined"
 	}
 
+	var flags []string
+	if data.LastValidationStatus.HasFlag(state.AllFlipsNotQualified) {
+		flags = append(flags, "AllFlipsNotQualified")
+	}
+	if data.LastValidationStatus.HasFlag(state.AtLeastOneFlipNotQualified) {
+		flags = append(flags, "AtLeastOneFlipNotQualified")
+	}
+	if data.LastValidationStatus.HasFlag(state.AtLeastOneFlipReported) {
+		flags = append(flags, "AtLeastOneFlipReported")
+	}
+
 	var profileHash string
 	if len(data.ProfileHash) > 0 {
 		c, _ := cid.Parse(data.ProfileHash)
@@ -323,24 +335,25 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	return Identity{
-		Address:          address,
-		State:            s,
-		Stake:            blockchain.ConvertToFloat(data.Stake),
-		Age:              age,
-		Invites:          data.Invites,
-		ProfileHash:      profileHash,
-		PubKey:           fmt.Sprintf("%x", data.PubKey),
-		RequiredFlips:    data.RequiredFlips,
-		AvailableFlips:   data.GetMaximumAvailableFlips(),
-		FlipKeyWordPairs: convertedFlipKeyWordPairs,
-		MadeFlips:        uint8(len(data.Flips)),
-		QualifiedFlips:   data.QualifiedFlips,
-		ShortFlipPoints:  data.GetShortFlipPoints(),
-		Flips:            result,
-		Generation:       data.Generation,
-		Code:             data.Code,
-		Invitees:         invitees,
-		Penalty:          blockchain.ConvertToFloat(data.Penalty),
+		Address:             address,
+		State:               s,
+		Stake:               blockchain.ConvertToFloat(data.Stake),
+		Age:                 age,
+		Invites:             data.Invites,
+		ProfileHash:         profileHash,
+		PubKey:              fmt.Sprintf("%x", data.PubKey),
+		RequiredFlips:       data.RequiredFlips,
+		AvailableFlips:      data.GetMaximumAvailableFlips(),
+		FlipKeyWordPairs:    convertedFlipKeyWordPairs,
+		MadeFlips:           uint8(len(data.Flips)),
+		QualifiedFlips:      data.QualifiedFlips,
+		ShortFlipPoints:     data.GetShortFlipPoints(),
+		Flips:               result,
+		Generation:          data.Generation,
+		Code:                data.Code,
+		Invitees:            invitees,
+		Penalty:             blockchain.ConvertToFloat(data.Penalty),
+		LastValidationFlags: flags,
 	}
 }
 

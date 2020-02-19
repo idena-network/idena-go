@@ -418,6 +418,10 @@ func (s *StateDB) HasValidationTx(addr common.Address, txType types.TxType) bool
 	return s.GetOrNewIdentityObject(addr).HasValidationTx(txType)
 }
 
+func (s *StateDB) SetValidationStatus(addr common.Address, status ValidationStatusFlag) {
+	s.GetOrNewIdentityObject(addr).SetValidationStatus(status)
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }
@@ -1170,6 +1174,7 @@ func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
 		stateObject.data.Inviter = identity.Inviter
 		stateObject.data.Penalty = identity.Penalty
 		stateObject.data.ValidationTxsBits = identity.ValidationTxsBits
+		stateObject.data.LastValidationStatus = identity.LastValidationStatus
 		stateObject.touch()
 	}
 }

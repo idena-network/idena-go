@@ -413,7 +413,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, chain.blockStatsCollector)
 
-	setNewIdentitiesAttributes(appState, networkSize, failed)
+	setNewIdentitiesAttributes(appState, networkSize, failed, authors)
 
 	if !failed {
 		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(),
@@ -433,8 +433,28 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool) {
+func calculateNewIdentityStatusFlags(authors *types.ValidationAuthors) map[common.Address]state.ValidationStatusFlag {
+	m := make(map[common.Address]state.ValidationStatusFlag)
+	for addr, item := range authors.AuthorResults {
+		var status state.ValidationStatusFlag
+		if item.HasOneReportedFlip {
+			status |= state.AtLeastOneFlipReported
+		}
+		if item.HasOneNotQualifiedFlip {
+			status |= state.AtLeastOneFlipNotQualified
+		}
+		if item.AllFlipsNotQualified {
+			status |= state.AllFlipsNotQualified
+		}
+
+		m[addr] = status
+	}
+	return m
+}
+
+func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool, authors *types.ValidationAuthors) {
 	_, invites, flips := common.NetworkParams(networkSize)
+	identityFlags := calculateNewIdentityStatusFlags(authors)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
 			switch identity.State {
@@ -461,6 +481,12 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, va
 		appState.State.ClearPenalty(addr)
 		appState.State.ClearFlips(addr)
 		appState.State.ResetValidationTxBits(addr)
+
+		if status, ok := identityFlags[addr]; ok && !validationFailed {
+			appState.State.SetValidationStatus(addr, status)
+		} else {
+			appState.State.SetValidationStatus(addr, 0)
+		}
 	})
 }
 
