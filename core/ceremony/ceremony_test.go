@@ -367,7 +367,7 @@ func Test_flipPos(t *testing.T) {
 	r.Equal(2, flipPos(flips, []byte{2, 3, 4}))
 }
 
-func Test_analizeAuthors(t *testing.T) {
+func Test_analyzeAuthors(t *testing.T) {
 	vc := ValidationCeremony{}
 
 	auth1 := common.Address{1}
@@ -375,8 +375,9 @@ func Test_analizeAuthors(t *testing.T) {
 	auth3 := common.Address{3}
 	auth4 := common.Address{4}
 	auth5 := common.Address{5}
+	auth6 := common.Address{6}
 
-	vc.flips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}}
+	vc.flips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc}}
 	vc.flipAuthorMap = map[common.Hash]common.Address{
 		rlp.Hash([]byte{0x0}): auth1,
 		rlp.Hash([]byte{0x1}): auth1,
@@ -392,6 +393,10 @@ func Test_analizeAuthors(t *testing.T) {
 		rlp.Hash([]byte{0x8}): auth4,
 
 		rlp.Hash([]byte{0x9}): auth5,
+
+		rlp.Hash([]byte{0xa}): auth6,
+		rlp.Hash([]byte{0xb}): auth6,
+		rlp.Hash([]byte{0xc}): auth6,
 	}
 
 	qualification := []FlipQualification{
@@ -409,19 +414,40 @@ func Test_analizeAuthors(t *testing.T) {
 		{status: NotQualified},
 
 		{status: QualifiedByNone},
+
+		{status: Qualified},
+		{status: WeaklyQualified},
+		{status: Qualified},
 	}
 
-	bad, good := vc.analizeAuthors(qualification)
+	bad, good, authorResults := vc.analyzeAuthors(qualification)
 
 	require.Contains(t, bad, auth2)
 	require.Contains(t, bad, auth3)
 	require.Contains(t, bad, auth4)
 	require.Contains(t, bad, auth5)
 	require.NotContains(t, bad, auth1)
+	require.NotContains(t, bad, auth6)
 
 	require.Contains(t, good, auth1)
 	require.Equal(t, 1, good[auth1].WeakFlips)
 	require.Equal(t, 1, good[auth1].StrongFlips)
+
+	require.True(t, authorResults[auth1].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth1].AllFlipsNotQualified)
+	require.False(t, authorResults[auth1].HasOneReportedFlip)
+
+	require.False(t, authorResults[auth6].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth6].AllFlipsNotQualified)
+	require.False(t, authorResults[auth6].HasOneReportedFlip)
+
+	require.False(t, authorResults[auth3].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth3].AllFlipsNotQualified)
+	require.True(t, authorResults[auth3].HasOneReportedFlip)
+
+	require.True(t, authorResults[auth4].HasOneNotQualifiedFlip)
+	require.True(t, authorResults[auth4].AllFlipsNotQualified)
+	require.False(t, authorResults[auth4].HasOneReportedFlip)
 }
 
 func Test_incSuccessfulInvites(t *testing.T) {
