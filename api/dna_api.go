@@ -199,6 +199,7 @@ type Identity struct {
 	State            string          `json:"state"`
 	PubKey           string          `json:"pubkey"`
 	RequiredFlips    uint8           `json:"requiredFlips"`
+	AvailableFlips   uint8           `json:"availableFlips"`
 	FlipKeyWordPairs []FlipWords     `json:"flipKeyWordPairs"`
 	MadeFlips        uint8           `json:"madeFlips"`
 	QualifiedFlips   uint32          `json:"totalQualifiedFlips"`
@@ -330,6 +331,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		ProfileHash:      profileHash,
 		PubKey:           fmt.Sprintf("%x", data.PubKey),
 		RequiredFlips:    data.RequiredFlips,
+		AvailableFlips:   data.GetMaximumAvailableFlips(),
 		FlipKeyWordPairs: convertedFlipKeyWordPairs,
 		MadeFlips:        uint8(len(data.Flips)),
 		QualifiedFlips:   data.QualifiedFlips,
