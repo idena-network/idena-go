@@ -121,8 +121,10 @@ func TestIdentityStateDB_SwitchToPreliminary(t *testing.T) {
 
 	prevVreliminaryPrefix := loadIdentityPrefix(preliminary.original, true)
 
-	stateDb.SwitchToPreliminary(150)
-
+	batch, dropDb, err := stateDb.SwitchToPreliminary(150)
+	require.NoError(t, err)
+	batch.WriteSync()
+	common.ClearDb(dropDb)
 	preliminaryPrefix := loadIdentityPrefix(preliminary.original, true)
 	prefix := loadIdentityPrefix(stateDb.original, false)
 

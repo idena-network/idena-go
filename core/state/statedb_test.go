@@ -314,10 +314,15 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 		Height: Height,
 		Root:   expectedRoot,
 	}, buffer))
-	stateDb.CommitSnapshot(&snapshot.Manifest{
+
+	batch := stateDb.original.NewBatch()
+
+	dropDb := stateDb.CommitSnapshot(&snapshot.Manifest{
 		Height: Height,
 		Root:   expectedRoot,
-	})
+	}, batch)
+	common.ClearDb(dropDb)
+	batch.WriteSync()
 	//assert
 
 	require.Equal(t, int64(Height), stateDb.tree.Version())
@@ -413,7 +418,6 @@ func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
 	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
 	require.True(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
 	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
-
 
 	stateDb.SetValidationTxBit(addr, types.SendTx)
 	stateDb.Commit(true)
