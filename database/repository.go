@@ -115,14 +115,18 @@ func (r *Repo) ReadHead() *types.Header {
 	return header
 }
 
-func (r *Repo) WriteHead(header *types.Header) {
+func (r *Repo) WriteHead(batch dbm.Batch, header *types.Header) {
 	// Write the encoded header
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		log.Crit("Failed to RLP encode header", "err", err)
 		return
 	}
-	r.db.Set(headBlockKey, data)
+	if batch != nil {
+		batch.Set(headBlockKey, data)
+	} else {
+		r.db.Set(headBlockKey, data)
+	}
 }
 
 func (r *Repo) WriteBlockHeader(header *types.Header) {
@@ -171,12 +175,12 @@ func (r *Repo) WriteFinalConsensus(hash common.Hash) {
 	r.db.Set(key, []byte{0x1})
 }
 
-func (r *Repo) SetHead(height uint64) {
+func (r *Repo) SetHead(batch dbm.Batch, height uint64) {
 	hash := r.ReadCanonicalHash(height)
 	if hash != (common.Hash{}) {
 		header := r.ReadBlockHeader(hash)
 		if header != nil {
-			r.WriteHead(header)
+			r.WriteHead(batch, header)
 		}
 	}
 }
@@ -334,8 +338,12 @@ func (r *Repo) ReadPreliminaryHead() *types.Header {
 	return header
 }
 
-func (r *Repo) RemovePreliminaryHead() {
-	assertNoError(r.db.Delete(preliminaryHeadKey))
+func (r *Repo) RemovePreliminaryHead(batch dbm.Batch) {
+	if batch != nil {
+		batch.Delete(preliminaryHeadKey)
+	} else {
+		assertNoError(r.db.Delete(preliminaryHeadKey))
+	}
 }
 
 type activityMonitorDb struct {

@@ -330,29 +330,34 @@ func (s *IdentityStateDB) SaveForcedVersion(height uint64) error {
 	return err
 }
 
-func (s *IdentityStateDB) SwitchToPreliminary(height uint64) error {
+func (s *IdentityStateDB) SwitchToPreliminary(height uint64) (batch dbm.Batch, dropDb dbm.DB, err error) {
+
 	prefix := loadIdentityPrefix(s.original, true)
 	if prefix == nil {
-		return errors.New("preliminary prefix is not found")
+		return nil, nil, errors.New("preliminary prefix is not found")
 	}
 	pdb := dbm.NewPrefixDB(s.original, prefix)
 	tree := NewMutableTree(pdb)
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
-		return err
+		return nil, nil, err
 	}
-	setIdentityPrefix(s.original, prefix, false)
-	setIdentityPrefix(s.original, nil, true)
-	clearDb(s.db)
+
+	batch = s.original.NewBatch()
+	setIdentityPrefix(batch, prefix, false)
+	setIdentityPrefix(batch, nil, true)
+	dropDb = s.db
 
 	s.db = pdb
 	s.tree = tree
-	return nil
+	return batch, dropDb, nil
 }
 
 func (s *IdentityStateDB) DropPreliminary() {
 	pdb := dbm.NewPrefixDB(s.original, loadIdentityPrefix(s.original, true))
-	clearDb(pdb)
-	setIdentityPrefix(s.original, nil, true)
+	common.ClearDb(pdb)
+	b := s.original.NewBatch()
+	setIdentityPrefix(b, nil, true)
+	b.WriteSync()
 }
 
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
@@ -367,7 +372,11 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 			return nil, err
 		}
 	}
-	setIdentityPrefix(s.original, preliminaryPrefix, true)
+	b := s.original.NewBatch()
+	setIdentityPrefix(b, preliminaryPrefix, true)
+	if err := b.WriteSync(); err != nil {
+		return nil, err
+	}
 	return s.LoadPreliminary(height)
 }
 
@@ -425,16 +434,18 @@ func loadIdentityPrefix(db dbm.DB, preliminary bool) []byte {
 	p, _ := db.Get(key)
 	if p == nil {
 		p = identityStatePrefix(0)
-		setIdentityPrefix(db, p, preliminary)
+		b := db.NewBatch()
+		setIdentityPrefix(b, p, preliminary)
+		b.WriteSync()
 		return p
 	}
 	return p
 }
 
-func setIdentityPrefix(db dbm.DB, prefix []byte, preliminary bool) {
+func setIdentityPrefix(batch dbm.Batch, prefix []byte, preliminary bool) {
 	key := currentIdentityStateDbPrefixKey
 	if preliminary {
 		key = preliminaryIdentityStateDbPrefixKey
 	}
-	db.Set(key, prefix)
+	batch.Set(key, prefix)
 }

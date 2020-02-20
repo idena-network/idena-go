@@ -967,14 +967,18 @@ func loadPrefix(db dbm.DB) []byte {
 	p, _ := db.Get(currentStateDbPrefixKey)
 	if p == nil {
 		p = prefix(0)
-		setPrefix(db, p)
+		b := db.NewBatch()
+		setPrefix(b, p)
+		if err := b.WriteSync(); err != nil {
+			panic(err)
+		}
 		return p
 	}
 	return p
 }
 
-func setPrefix(db dbm.DB, prefix []byte) {
-	db.Set(currentStateDbPrefixKey, prefix)
+func setPrefix(b dbm.Batch, prefix []byte) {
+	b.Set(currentStateDbPrefixKey, prefix)
 }
 
 func prefix(height uint64) []byte {
@@ -1040,13 +1044,6 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 	return tree.WorkingHash(), tar.Close()
 }
 
-func clearDb(db dbm.DB) {
-	it, _ := db.Iterator(nil, nil)
-	for ; it.Valid(); it.Next() {
-		db.Delete(it.Key())
-	}
-}
-
 func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) error {
 	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
 
@@ -1062,12 +1059,12 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 
 	for file, err := tar.Read(); err == nil; file, err = tar.Read() {
 		if data, err := ioutil.ReadAll(file); err != nil {
-			clearDb(pdb)
+			common.ClearDb(pdb)
 			return err
 		} else {
 			sb := &snapshot.Block{}
 			if err := rlp.DecodeBytes(data, sb); err != nil {
-				clearDb(pdb)
+				common.ClearDb(pdb)
 				return err
 			}
 			for _, pair := range sb.Data {
@@ -1077,26 +1074,26 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 	}
 	tree := NewMutableTree(pdb)
 	if _, err := tree.LoadVersion(int64(manifest.Height)); err != nil {
-		clearDb(pdb)
+		common.ClearDb(pdb)
 		return err
 	}
 
 	if tree.WorkingHash() != manifest.Root {
-		clearDb(pdb)
+		common.ClearDb(pdb)
 		return errors.New("wrong manifest root")
 	}
 	if !tree.ValidateTree() {
-		clearDb(pdb)
+		common.ClearDb(pdb)
 		return errors.New("corrupted tree")
 	}
 	return nil
 }
 
-func (s *StateDB) CommitSnapshot(manifest *snapshot.Manifest) {
+func (s *StateDB) CommitSnapshot(manifest *snapshot.Manifest, batch dbm.Batch) (dropDb dbm.DB) {
 	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
 
-	setPrefix(s.original, prefix(manifest.Height))
-	clearDb(s.db)
+	setPrefix(batch, prefix(manifest.Height))
+	dropDb = s.db
 
 	s.db = pdb
 	tree := NewMutableTree(pdb)
@@ -1105,11 +1102,12 @@ func (s *StateDB) CommitSnapshot(manifest *snapshot.Manifest) {
 	}
 	s.tree = tree
 	s.Clear()
+	return dropDb
 }
 
 func (s *StateDB) DropSnapshot(manifest *snapshot.Manifest) {
 	pdb := dbm.NewPrefixDB(s.original, prefix(manifest.Height))
-	clearDb(pdb)
+	common.ClearDb(pdb)
 }
 
 func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {

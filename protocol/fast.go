@@ -72,7 +72,7 @@ func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB
 }
 
 func (fs *fastSync) dropPreliminaries() {
-	fs.chain.RemovePreliminaryHead()
+	fs.chain.RemovePreliminaryHead(nil)
 	fs.appState.IdentityState.DropPreliminary()
 	fs.stateDb = nil
 }
@@ -292,18 +292,12 @@ func (fs *fastSync) postConsuming() error {
 		//TODO : add snapshot to ban list
 		return err
 	}
-
 	fs.stateDb.SaveForcedVersion(fs.chain.PreliminaryHead.Height())
 
-	err = fs.appState.IdentityState.SwitchToPreliminary(fs.manifest.Height)
-	if err != nil {
-		fs.appState.State.DropSnapshot(fs.manifest)
+	if err := fs.chain.AtomicSwitchToPreliminary(fs.manifest); err != nil {
 		return err
 	}
-	fs.appState.State.CommitSnapshot(fs.manifest)
-	fs.appState.ValidatorsCache.Load()
-	fs.chain.SwitchToPreliminary()
-	fs.chain.RemovePreliminaryHead()
+
 	fs.bus.Publish(events.FastSyncCompletedEvent{})
 	return nil
 }

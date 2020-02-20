@@ -154,8 +154,8 @@ func (chain *Blockchain) setCurrentHead(head *types.Header) {
 	chain.Head = head
 }
 
-func (chain *Blockchain) setHead(height uint64) {
-	chain.repo.SetHead(height)
+func (chain *Blockchain) setHead(height uint64, batch dbm.Batch) {
+	chain.repo.SetHead(batch, height)
 	chain.setCurrentHead(chain.GetHead())
 }
 
@@ -294,7 +294,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
 	})
-	chain.RemovePreliminaryHead()
+	chain.RemovePreliminaryHead(nil)
 	return nil
 }
 
@@ -1020,7 +1020,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 func (chain *Blockchain) insertHeader(header *types.Header) {
 	chain.repo.WriteBlockHeader(header)
-	chain.repo.WriteHead(header)
+	chain.repo.WriteHead(nil, header)
 	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
 }
 
@@ -1408,7 +1408,7 @@ func (chain *Blockchain) ResetTo(height uint64) error {
 	if err := chain.appState.ResetTo(height); err != nil {
 		return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
 	}
-	chain.setHead(height)
+	chain.setHead(height, nil)
 
 	for h := height + 1; h <= prevHead; h++ {
 		hash := chain.repo.ReadCanonicalHash(h)
@@ -1558,15 +1558,11 @@ func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.Ident
 	}
 }
 
-func (chain *Blockchain) RemovePreliminaryHead() {
+func (chain *Blockchain) RemovePreliminaryHead(batch dbm.Batch) {
 	if chain.PreliminaryHead != nil {
-		chain.repo.RemovePreliminaryHead()
+		chain.repo.RemovePreliminaryHead(batch)
 	}
 	chain.PreliminaryHead = nil
-}
-
-func (chain *Blockchain) SwitchToPreliminary() {
-	chain.setHead(chain.PreliminaryHead.Height())
 }
 
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
@@ -1695,4 +1691,30 @@ func (chain *Blockchain) GetTopBlockHashes(count int) []common.Hash {
 		result = append(result, hash)
 	}
 	return result
+}
+
+func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) error {
+	batch, oldIdentityStateDb, err := chain.appState.IdentityState.SwitchToPreliminary(manifest.Height)
+
+	if err != nil {
+		chain.appState.State.DropSnapshot(manifest)
+		return err
+	}
+	defer batch.Close()
+
+	oldStateDb := chain.appState.State.CommitSnapshot(manifest, batch)
+	chain.appState.ValidatorsCache.Load()
+
+	chain.setHead(chain.PreliminaryHead.Height(), batch)
+	newHead := chain.PreliminaryHead
+	chain.RemovePreliminaryHead(batch)
+	if err := batch.WriteSync(); err != nil {
+		return err
+	}
+	chain.setCurrentHead(newHead)
+	go func() {
+		common.ClearDb(oldIdentityStateDb)
+		common.ClearDb(oldStateDb)
+	}()
+	return nil
 }
