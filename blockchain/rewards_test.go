@@ -75,19 +75,19 @@ func Test_rewardValidIdentities(t *testing.T) {
 	invitationReward := float32(320) / 13
 	godPayout := float32(100)
 
-	reward, stake := splitAndSum(conf, validationReward*normalAge(3), flipReward*2, invitationReward*3)
+	reward, stake := splitAndSum(conf, false,  validationReward*normalAge(3), flipReward*2, invitationReward*3)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
-	reward, stake = splitAndSum(conf, validationReward*normalAge(0))
+	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf, validationReward*normalAge(1), flipReward*3)
+	reward, stake = splitAndSum(conf,false, validationReward*normalAge(1), flipReward*3)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
-	reward, stake = splitAndSum(conf, invitationReward, invitationReward*3, invitationReward*6)
+	reward, stake = splitAndSum(conf, false, invitationReward, invitationReward*3, invitationReward*6)
 	reward.Add(reward, float32ToBigInt(godPayout))
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)
@@ -104,11 +104,11 @@ func float32ToBigInt(f float32) *big.Int {
 	return math.ToInt(decimal.NewFromFloat32(f))
 }
 
-func splitAndSum(conf *config.ConsensusConf, nums ...float32) (*big.Int, *big.Int) {
+func splitAndSum(conf *config.ConsensusConf, isNewbie bool, nums ...float32) (*big.Int, *big.Int) {
 	sumReward := big.NewInt(0)
 	sumStake := big.NewInt(0)
 	for _, n := range nums {
-		reward, stake := splitReward(float32ToBigInt(n), conf)
+		reward, stake := splitReward(float32ToBigInt(n), isNewbie, conf)
 		sumReward.Add(sumReward, reward)
 		sumStake.Add(sumStake, stake)
 	}
@@ -123,8 +123,13 @@ func Test_normalAge(t *testing.T) {
 }
 
 func Test_splitReward(t *testing.T) {
-	reward, stake := splitReward(big.NewInt(100), GetDefaultConsensusConfig(false))
+	reward, stake := splitReward(big.NewInt(100), false, GetDefaultConsensusConfig(false))
 
 	require.True(t, big.NewInt(80).Cmp(reward) == 0)
 	require.True(t, big.NewInt(20).Cmp(stake) == 0)
+
+	reward, stake = splitReward(big.NewInt(100), true, GetDefaultConsensusConfig(false))
+
+	require.True(t, big.NewInt(20).Cmp(reward) == 0)
+	require.True(t, big.NewInt(80).Cmp(stake) == 0)
 }

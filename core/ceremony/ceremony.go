@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/flip"
@@ -43,6 +44,7 @@ const (
 	MinHumanTotalScore  = 0.92
 	MinFlipsForVerified = 13
 	MinFlipsForHuman    = 24
+	StakeToBalanceCoef  = 3.0 / 5
 )
 
 type ValidationCeremony struct {
@@ -96,6 +98,7 @@ type epochApplyingCache struct {
 
 type cacheValue struct {
 	state                    state.IdentityState
+	prevState                state.IdentityState
 	shortQualifiedFlipsCount uint32
 	shortFlipPoint           float32
 	birthday                 uint16
@@ -679,26 +682,34 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
+func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
+	appState.State.SetState(addr, value.state)
+	appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
+	appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
+	appState.State.SetBirthday(addr, value.birthday)
+	if value.state == state.Verified && value.prevState == state.Newbie {
+		addToBalanceD := decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef))
+		addToBalance := math.ToInt(addToBalanceD)
+		appState.State.AddBalance(addr, addToBalance)
+		appState.State.SubStake(addr, addToBalance)
+	}
+
+	if value.state.NewbieOrBetter() {
+		identitiesCount++
+	} else if value.state == state.Killed {
+		// Stake of killed identity is burnt
+		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
+		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.AfterKillIdentity(statsCollector, addr, appState)
+	}
+	return identitiesCount
+}
+
 func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
 	defer collector.SetValidation(statsCollector, vc.validationStats)
-
-	applyOnState := func(addr common.Address, value cacheValue) {
-		appState.State.SetState(addr, value.state)
-		appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
-		appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
-		appState.State.SetBirthday(addr, value.birthday)
-		if value.state.NewbieOrBetter() {
-			identitiesCount++
-		} else if value.state == state.Killed {
-			// Stake of killed identity is burnt
-			collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
-			collector.AfterBalanceUpdate(statsCollector, addr, appState)
-			collector.AfterKillIdentity(statsCollector, addr, appState)
-		}
-	}
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
@@ -707,7 +718,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
-				applyOnState(addr, value)
+				identitiesCount += applyOnState(appState, statsCollector, addr, value)
 			}
 			return identitiesCount, applyingCache.validationAuthors, false
 		}
@@ -784,6 +795,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		value := cacheValue{
 			state:                    newIdentityState,
+			prevState:                identity.State,
 			shortQualifiedFlipsCount: shortQualifiedFlipsCount,
 			shortFlipPoint:           shortFlipPoint,
 			birthday:                 identityBirthday,
@@ -819,7 +831,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	}
 
 	for addr, value := range epochApplyingValues {
-		applyOnState(addr, value)
+		applyOnState(appState, statsCollector, addr, value)
 	}
 
 	for _, addr := range vc.nonCandidates {
@@ -834,7 +846,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			birthday:                 identityBirthday,
 		}
 		epochApplyingValues[addr] = value
-		applyOnState(addr, value)
+		applyOnState(appState, statsCollector, addr, value)
 	}
 
 	vc.epochApplyingCache[height] = epochApplyingCache{
@@ -852,6 +864,7 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 	if vr, ok := goodAuthors[address]; ok {
 		vr.Missed = missed
 		vr.Validated = newState.NewbieOrBetter()
+		vr.NewIdentityState = uint8(newState)
 	}
 }
 
