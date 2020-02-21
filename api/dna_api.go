@@ -511,3 +511,31 @@ func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 		Info:     info,
 	}, nil
 }
+
+func (api *DnaApi) Sign(value string) hexutil.Bytes {
+	hash := signatureHash(value)
+	return api.baseApi.secStore.Sign(hash[:])
+}
+
+type CheckSignatureArgs struct {
+	Value     string
+	Signature hexutil.Bytes
+	Address   common.Address
+}
+
+func (api *DnaApi) CheckSignature(args CheckSignatureArgs) (bool, error) {
+	hash := signatureHash(args.Value)
+	pubKey, err := crypto.Ecrecover(hash[:], args.Signature)
+	if err != nil {
+		return false, err
+	}
+	addr, err := crypto.PubKeyBytesToAddress(pubKey)
+	if err != nil {
+		return false, err
+	}
+	return args.Address == addr, nil
+}
+
+func signatureHash(value string) common.Hash {
+	return rlp.Hash(value)
+}
