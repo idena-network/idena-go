@@ -520,20 +520,19 @@ func (api *DnaApi) Sign(value string) hexutil.Bytes {
 type CheckSignatureArgs struct {
 	Value     string
 	Signature hexutil.Bytes
-	Address   common.Address
 }
 
-func (api *DnaApi) CheckSignature(args CheckSignatureArgs) (bool, error) {
+func (api *DnaApi) CheckSignature(args CheckSignatureArgs) (common.Address, error) {
 	hash := signatureHash(args.Value)
 	pubKey, err := crypto.Ecrecover(hash[:], args.Signature)
 	if err != nil {
-		return false, err
+		return common.Address{}, err
 	}
 	addr, err := crypto.PubKeyBytesToAddress(pubKey)
 	if err != nil {
-		return false, err
+		return common.Address{}, err
 	}
-	return args.Address == addr, nil
+	return addr, nil
 }
 
 func signatureHash(value string) common.Hash {
