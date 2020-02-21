@@ -517,12 +517,12 @@ func (api *DnaApi) Sign(value string) hexutil.Bytes {
 	return api.baseApi.secStore.Sign(hash[:])
 }
 
-type CheckSignatureArgs struct {
+type SignatureAddressArgs struct {
 	Value     string
 	Signature hexutil.Bytes
 }
 
-func (api *DnaApi) CheckSignature(args CheckSignatureArgs) (common.Address, error) {
+func (api *DnaApi) SignatureAddress(args SignatureAddressArgs) (common.Address, error) {
 	hash := signatureHash(args.Value)
 	pubKey, err := crypto.Ecrecover(hash[:], args.Signature)
 	if err != nil {
