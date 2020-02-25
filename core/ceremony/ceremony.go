@@ -831,7 +831,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	}
 
 	for addr, value := range epochApplyingValues {
-		applyOnState(appState, statsCollector, addr, value)
+		identitiesCount += applyOnState(appState, statsCollector, addr, value)
 	}
 
 	for _, addr := range vc.nonCandidates {
@@ -846,7 +846,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			birthday:                 identityBirthday,
 		}
 		epochApplyingValues[addr] = value
-		applyOnState(appState, statsCollector, addr, value)
+		identitiesCount += applyOnState(appState, statsCollector, addr, value)
 	}
 
 	vc.epochApplyingCache[height] = epochApplyingCache{
