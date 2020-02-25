@@ -618,12 +618,12 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 			appState.State.SubPenalty(addr, penaltySub)
 		}
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
-		collector.AddMintedCoins(statsCollector, reward)
-		collector.AddMintedCoins(statsCollector, stake)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AddMintedCoins(statsCollector, r)
+		collector.AddMintedCoins(statsCollector, s)
+		collector.AfterAddStake(statsCollector, addr, s)
 		collector.AfterSubPenalty(statsCollector, addr, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, addr, penaltySub)
-		collector.AddFinalCommitteeReward(statsCollector, addr, reward, stake)
+		collector.AddFinalCommitteeReward(statsCollector, addr, r, s)
 	}
 }
 

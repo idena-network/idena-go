@@ -44,7 +44,7 @@ const (
 	MinHumanTotalScore  = 0.92
 	MinFlipsForVerified = 13
 	MinFlipsForHuman    = 24
-	StakeToBalanceCoef  = 3.0 / 5
+	StakeToBalanceCoef  = 0.75
 )
 
 type ValidationCeremony struct {
@@ -688,10 +688,10 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
-		addToBalanceD := decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef))
-		addToBalance := math.ToInt(addToBalanceD)
+		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef)))
 		appState.State.AddBalance(addr, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
+		collector.AfterBalanceUpdate(statsCollector, addr, appState)
 	}
 
 	if value.state.NewbieOrBetter() {

@@ -577,6 +577,6 @@ func Test_applyOnState(t *testing.T) {
 	require.Equal(t, uint16(3), identity.Birthday)
 	require.Equal(t, float32(1),  identity.GetShortFlipPoints())
 	require.Equal(t, uint32(2),  identity.QualifiedFlips)
-	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(70)) ==0 )
-	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(40)) ==0 )
+	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) ==0 )
+	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) ==0 )
 }
