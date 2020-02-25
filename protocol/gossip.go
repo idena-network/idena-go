@@ -107,6 +107,7 @@ func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
 		h.host.SetStreamHandler(IdenaProtocol, h.acceptStream)
+		h.connManager = NewConnManager(h.host, h.cfg)
 		notifiee := &notifiee{
 			connManager: h.connManager,
 		}
