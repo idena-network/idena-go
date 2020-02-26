@@ -37,7 +37,7 @@ func TestTransactions_EpochChanging(t *testing.T) {
 		State:   uint8(state.Invite),
 	}
 
-	conf := blockchain.GetDefaultConsensusConfig(false)
+	conf := config.GetDefaultConsensusConfig()
 	conf.FinalCommitteeReward = big.NewInt(0)
 	valConf := &config.ValidationConfig{}
 	valConf.ValidationInterval = time.Minute * 1

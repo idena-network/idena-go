@@ -63,7 +63,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		ZeroWalletPercent:                 0.02,
 		FirstInvitationRewardCoef:         3.0,
 		SecondInvitationRewardCoef:        9.0,
-		ThirdInvitationRewardCoef:         12.0,
+		ThirdInvitationRewardCoef:         18.0,
 		SavedInviteRewardCoef:             1.0,
 		SavedInviteWinnerRewardCoef:       2.0,
 		FeeSensitivityCoef:                0.25,

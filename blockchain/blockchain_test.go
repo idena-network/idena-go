@@ -267,7 +267,7 @@ func Test_CalculatePenalty(t *testing.T) {
 }
 
 func Test_applyNextBlockFee(t *testing.T) {
-	conf := GetDefaultConsensusConfig(false)
+	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
 
@@ -287,7 +287,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 }
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
-	conf := GetDefaultConsensusConfig(false)
+	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _ := NewTestBlockchainWithBlocks(100, 0)
 
@@ -590,11 +590,12 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensus := GetDefaultConsensusConfig(true)
-	consensus.StatusSwitchRange = 10
+	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg.Automine = true
+	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
 		Network:   0x99,
-		Consensus: consensus,
+		Consensus: consensusCfg,
 		GenesisConf: &config.GenesisConf{
 			Alloc: map[common.Address]config.GenesisAllocation{
 				addr: {
@@ -679,11 +680,12 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensus := GetDefaultConsensusConfig(true)
-	consensus.StatusSwitchRange = 10
+	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg.Automine = true
+	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
 		Network:   0x99,
-		Consensus: consensus,
+		Consensus: consensusCfg,
 		GenesisConf: &config.GenesisConf{
 			Alloc: map[common.Address]config.GenesisAllocation{
 				addr: {

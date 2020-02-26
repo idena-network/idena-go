@@ -15,42 +15,7 @@ import (
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/tendermint/tm-db"
 	"math/big"
-	"time"
 )
-
-func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
-	return &config.ConsensusConf{
-		MaxSteps:                          150,
-		CommitteePercent:                  0.3,
-		FinalCommitteePercent:             0.7,
-		AgreementThreshold:                0.65,
-		WaitBlockDelay:                    time.Minute,
-		WaitSortitionProofDelay:           time.Second * 5,
-		EstimatedBaVariance:               time.Second * 5,
-		WaitForStepDelay:                  time.Second * 20,
-		Automine:                          automine,
-		BlockReward:                       big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
-		StakeRewardRate:                   0.2,
-		StakeRewardRateForNewbie:          0.8,
-		FeeBurnRate:                       0.9,
-		FinalCommitteeReward:              big.NewInt(6e+18),
-		SnapshotRange:                     10000,
-		OfflinePenaltyBlocksCount:         1800,
-		SuccessfulValidationRewardPercent: 0.24,
-		FlipRewardPercent:                 0.32,
-		ValidInvitationRewardPercent:      0.32,
-		FoundationPayoutsPercent:          0.1,
-		ZeroWalletPercent:                 0.02,
-		FirstInvitationRewardCoef:         3.0,
-		SecondInvitationRewardCoef:        9.0,
-		ThirdInvitationRewardCoef:         12.0,
-		SavedInviteWinnerRewardCoef:       2.0,
-		SavedInviteRewardCoef:             1.0,
-		FeeSensitivityCoef:                0.25,
-		MinFeePerByte:                     big.NewInt(1e+4),
-		StatusSwitchRange:                 50,
-	}
-}
 
 func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	if alloc == nil {
@@ -95,7 +60,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
-	return NewTestBlockchainWithConfig(withIdentity, GetDefaultConsensusConfig(true), &config.ValidationConfig{}, alloc, -1, -1)
+	cfg := config.GetDefaultConsensusConfig()
+	cfg.Automine = true
+	return NewTestBlockchainWithConfig(withIdentity, cfg, &config.ValidationConfig{}, alloc, -1, -1)
 }
 
 func NewTestBlockchainWithBlocks(blocksCount int, emptyBlocksCount int) (*TestBlockchain, *appstate.AppState) {
@@ -105,9 +72,11 @@ func NewTestBlockchainWithBlocks(blocksCount int, emptyBlocksCount int) (*TestBl
 
 func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.PrivateKey) (*TestBlockchain, *appstate.AppState) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
+	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg.Automine = true
 	cfg := &config.Config{
 		Network:   0x99,
-		Consensus: GetDefaultConsensusConfig(true),
+		Consensus: consensusCfg,
 		GenesisConf: &config.GenesisConf{
 			Alloc:             nil,
 			GodAddress:        addr,
@@ -154,9 +123,11 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 		db.Set(it.Key(), it.Value())
 	}
 	appState := appstate.NewAppState(db, bus)
+	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg.Automine = true
 	cfg := &config.Config{
 		Network:   0x99,
-		Consensus: GetDefaultConsensusConfig(true),
+		Consensus: consensusCfg,
 		GenesisConf: &config.GenesisConf{
 			Alloc:             nil,
 			GodAddress:        chain.secStore.GetAddress(),

@@ -24,8 +24,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	failed := common.Address{0x6}
 	badAuth := common.Address{0x5}
 
-	conf := GetDefaultConsensusConfig(false)
-
+	conf := config.GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
 
@@ -74,12 +73,12 @@ func Test_rewardValidIdentities(t *testing.T) {
 	flipReward := float32(320) / 5
 	godPayout := float32(100)
 
-	// sum all coeficients
+	// sum all coefficients
 	// auth1: conf.SecondInvitationRewardCoef + conf.SavedInviteWinnerRewardCoef (9 + 2)
 	// auth2: conf.SavedInviteRewardCoef (1)
-	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 12)
+	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
 	// total: 36
-	invitationReward := float32(320) / 36
+	invitationReward := float32(320) / 42
 
 	reward, stake := splitAndSum(conf, validationReward*normalAge(3), flipReward*2, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteWinnerRewardCoef)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth1)) == 0)
