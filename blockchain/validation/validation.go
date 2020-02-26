@@ -490,7 +490,9 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
 	}
-
+	if appState.State.GetIdentityState(sender) == state.Newbie {
+		return InvalidSender
+	}
 	return nil
 }
 

@@ -6,11 +6,16 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/stretchr/testify/require"
+	dbm "github.com/tendermint/tm-db"
+	"math/big"
 	"testing"
 )
 
@@ -547,4 +552,31 @@ func Test_determineIdentityBirthday(t *testing.T) {
 	identity.Birthday = 1
 	identity.State = state.Newbie
 	require.Equal(t, uint16(1), determineIdentityBirthday(2, identity, state.Newbie))
+}
+
+func Test_applyOnState(t *testing.T) {
+	db := dbm.NewMemDB()
+	appstate := appstate.NewAppState(db, eventbus.New())
+
+	addr1 := common.Address{0x1}
+
+	appstate.State.SetState(addr1, state.Newbie)
+	appstate.State.AddStake(addr1, big.NewInt(100))
+	appstate.State.AddBalance(addr1, big.NewInt(10))
+
+	identities := applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{
+		prevState:                state.Newbie,
+		birthday:                 3,
+		shortFlipPoint:           1,
+		shortQualifiedFlipsCount: 2,
+		state:                    state.Verified,
+	})
+	identity := appstate.State.GetIdentity(addr1)
+	require.Equal(t, 1, identities)
+	require.Equal(t, state.Verified, identity.State)
+	require.Equal(t, uint16(3), identity.Birthday)
+	require.Equal(t, float32(1),  identity.GetShortFlipPoints())
+	require.Equal(t, uint32(2),  identity.QualifiedFlips)
+	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) ==0 )
+	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) ==0 )
 }
