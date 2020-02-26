@@ -381,23 +381,25 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
 	totalReward.Add(totalReward, totalTips)
 
-	reward, stake := splitReward(totalReward, chain.config.Consensus)
+	coinbase := block.Header.Coinbase()
+
+	reward, stake := splitReward(totalReward, appState.State.GetIdentityState(coinbase) == state.Newbie, chain.config.Consensus)
 
 	// calculate penalty
-	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(block.Header.Coinbase()))
+	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(coinbase))
 
 	// update state
-	appState.State.AddBalance(block.Header.Coinbase(), balanceAdd)
-	appState.State.AddStake(block.Header.Coinbase(), stakeAdd)
+	appState.State.AddBalance(coinbase, balanceAdd)
+	appState.State.AddStake(coinbase, stakeAdd)
 	if penaltySub != nil {
-		appState.State.SubPenalty(block.Header.Coinbase(), penaltySub)
+		appState.State.SubPenalty(coinbase, penaltySub)
 	}
-	collector.AfterBalanceUpdate(statsCollector, block.Header.Coinbase(), appState)
+	collector.AfterBalanceUpdate(statsCollector, coinbase, appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AfterAddStake(statsCollector, block.Header.Coinbase(), stake)
-	collector.AfterSubPenalty(statsCollector, block.Header.Coinbase(), penaltySub, appState)
-	collector.AddPenaltyBurntCoins(statsCollector, block.Header.Coinbase(), penaltySub)
-	collector.AddProposerReward(statsCollector, block.Header.Coinbase(), reward, stake)
+	collector.AfterAddStake(statsCollector, coinbase, stake)
+	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
+	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
+	collector.AddProposerReward(statsCollector, coinbase, reward, stake)
 
 	chain.rewardFinalCommittee(appState, block, prevBlock, statsCollector)
 }
@@ -587,20 +589,27 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	if block.IsEmpty() {
 		return
 	}
-	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), 1000, chain.GetCommitteeSize(appState.ValidatorsCache, true))
+	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
 	if identities == nil || identities.Cardinality() == 0 {
 		return
 	}
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
 
-	reward, stake := splitReward(totalReward, chain.config.Consensus)
+	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
+	newbieReward, newbieStake := splitReward(totalReward, true, chain.config.Consensus)
 
 	for _, item := range identities.ToSlice() {
 		addr := item.(common.Address)
 
+		identityState := appState.State.GetIdentityState(addr)
+		r, s := reward, stake
+		if identityState == state.Newbie {
+			r, s = newbieReward, newbieStake
+		}
+
 		// calculate penalty
-		balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(addr))
+		balanceAdd, stakeAdd, penaltySub := calculatePenalty(r, s, appState.State.GetPenalty(addr))
 
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)
@@ -609,12 +618,12 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 			appState.State.SubPenalty(addr, penaltySub)
 		}
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
-		collector.AddMintedCoins(statsCollector, reward)
-		collector.AddMintedCoins(statsCollector, stake)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AddMintedCoins(statsCollector, r)
+		collector.AddMintedCoins(statsCollector, s)
+		collector.AfterAddStake(statsCollector, addr, s)
 		collector.AfterSubPenalty(statsCollector, addr, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, addr, penaltySub)
-		collector.AddFinalCommitteeReward(statsCollector, addr, reward, stake)
+		collector.AddFinalCommitteeReward(statsCollector, addr, r, s)
 	}
 }
 

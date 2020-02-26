@@ -290,6 +290,10 @@ func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
 
+func (s *StateDB) SubStake(addr common.Address, amount *big.Int) {
+	s.GetOrNewIdentityObject(addr).SubStake(amount)
+}
+
 func (s *StateDB) SetState(address common.Address, state IdentityState) {
 	s.GetOrNewIdentityObject(address).SetState(state)
 }
