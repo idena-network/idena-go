@@ -541,7 +541,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 
 	require.Equal(t, len(authors.GoodAuthors[god].SuccessfulInviteAges), 1)
 	require.Equal(t, []uint16{1}, authors.GoodAuthors[god].SuccessfulInviteAges)
-	require.True(t, authors.GoodAuthors[god].Validated)
+	require.True(t, authors.GoodAuthors[god].PayInvitationReward)
 	require.False(t, authors.GoodAuthors[god].Missed)
 
 	require.NotContains(t, authors.GoodAuthors, badAuth)
