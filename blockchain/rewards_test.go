@@ -77,7 +77,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	// auth1: conf.SecondInvitationRewardCoef + conf.SavedInviteRewardCoef (9 + 1)
 	// auth2: conf.SavedInviteWinnerRewardCoef (2)
 	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
-	// total: 36
+	// total: 42
 	invitationReward := float32(320) / 42
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*2, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteRewardCoef)
