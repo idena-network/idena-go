@@ -129,7 +129,15 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	totalReward decimal.Decimal, seed types.Seed, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
-	var addresses []common.Hash
+	addAddress := func(data []common.Hash, elem common.Hash) []common.Hash {
+		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i][:], elem[:]) > 0 })
+		data = append(data, common.Hash{})
+		copy(data[index+1:], data[index:])
+		data[index] = elem
+		return data
+	}
+
+	addresses := make([]common.Hash, 0)
 	totalWeight := float32(0)
 	for addr, author := range authors.GoodAuthors {
 		if !author.PayInvitationReward {
@@ -139,13 +147,9 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			totalWeight += getInvitationRewardCoef(successfulInviteAge, config)
 		}
 		for i := uint8(0); i < author.SavedInvites; i++ {
-			addresses = append(addresses, rlp.Hash(append(addr[:], i)))
+			addresses = addAddress(addresses, rlp.Hash(append(addr[:], i)))
 		}
 	}
-
-	sort.SliceStable(addresses, func(i, j int) bool {
-		return bytes.Compare(addresses[i][:], addresses[j][:]) > 0
-	})
 
 	p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
 	savedInvitesWinnersCount := len(addresses) / 2
