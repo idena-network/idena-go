@@ -132,7 +132,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	var addresses []common.Hash
 	totalWeight := float32(0)
 	for addr, author := range authors.GoodAuthors {
-		if !author.Validated {
+		if !author.PayInvitationReward {
 			continue
 		}
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
@@ -174,7 +174,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	}
 
 	for addr, author := range authors.GoodAuthors {
-		if !author.Validated {
+		if !author.PayInvitationReward {
 			continue
 		}
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {

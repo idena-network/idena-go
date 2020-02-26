@@ -566,7 +566,7 @@ type ValidationResult struct {
 	StrongFlips          int
 	WeakFlips            int
 	SuccessfulInviteAges []uint16
-	Validated            bool
+	PayInvitationReward  bool
 	Missed               bool
 	SavedInvites         uint8
 	NewIdentityState     uint8

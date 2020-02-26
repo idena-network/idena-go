@@ -46,11 +46,11 @@ func Test_rewardValidIdentities(t *testing.T) {
 	authors := types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, Validated: true, SavedInvites: 1},
-			auth2:  {StrongFlips: 0, WeakFlips: 0, Validated: true, SavedInvites: 1},
-			auth3:  {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: false},
-			failed: {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
-			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, Validated: true},
+			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, PayInvitationReward: true, SavedInvites: 1},
+			auth2:  {StrongFlips: 0, WeakFlips: 0, PayInvitationReward: true, SavedInvites: 1},
+			auth3:  {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: false},
+			failed: {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
+			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, PayInvitationReward: true},
 		},
 	}
 	appState.State.SetState(auth1, state.Verified)
