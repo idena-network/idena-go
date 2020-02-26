@@ -131,7 +131,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 
 	var addresses []common.Hash
 	totalWeight := float32(0)
-	savedInvites := 0
 	for addr, author := range authors.GoodAuthors {
 		if !author.Validated {
 			continue
@@ -139,7 +138,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
 			totalWeight += getInvitationRewardCoef(successfulInviteAge, config)
 		}
-		savedInvites += int(author.SavedInvites)
 		for i := uint8(0); i < author.SavedInvites; i++ {
 			addresses = append(addresses, rlp.Hash(append(addr[:], i)))
 		}
@@ -150,7 +148,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	})
 
 	p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
-	savedInvitesWinnersCount := savedInvites / 2
+	savedInvitesWinnersCount := len(addresses) / 2
 	totalWeight += float32(savedInvitesWinnersCount)*config.SavedInviteWinnerRewardCoef + float32(len(p)-savedInvitesWinnersCount)*config.SavedInviteRewardCoef
 
 	win := make(map[common.Hash]struct{})
