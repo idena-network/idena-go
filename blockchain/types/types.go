@@ -568,6 +568,7 @@ type ValidationResult struct {
 	SuccessfulInviteAges []uint16
 	Validated            bool
 	Missed               bool
+	NewIdentityState     uint8
 }
 
 type AuthorResults struct {

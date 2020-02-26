@@ -31,6 +31,7 @@ func GetDefaultConsensusConfig(automine bool) *config.ConsensusConf {
 		Automine:                          automine,
 		BlockReward:                       big.NewInt(0).Mul(big.NewInt(1e+18), big.NewInt(15)),
 		StakeRewardRate:                   0.2,
+		StakeRewardRateForNewbie:          0.8,
 		FeeBurnRate:                       0.9,
 		FinalCommitteeReward:              big.NewInt(6e+18),
 		SnapshotRange:                     10000,

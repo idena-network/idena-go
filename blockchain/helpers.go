@@ -58,8 +58,13 @@ func ConvertToFloat(amount *big.Int) decimal.Decimal {
 	return decimalAmount.Div(decimal.NewFromBigInt(common.DnaBase, 0))
 }
 
-func splitReward(totalReward *big.Int, conf *config.ConsensusConf) (reward, stake *big.Int) {
-	stakeD := decimal.NewFromBigInt(totalReward, 0).Mul(decimal.NewFromFloat32(conf.StakeRewardRate))
+func splitReward(totalReward *big.Int, isNewbie bool, conf *config.ConsensusConf) (reward, stake *big.Int) {
+	rate := conf.StakeRewardRate
+	if isNewbie {
+		rate = conf.StakeRewardRateForNewbie
+	}
+
+	stakeD := decimal.NewFromBigInt(totalReward, 0).Mul(decimal.NewFromFloat32(rate))
 	stake = math.ToInt(stakeD)
 
 	reward = big.NewInt(0)

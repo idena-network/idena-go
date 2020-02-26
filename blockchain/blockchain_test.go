@@ -57,7 +57,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	totalReward.Add(totalReward, chain.config.Consensus.FinalCommitteeReward)
 	totalReward.Add(totalReward, tips)
 
-	expectedBalance, stake := splitReward(totalReward, chain.config.Consensus)
+	expectedBalance, stake := splitReward(totalReward, false, chain.config.Consensus)
 
 	fmt.Printf("%v\n%v", expectedBalance, appState.State.GetBalance(chain.coinBaseAddress))
 

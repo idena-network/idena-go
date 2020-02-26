@@ -17,6 +17,7 @@ type ConsensusConf struct {
 	Automine                          bool
 	BlockReward                       *big.Int
 	StakeRewardRate                   float32
+	StakeRewardRateForNewbie          float32
 	FinalCommitteeReward              *big.Int
 	FeeBurnRate                       float32
 	SnapshotRange                     uint64
@@ -48,6 +49,7 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		WaitForStepDelay:                  time.Second * 20,
 		BlockReward:                       big.NewInt(2e+18),
 		StakeRewardRate:                   0.2,
+		StakeRewardRateForNewbie:          0.8,
 		FeeBurnRate:                       0.9,
 		FinalCommitteeReward:              big.NewInt(4e+18),
 		SnapshotRange:                     1000,
