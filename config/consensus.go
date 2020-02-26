@@ -30,6 +30,8 @@ type ConsensusConf struct {
 	FirstInvitationRewardCoef         float32
 	SecondInvitationRewardCoef        float32
 	ThirdInvitationRewardCoef         float32
+	SavedInviteRewardCoef             float32
+	SavedInviteWinnerRewardCoef       float32
 	FeeSensitivityCoef                float32
 	MinFeePerByte                     *big.Int
 	MinBlockDistance                  time.Duration
@@ -59,9 +61,11 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		ValidInvitationRewardPercent:      0.32,
 		FoundationPayoutsPercent:          0.1,
 		ZeroWalletPercent:                 0.02,
-		FirstInvitationRewardCoef:         1.0,
-		SecondInvitationRewardCoef:        3.0,
-		ThirdInvitationRewardCoef:         6.0,
+		FirstInvitationRewardCoef:         3.0,
+		SecondInvitationRewardCoef:        9.0,
+		ThirdInvitationRewardCoef:         18.0,
+		SavedInviteRewardCoef:             1.0,
+		SavedInviteWinnerRewardCoef:       2.0,
 		FeeSensitivityCoef:                0.25,
 		MinFeePerByte:                     big.NewInt(1e+2),
 		MinBlockDistance:                  time.Second * 20,

@@ -24,8 +24,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	failed := common.Address{0x6}
 	badAuth := common.Address{0x5}
 
-	conf := GetDefaultConsensusConfig(false)
-
+	conf := config.GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
 
@@ -47,11 +46,11 @@ func Test_rewardValidIdentities(t *testing.T) {
 	authors := types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, Validated: true},
-			auth2:  {StrongFlips: 0, WeakFlips: 0, Validated: true},
-			auth3:  {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: false},
-			failed: {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
-			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, Validated: true},
+			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
+			auth2:  {StrongFlips: 0, WeakFlips: 0, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
+			auth3:  {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: false, NewIdentityState: uint8(state.Verified)},
+			failed: {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
+			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, PayInvitationReward: true},
 		},
 	}
 	appState.State.SetState(auth1, state.Verified)
@@ -66,28 +65,34 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &authors, 100, nil)
+	rewardValidIdentities(appState, conf, &authors, 100, types.Seed{1}, nil)
 
 	appState.Commit(nil)
 
 	validationReward := float32(240) / 3.847322
 	flipReward := float32(320) / 5
-	invitationReward := float32(320) / 13
 	godPayout := float32(100)
 
-	reward, stake := splitAndSum(conf, false,  validationReward*normalAge(3), flipReward*2, invitationReward*3)
+	// sum all coefficients
+	// auth1: conf.SecondInvitationRewardCoef + conf.SavedInviteRewardCoef (9 + 1)
+	// auth2: conf.SavedInviteWinnerRewardCoef (2)
+	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
+	// total: 42
+	invitationReward := float32(320) / 42
+
+	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*2, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteRewardCoef)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
-	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))
+	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0), invitationReward*conf.SavedInviteWinnerRewardCoef)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf,false, validationReward*normalAge(1), flipReward*3)
+	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*3)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
-	reward, stake = splitAndSum(conf, false, invitationReward, invitationReward*3, invitationReward*6)
+	reward, stake = splitAndSum(conf, false, invitationReward*conf.FirstInvitationRewardCoef, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.ThirdInvitationRewardCoef)
 	reward.Add(reward, float32ToBigInt(godPayout))
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)
@@ -123,12 +128,12 @@ func Test_normalAge(t *testing.T) {
 }
 
 func Test_splitReward(t *testing.T) {
-	reward, stake := splitReward(big.NewInt(100), false, GetDefaultConsensusConfig(false))
+	reward, stake := splitReward(big.NewInt(100), false, config.GetDefaultConsensusConfig())
 
 	require.True(t, big.NewInt(80).Cmp(reward) == 0)
 	require.True(t, big.NewInt(20).Cmp(stake) == 0)
 
-	reward, stake = splitReward(big.NewInt(100), true, GetDefaultConsensusConfig(false))
+	reward, stake = splitReward(big.NewInt(100), true, config.GetDefaultConsensusConfig())
 
 	require.True(t, big.NewInt(20).Cmp(reward) == 0)
 	require.True(t, big.NewInt(80).Cmp(stake) == 0)

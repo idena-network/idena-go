@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"bytes"
+	"encoding/binary"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
@@ -8,14 +10,17 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/shopspring/decimal"
 	math2 "math"
 	"math/big"
+	"math/rand"
+	"sort"
 )
 
 func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
-	blocks uint64, statsCollector collector.StatsCollector) {
+	blocks uint64, seed types.Seed, statsCollector collector.StatsCollector) {
 
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(blocks)))
@@ -28,7 +33,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
 	addSuccessfulValidationReward(appState, config, authors, totalRewardD, statsCollector)
 	addFlipReward(appState, config, authors, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, authors, totalRewardD, statsCollector)
+	addInvitationReward(appState, config, authors, totalRewardD, seed, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
@@ -121,39 +126,76 @@ func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
-	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, seed types.Seed, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
+	addAddress := func(data []common.Hash, elem common.Hash) []common.Hash {
+		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i][:], elem[:]) > 0 })
+		data = append(data, common.Hash{})
+		copy(data[index+1:], data[index:])
+		data[index] = elem
+		return data
+	}
+
+	addresses := make([]common.Hash, 0)
 	totalWeight := float32(0)
-	for _, author := range authors.GoodAuthors {
-		if !author.Validated {
+	for addr, author := range authors.GoodAuthors {
+		if !author.PayInvitationReward {
 			continue
 		}
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
 			totalWeight += getInvitationRewardCoef(successfulInviteAge, config)
 		}
+		for i := uint8(0); i < author.SavedInvites; i++ {
+			addresses = addAddress(addresses, rlp.Hash(append(addr[:], i)))
+		}
 	}
+
+	p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
+	savedInvitesWinnersCount := len(addresses) / 2
+	totalWeight += float32(savedInvitesWinnersCount)*config.SavedInviteWinnerRewardCoef + float32(len(p)-savedInvitesWinnersCount)*config.SavedInviteRewardCoef
+
+	win := make(map[common.Hash]struct{})
+	for i := 0; i < savedInvitesWinnersCount; i++ {
+		win[addresses[p[i]]] = struct{}{}
+	}
+
 	if totalWeight == 0 {
 		return
 	}
 	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD))
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 
+	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16) {
+		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
+		appState.State.AddBalance(addr, reward)
+		appState.State.AddStake(addr, stake)
+		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.AddMintedCoins(statsCollector, reward)
+		collector.AddMintedCoins(statsCollector, stake)
+		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age)
+		collector.AfterAddStake(statsCollector, addr, stake)
+	}
+
 	for addr, author := range authors.GoodAuthors {
-		if !author.Validated {
+		if !author.PayInvitationReward {
 			continue
 		}
+		isNewbie := author.NewIdentityState == uint8(state.Newbie)
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
 			if weight := getInvitationRewardCoef(successfulInviteAge, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
-				appState.State.AddBalance(addr, reward)
-				appState.State.AddStake(addr, stake)
-				collector.AfterBalanceUpdate(statsCollector, addr, appState)
-				collector.AddMintedCoins(statsCollector, reward)
-				collector.AddMintedCoins(statsCollector, stake)
-				collector.AddInvitationsReward(statsCollector, addr, reward, stake, successfulInviteAge)
-				collector.AfterAddStake(statsCollector, addr, stake)
+				addReward(addr, totalReward, isNewbie, successfulInviteAge)
+			}
+		}
+		for i := uint8(0); i < author.SavedInvites; i++ {
+			hash := rlp.Hash(append(addr[:], i))
+			if _, ok := win[hash]; ok {
+				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
+				addReward(addr, totalReward, isNewbie, 0)
+			} else {
+				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
+				addReward(addr, totalReward, isNewbie, 0)
 			}
 		}
 	}
