@@ -323,6 +323,8 @@ func (s *stateAccount) Epoch() uint16 {
 	return s.data.Epoch
 }
 
+
+
 // Returns the address of the contract/account
 func (s *stateIdentity) Address() common.Address {
 	return s.address
@@ -391,6 +393,17 @@ func (s *stateIdentity) AddStake(amount *big.Int) {
 		return
 	}
 	s.SetStake(new(big.Int).Add(s.Stake(), amount))
+}
+
+func (s *stateIdentity) SubStake(amount *big.Int) {
+	if amount.Sign() == 0 {
+		if s.empty() {
+			s.touch()
+		}
+		return
+	}
+
+	s.SetStake(new(big.Int).Sub(s.Stake(), amount))
 }
 
 func (s *stateIdentity) SetStake(amount *big.Int) {

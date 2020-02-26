@@ -61,7 +61,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				age := epoch - identity.Birthday
 				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
-				reward, stake := splitReward(math.ToInt(totalReward), config)
+				reward, stake := splitReward(math.ToInt(totalReward), identity.State == state.Newbie, config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
 				collector.AfterBalanceUpdate(statsCollector, addr, appState)
@@ -96,7 +96,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 			continue
 		}
 		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(author.StrongFlips + author.WeakFlips)))
-		reward, stake := splitReward(math.ToInt(totalReward), config)
+		reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
@@ -146,7 +146,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
 			if weight := getInvitationRewardCoef(successfulInviteAge, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				reward, stake := splitReward(math.ToInt(totalReward), config)
+				reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
 				collector.AfterBalanceUpdate(statsCollector, addr, appState)
