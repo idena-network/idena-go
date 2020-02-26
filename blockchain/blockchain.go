@@ -436,7 +436,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	setNewIdentitiesAttributes(appState, networkSize, failed, authors, statsCollector)
 
 	if !failed {
-		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(),
+		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(), block.Seed(),
 			statsCollector)
 	}
 

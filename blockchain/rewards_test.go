@@ -47,8 +47,8 @@ func Test_rewardValidIdentities(t *testing.T) {
 	authors := types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, Validated: true},
-			auth2:  {StrongFlips: 0, WeakFlips: 0, Validated: true},
+			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, Validated: true, SavedInvites: 1},
+			auth2:  {StrongFlips: 0, WeakFlips: 0, Validated: true, SavedInvites: 1},
 			auth3:  {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: false},
 			failed: {StrongFlips: 2, WeakFlips: 1, Validated: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
 			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, Validated: true},
@@ -66,28 +66,34 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &authors, 100, nil)
+	rewardValidIdentities(appState, conf, &authors, 100, types.Seed{1}, nil)
 
 	appState.Commit(nil)
 
 	validationReward := float32(240) / 3.847322
 	flipReward := float32(320) / 5
-	invitationReward := float32(320) / 13
 	godPayout := float32(100)
 
-	reward, stake := splitAndSum(conf, false,  validationReward*normalAge(3), flipReward*2, invitationReward*3)
+	// sum all coeficients
+	// auth1: conf.SecondInvitationRewardCoef + conf.SavedInviteWinnerRewardCoef (9 + 2)
+	// auth2: conf.SavedInviteRewardCoef (1)
+	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 12)
+	// total: 36
+	invitationReward := float32(320) / 36
+
+	reward, stake := splitAndSum(conf, validationReward*normalAge(3), flipReward*2, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteWinnerRewardCoef)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
-	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))
+	reward, stake = splitAndSum(conf, validationReward*normalAge(0), invitationReward*conf.SavedInviteRewardCoef)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf,false, validationReward*normalAge(1), flipReward*3)
+	reward, stake = splitAndSum(conf, validationReward*normalAge(1), flipReward*3)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
-	reward, stake = splitAndSum(conf, false, invitationReward, invitationReward*3, invitationReward*6)
+	reward, stake = splitAndSum(conf, invitationReward*conf.FirstInvitationRewardCoef, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.ThirdInvitationRewardCoef)
 	reward.Add(reward, float32ToBigInt(godPayout))
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)

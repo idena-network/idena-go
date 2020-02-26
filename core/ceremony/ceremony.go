@@ -791,7 +791,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		incSuccessfulInvites(validationAuthors, god, identity, identityBirthday, newIdentityState, vc.epoch)
-		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors)
+		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors, identity.Invites)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -858,13 +858,13 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	return identitiesCount, validationAuthors, false
 }
 
-func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool,
-	validationAuthors *types.ValidationAuthors) {
+func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool, validationAuthors *types.ValidationAuthors, invites uint8) {
 	goodAuthors := validationAuthors.GoodAuthors
 	if vr, ok := goodAuthors[address]; ok {
 		vr.Missed = missed
 		vr.Validated = newState.NewbieOrBetter()
 		vr.NewIdentityState = uint8(newState)
+		vr.SavedInvites = invites
 	}
 }
 
