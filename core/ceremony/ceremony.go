@@ -791,7 +791,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		incSuccessfulInvites(validationAuthors, god, identity, identityBirthday, newIdentityState, vc.epoch)
-		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors)
+		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors, identity.Invites)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -839,6 +839,12 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
+		if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
+			if vr, ok := validationAuthors.GoodAuthors[identity.Inviter.Address]; ok {
+				vr.SavedInvites += 1
+			}
+		}
+
 		value := cacheValue{
 			state:                    newIdentityState,
 			shortQualifiedFlipsCount: 0,
@@ -858,13 +864,13 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	return identitiesCount, validationAuthors, false
 }
 
-func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool,
-	validationAuthors *types.ValidationAuthors) {
+func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool, validationAuthors *types.ValidationAuthors, invites uint8) {
 	goodAuthors := validationAuthors.GoodAuthors
 	if vr, ok := goodAuthors[address]; ok {
 		vr.Missed = missed
-		vr.Validated = newState.NewbieOrBetter()
 		vr.NewIdentityState = uint8(newState)
+		vr.PayInvitationReward = newState.NewbieOrBetter()
+		vr.SavedInvites = invites
 	}
 }
 
@@ -883,7 +889,7 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	} else if invitee.Inviter.Address == god {
 		goodAuthors[god] = &types.ValidationResult{
 			SuccessfulInviteAges: []uint16{newAge},
-			Validated:            true,
+			PayInvitationReward:  true,
 		}
 	}
 }
