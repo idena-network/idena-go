@@ -671,6 +671,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AfterKillIdentity(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, recipient, appState)
+		collector.AddActivationTxBalanceTransfer(statsCollector, tx, change)
 		if sender != *tx.To {
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
 		}
@@ -707,11 +708,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		amount := tx.AmountOrZero()
 		stateDB.SubBalance(sender, amount)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		stateDB.AddBalance(*tx.To, new(big.Int).Sub(stateDB.GetStakeBalance(sender), fee))
+		stakeToTransfer := new(big.Int).Sub(stateDB.GetStakeBalance(sender), fee)
+		stateDB.AddBalance(*tx.To, stakeToTransfer)
 		stateDB.AddBalance(*tx.To, amount)
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 		collector.AfterKillIdentity(statsCollector, sender, appState)
+		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
@@ -719,7 +722,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(*tx.To)
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		stateDB.AddBalance(sender, stateDB.GetStakeBalance(*tx.To))
+		stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
+		stateDB.AddBalance(sender, stakeToTransfer)
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender) == state.Verified &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
@@ -730,6 +734,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 		collector.AfterKillIdentity(statsCollector, *tx.To, appState)
+		collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())

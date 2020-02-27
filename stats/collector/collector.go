@@ -46,6 +46,10 @@ type StatsCollector interface {
 
 	AfterKillIdentity(addr common.Address, appState *appstate.AppState)
 	AfterAddStake(addr common.Address, amount *big.Int)
+
+	AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int)
+	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
+	AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int)
 }
 
 type collectorStub struct {
@@ -360,4 +364,37 @@ func AfterAddStake(c StatsCollector, addr common.Address, amount *big.Int) {
 		return
 	}
 	c.AfterAddStake(addr, amount)
+}
+
+func (c *collectorStub) AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int) {
+	// do nothing
+}
+
+func AddActivationTxBalanceTransfer(c StatsCollector, tx *types.Transaction, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddActivationTxBalanceTransfer(tx, amount)
+}
+
+func (c *collectorStub) AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int) {
+	// do nothing
+}
+
+func AddKillTxStakeTransfer(c StatsCollector, tx *types.Transaction, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddKillTxStakeTransfer(tx, amount)
+}
+
+func (c *collectorStub) AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int) {
+	// do nothing
+}
+
+func AddKillInviteeTxStakeTransfer(c StatsCollector, tx *types.Transaction, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddKillInviteeTxStakeTransfer(tx, amount)
 }
