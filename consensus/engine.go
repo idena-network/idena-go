@@ -106,14 +106,16 @@ func (engine *Engine) ReadonlyAppState() *appstate.AppState {
 	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
 		return engine.appStateCache.appState
 	}
-
 	engine.appStateCacheMutex.Lock()
+	defer engine.appStateCacheMutex.Unlock()
+	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
+		return engine.appStateCache.appState
+	}
 	s := engine.appState.Readonly(currentBlock)
 	engine.appStateCache = &appStateCache{
 		block:    currentBlock,
 		appState: s,
 	}
-	engine.appStateCacheMutex.Unlock()
 	return s
 }
 
