@@ -196,13 +196,29 @@ loop:
 
 func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, completed chan interface{}) {
 	defer close(term)
+
+	consume := func(batch *batch) (stop bool) {
+		if len(batch.headers) == 0 && !d.pm.IsConnected(batch.p.id) {
+			batch = requestBatch(d.pm, batch.from, batch.to, batch.p.id)
+			if batch == nil {
+				d.log.Warn("failed to process batch", "err", "no peers")
+				return true
+			}
+		}
+
+		if err := applier.processBatch(batch, 1); err != nil {
+			d.log.Warn("failed to process batch", "err", err)
+			return true
+		}
+		return false
+	}
+
 	for {
 		timeout := time.After(time.Second * 15)
 
 		select {
 		case batch := <-d.batches:
-			if err := applier.processBatch(batch, 1); err != nil {
-				d.log.Warn("failed to process batch", "err", err)
+			if consume(batch) {
 				return
 			}
 			continue
@@ -211,8 +227,7 @@ func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, 
 
 		select {
 		case batch := <-d.batches:
-			if err := applier.processBatch(batch, 1); err != nil {
-				d.log.Warn("failed to process batch", "err", err)
+			if consume(batch) {
 				return
 			}
 			break
@@ -335,4 +350,21 @@ func (d *Downloader) BanPeer(peerId peer.ID, reason error) {
 	if d.pm != nil {
 		d.pm.BanPeer(peerId, reason)
 	}
+}
+
+func requestBatch(pm *IdenaGossipHandler, from, to uint64, ignoredPeer peer.ID) *batch {
+	knownHeights := pm.GetKnownHeights()
+	if knownHeights == nil {
+		return nil
+	}
+	for peerId, height := range knownHeights {
+		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
+			if batch, err := pm.GetBlocksRange(peerId, from, to); err != nil {
+				continue
+			} else {
+				return batch
+			}
+		}
+	}
+	return nil
 }
