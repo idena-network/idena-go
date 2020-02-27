@@ -32,7 +32,7 @@ func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.K
 }
 
 func (api *BaseApi) getAppState() *appstate.AppState {
-	return api.engine.GetAppState()
+	return api.engine.ReadonlyAppState()
 }
 
 func (api *BaseApi) getCurrentCoinbase() common.Address {

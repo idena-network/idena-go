@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	math2 "math"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,11 @@ const (
 var (
 	ForkDetected = errors.New("fork is detected")
 )
+
+type appStateCache struct {
+	block    uint64
+	appState *appstate.AppState
+}
 
 type Engine struct {
 	chain             *blockchain.Blockchain
@@ -53,6 +59,9 @@ type Engine struct {
 	synced            bool
 	nextBlockDetector *nextBlockDetector
 	statsCollector    collector.StatsCollector
+
+	appStateCache      *appStateCache
+	appStateCacheMutex sync.Mutex
 }
 
 func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossipHandler, proposals *pengings.Proposals, config *config.ConsensusConf,
@@ -92,8 +101,20 @@ func (engine *Engine) GetProcess() string {
 	return engine.process
 }
 
-func (engine *Engine) GetAppState() *appstate.AppState {
-	return engine.appState.Readonly(engine.chain.Head.Height())
+func (engine *Engine) ReadonlyAppState() *appstate.AppState {
+	currentBlock := engine.chain.Head.Height()
+	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
+		return engine.appStateCache.appState
+	}
+
+	engine.appStateCacheMutex.Lock()
+	s := engine.appState.Readonly(currentBlock)
+	engine.appStateCache = &appStateCache{
+		block:    currentBlock,
+		appState: s,
+	}
+	engine.appStateCacheMutex.Unlock()
+	return s
 }
 
 func (engine *Engine) alignTime() {
