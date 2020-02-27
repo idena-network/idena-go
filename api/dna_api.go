@@ -56,7 +56,7 @@ type Balance struct {
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
-	state := api.baseApi.engine.GetAppState()
+	state := api.baseApi.getAppState()
 
 	return Balance{
 		Stake:   blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
@@ -216,7 +216,7 @@ type Identity struct {
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
 	epoch := api.baseApi.getAppState().State.Epoch()
-	api.baseApi.engine.GetAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+	api.baseApi.getAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -365,7 +365,7 @@ type Epoch struct {
 }
 
 func (api *DnaApi) Epoch() Epoch {
-	s := api.baseApi.engine.GetAppState()
+	s := api.baseApi.getAppState()
 	var res string
 	switch s.State.ValidationPeriod() {
 	case state.NonePeriod:
