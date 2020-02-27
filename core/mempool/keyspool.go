@@ -105,7 +105,7 @@ func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
 
 		sender, _ := types.SenderFlipKey(key)
 
-		if _, ok := p.flipKeys[sender]; ok {
+		if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
 			return errors.New("sender has already published his key")
 		}
 
@@ -144,7 +144,7 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 		p.mutex.Lock()
 		defer p.mutex.Unlock()
 
-		if _, ok := p.flipKeyPackages[sender]; ok {
+		if old, ok := p.flipKeyPackages[sender]; ok && old.Epoch >= keysPackage.Epoch {
 			return errors.New("sender has already published his keys package")
 		}
 
