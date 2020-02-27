@@ -166,14 +166,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD))
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 
-	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16) {
+	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age)
+		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age, isSavedInviteWinner)
 		collector.AfterAddStake(statsCollector, addr, stake)
 	}
 
@@ -185,17 +185,17 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		for _, successfulInviteAge := range author.SuccessfulInviteAges {
 			if weight := getInvitationRewardCoef(successfulInviteAge, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				addReward(addr, totalReward, isNewbie, successfulInviteAge)
+				addReward(addr, totalReward, isNewbie, successfulInviteAge, false)
 			}
 		}
 		for i := uint8(0); i < author.SavedInvites; i++ {
 			hash := rlp.Hash(append(addr[:], i))
 			if _, ok := win[hash]; ok {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0)
+				addReward(addr, totalReward, isNewbie, 0, true)
 			} else {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0)
+				addReward(addr, totalReward, isNewbie, 0, false)
 			}
 		}
 	}
