@@ -14,7 +14,6 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 	"os"
 	"time"
@@ -168,7 +167,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 		return errors.New("number of attempts exceeded limit")
 	}
 	reload := func(from uint64) error {
-		b := fs.requestBatch(from, batch.to, batch.p.id)
+		b := requestBatch(fs.pm, from, batch.to, batch.p.id)
 		if b == nil {
 			return errors.New(fmt.Sprintf("batch (%v-%v) can't be loaded", from, batch.to))
 		}
@@ -244,23 +243,6 @@ func (fs *fastSync) validateHeader(block *block) error {
 		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.validators)
 	}
 
-	return nil
-}
-
-func (fs *fastSync) requestBatch(from, to uint64, ignoredPeer peer.ID) *batch {
-	knownHeights := fs.pm.GetKnownHeights()
-	if knownHeights == nil {
-		return nil
-	}
-	for peerId, height := range knownHeights {
-		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
-			if batch, err := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
-				continue
-			} else {
-				return batch
-			}
-		}
-	}
 	return nil
 }
 

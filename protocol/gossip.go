@@ -779,3 +779,7 @@ func (h *IdenaGossipHandler) AddPeer(peerId peer.ID, addr string) error {
 func (h *IdenaGossipHandler) WrongTime() bool {
 	return h.wrongTime
 }
+
+func (h *IdenaGossipHandler) IsConnected(id peer.ID) bool {
+	return h.peers.Peer(id) != nil
+}

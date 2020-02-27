@@ -65,23 +65,6 @@ func NewFullSync(
 	}
 }
 
-func (fs *fullSync) requestBatch(from, to uint64, ignoredPeer peer.ID) *batch {
-	knownHeights := fs.pm.GetKnownHeights()
-	if knownHeights == nil {
-		return nil
-	}
-	for peerId, height := range knownHeights {
-		if (peerId != ignoredPeer || len(knownHeights) == 1) && height >= to {
-			if batch, err := fs.pm.GetBlocksRange(peerId, from, to); err != nil {
-				continue
-			} else {
-				return batch
-			}
-		}
-	}
-	return nil
-}
-
 func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, error) {
 	defer func() {
 		fs.deferredHeaders = []blockPeer{}
@@ -152,7 +135,7 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 	}
 
 	reload := func(from uint64) error {
-		b := fs.requestBatch(from, batch.to, batch.p.id)
+		b := requestBatch(fs.pm, from, batch.to, batch.p.id)
 		if b == nil {
 			return errors.New(fmt.Sprintf("Batch (%v-%v) can't be loaded", from, batch.to))
 		}
