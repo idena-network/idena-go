@@ -777,6 +777,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		if shortQualifiedFlipsCount > 0 {
 			shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
 		}
+		if !approved {
+			shortQualifiedFlipsCount, shortFlipPoint, shortScore = 0, 0, 0
+		}
 		if longQualifiedFlipsCount > 0 {
 			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
 		}
