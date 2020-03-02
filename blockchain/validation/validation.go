@@ -154,7 +154,7 @@ func calculateMaxCost(tx *types.Transaction) *big.Int {
 func validateSendTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
-	if tx.To == nil || *tx.To == (common.Address{}) {
+	if tx.To == nil {
 		return RecipientRequired
 	}
 
