@@ -73,6 +73,7 @@ type SendTxArgs struct {
 	Amount  decimal.Decimal `json:"amount"`
 	MaxFee  decimal.Decimal `json:"maxFee"`
 	Payload *hexutil.Bytes  `json:"payload"`
+	Tips    decimal.Decimal `json:"tips"`
 	BaseTxArgs
 }
 
@@ -181,7 +182,7 @@ func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
 		payload = *args.Payload
 	}
 
-	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, decimal.Zero, args.Nonce, args.Epoch, payload, nil)
+	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload, nil)
 }
 
 type FlipWords struct {
