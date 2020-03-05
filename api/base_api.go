@@ -39,9 +39,8 @@ func (api *BaseApi) getCurrentCoinbase() common.Address {
 	return api.secStore.GetAddress()
 }
 
-func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
-	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte,
-	key *ecdsa.PrivateKey) (*types.Transaction, error) {
+func (api *BaseApi) getTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
+	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte) *types.Transaction {
 
 	// if maxFee is not set, we set it as 2x from fee
 	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {
@@ -51,6 +50,15 @@ func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType 
 	}
 
 	tx := blockchain.BuildTx(api.getAppState(), from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
+
+	return tx
+}
+
+func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
+	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte,
+	key *ecdsa.PrivateKey) (*types.Transaction, error) {
+
+	tx := api.getTx(from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
 
 	return api.signTransaction(from, tx, key)
 }

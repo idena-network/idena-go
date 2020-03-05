@@ -213,6 +213,23 @@ func (api *BlockchainApi) SendRawTx(bytesTx hexutil.Bytes) (common.Hash, error) 
 	return api.baseApi.sendInternalTx(&tx)
 }
 
+func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
+	var payload []byte
+	if args.Payload != nil {
+		payload = *args.Payload
+	}
+
+	tx := api.baseApi.getTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload)
+
+	data, err := rlp.EncodeToBytes(tx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 
 	txs, nextToken := api.bc.ReadTxs(args.Address, args.Count, args.Token)
