@@ -151,6 +151,8 @@ func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int
 func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
 	// Commit identity objects to the trie.
 	diff := new(IdentityStateDiff)
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
 		if deleteEmptyObjects && stateObject.empty() {
@@ -203,12 +205,15 @@ func (s *IdentityStateDB) createIdentity(addr common.Address) (newobj, prev *sta
 // Retrieve a state account given my the address. Returns nil if not found.
 func (s *IdentityStateDB) getStateIdentity(addr common.Address) (stateObject *stateApprovedIdentity) {
 	// Prefer 'live' objects.
+	s.lock.Lock()
 	if obj := s.stateIdentities[addr]; obj != nil {
+		s.lock.Unlock()
 		if obj.deleted {
 			return nil
 		}
 		return obj
 	}
+	s.lock.Unlock()
 
 	// Load the object from the database.
 	_, enc := s.tree.Get(append(identityPrefix, addr[:]...))

@@ -551,13 +551,15 @@ func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
 // Retrieve a state account given my the address. Returns nil if not found.
 func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccount) {
 	// Prefer 'live' objects.
+	s.lock.Lock()
 	if obj := s.stateAccounts[addr]; obj != nil {
+		s.lock.Unlock()
 		if obj.deleted {
 			return nil
 		}
 		return obj
 	}
-
+	s.lock.Unlock()
 	// Load the object from the database.
 	_, enc := s.tree.Get(append(addressPrefix, addr[:]...))
 	if len(enc) == 0 {
@@ -577,12 +579,15 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 // Retrieve a state account given my the address. Returns nil if not found.
 func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdentity) {
 	// Prefer 'live' objects.
+	s.lock.Lock()
 	if obj := s.stateIdentities[addr]; obj != nil {
+		s.lock.Unlock()
 		if obj.deleted {
 			return nil
 		}
 		return obj
 	}
+	s.lock.Unlock()
 
 	// Load the object from the database.
 	_, enc := s.tree.Get(append(identityPrefix, addr[:]...))
@@ -808,6 +813,7 @@ func (s *StateDB) CommitTree(newVersion int64) (root []byte, version int64, err 
 }
 
 func (s *StateDB) Precommit(deleteEmptyObjects bool) {
+	s.lock.Lock()
 	// Commit account objects to the trie.
 	for _, addr := range getOrderedObjectsKeys(s.stateAccountsDirty) {
 		stateObject := s.stateAccounts[addr]
@@ -829,6 +835,7 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
+	s.lock.Unlock()
 
 	if s.stateGlobalDirty {
 		s.updateStateGlobalObject(s.stateGlobal)
@@ -839,6 +846,7 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
 		s.stateStatusSwitchDirty = false
 	}
+
 
 	// if epoch has changed
 	if s.epochDirty {
@@ -958,10 +966,13 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		addr := common.Address{}
 		addr.SetBytes(key[1:])
 
+		s.lock.Lock()
 		if obj := s.stateIdentities[addr]; obj != nil {
+			s.lock.Unlock()
 			callback(addr, obj.data)
 			return false
 		}
+		s.lock.Unlock()
 		var data Identity
 		if err := rlp.DecodeBytes(value, &data); err != nil {
 			return false
