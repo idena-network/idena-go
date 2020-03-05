@@ -37,6 +37,8 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/idena-network/idena-go/common"
+	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
 
@@ -491,4 +493,24 @@ func hexKey(prv string) *PrivateKey {
 		panic(err)
 	}
 	return ImportECDSA(key)
+}
+
+func Test_EciesJs(t *testing.T) {
+	key, _ := crypto.ToECDSA(common.Hex2Bytes("afd4fee14dd189f3191ac044a72e9da661656ff89bb7d52e33b56681aa465547"))
+	eciesKey := ImportECDSA(key)
+
+	cases := map[string]string{
+		"11":               "04de322e96305adceca7dae6e3af61f031f1aa26ae764ee1db6fc4d86961050bc905f947c18483b6d9673525f3e63097b23a617b1303db6a17c420a519700bb1f61bea79e53cecbdee8cb629947255069262a47d3d4894babc72753ea6920a2404aa208dd7f1055288b40b8d3ae47319b44f",
+		"112233":           "0436345f671b958a7beab764c6cb3308617b8d828a4bf73c7f7a1f33f9acdaf97fac5deca3dd9a9838f9cd3dac8db0be0196b1507ad73d1bd7c3ea757960ca6e31bcbb5a584197cb8e1ae31157f3d772cf424fef7911bf6c9097edb9e79bc417267b8080f9a288acd5efc7f90f7dfc84d5c99b1a",
+		"8987766554433211": "04afe4b6839f34c5c047bf4ebf806498539560c4895287d878e2dc7da7e411f5463ec3e47918f19840f0be46a41253111a14872fc4cf6b28d7e379217e6839d16d3a45d48a35dc1adc6956f016057701b657ff27cedacd6b4d22338c32cc8f1b1ac96c4e3f74fd356ba54e7f251bf81becdc5ae601d49a9f19",
+		"9d6669e9519c2958dbc69837e890b527b0a3328ac54ae170e97ff2242f45": "04b9372bb0871e018940fb3fb5cb15a966f0d71fe592564681e5c7fd2a39d3ef04a252a867de09b5cf89e3947b0aa97237ac84f735d2f0388a501c3d34c163239809fb3439369f8b3e2bb630154f46e7d6556d758bd7dc9fdd0a57ec75b8e12dfd512dbf9f004d26e861e8d6ff44ed16f6522e85a3070c9c2d9b45699064a4e52f3c59a5ea81b893dc90a3935e845f",
+	}
+
+	for expect, encrypted := range cases {
+		data, err := eciesKey.Decrypt(common.Hex2Bytes(encrypted), nil, nil)
+
+		require.NoError(t, err)
+
+		require.Equal(t, expect, common.Bytes2Hex(data))
+	}
 }
