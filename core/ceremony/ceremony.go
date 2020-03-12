@@ -211,7 +211,11 @@ func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common
 }
 
 func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.Hash, error) {
-	return vc.sendTx(types.SubmitLongAnswersTx, answers.Bytes())
+	hash, err := vc.sendTx(types.SubmitLongAnswersTx, answers.Bytes())
+	if err == nil {
+		vc.broadcastEvidenceMap()
+	}
+	return hash, nil
 }
 
 func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
@@ -607,6 +611,10 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent {
+		return
+	}
+
+	if existTx := vc.epochDb.ReadOwnTx(types.SubmitLongAnswersTx); existTx == nil {
 		return
 	}
 
