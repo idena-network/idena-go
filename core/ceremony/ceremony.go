@@ -215,7 +215,7 @@ func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.
 	if err == nil {
 		vc.broadcastEvidenceMap()
 	}
-	return hash, nil
+	return hash, err
 }
 
 func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
