@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/fee"
@@ -10,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/keystore"
+	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -63,7 +65,7 @@ func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType 
 	return api.signTransaction(from, tx, key)
 }
 
-func (api *BaseApi) sendTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
+func (api *BaseApi) sendTx(ctx context.Context, from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
 	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte,
 	key *ecdsa.PrivateKey) (common.Hash, error) {
 
@@ -73,10 +75,12 @@ func (api *BaseApi) sendTx(from common.Address, to *common.Address, txType types
 		return common.Hash{}, err
 	}
 
-	return api.sendInternalTx(signedTx)
+	return api.sendInternalTx(ctx, signedTx)
 }
 
-func (api *BaseApi) sendInternalTx(tx *types.Transaction) (common.Hash, error) {
+func (api *BaseApi) sendInternalTx(ctx context.Context, tx *types.Transaction) (common.Hash, error) {
+	log.Info("Sending new tx", "ip", ctx.Value("remote"), "type", tx.Type, "hash", tx.Hash())
+
 	if err := api.txpool.Add(tx); err != nil {
 		return common.Hash{}, err
 	}

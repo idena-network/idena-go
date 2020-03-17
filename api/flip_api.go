@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -85,7 +86,7 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	}, nil
 }
 
-func (api *FlipApi) Delete(hash string) (common.Hash, error) {
+func (api *FlipApi) Delete(ctx context.Context, hash string) (common.Hash, error) {
 	c, err := cid.Decode(hash)
 	if err != nil {
 		return common.Hash{}, errors.New("invalid flip hash")
@@ -93,7 +94,7 @@ func (api *FlipApi) Delete(hash string) (common.Hash, error) {
 	cidBytes := c.Bytes()
 	addr := api.baseApi.getCurrentCoinbase()
 
-	if txHash, err := api.baseApi.sendTx(addr, nil, types.DeleteFlipTx, decimal.Zero, decimal.Zero, decimal.Zero,
+	if txHash, err := api.baseApi.sendTx(ctx, addr, nil, types.DeleteFlipTx, decimal.Zero, decimal.Zero, decimal.Zero,
 		0, 0, attachments.CreateDeleteFlipAttachment(cidBytes), nil); err != nil {
 		return common.Hash{}, err
 	} else {

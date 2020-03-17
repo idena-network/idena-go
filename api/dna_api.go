@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
@@ -96,7 +97,7 @@ type Invite struct {
 	Key      string         `json:"key"`
 }
 
-func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
+func (api *DnaApi) SendInvite(ctx context.Context, args SendInviteArgs) (Invite, error) {
 	receiver := args.To
 	var key *ecdsa.PrivateKey
 
@@ -105,7 +106,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 		receiver = crypto.PubkeyToAddress(key.PublicKey)
 	}
 
-	hash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), &receiver, types.InviteTx, args.Amount, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+	hash, err := api.baseApi.sendTx(ctx, api.baseApi.getCurrentCoinbase(), &receiver, types.InviteTx, args.Amount, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
 
 	if err != nil {
 		return Invite{}, err
@@ -123,7 +124,7 @@ func (api *DnaApi) SendInvite(args SendInviteArgs) (Invite, error) {
 	}, nil
 }
 
-func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) {
+func (api *DnaApi) ActivateInvite(ctx context.Context, args ActivateInviteArgs) (common.Hash, error) {
 	var key *ecdsa.PrivateKey
 	from := api.baseApi.getCurrentCoinbase()
 	if len(args.Key) > 0 {
@@ -144,7 +145,7 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 		coinbase := api.baseApi.getCurrentCoinbase()
 		to = &coinbase
 	}
-	hash, err := api.baseApi.sendTx(from, to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, payload, key)
+	hash, err := api.baseApi.sendTx(ctx, from, to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, payload, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -153,9 +154,9 @@ func (api *DnaApi) ActivateInvite(args ActivateInviteArgs) (common.Hash, error) 
 	return hash, nil
 }
 
-func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
+func (api *DnaApi) BecomeOnline(ctx context.Context, args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(true), nil)
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(true), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -164,9 +165,9 @@ func (api *DnaApi) BecomeOnline(args BaseTxArgs) (common.Hash, error) {
 	return hash, nil
 }
 
-func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
+func (api *DnaApi) BecomeOffline(ctx context.Context, args BaseTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(false), nil)
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateOnlineStatusAttachment(false), nil)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -175,14 +176,14 @@ func (api *DnaApi) BecomeOffline(args BaseTxArgs) (common.Hash, error) {
 	return hash, nil
 }
 
-func (api *DnaApi) SendTransaction(args SendTxArgs) (common.Hash, error) {
+func (api *DnaApi) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
 
 	var payload []byte
 	if args.Payload != nil {
 		payload = *args.Payload
 	}
 
-	return api.baseApi.sendTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload, nil)
+	return api.baseApi.sendTx(ctx, args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload, nil)
 }
 
 type FlipWords struct {
@@ -439,9 +440,9 @@ type BurnArgs struct {
 	BaseTxArgs
 }
 
-func (api *DnaApi) Burn(args BurnArgs) (common.Hash, error) {
+func (api *DnaApi) Burn(ctx context.Context, args BurnArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
-	hash, err := api.baseApi.sendTx(from, nil, types.BurnTx, args.Amount, args.MaxFee, decimal.Zero, args.Nonce,
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.BurnTx, args.Amount, args.MaxFee, decimal.Zero, args.Nonce,
 		args.Epoch, attachments.CreateBurnAttachment(args.Key), nil)
 
 	if err != nil {
@@ -467,7 +468,7 @@ type ProfileResponse struct {
 	Nickname string         `json:"nickname"`
 }
 
-func (api *DnaApi) ChangeProfile(args ChangeProfileArgs) (ChangeProfileResponse, error) {
+func (api *DnaApi) ChangeProfile(ctx context.Context, args ChangeProfileArgs) (ChangeProfileResponse, error) {
 	profileData := profile.Profile{}
 	if args.Info != nil && len(*args.Info) > 0 {
 		profileData.Info = *args.Info
@@ -482,7 +483,7 @@ func (api *DnaApi) ChangeProfile(args ChangeProfileArgs) (ChangeProfileResponse,
 		return ChangeProfileResponse{}, errors.Wrap(err, "failed to add profile data")
 	}
 
-	txHash, err := api.baseApi.sendTx(api.baseApi.getCurrentCoinbase(), nil, types.ChangeProfileTx, decimal.Zero,
+	txHash, err := api.baseApi.sendTx(ctx, api.baseApi.getCurrentCoinbase(), nil, types.ChangeProfileTx, decimal.Zero,
 		args.MaxFee, decimal.Zero, 0, 0, attachments.CreateChangeProfileAttachment(profileHash),
 		nil)
 
