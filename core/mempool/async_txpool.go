@@ -10,7 +10,7 @@ type AsyncTxPool struct {
 func NewAsyncTxPool(txPool *TxPool) *AsyncTxPool {
 	pool := &AsyncTxPool{
 		txPool: txPool,
-		queue:  make(chan *types.Transaction, 2000),
+		queue:  make(chan *types.Transaction, 10000),
 	}
 	go pool.loop()
 	return pool
