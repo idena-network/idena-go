@@ -157,7 +157,15 @@ func (d *Downloader) Load() {
 	head := d.chain.Head
 
 	applier, toHeight := d.createBlockApplier()
-	from, _ := applier.preConsuming(head)
+
+	var from uint64
+	var err error
+	if from, err = applier.preConsuming(head); err != nil {
+		d.log.Error("pre consuming error", "err", err)
+		time.Sleep(5 * time.Second)
+		return
+	}
+
 	d.batches = make(chan *batch, 10)
 	term := make(chan interface{})
 	completed := make(chan interface{})
