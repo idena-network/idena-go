@@ -79,7 +79,7 @@ func (api *BaseApi) sendTx(ctx context.Context, from common.Address, to *common.
 }
 
 func (api *BaseApi) sendInternalTx(ctx context.Context, tx *types.Transaction) (common.Hash, error) {
-	log.Info("sending new tx", "ip", ctx.Value("remote"), "type", tx.Type, "hash", tx.Hash())
+	log.Info("Sending new tx", "ip", ctx.Value("remote"), "type", tx.Type, "hash", tx.Hash())
 
 	if err := api.txpool.Add(tx); err != nil {
 		return common.Hash{}, err
