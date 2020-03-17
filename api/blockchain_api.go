@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -204,13 +205,13 @@ func (api *BlockchainApi) FeePerByte() *big.Int {
 	return api.baseApi.getAppState().State.FeePerByte()
 }
 
-func (api *BlockchainApi) SendRawTx(bytesTx hexutil.Bytes) (common.Hash, error) {
+func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) (common.Hash, error) {
 	var tx types.Transaction
 	if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
 		return common.Hash{}, err
 	}
 
-	return api.baseApi.sendInternalTx(&tx)
+	return api.baseApi.sendInternalTx(ctx, &tx)
 }
 
 func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
