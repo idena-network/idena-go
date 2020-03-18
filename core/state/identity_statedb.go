@@ -309,6 +309,10 @@ func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bo
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
 
+func (s *IdentityStateDB) Version() uint64 {
+	return uint64(s.tree.Version())
+}
+
 func (s *IdentityStateDB) AddDiff(height uint64, diff *IdentityStateDiff) {
 	if diff.Empty() {
 		return

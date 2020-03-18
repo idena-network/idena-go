@@ -37,10 +37,17 @@ func (s *AppState) Readonly(height uint64) *AppState {
 	if err != nil {
 		return nil
 	}
+
+	validatorsCache := s.ValidatorsCache.Clone()
+	if validatorsCache.Height() != height {
+		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
+		validatorsCache.Load()
+	}
+
 	return &AppState{
 		State:           st,
 		IdentityState:   identityState,
-		ValidatorsCache: s.ValidatorsCache,
+		ValidatorsCache: validatorsCache,
 		NonceCache:      s.NonceCache.Clone(st),
 	}
 }

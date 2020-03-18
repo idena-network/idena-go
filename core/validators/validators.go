@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"math/big"
 	"sort"
+	"sync"
 )
 
 type ValidatorsCache struct {
@@ -19,6 +20,8 @@ type ValidatorsCache struct {
 	onlineNodesSet   mapset.Set
 	log              log.Logger
 	god              common.Address
+	mutex            sync.Mutex
+	height           uint64
 }
 
 func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.Address) *ValidatorsCache {
@@ -32,12 +35,14 @@ func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.
 }
 
 func (v *ValidatorsCache) Load() {
-	v.nodesSet.Clear()
-	v.onlineNodesSet.Clear()
+	v.mutex.Lock()
+	defer v.mutex.Unlock()
+
 	v.loadValidNodes()
 }
 
 func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
+
 	set := mapset.NewSet()
 	if v.OnlineSize() == 0 {
 		set.Add(v.god)
@@ -81,14 +86,19 @@ func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
 }
 
 func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block) {
-	v.god = godAddress
+	v.mutex.Lock()
+	defer v.mutex.Unlock()
+
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		v.loadValidNodes()
 		v.log.Info("Validators updated", "total", v.nodesSet.Cardinality(), "online", v.onlineNodesSet.Cardinality())
 	}
+	v.god = godAddress
+	v.height = block.Height()
 }
 
 func (v *ValidatorsCache) loadValidNodes() {
+
 	var onlineNodes []common.Address
 	v.nodesSet.Clear()
 	v.onlineNodesSet.Clear()
@@ -116,6 +126,26 @@ func (v *ValidatorsCache) loadValidNodes() {
 	})
 
 	v.validOnlineNodes = sortValidNodes(onlineNodes)
+	v.height = v.identityState.Version()
+}
+
+func (v *ValidatorsCache) Clone() *ValidatorsCache {
+	v.mutex.Lock()
+	defer v.mutex.Unlock()
+
+	return &ValidatorsCache{
+		height:           v.height,
+		identityState:    v.identityState,
+		god:              v.god,
+		log:              v.log,
+		validOnlineNodes: append(v.validOnlineNodes[:0:0], v.validOnlineNodes...),
+		nodesSet:         v.nodesSet.Clone(),
+		onlineNodesSet:   v.onlineNodesSet.Clone(),
+	}
+}
+
+func (v *ValidatorsCache) Height() uint64 {
+	return v.height
 }
 
 func sortValidNodes(nodes []common.Address) []common.Address {
