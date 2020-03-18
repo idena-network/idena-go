@@ -85,6 +85,9 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	if fs.chain.PreliminaryHead == nil {
 		fs.chain.PreliminaryHead = head
 		fs.stateDb, err = fs.createPreliminaryCopy(head.Height())
+		if err != nil {
+			return 0, err
+		}
 		from = head.Height() + 1
 		fs.loadValidators()
 		return from, err
