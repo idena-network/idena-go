@@ -812,6 +812,11 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 
 	s.Reset()
+	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+
+	s.Reset()
 	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationAuthors{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
