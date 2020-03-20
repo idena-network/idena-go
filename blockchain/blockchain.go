@@ -752,8 +752,10 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		inviter := stateDB.GetInviter(sender)
 		if inviter != nil {
 			removeLinkWithInviter(appState.State, sender)
-			stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
-			stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash)
+			if inviter.Address == stateDB.GodAddress() || stateDB.GetIdentityState(inviter.Address).VerifiedOrBetter() {
+				stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
+				stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash)
+			}
 		}
 
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
