@@ -29,14 +29,15 @@ type OfflineDetector struct {
 	config   *config.OfflineDetectionConfig
 	secStore *secstore.SecStore
 
-	votesChan        chan *types.Vote
-	offlineVoting    map[common.Hash]*voteList
-	activityMap      map[common.Address]time.Time
-	offlineProposals map[common.Address]time.Time
-	mutex            sync.Mutex
-	lastPersistBlock uint64
-	startTime        time.Time
-	selfAddress      common.Address
+	votesChan               chan *types.Vote
+	offlineVoting           map[common.Hash]*voteList
+	activityMap             map[common.Address]time.Time
+	offlineProposals        map[common.Address]time.Time
+	mutex                   sync.Mutex
+	lastPersistBlock        uint64
+	startTime               time.Time
+	selfAddress             common.Address
+	offlineCommitteeMaxSize int
 }
 
 type voteList struct {
@@ -44,18 +45,19 @@ type voteList struct {
 	voters mapset.Set
 }
 
-func NewOfflineDetector(config *config.OfflineDetectionConfig, db dbm.DB, appState *appstate.AppState, secStore *secstore.SecStore, bus eventbus.Bus) *OfflineDetector {
+func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.AppState, secStore *secstore.SecStore, bus eventbus.Bus) *OfflineDetector {
 	return &OfflineDetector{
-		config:           config,
-		repo:             database.NewRepo(db),
-		votesChan:        make(chan *types.Vote, 10000),
-		activityMap:      make(map[common.Address]time.Time),
-		offlineProposals: make(map[common.Address]time.Time),
-		offlineVoting:    make(map[common.Hash]*voteList),
-		appState:         appState,
-		bus:              bus,
-		startTime:        time.Now().UTC(),
-		secStore:         secStore,
+		config:                  config.OfflineDetection,
+		repo:                    database.NewRepo(db),
+		votesChan:               make(chan *types.Vote, 10000),
+		activityMap:             make(map[common.Address]time.Time),
+		offlineProposals:        make(map[common.Address]time.Time),
+		offlineVoting:           make(map[common.Hash]*voteList),
+		appState:                appState,
+		bus:                     bus,
+		startTime:               time.Now().UTC(),
+		secStore:                secStore,
+		offlineCommitteeMaxSize: config.Consensus.MaxCommitteeSize * 3,
 	}
 }
 
@@ -334,7 +336,12 @@ func (dt *OfflineDetector) verifyOfflineProposing(hash common.Hash) bool {
 
 	onlineSize := dt.appState.ValidatorsCache.OnlineSize()
 
-	return dt.offlineVoting[hash].voters.Cardinality() >= onlineSize/2+1
+	threshold := onlineSize/2 + 1
+	if threshold > dt.offlineCommitteeMaxSize {
+		threshold = dt.offlineCommitteeMaxSize
+	}
+
+	return dt.offlineVoting[hash].voters.Cardinality() >= threshold
 }
 
 func (dt *OfflineDetector) restart() {
