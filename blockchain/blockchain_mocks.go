@@ -32,8 +32,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 			Alloc:      alloc,
 			GodAddress: secStore.GetAddress(),
 		},
-		Validation: valConf,
-		Blockchain: &config.BlockchainConfig{},
+		Validation:       valConf,
+		Blockchain:       &config.BlockchainConfig{},
+		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
 	}
 
 	db := db.NewMemDB()
@@ -48,7 +49,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	}
 
 	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
-	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
+	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 
@@ -94,9 +95,11 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	appState := appstate.NewAppState(db, bus)
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
-
+	if cfg.OfflineDetection == nil {
+		cfg.OfflineDetection = config.GetDefaultOfflineDetectionConfig()
+	}
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
-	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, secStore, bus)
+	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
 	chain.InitializeChain()
@@ -133,11 +136,12 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 			GodAddress:        chain.secStore.GetAddress(),
 			FirstCeremonyTime: 4070908800, //01.01.2099
 		},
-		Validation: &config.ValidationConfig{},
-		Blockchain: &config.BlockchainConfig{},
+		Validation:       &config.ValidationConfig{},
+		Blockchain:       &config.BlockchainConfig{},
+		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
 	}
 	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
-	offline := NewOfflineDetector(config.GetDefaultOfflineDetectionConfig(), db, appState, chain.secStore, bus)
+	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
 
 	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline)
 	copy.InitializeChain()
