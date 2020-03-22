@@ -99,6 +99,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 	handler.pushPullManager.AddEntryHolder(pushProof, entry.NewDefaultHolder(3))
 	handler.pushPullManager.AddEntryHolder(pushFlip, entry.NewDefaultHolder(1))
 	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
+	handler.pushPullManager.AddEntryHolder(pushTx, entry.NewDefaultHolder(1))
 	handler.registerMetrics()
 	return handler
 }
@@ -307,9 +308,11 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := msg.Decode(pushHash); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+
 		if pushHash.Invalid() {
 			return nil
 		}
+
 		p.markPayload(pushHash)
 		h.pushPullManager.addPush(p.id, *pushHash)
 	case Pull:
@@ -645,6 +648,8 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 		p.sendMsg(FlipBody, entry, false)
 	case pushKeyPackage:
 		p.sendMsg(FlipKeysPackage, entry, false)
+	case pushTx:
+		p.sendMsg(NewTx, entry, false)
 	default:
 	}
 }
@@ -654,7 +659,13 @@ func errResp(code int, format string, v ...interface{}) error {
 }
 
 func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
-	h.peers.SendWithFilter(NewTx, tx, own)
+
+	hash := pushPullHash{
+		Type: pushTx,
+		Hash: rlp.Hash128(tx),
+	}
+	h.pushPullManager.AddEntry(hash, tx)
+	h.peers.SendWithFilter(Push, hash, own)
 }
 
 func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
@@ -694,8 +705,13 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	pending := h.txpool.GetPendingTransaction()
 	for _, tx := range pending {
-		p.sendMsg(NewTx, tx, false)
-		p.markPayload(tx)
+		payload := pushPullHash{
+			Type: pushTx,
+			Hash: rlp.Hash128(tx),
+		}
+		h.pushPullManager.AddEntry(payload, tx)
+		p.sendMsg(Push, payload, false)
+		p.markPayload(payload)
 	}
 }
 
@@ -715,10 +731,12 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 
 	keysPackages := h.flipKeyPool.GetFlipPackagesHashes()
 	for _, hash := range keysPackages {
-		p.sendMsg(Push, pushPullHash{
+		payload := pushPullHash{
 			Type: pushKeyPackage,
 			Hash: hash,
-		}, false)
+		}
+		p.sendMsg(Push, payload, false)
+		p.markPayload(payload)
 	}
 }
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {

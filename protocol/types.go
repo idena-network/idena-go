@@ -81,6 +81,7 @@ const (
 	pushProof      pushType = 3
 	pushFlip       pushType = 4
 	pushKeyPackage pushType = 5
+	pushTx         pushType = 6
 )
 
 type pushPullHash struct {
@@ -93,5 +94,5 @@ func (h *pushPullHash) String() string {
 }
 
 func (h *pushPullHash) Invalid() bool {
-	return h.Type < pushVote || h.Type > pushKeyPackage
+	return h.Type < pushVote || h.Type > pushTx
 }
