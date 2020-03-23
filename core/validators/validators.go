@@ -41,7 +41,7 @@ func (v *ValidatorsCache) Load() {
 	v.loadValidNodes()
 }
 
-func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint16, limit int) mapset.Set {
+func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint8, limit int) mapset.Set {
 
 	set := mapset.NewSet()
 	if v.OnlineSize() == 0 {
@@ -155,7 +155,7 @@ func sortValidNodes(nodes []common.Address) []common.Address {
 	return nodes
 }
 
-func indexGenerator(seed types.Seed, round uint64, step uint16, iteration uint32, maxValue *big.Int) int64 {
+func indexGenerator(seed types.Seed, round uint64, step uint8, iteration uint32, maxValue *big.Int) int64 {
 	data := rlp.Hash([]interface{}{
 		seed, round, step, iteration,
 	})

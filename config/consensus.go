@@ -6,7 +6,7 @@ import (
 )
 
 type ConsensusConf struct {
-	MaxSteps                          uint16
+	MaxSteps                          uint8
 	AgreementThreshold                float64
 	CommitteePercent                  float64
 	FinalCommitteePercent             float64

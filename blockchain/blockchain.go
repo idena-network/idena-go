@@ -1175,16 +1175,29 @@ func (chain *Blockchain) ValidateBlockCertOnHead(block *types.Header, cert *type
 
 func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
 
-	step := cert.Votes[0].Header.Step
+	step := cert.Step
 	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteeSize(validatorsCache, step == types.Final))
 
 	voters := mapset.NewSet()
 
-	for _, vote := range cert.Votes {
+	for _, signature := range cert.Signatures {
+
+		vote := types.Vote{
+			Header: &types.VoteHeader{
+				Step:        step,
+				Round:       cert.Round,
+				TurnOffline: signature.TurnOffline,
+				Upgrade:     signature.Upgrade,
+				VotedHash:   cert.VotedHash,
+				ParentHash:  prevBlock.Hash(),
+			},
+			Signature: signature.Signature,
+		}
+
 		if !validators.Contains(vote.VoterAddr()) {
 			return errors.New("invalid voter")
 		}
-		if vote.Header.Step != step || vote.Header.Round != block.Height() {
+		if vote.Header.Round != block.Height() {
 			return errors.New("invalid vote header")
 		}
 		if vote.Header.VotedHash != block.Hash() {
