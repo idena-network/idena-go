@@ -766,3 +766,61 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, &receiver, types.InviteTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, nil))
 	require.Equal(validation.InsufficientInvites, chain.txpool.Add(tx), "we should not issue invite if we exceed limit")
 }
+
+func Test_setNewIdentitiesAttributes(t *testing.T) {
+	require := require.New(t)
+	key, _ := crypto.GenerateKey()
+	_, s := NewCustomTestBlockchain(5, 0, key)
+
+	identities := []state.Identity{
+		{State: state.Human, ShortFlipPoints: 98, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 85, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 88, QualifiedFlips: 100},
+		{State: state.Human, ShortFlipPoints: 92, QualifiedFlips: 100},
+		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
+		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+	}
+
+	for i, item := range identities {
+		addr := common.Address{byte(i + 1)}
+		s.State.SetState(addr, item.State)
+		s.State.AddShortFlipPoints(addr, float32(item.ShortFlipPoints))
+		s.State.AddQualifiedFlipsCount(addr, item.QualifiedFlips)
+	}
+	s.Commit(nil)
+
+	setNewIdentitiesAttributes(s, 12, 100, false, &types.ValidationAuthors{}, nil)
+
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x2}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x2}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+}

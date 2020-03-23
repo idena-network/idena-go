@@ -157,6 +157,13 @@ func (i *Identity) GetShortFlipPoints() float32 {
 	return float32(i.ShortFlipPoints) / 2
 }
 
+func (i *Identity) GetTotalScore() float32 {
+	if i.QualifiedFlips == 0 {
+		return 0
+	}
+	return i.GetShortFlipPoints() / float32(i.QualifiedFlips)
+}
+
 func (i *Identity) HasDoneAllRequiredFlips() bool {
 	return uint8(len(i.Flips)) >= i.RequiredFlips
 }
@@ -322,8 +329,6 @@ func (s *stateAccount) Nonce() uint32 {
 func (s *stateAccount) Epoch() uint16 {
 	return s.data.Epoch
 }
-
-
 
 // Returns the address of the contract/account
 func (s *stateIdentity) Address() common.Address {
