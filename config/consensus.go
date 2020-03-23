@@ -37,6 +37,7 @@ type ConsensusConf struct {
 	MinBlockDistance                  time.Duration
 	MaxCommitteeSize                  int
 	StatusSwitchRange                 uint64
+	InvitesPercent                    float32
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -71,5 +72,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		MinBlockDistance:                  time.Second * 20,
 		MaxCommitteeSize:                  100,
 		StatusSwitchRange:                 50,
+		InvitesPercent:                    0.5,
 	}
 }

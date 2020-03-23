@@ -9,34 +9,28 @@ import (
 func TestNetworkParams(t *testing.T) {
 	require := require.New(t)
 
-	e, i, f := NetworkParams(1)
+	e, f := NetworkParams(1)
 	require.Equal(1, e)
-	require.Equal(1, i)
 	require.Equal(3, f)
 
-	e, i, f = NetworkParams(5)
+	e, f = NetworkParams(5)
 	require.Equal(2, e)
-	require.Equal(1, i)
 	require.Equal(3, f)
 
-	e, i, f = NetworkParams(100)
+	e, f = NetworkParams(100)
 	require.Equal(5, e)
-	require.Equal(1, i)
 	require.Equal(3, f)
 
-	e, i, f = NetworkParams(1000)
+	e, f = NetworkParams(1000)
 	require.Equal(10, e)
-	require.Equal(1, i)
 	require.Equal(3, f)
 
-	e, i, f = NetworkParams(50000)
+	e, f = NetworkParams(50000)
 	require.Equal(36, e)
-	require.Equal(1, i)
 	require.Equal(10, f)
 
-	e, i, f = NetworkParams(10000000)
+	e, f = NetworkParams(10000000)
 	require.Equal(204, e)
-	require.Equal(0, i)
 	require.Equal(7, f)
 }
 

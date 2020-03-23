@@ -33,6 +33,7 @@ import (
 	dbm "github.com/tendermint/tm-db"
 	math2 "math"
 	"math/big"
+	"sort"
 	"time"
 )
 
@@ -432,8 +433,8 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		return
 	}
 	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
-
-	setNewIdentitiesAttributes(appState, networkSize, failed, authors, statsCollector)
+	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
+	setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, authors, statsCollector)
 
 	if !failed {
 		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(), block.Seed(),
@@ -472,32 +473,83 @@ func calculateNewIdentityStatusFlags(authors *types.ValidationAuthors) map[commo
 	return m
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, validationFailed bool,
+type identityWithInvite struct {
+	state   state.IdentityState
+	address common.Address
+	score   float32
+}
+
+func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWithInvite, totalInvitesCount float32) {
+
+	getInvitesCount := func(s state.IdentityState) uint8 {
+		if s == state.Human {
+			return 2
+		}
+		if s == state.Verified {
+			return 1
+		}
+		return 0
+	}
+
+	currentInvitesCount := int(totalInvitesCount)
+	var index int
+	var identity identityWithInvite
+	for index, identity = range identitiesWithInvites {
+		if currentInvitesCount <= 0 {
+			break
+		}
+		invitesForIdentity := getInvitesCount(identity.state)
+		appState.State.SetInvites(identity.address, invitesForIdentity)
+		currentInvitesCount -= int(invitesForIdentity)
+	}
+	if index == 0 {
+		return
+	}
+	lastScore := identitiesWithInvites[index-1].score
+	for i := index; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
+		appState.State.SetInvites(identity.address, getInvitesCount(identitiesWithInvites[i].state))
+	}
+}
+
+func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
 	authors *types.ValidationAuthors, statsCollector collector.StatsCollector) {
-	_, invites, flips := common.NetworkParams(networkSize)
+	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(authors)
+
+	identitiesWithInvites := make([]identityWithInvite, 0)
+	addIdentityWithInvite := func(elem identityWithInvite) {
+		index := sort.Search(len(identitiesWithInvites), func(i int) bool {
+			return identitiesWithInvites[i].score < elem.score
+		})
+		identitiesWithInvites = append(identitiesWithInvites, identityWithInvite{})
+		copy(identitiesWithInvites[index+1:], identitiesWithInvites[index:])
+		identitiesWithInvites[index] = elem
+	}
+
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
 			switch identity.State {
 			case state.Verified, state.Human:
 				removeLinkWithInviter(appState.State, addr)
-				appState.State.SetInvites(addr, uint8(invites))
+				addIdentityWithInvite(identityWithInvite{
+					address: addr,
+					state:   identity.State,
+					score:   identity.GetTotalScore(),
+				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
-				appState.State.SetInvites(addr, 0)
 				appState.IdentityState.Add(addr)
 			case state.Killed, state.Undefined:
 				removeLinksWithInviterAndInvitees(appState.State, addr)
-				appState.State.SetInvites(addr, 0)
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.Remove(addr)
 			default:
-				appState.State.SetInvites(addr, 0)
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.Remove(addr)
 			}
+			appState.State.SetInvites(addr, 0)
 		}
 		collector.BeforeClearPenalty(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
@@ -510,6 +562,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, networkSize int, va
 			appState.State.SetValidationStatus(addr, 0)
 		}
 	})
+
+	setInvites(appState, identitiesWithInvites, totalInvitesCount)
 }
 
 func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Address) {
@@ -760,10 +814,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.AddBalance(sender, stakeToTransfer)
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
-			_, invites, _ := common.NetworkParams(appState.ValidatorsCache.NetworkSize())
-			if int(stateDB.GetInvites(sender)) < invites {
-				stateDB.AddInvite(sender, 1)
-			}
+			stateDB.AddInvite(sender, 1)
 		}
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
