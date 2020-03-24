@@ -160,7 +160,8 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 		},
 	}
 	vote.Signature = chain.secStore.Sign(vote.Header.SignatureHash().Bytes())
-	chain.WriteCertificate(block.Header.Hash(), &types.BlockCert{Votes: []*types.Vote{vote}}, true)
+	cert := types.FullBlockCert{Votes: []*types.Vote{vote}}
+	chain.WriteCertificate(block.Header.Hash(), cert.Compress(), true)
 }
 
 func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {

@@ -106,8 +106,8 @@ func TestForkResolver_ResolveFork2(t *testing.T) {
 	for i, b := range forkBlocks {
 		blocks <- b
 		if i == 3 {
-			b.Cert.Votes[0].Signature[0] = 0
-			b.Cert.Votes[0].Signature[1] = 0
+			b.Cert.Signatures[0].Signature[0] = 0
+			b.Cert.Signatures[0].Signature[1] = 0
 		}
 	}
 	close(blocks)
