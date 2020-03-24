@@ -15,7 +15,7 @@ type batch struct {
 
 type block struct {
 	Header       *types.Header
-	Cert         *types.BlockCert         `rlp:"nil"`
+	Cert         *types.BlockCert     `rlp:"nil"`
 	IdentityDiff *state.IdentityStateDiff `rlp:"nil"`
 }
 

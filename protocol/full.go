@@ -163,7 +163,7 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 				return reload(i)
 			}
 			fs.deferredHeaders = append(fs.deferredHeaders, blockPeer{*block, batch.p.id})
-			if block.Cert != nil && block.Cert.Len() > 0 {
+			if block.Cert != nil && !block.Cert.Empty() {
 				if from, err := fs.applyDeferredBlocks(checkState); err != nil {
 					return reload(from)
 				}

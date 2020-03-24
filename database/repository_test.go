@@ -27,14 +27,14 @@ func TestRepo_WriteWeakCertificate(t *testing.T) {
 	repo.WriteWeakCertificate(hash1)
 
 	hash2 := getRandHash()
-	cert := types.BlockCert{Votes: []*types.Vote{{
+	cert := types.FullBlockCert{Votes: []*types.Vote{{
 		Header:    &types.VoteHeader{},
 		Signature: []byte("123"),
 	}, {
 		Header:    &types.VoteHeader{},
 		Signature: []byte("1234"),
 	}}}
-	repo.WriteCertificate(hash2, &cert)
+	repo.WriteCertificate(hash2, cert.Compress())
 	repo.WriteWeakCertificate(hash2)
 
 	for i := 0; i < MaxWeakCertificatesCount-1; i++ {
@@ -46,7 +46,7 @@ func TestRepo_WriteWeakCertificate(t *testing.T) {
 
 	require.Nil(repo.ReadCertificate(hash1))
 	require.NotNil(repo.ReadCertificate(hash2))
-	require.Len(repo.ReadCertificate(hash2).Votes, 2)
+	require.Len(repo.ReadCertificate(hash2).Signatures, 2)
 	weakCerts := repo.readWeakCertificates()
 	require.Equal(MaxWeakCertificatesCount, len(weakCerts.Hashes))
 }
