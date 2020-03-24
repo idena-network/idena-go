@@ -29,9 +29,9 @@ const (
 )
 
 const (
-	ReductionOne = 998
-	ReductionTwo = 999
-	Final        = 1000
+	ReductionOne = 253
+	ReductionTwo = 254
+	Final        = 255
 )
 
 type BlockFlag uint32
@@ -91,7 +91,7 @@ type TxType = uint16
 
 type VoteHeader struct {
 	Round       uint64
-	Step        uint16
+	Step        uint8
 	ParentHash  common.Hash
 	VotedHash   common.Hash
 	TurnOffline bool
@@ -128,8 +128,21 @@ type Transaction struct {
 	from atomic.Value
 }
 
-type BlockCert struct {
+type FullBlockCert struct {
 	Votes []*Vote
+}
+
+type BlockCertSignature struct {
+	TurnOffline bool
+	Upgrade     uint16
+	Signature   []byte
+}
+
+type BlockCert struct {
+	Round      uint64
+	Step       uint8
+	VotedHash  common.Hash
+	Signatures []*BlockCertSignature
 }
 
 type BlockBundle struct {
@@ -402,10 +415,27 @@ func (s Transactions) GetRlp(i int) []byte {
 	return enc
 }
 
-func (s *BlockCert) Len() int { return len(s.Votes) }
-
 func (s *BlockCert) Empty() bool {
-	return s == nil || s.Len() == 0
+	return s == nil || len(s.Signatures) == 0
+}
+
+func (s *FullBlockCert) Compress() *BlockCert {
+	if len(s.Votes) == 0 {
+		return &BlockCert{}
+	}
+	cert := &BlockCert{
+		Round:     s.Votes[0].Header.Round,
+		Step:      s.Votes[0].Header.Step,
+		VotedHash: s.Votes[0].Header.VotedHash,
+	}
+	for _, vote := range s.Votes {
+		cert.Signatures = append(cert.Signatures, &BlockCertSignature{
+			Signature:   vote.Signature,
+			Upgrade:     vote.Header.Upgrade,
+			TurnOffline: vote.Header.TurnOffline,
+		})
+	}
+	return cert
 }
 
 func (p NewEpochPayload) Bytes() []byte {
