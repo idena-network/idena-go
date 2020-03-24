@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"fmt"
-	"github.com/coreos/go-semver/semver"
 	"github.com/golang/snappy"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -163,20 +162,11 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 }
 
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
-	errc := make(chan error, 4)
-	handShake := new(handshakeDataV2)
+	errc := make(chan error, 2)
+	handShake := new(handshakeData)
 	p.log.Trace("start handshake")
 	go func() {
 		msg := makeMsg(Handshake, &handshakeData{
-			NetworkId:    network,
-			Height:       height,
-			GenesisBlock: genesis,
-			Timestamp:    uint64(time.Now().UTC().Unix()),
-			AppVersion:   appVersion,
-		})
-		errc <- p.rw.WriteMsg(msg)
-
-		msg = makeMsg(Handshake, &handshakeDataV2{
 			NetworkId:    network,
 			Height:       height,
 			GenesisBlock: genesis,
@@ -189,16 +179,10 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 	}()
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
-		//TODO : remove after removing handshake v1
-		if other, errS := semver.NewVersion(p.appVersion); errS == nil && !other.LessThan(*semver.New("0.16.2")) {
-			errc <- p.readStatus(handShake, network, genesis)
-		} else {
-			errc <- nil
-		}
 	}()
 	timeout := time.NewTimer(handshakeTimeout)
 	defer timeout.Stop()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errc:
 			if err != nil {
@@ -232,7 +216,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	return result, nil
 }
 
-func (p *protoPeer) readStatus(handShake *handshakeDataV2, network types.Network, genesis common.Hash) (err error) {
+func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
 	p.log.Trace("read handshake data")
 	msg, err := p.ReadMsg()
 	if err != nil {
@@ -242,17 +226,7 @@ func (p *protoPeer) readStatus(handShake *handshakeDataV2, network types.Network
 		return errors.New(fmt.Sprintf("first msg has code %x (!= %x)", msg.Code, Handshake))
 	}
 	if err := msg.Decode(&handShake); err != nil {
-		handShakeDataV1 := new(handshakeData)
-		if err := msg.Decode(handShakeDataV1); err != nil {
-			return errors.New(fmt.Sprintf("can't decode msg %v: %v", msg, err))
-		} else {
-			handShake.Peers = 0
-			handShake.Height = handShakeDataV1.Height
-			handShake.AppVersion = handShakeDataV1.AppVersion
-			handShake.GenesisBlock = handShakeDataV1.GenesisBlock
-			handShake.NetworkId = handShakeDataV1.NetworkId
-			handShake.Timestamp = handShakeDataV1.Timestamp
-		}
+		return errors.New(fmt.Sprintf("can't decode handshake %v: %v", msg, err))
 	}
 	p.appVersion = handShake.AppVersion
 	if handShake.GenesisBlock != genesis {
