@@ -78,7 +78,7 @@ func main() {
 		}
 
 		snapshot.StatusSwitch = state.StateStatusSwitch{
-			Addresses: appState.State.StatusSwitchAddresses(),
+			Addresses: nil,
 		}
 
 		appState.State.IterateAccounts(func(key []byte, value []byte) bool {
