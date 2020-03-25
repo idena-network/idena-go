@@ -122,6 +122,7 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 	}
 
 	usedAuthors := make([]int, candidatesCount)
+	currentFlipIndexByAuthor := make([]int, candidatesCount)
 	hashMap := make(map[common.Hash]int)
 	for idx, item := range flips {
 		hashMap[common.Hash(rlp.Hash(item))] = idx
@@ -131,10 +132,13 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 	random := rand.New(rand.NewSource(int64(randSeed)*12 + 3))
 	permutation := random.Perm(candidatesCount)
 
-	getMinUsedAuthor := func(a []int) int {
-		min := 999
+	getMinUsedAuthor := func(a []int, localUsedAuthors map[int]bool) int {
+		min := 999999
 		author := 0
 		for _, item := range a {
+			if _, ok := localUsedAuthors[item]; ok {
+				continue
+			}
 			if usedAuthors[item] < min {
 				author = item
 				min = usedAuthors[item]
@@ -152,20 +156,17 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 	shortFlipsPerCandidate = make([][]int, candidatesCount)
 	longFlipsPerCandidate = make([][]int, candidatesCount)
 
-	chooseNextShortFlip := func(authors []int) (author int, flip []byte, idx int) {
-		author = getMinUsedAuthor(authors)
+	chooseNextShortFlip := func(authors []int, localUsedAuthors map[int]bool) (author int, flip []byte, idx int) {
+		author = getMinUsedAuthor(authors, localUsedAuthors)
 		authorFlips := flipsPerAuthor[author]
-		currentAuthorFlipIdx := usedAuthors[author]
+		currentAuthorFlipIdx := currentFlipIndexByAuthor[author]
 
 		// all authors already used, need to clear and search again
-		if currentAuthorFlipIdx == len(authorFlips) {
-			for _, author := range authors {
-				usedAuthors[author] = 0
-			}
-			author = getMinUsedAuthor(authors)
-			authorFlips = flipsPerAuthor[author]
-			currentAuthorFlipIdx = usedAuthors[author]
+		if currentAuthorFlipIdx >= len(authorFlips) {
+			currentFlipIndexByAuthor[author] = 0
+			currentAuthorFlipIdx = currentFlipIndexByAuthor[author]
 		}
+		currentFlipIndexByAuthor[author] += 1
 
 		return author, authorFlips[currentAuthorFlipIdx], currentAuthorFlipIdx
 	}
@@ -183,10 +184,15 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 		var longFlips []int
 
 		if len(authors) < shortFlipsCount {
+			localUsedAuthors := make(map[int]bool)
 			for j := 0; j < shortFlipsCount; j++ {
-				author, nextFlip, _ := chooseNextShortFlip(authors)
+				if len(localUsedAuthors) == len(authors) {
+					localUsedAuthors = make(map[int]bool)
+				}
+				author, nextFlip, _ := chooseNextShortFlip(authors, localUsedAuthors)
 				shortFlips = addFlip(shortFlips, nextFlip)
 				usedAuthors[author] += 1
+				localUsedAuthors[author] = true
 			}
 
 			// add all flips to long session
@@ -198,9 +204,10 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 			}
 		} else {
 			usedFlipIndexes := make(map[int]map[int]bool)
+			localUsedAuthors := make(map[int]bool)
 			for j := 0; j < shortFlipsCount; j++ {
 
-				author, nextFlip, index := chooseNextShortFlip(authors)
+				author, nextFlip, index := chooseNextShortFlip(authors, localUsedAuthors)
 				if _, ok := usedFlipIndexes[author]; !ok {
 					usedFlipIndexes[author] = make(map[int]bool)
 				}
@@ -208,14 +215,12 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 				shortFlips = addFlip(shortFlips, nextFlip)
 
 				usedAuthors[author] += 1
+				localUsedAuthors[author] = true
 			}
 			// need to add all flips from unused authors to long session
 			// and append flips, which was not chosen for short session
 			for _, author := range authors {
 				authorFlips := flipsPerAuthor[author]
-				if usedAuthors[author] >= len(authorFlips) {
-					usedAuthors[author] = 0
-				}
 				if u, ok := usedFlipIndexes[author]; !ok {
 					for _, f := range authorFlips {
 						longFlips = addFlip(longFlips, f)
