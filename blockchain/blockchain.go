@@ -814,8 +814,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		appState.IdentityState.Remove(*tx.To)
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
-		stateDB.AddBalance(sender, stakeToTransfer)
+		if inviteePrevState == state.Newbie {
+			stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
+			stateDB.AddBalance(sender, stakeToTransfer)
+			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
+		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			stateDB.AddInvite(sender, 1)
@@ -823,7 +826,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 		collector.AfterKillIdentity(statsCollector, *tx.To, appState)
-		collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())

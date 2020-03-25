@@ -237,6 +237,9 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 	if appState.State.GetIdentityState(*tx.To) != state.Undefined {
 		return InvalidRecipient
 	}
+	if *tx.To == godAddress && sender != godAddress {
+		return InvalidRecipient
+	}
 
 	return nil
 }
