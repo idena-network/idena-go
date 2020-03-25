@@ -173,6 +173,47 @@ func Test_ApplyKillTx(t *testing.T) {
 	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
 }
 
+func Test_ApplyDoubleKillTx(t *testing.T) {
+	require := require.New(t)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
+
+	key, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(key.PublicKey)
+	receiver := crypto.PubkeyToAddress(key2.PublicKey)
+
+	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
+
+	id := appState.State.GetOrNewIdentityObject(sender)
+	id.SetStake(stake)
+	id.SetState(state.Invite)
+
+	tx1 := &types.Transaction{
+		Type:         types.KillTx,
+		AccountNonce: 1,
+		To:           &receiver,
+		MaxFee:       common.DnaBase,
+	}
+	tx2 := &types.Transaction{
+		Type:         types.KillTx,
+		AccountNonce: 2,
+		To:           &receiver,
+		MaxFee:       common.DnaBase,
+	}
+
+	signedTx1, _ := types.SignTx(tx1, key)
+	signedTx2, _ := types.SignTx(tx2, key)
+
+	chain.appState.State.SetFeePerByte(chain.config.Consensus.MinFeePerByte)
+	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, false))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+
+	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
+
+	require.Nil(err)
+	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+}
+
 func Test_ApplyKillInviteeTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
