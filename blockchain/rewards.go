@@ -88,7 +88,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		if author.Missed {
 			continue
 		}
-		totalFlips += float32(author.WeakFlips + author.StrongFlips)
+		totalFlips += float32(len(author.StrongFlipCids) + len(author.WeakFlipCids))
 	}
 	if totalFlips == 0 {
 		return
@@ -100,14 +100,15 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		if author.Missed {
 			continue
 		}
-		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(author.StrongFlips + author.WeakFlips)))
+		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(len(author.StrongFlipCids) +
+			len(author.WeakFlipCids))))
 		reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddFlipsReward(statsCollector, addr, reward, stake)
+		collector.AddFlipsReward(statsCollector, addr, reward, stake, author.StrongFlipCids, author.WeakFlipCids)
 		collector.AfterAddStake(statsCollector, addr, stake)
 	}
 }

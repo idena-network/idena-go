@@ -593,8 +593,8 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 }
 
 type ValidationResult struct {
-	StrongFlips          int
-	WeakFlips            int
+	StrongFlipCids       [][]byte
+	WeakFlipCids         [][]byte
 	SuccessfulInviteAges []uint16
 	PayInvitationReward  bool
 	Missed               bool
