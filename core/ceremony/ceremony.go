@@ -938,9 +938,9 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 				goodAuthors[author] = vr
 			}
 			if item.status == Qualified {
-				vr.StrongFlips += 1
+				vr.StrongFlipCids = append(vr.StrongFlipCids, cid)
 			} else {
-				vr.WeakFlips += 1
+				vr.WeakFlipCids = append(vr.WeakFlipCids, cid)
 			}
 		}
 	}

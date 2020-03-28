@@ -435,8 +435,8 @@ func Test_analyzeAuthors(t *testing.T) {
 	require.NotContains(t, bad, auth6)
 
 	require.Contains(t, good, auth1)
-	require.Equal(t, 1, good[auth1].WeakFlips)
-	require.Equal(t, 1, good[auth1].StrongFlips)
+	require.Equal(t, 1, len(good[auth1].WeakFlipCids))
+	require.Equal(t, 1, len(good[auth1].StrongFlipCids))
 
 	require.True(t, authorResults[auth1].HasOneNotQualifiedFlip)
 	require.False(t, authorResults[auth1].AllFlipsNotQualified)
@@ -464,7 +464,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	authors := &types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1: {StrongFlips: 1, WeakFlips: 1},
+			auth1: {StrongFlipCids: [][]byte{{0x1}}, WeakFlipCids: [][]byte{{0x1}}},
 		},
 	}
 
@@ -575,8 +575,8 @@ func Test_applyOnState(t *testing.T) {
 	require.Equal(t, 1, identities)
 	require.Equal(t, state.Verified, identity.State)
 	require.Equal(t, uint16(3), identity.Birthday)
-	require.Equal(t, float32(1),  identity.GetShortFlipPoints())
-	require.Equal(t, uint32(2),  identity.QualifiedFlips)
-	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) ==0 )
-	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) ==0 )
+	require.Equal(t, float32(1), identity.GetShortFlipPoints())
+	require.Equal(t, uint32(2), identity.QualifiedFlips)
+	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) == 0)
+	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) == 0)
 }

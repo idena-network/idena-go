@@ -23,7 +23,8 @@ type StatsCollector interface {
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int)
-	AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int)
+	AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int, rewardedStrongFlipCids [][]byte,
+		rewardedWeakFlipCids [][]byte)
 	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16, isSavedInviteWinner bool)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
@@ -162,15 +163,17 @@ func AddValidationReward(c StatsCollector, addr common.Address, age uint16, bala
 	c.AddValidationReward(addr, age, balance, stake)
 }
 
-func (c *collectorStub) AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int) {
+func (c *collectorStub) AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int,
+	rewardedStrongFlipCids [][]byte, rewardedWeakFlipCids [][]byte) {
 	// do nothing
 }
 
-func AddFlipsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int) {
+func AddFlipsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int,
+	rewardedStrongFlipCids [][]byte, rewardedWeakFlipCids [][]byte) {
 	if c == nil {
 		return
 	}
-	c.AddFlipsReward(addr, balance, stake)
+	c.AddFlipsReward(addr, balance, stake, rewardedStrongFlipCids, rewardedWeakFlipCids)
 }
 
 func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16, isSavedInviteWinner bool) {

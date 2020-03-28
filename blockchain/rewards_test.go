@@ -46,10 +46,10 @@ func Test_rewardValidIdentities(t *testing.T) {
 	authors := types.ValidationAuthors{
 		BadAuthors: map[common.Address]struct{}{badAuth: {}},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {StrongFlips: 1, WeakFlips: 1, SuccessfulInviteAges: []uint16{2}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
-			auth2:  {StrongFlips: 0, WeakFlips: 0, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
-			auth3:  {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: false, NewIdentityState: uint8(state.Verified)},
-			failed: {StrongFlips: 2, WeakFlips: 1, PayInvitationReward: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
+			auth1:  {StrongFlipCids: [][]byte{{0x1}}, WeakFlipCids: [][]byte{{0x1}}, SuccessfulInviteAges: []uint16{2}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
+			auth2:  {StrongFlipCids: nil, WeakFlipCids: nil, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
+			auth3:  {StrongFlipCids: [][]byte{{0x1}, {0x1}}, WeakFlipCids: [][]byte{{0x1}}, PayInvitationReward: false, Missed: false, NewIdentityState: uint8(state.Verified)},
+			failed: {StrongFlipCids: [][]byte{{0x1}, {0x1}}, WeakFlipCids: [][]byte{{0x1}}, PayInvitationReward: false, Missed: true, SuccessfulInviteAges: []uint16{2}},
 			god:    {SuccessfulInviteAges: []uint16{1, 2, 3}, PayInvitationReward: true},
 		},
 	}
