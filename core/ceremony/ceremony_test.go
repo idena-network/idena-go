@@ -462,7 +462,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	badAuth := common.Address{0x3}
 
 	authors := &types.ValidationAuthors{
-		BadAuthors: map[common.Address]struct{}{badAuth: {}},
+		BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
 			auth1: {StrongFlipCids: [][]byte{{0x1}}, WeakFlipCids: [][]byte{{0x1}}},
 		},
