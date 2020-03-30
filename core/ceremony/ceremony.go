@@ -905,9 +905,9 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	}
 }
 
-func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]struct{}, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults) {
+func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults) {
 
-	badAuthors = make(map[common.Address]struct{})
+	badAuthors = make(map[common.Address]types.BadAuthorReason)
 	goodAuthors = make(map[common.Address]*types.ValidationResult)
 	authorResults = make(map[common.Address]*types.AuthorResults)
 
@@ -921,7 +921,11 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 			authorResults[author] = new(types.AuthorResults)
 		}
 		if item.wrongWords || item.status == QualifiedByNone || item.answer == types.Inappropriate {
-			badAuthors[author] = struct{}{}
+			if item.wrongWords {
+				badAuthors[author] = types.WrongWordsBadAuthor
+			} else if _, ok := badAuthors[author]; !ok {
+				badAuthors[author] = types.QualifiedByNoneBadAuthor
+			}
 			authorResults[author].HasOneReportedFlip = true
 		}
 		if item.status == NotQualified {
@@ -947,7 +951,9 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 
 	for author, nonQual := range nonQualifiedFlips {
 		if madeFlips[author] == nonQual {
-			badAuthors[author] = struct{}{}
+			if _, ok := badAuthors[author]; !ok {
+				badAuthors[author] = types.NoQualifiedFlipsBadAuthor
+			}
 			authorResults[author].AllFlipsNotQualified = true
 		}
 	}

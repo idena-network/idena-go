@@ -609,7 +609,15 @@ type AuthorResults struct {
 }
 
 type ValidationAuthors struct {
-	BadAuthors    map[common.Address]struct{}
+	BadAuthors    map[common.Address]BadAuthorReason
 	GoodAuthors   map[common.Address]*ValidationResult
 	AuthorResults map[common.Address]*AuthorResults
 }
+
+type BadAuthorReason = byte
+
+const (
+	NoQualifiedFlipsBadAuthor BadAuthorReason = 0
+	QualifiedByNoneBadAuthor  BadAuthorReason = 1
+	WrongWordsBadAuthor       BadAuthorReason = 2
+)

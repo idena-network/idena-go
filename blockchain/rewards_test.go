@@ -44,7 +44,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.Commit(nil)
 
 	authors := types.ValidationAuthors{
-		BadAuthors: map[common.Address]struct{}{badAuth: {}},
+		BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 		GoodAuthors: map[common.Address]*types.ValidationResult{
 			auth1:  {StrongFlipCids: [][]byte{{0x1}}, WeakFlipCids: [][]byte{{0x1}}, SuccessfulInviteAges: []uint16{2}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
 			auth2:  {StrongFlipCids: nil, WeakFlipCids: nil, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
