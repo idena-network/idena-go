@@ -921,14 +921,10 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 			authorResults[author] = new(types.AuthorResults)
 		}
 		if item.wrongWords || item.status == QualifiedByNone || item.answer == types.Inappropriate {
-			if _, ok := badAuthors[author]; !ok {
-				var reason types.BadAuthorReason
-				if item.wrongWords {
-					reason = types.WrongWordsBadAuthor
-				} else {
-					reason = types.QualifiedByNoneBadAuthor
-				}
-				badAuthors[author] = reason
+			if item.wrongWords {
+				badAuthors[author] = types.WrongWordsBadAuthor
+			} else if _, ok := badAuthors[author]; !ok {
+				badAuthors[author] = types.QualifiedByNoneBadAuthor
 			}
 			authorResults[author].HasOneReportedFlip = true
 		}
