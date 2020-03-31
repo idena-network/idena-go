@@ -109,4 +109,8 @@ var (
 		Usage: "Set log file size in KB",
 		Value: 1024 * 10,
 	}
+	LogColoring = cli.BoolFlag{
+		Name:  "logcoloring",
+		Usage: "Use log coloring",
+	}
 )
