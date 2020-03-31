@@ -25,7 +25,8 @@ type StatsCollector interface {
 	AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int)
 	AddFlipsReward(addr common.Address, balance *big.Int, stake *big.Int, rewardedStrongFlipCids [][]byte,
 		rewardedWeakFlipCids [][]byte)
-	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16, isSavedInviteWinner bool)
+	AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16, txHash *common.Hash,
+		isSavedInviteWinner bool)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 
@@ -176,15 +177,17 @@ func AddFlipsReward(c StatsCollector, addr common.Address, balance *big.Int, sta
 	c.AddFlipsReward(addr, balance, stake, rewardedStrongFlipCids, rewardedWeakFlipCids)
 }
 
-func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16, isSavedInviteWinner bool) {
+func (c *collectorStub) AddInvitationsReward(addr common.Address, balance *big.Int, stake *big.Int, age uint16,
+	txHash *common.Hash, isSavedInviteWinner bool) {
 	// do nothing
 }
 
-func AddInvitationsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int, age uint16, isSavedInviteWinner bool) {
+func AddInvitationsReward(c StatsCollector, addr common.Address, balance *big.Int, stake *big.Int, age uint16,
+	txHash *common.Hash, isSavedInviteWinner bool) {
 	if c == nil {
 		return
 	}
-	c.AddInvitationsReward(addr, balance, stake, age, isSavedInviteWinner)
+	c.AddInvitationsReward(addr, balance, stake, age, txHash, isSavedInviteWinner)
 }
 
 func (c *collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int) {
