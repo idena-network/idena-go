@@ -548,6 +548,15 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		}
 
 		repo, err := fsrepo.Open(datadir)
+
+		if err == fsrepo.ErrNeedMigration {
+			err := Migrate(datadir, fsrepo.RepoVersion)
+			if err != nil {
+				return nil, err
+			}
+			repo, err = fsrepo.Open(datadir)
+		}
+
 		if err != nil {
 			return nil, err
 		}

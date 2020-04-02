@@ -77,7 +77,7 @@ func (m *ConnManager) Disconnected(id peer.ID, reason error) {
 	defer m.peerMutex.Unlock()
 
 	m.discTimes[id] = time.Now().UTC()
-	if reason == yamux.ErrConnectionReset {
+	if reason == yamux.ErrStreamReset {
 		m.resetTimes[id] = time.Now().UTC()
 	}
 	delete(m.inboundPeers, id)
