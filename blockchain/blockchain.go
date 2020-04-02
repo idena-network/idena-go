@@ -479,7 +479,8 @@ type identityWithInvite struct {
 	score   float32
 }
 
-func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWithInvite, totalInvitesCount float32) {
+func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWithInvite, totalInvitesCount float32,
+	statsCollector collector.StatsCollector) {
 
 	getInvitesCount := func(s state.IdentityState) uint8 {
 		if s == state.Human {
@@ -509,6 +510,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	for i := index; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
 		appState.State.SetInvites(identity.address, getInvitesCount(identitiesWithInvites[i].state))
 	}
+	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
@@ -563,7 +565,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 		}
 	})
 
-	setInvites(appState, identitiesWithInvites, totalInvitesCount)
+	setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
 }
 
 func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Address) {

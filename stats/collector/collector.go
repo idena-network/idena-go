@@ -13,6 +13,7 @@ type StatsCollector interface {
 	CompleteCollecting()
 
 	SetValidation(validation *statsTypes.ValidationStats)
+	SetMinScoreForInvite(score float32)
 
 	SetAuthors(authors *types.ValidationAuthors)
 
@@ -74,6 +75,17 @@ func SetValidation(c StatsCollector, validation *statsTypes.ValidationStats) {
 		return
 	}
 	c.SetValidation(validation)
+}
+
+func (c *collectorStub) SetMinScoreForInvite(score float32) {
+	// do nothing
+}
+
+func SetMinScoreForInvite(c StatsCollector, score float32) {
+	if c == nil {
+		return
+	}
+	c.SetMinScoreForInvite(score)
 }
 
 func (c *collectorStub) SetAuthors(authors *types.ValidationAuthors) {
