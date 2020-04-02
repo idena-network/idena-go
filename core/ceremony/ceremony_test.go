@@ -536,11 +536,15 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		},
 	}, 3, state.Verified, epoch)
 
-	require.Equal(t, len(authors.GoodAuthors[auth1].SuccessfulInviteAges), 4)
-	require.Equal(t, []uint16{1, 3, 2, 3}, authors.GoodAuthors[auth1].SuccessfulInviteAges)
+	require.Equal(t, len(authors.GoodAuthors[auth1].SuccessfulInvites), 4)
+	var ages []uint16
+	for _, si := range authors.GoodAuthors[auth1].SuccessfulInvites {
+		ages = append(ages, si.Age)
+	}
+	require.Equal(t, []uint16{1, 3, 2, 3}, ages)
 
-	require.Equal(t, len(authors.GoodAuthors[god].SuccessfulInviteAges), 1)
-	require.Equal(t, []uint16{1}, authors.GoodAuthors[god].SuccessfulInviteAges)
+	require.Equal(t, len(authors.GoodAuthors[god].SuccessfulInvites), 1)
+	require.Equal(t, uint16(1), authors.GoodAuthors[god].SuccessfulInvites[0].Age)
 	require.True(t, authors.GoodAuthors[god].PayInvitationReward)
 	require.False(t, authors.GoodAuthors[god].Missed)
 

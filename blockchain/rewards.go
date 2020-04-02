@@ -145,8 +145,8 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		if !author.PayInvitationReward {
 			continue
 		}
-		for _, successfulInviteAge := range author.SuccessfulInviteAges {
-			totalWeight += getInvitationRewardCoef(successfulInviteAge, config)
+		for _, successfulInvite := range author.SuccessfulInvites {
+			totalWeight += getInvitationRewardCoef(successfulInvite.Age, config)
 		}
 		for i := uint8(0); i < author.SavedInvites; i++ {
 			addresses = addAddress(addresses, rlp.Hash(append(addr[:], i)))
@@ -168,14 +168,15 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD), math.ToInt(invitationRewardShare))
 
-	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, isSavedInviteWinner bool) {
+	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, txHash *common.Hash,
+		isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
 		collector.AfterBalanceUpdate(statsCollector, addr, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age, isSavedInviteWinner)
+		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age, txHash, isSavedInviteWinner)
 		collector.AfterAddStake(statsCollector, addr, stake)
 	}
 
@@ -184,20 +185,20 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			continue
 		}
 		isNewbie := author.NewIdentityState == uint8(state.Newbie)
-		for _, successfulInviteAge := range author.SuccessfulInviteAges {
-			if weight := getInvitationRewardCoef(successfulInviteAge, config); weight > 0 {
+		for _, successfulInvite := range author.SuccessfulInvites {
+			if weight := getInvitationRewardCoef(successfulInvite.Age, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				addReward(addr, totalReward, isNewbie, successfulInviteAge, false)
+				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, false)
 			}
 		}
 		for i := uint8(0); i < author.SavedInvites; i++ {
 			hash := rlp.Hash(append(addr[:], i))
 			if _, ok := win[hash]; ok {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0, true)
+				addReward(addr, totalReward, isNewbie, 0, nil, true)
 			} else {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0, false)
+				addReward(addr, totalReward, isNewbie, 0, nil, false)
 			}
 		}
 	}

@@ -593,13 +593,18 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 }
 
 type ValidationResult struct {
-	StrongFlipCids       [][]byte
-	WeakFlipCids         [][]byte
-	SuccessfulInviteAges []uint16
-	PayInvitationReward  bool
-	Missed               bool
-	SavedInvites         uint8
-	NewIdentityState     uint8
+	StrongFlipCids      [][]byte
+	WeakFlipCids        [][]byte
+	SuccessfulInvites   []*SuccessfulInvite
+	PayInvitationReward bool
+	Missed              bool
+	SavedInvites        uint8
+	NewIdentityState    uint8
+}
+
+type SuccessfulInvite struct {
+	Age    uint16
+	TxHash common.Hash
 }
 
 type AuthorResults struct {
