@@ -57,8 +57,9 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 		return
 	}
 
-	collector.SetTotalValidationReward(statsCollector, math.ToInt(successfulValidationRewardD))
 	successfulValidationRewardShare := successfulValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
+	collector.SetTotalValidationReward(statsCollector, math.ToInt(successfulValidationRewardD),
+		math.ToInt(successfulValidationRewardShare))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
@@ -93,8 +94,8 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 	if totalFlips == 0 {
 		return
 	}
-	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD))
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
+	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
 	for addr, author := range authors.GoodAuthors {
 		if author.Missed {
@@ -164,8 +165,8 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	if totalWeight == 0 {
 		return
 	}
-	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD))
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
+	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD), math.ToInt(invitationRewardShare))
 
 	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)

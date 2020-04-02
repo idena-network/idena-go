@@ -17,9 +17,9 @@ type StatsCollector interface {
 	SetAuthors(authors *types.ValidationAuthors)
 
 	SetTotalReward(amount *big.Int)
-	SetTotalValidationReward(amount *big.Int)
-	SetTotalFlipsReward(amount *big.Int)
-	SetTotalInvitationsReward(amount *big.Int)
+	SetTotalValidationReward(amount *big.Int, share *big.Int)
+	SetTotalFlipsReward(amount *big.Int, share *big.Int)
+	SetTotalInvitationsReward(amount *big.Int, share *big.Int)
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(addr common.Address, age uint16, balance *big.Int, stake *big.Int)
@@ -97,37 +97,37 @@ func SetTotalReward(c StatsCollector, amount *big.Int) {
 	c.SetTotalReward(amount)
 }
 
-func (c *collectorStub) SetTotalValidationReward(amount *big.Int) {
+func (c *collectorStub) SetTotalValidationReward(amount *big.Int, share *big.Int) {
 	// do nothing
 }
 
-func SetTotalValidationReward(c StatsCollector, amount *big.Int) {
+func SetTotalValidationReward(c StatsCollector, amount *big.Int, share *big.Int) {
 	if c == nil {
 		return
 	}
-	c.SetTotalValidationReward(amount)
+	c.SetTotalValidationReward(amount, share)
 }
 
-func (c *collectorStub) SetTotalFlipsReward(amount *big.Int) {
+func (c *collectorStub) SetTotalFlipsReward(amount *big.Int, share *big.Int) {
 	// do nothing
 }
 
-func SetTotalFlipsReward(c StatsCollector, amount *big.Int) {
+func SetTotalFlipsReward(c StatsCollector, amount *big.Int, share *big.Int) {
 	if c == nil {
 		return
 	}
-	c.SetTotalFlipsReward(amount)
+	c.SetTotalFlipsReward(amount, share)
 }
 
-func (c *collectorStub) SetTotalInvitationsReward(amount *big.Int) {
+func (c *collectorStub) SetTotalInvitationsReward(amount *big.Int, share *big.Int) {
 	// do nothing
 }
 
-func SetTotalInvitationsReward(c StatsCollector, amount *big.Int) {
+func SetTotalInvitationsReward(c StatsCollector, amount *big.Int, share *big.Int) {
 	if c == nil {
 		return
 	}
-	c.SetTotalInvitationsReward(amount)
+	c.SetTotalInvitationsReward(amount, share)
 }
 
 func (c *collectorStub) SetTotalFoundationPayouts(amount *big.Int) {
