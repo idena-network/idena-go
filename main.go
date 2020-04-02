@@ -47,18 +47,19 @@ func main() {
 		config.IpfsPortStaticFlag,
 		config.ApiKeyFlag,
 		config.LogFileSizeFlag,
+		config.LogColoring,
 	}
 
 	app.Action = func(context *cli.Context) error {
 		logLvl := log.Lvl(context.Int(config.VerbosityFlag.Name))
 		logFileSize := context.Int(config.LogFileSizeFlag.Name)
 
-		var handler log.Handler
+		useLogColor := true
 		if runtime.GOOS == "windows" {
-			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.LogfmtFormat()))
-		} else {
-			handler = log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
+			useLogColor = context.Bool(config.LogColoring.Name)
 		}
+
+		handler := log.LvlFilterHandler(logLvl, log.StreamHandler(os.Stdout, log.TerminalFormat(useLogColor)))
 
 		log.Root().SetHandler(handler)
 

@@ -896,11 +896,17 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	}
 	goodAuthors := validationAuthors.GoodAuthors
 	if vr, ok := goodAuthors[invitee.Inviter.Address]; ok {
-		vr.SuccessfulInviteAges = append(vr.SuccessfulInviteAges, newAge)
+		vr.SuccessfulInvites = append(vr.SuccessfulInvites, &types.SuccessfulInvite{
+			Age:    newAge,
+			TxHash: invitee.Inviter.TxHash,
+		})
 	} else if invitee.Inviter.Address == god {
 		goodAuthors[god] = &types.ValidationResult{
-			SuccessfulInviteAges: []uint16{newAge},
-			PayInvitationReward:  true,
+			SuccessfulInvites: []*types.SuccessfulInvite{{
+				Age:    newAge,
+				TxHash: invitee.Inviter.TxHash,
+			}},
+			PayInvitationReward: true,
 		}
 	}
 }
