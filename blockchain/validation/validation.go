@@ -50,6 +50,14 @@ var (
 	validators           map[types.TxType]validator
 )
 
+var (
+	nonCeremonialTxs = map[types.TxType]bool{
+		types.SendTx:          true,
+		types.BurnTx:          true,
+		types.ChangeProfileTx: true,
+	}
+)
+
 type validator func(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error
 
 func init() {
@@ -98,6 +106,11 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
 	if minFee.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return InvalidMaxFee
+	}
+
+	currentPeriod := appState.State.ValidationPeriod()
+	if _, ok := nonCeremonialTxs[tx.Type]; ok && mempoolTx && (currentPeriod == state.FlipLotteryPeriod || currentPeriod == state.ShortSessionPeriod) {
+		return LateTx
 	}
 
 	validator, ok := validators[tx.Type]
