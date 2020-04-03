@@ -12,7 +12,7 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/mock v1.3.1 // indirect
 	github.com/golang/snappy v0.0.1
-	github.com/google/tink v1.2.2
+	github.com/google/tink v1.3.0
 	github.com/ipfs/go-blockservice v0.1.2
 	github.com/ipfs/go-cid v0.0.5
 	github.com/ipfs/go-ipfs v0.4.22-0.20200207225350-45efea8aef15
