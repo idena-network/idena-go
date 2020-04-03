@@ -1,6 +1,6 @@
 package config
 
-import "gopkg.in/urfave/cli.v1"
+import "github.com/urfave/cli"
 
 const (
 	DefaultDataDir          = "datadir"

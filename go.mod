@@ -44,6 +44,7 @@ require (
 	github.com/tendermint/iavl v0.13.2
 	github.com/tendermint/tm-db v0.4.1
 	github.com/ulikunitz/xz v0.5.7 // indirect
+	github.com/urfave/cli v1.22.4
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
@@ -52,7 +53,6 @@ require (
 	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
-	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
 replace github.com/tendermint/iavl => github.com/idena-network/iavl v0.12.3-0.20200120102243-63464c8983b7
