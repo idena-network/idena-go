@@ -43,7 +43,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	github.com/tendermint/go-amino v0.15.0 // indirect
 	github.com/tendermint/iavl v0.0.0-20190701090235-eef65d855b4a
-	github.com/tendermint/tm-db v0.4.0
+	github.com/tendermint/tm-db v0.5.1
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
