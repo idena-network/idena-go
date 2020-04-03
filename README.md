@@ -61,9 +61,9 @@ Custom json configuration can be used if `--config=<config file name>` parameter
 }
 ```
 
-####Local automine node
+#### Local automine node
 
-#####Config
+##### Config
 For debug purposes you can run local automine node with this config.
 
 ```json
@@ -95,7 +95,7 @@ For debug purposes you can run local automine node with this config.
 }
 ```
 
-#####Description
+##### Description
 
 * `GodAddress` - the address which refers to private key in nodekey file. So, when you are running automine node, you should see log in console `Coinbase address addr=<addr>` with this address. **This address will mine coins if network has 0 valid identities**;
 * `FirstCeremonyTime` - timestamp of first validation ceremony;
