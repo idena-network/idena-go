@@ -97,7 +97,7 @@ For debug purposes you can run local automine node with this config.
 
 #####Description
 
-* `GodAddress` - the address which refers to private key in nodekey file. So, when you are running automine node, you should see log in console `Coinbase address addr=<addr>` with this address;
+* `GodAddress` - the address which refers to private key in nodekey file. So, when you are running automine node, you should see log in console `Coinbase address addr=<addr>` with this address. **This address will mine coins if network has 0 valid identities**;
 * `FirstCeremonyTime` - timestamp of first validation ceremony;
 * `Validation section` - duration of each validation period in nanoseconds;
 * `Network` - should be different from 1 or 2, any `uint32` number
