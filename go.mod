@@ -1,7 +1,7 @@
 module github.com/idena-network/idena-go
 
 require (
-	github.com/RoaringBitmap/roaring v0.4.18
+	github.com/RoaringBitmap/roaring v0.4.23
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.17.1
 	github.com/cespare/cp v1.1.1
