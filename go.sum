@@ -769,6 +769,8 @@ github.com/libp2p/go-yamux v1.3.0/go.mod h1:FGTiPvoV/3DVdgWpX+tM0OW3tsM+W5bSE3gZ
 github.com/libp2p/go-yamux v1.3.3/go.mod h1:FGTiPvoV/3DVdgWpX+tM0OW3tsM+W5bSE3gZwqQTcow=
 github.com/libp2p/go-yamux v1.3.4 h1:CptmtNfQomI9RpM7LFJhVBFkwp2zwEXIskEfWwwtoHg=
 github.com/libp2p/go-yamux v1.3.4/go.mod h1:FGTiPvoV/3DVdgWpX+tM0OW3tsM+W5bSE3gZwqQTcow=
+github.com/libp2p/go-yamux v1.3.5 h1:ibuz4naPAully0pN6J/kmUARiqLpnDQIzI/8GCOrljg=
+github.com/libp2p/go-yamux v1.3.5/go.mod h1:FGTiPvoV/3DVdgWpX+tM0OW3tsM+W5bSE3gZwqQTcow=
 github.com/lucas-clemente/quic-go v0.14.4 h1:LdXgELrB93kvTqbZyEf+mcsGvmyE+EHsLFz1dqbR5PI=
 github.com/lucas-clemente/quic-go v0.14.4/go.mod h1:Vn3/Fb0/77b02SGhQk36KzOUmXgVpFfizUfW5WMaqyU=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
