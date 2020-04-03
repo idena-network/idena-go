@@ -373,6 +373,7 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 	preliminaryPrefix := identityStatePrefix(height + 1)
 	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
 	it, err := s.db.Iterator(nil, nil)
+	defer it.Close()
 	if err != nil {
 		return nil, err
 	}

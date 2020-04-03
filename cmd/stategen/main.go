@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/go-bindata/go-bindata/v3"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -9,7 +10,6 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
-	"github.com/jteeuwen/go-bindata"
 	"github.com/pkg/errors"
 	"gopkg.in/urfave/cli.v1"
 	"os"

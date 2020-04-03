@@ -19,6 +19,7 @@ func Copy(source, dest db.DB) error {
 
 func ClearDb(db db.DB) {
 	it, _ := db.Iterator(nil, nil)
+	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		db.Delete(it.Key())
 	}

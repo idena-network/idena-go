@@ -69,6 +69,7 @@ func (db *BackedMemDb) Iterator(start, end []byte) (db.Iterator, error) {
 	for ; it.Valid(); it.Next() {
 		innerKeys = append(innerKeys, it.Key())
 	}
+	it.Close()
 	pmIt, err := db.permanent.Iterator(start, end)
 	if err != nil {
 		return nil, err
@@ -85,6 +86,7 @@ func (db *BackedMemDb) ReverseIterator(start, end []byte) (db.Iterator, error) {
 	for ; it.Valid(); it.Next() {
 		innerKeys = append(innerKeys, it.Key())
 	}
+	it.Close()
 	pmIt, err := db.permanent.ReverseIterator(start, end)
 	if err != nil {
 		return nil, err
