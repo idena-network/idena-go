@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/bitutil"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/events"
@@ -32,6 +34,7 @@ import (
 	"github.com/whyrusleeping/go-logging"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -46,10 +49,18 @@ const (
 	ZeroPeersTimeout = 2 * time.Minute
 )
 
+type DataType = uint32
+
+const (
+	Block DataType = 1
+	Flip  DataType = 2
+)
+
 var (
 	EmptyCid cid.Cid
 	MinCid   [CidLength]byte
 	MaxCid   [CidLength]byte
+	maxFloat *big.Float
 )
 
 func init() {
@@ -59,10 +70,12 @@ func init() {
 	for i := range MaxCid {
 		MaxCid[i] = 0xFF
 	}
+
+	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
 }
 
 type Proxy interface {
-	Add(data []byte) (cid.Cid, error)
+	Add(data []byte, pin bool) (cid.Cid, error)
 	Get(key []byte) ([]byte, error)
 	LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error
 	Pin(key []byte) error
@@ -72,6 +85,7 @@ type Proxy interface {
 	PeerId() string
 	AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error)
 	Host() core2.Host
+	ShouldPin(dataType DataType, address common.Address, hash common.Hash) bool
 }
 
 type ipfsProxy struct {
@@ -190,7 +204,6 @@ func (p *ipfsProxy) changePort() {
 		p.log.Info("Finish changing IPFS port", "new", p.cfg.IpfsPort)
 		break
 	}
-
 }
 
 func (p *ipfsProxy) watchPeers() {
@@ -215,7 +228,17 @@ func (p *ipfsProxy) watchPeers() {
 	}
 }
 
-func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
+func (p *ipfsProxy) ShouldPin(dataType DataType, addr common.Address, hash common.Hash) bool {
+	if dataType == Block {
+		return checkThreshold(addr, hash, p.cfg.BlockPinThreshold)
+	}
+	if dataType == Flip {
+		checkThreshold(addr, hash, p.cfg.FlipPinThreshold)
+	}
+	return true
+}
+
+func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
 	}
@@ -231,7 +254,7 @@ func (p *ipfsProxy) Add(data []byte) (cid.Cid, error) {
 	var err error
 	for num := 5; num > 0; num-- {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-		ipfsPath, err = api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.CidVersion(1))
+		ipfsPath, err = api.Unixfs().Add(ctx, file, options.Unixfs.Pin(pin), options.Unixfs.CidVersion(1))
 		select {
 		case <-ctx.Done():
 			err = errors.New("timeout while writing data to ipfs")
@@ -625,6 +648,10 @@ type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
+func (i *memoryIpfs) ShouldPin(dataType DataType, address common.Address, hash common.Hash) bool {
+	return true
+}
+
 func (i *memoryIpfs) Host() core2.Host {
 	panic("implement me")
 }
@@ -641,7 +668,7 @@ func (i *memoryIpfs) Unpin(key []byte) error {
 	return nil
 }
 
-func (i *memoryIpfs) Add(data []byte) (cid.Cid, error) {
+func (i *memoryIpfs) Add(data []byte, pin bool) (cid.Cid, error) {
 	cid, _ := i.Cid(data)
 	i.values[cid] = data
 	return cid, nil
@@ -699,4 +726,15 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 		}
 	}
 	return n, err
+}
+
+func checkThreshold(address common.Address, hash common.Hash, threshold float64) bool {
+	addrHash := rlp.Hash(address)
+	result := make([]byte, 32)
+	bitutil.XORBytes(result, addrHash[:], hash[:])
+	a := new(big.Float).SetInt(new(big.Int).SetBytes(result))
+	q := new(big.Float).Quo(a, maxFloat).SetPrec(10)
+
+	f, _ := q.Float64()
+	return f <= threshold
 }
