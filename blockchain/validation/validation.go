@@ -81,6 +81,9 @@ func init() {
 }
 
 func checkIfNonNegative(value *big.Int) error {
+	if value == nil {
+		return nil
+	}
 	if value.Sign() == -1 {
 		return errors.New("value must be non-negative")
 	}
