@@ -720,9 +720,10 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef)))
+		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 	}
 
 	if value.state.NewbieOrBetter() {
@@ -730,7 +731,8 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	} else if value.state == state.Killed {
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteFailedValidationBalanceUpdate(statsCollector, addr, appState)
 		collector.AfterKillIdentity(statsCollector, addr, appState)
 	}
 	return identitiesCount

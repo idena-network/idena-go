@@ -38,8 +38,6 @@ type StatsCollector interface {
 	BeforeClearPenalty(addr common.Address, appState *appstate.AppState)
 	BeforeSetPenalty(addr common.Address, appState *appstate.AppState)
 
-	AfterBalanceUpdate(addr common.Address, appState *appstate.AppState)
-
 	AddMintedCoins(amount *big.Int)
 	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
 	AddInviteBurntCoins(addr common.Address, amount *big.Int, tx *types.Transaction)
@@ -53,6 +51,19 @@ type StatsCollector interface {
 	AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int)
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
 	AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int)
+
+	BeginVerifiedStakeTransferBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	CompleteVerifiedStakeTransferBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
+	CompleteTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
+	BeginProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	CompleteProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	CompleteCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	CompleteEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	CompleteFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
 }
 
 type collectorStub struct {
@@ -283,17 +294,6 @@ func BeforeSetPenalty(c StatsCollector, addr common.Address, appState *appstate.
 	c.BeforeSetPenalty(addr, appState)
 }
 
-func (c *collectorStub) AfterBalanceUpdate(addr common.Address, appState *appstate.AppState) {
-	// do nothing
-}
-
-func AfterBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
-	if c == nil {
-		return
-	}
-	c.AfterBalanceUpdate(addr, appState)
-}
-
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {
 	// do nothing
 }
@@ -415,4 +415,136 @@ func AddKillInviteeTxStakeTransfer(c StatsCollector, tx *types.Transaction, amou
 		return
 	}
 	c.AddKillInviteeTxStakeTransfer(tx, amount)
+}
+
+func (c *collectorStub) BeginVerifiedStakeTransferBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginVerifiedStakeTransferBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginVerifiedStakeTransferBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) CompleteVerifiedStakeTransferBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteVerifiedStakeTransferBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteVerifiedStakeTransferBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginTxBalanceUpdate(tx, appState)
+}
+
+func (c *collectorStub) CompleteTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteTxBalanceUpdate(tx, appState)
+}
+
+func (c *collectorStub) BeginProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginProposerRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginProposerRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) CompleteProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteProposerRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteProposerRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginCommitteeRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginCommitteeRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) CompleteCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteCommitteeRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteCommitteeRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginEpochRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginEpochRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) CompleteEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteEpochRewardBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteEpochRewardBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginFailedValidationBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginFailedValidationBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) CompleteFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteFailedValidationBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteFailedValidationBalanceUpdate(addr, appState)
 }
