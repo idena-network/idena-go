@@ -1123,7 +1123,7 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 }
 
 func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
-	_, err := chain.ipfs.Add(block.Body.Bytes(), chain.ipfs.ShouldPin(ipfs.Block, chain.coinBaseAddress, block.Hash()))
+	_, err := chain.ipfs.Add(block.Body.Bytes(), chain.ipfs.ShouldPin(ipfs.Block))
 	if err != nil {
 		return errors.Wrap(BlockInsertionErr, err.Error())
 	}

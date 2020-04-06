@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/bitutil"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/events"
@@ -35,6 +34,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -85,7 +85,7 @@ type Proxy interface {
 	PeerId() string
 	AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error)
 	Host() core2.Host
-	ShouldPin(dataType DataType, address common.Address, hash common.Hash) bool
+	ShouldPin(dataType DataType) bool
 }
 
 type ipfsProxy struct {
@@ -228,12 +228,13 @@ func (p *ipfsProxy) watchPeers() {
 	}
 }
 
-func (p *ipfsProxy) ShouldPin(dataType DataType, addr common.Address, hash common.Hash) bool {
+func (p *ipfsProxy) ShouldPin(dataType DataType) bool {
+	q := rand.Float32()
 	if dataType == Block {
-		return checkThreshold(addr, hash, p.cfg.BlockPinThreshold)
+		return q <= p.cfg.BlockPinThreshold
 	}
 	if dataType == Flip {
-		checkThreshold(addr, hash, p.cfg.FlipPinThreshold)
+		return q <= p.cfg.FlipPinThreshold
 	}
 	return true
 }
@@ -648,7 +649,7 @@ type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
-func (i *memoryIpfs) ShouldPin(dataType DataType, address common.Address, hash common.Hash) bool {
+func (i *memoryIpfs) ShouldPin(dataType DataType) bool {
 	return true
 }
 
@@ -726,15 +727,4 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 		}
 	}
 	return n, err
-}
-
-func checkThreshold(address common.Address, hash common.Hash, threshold float64) bool {
-	addrHash := rlp.Hash(address)
-	result := make([]byte, 32)
-	bitutil.XORBytes(result, addrHash[:], hash[:])
-	a := new(big.Float).SetInt(new(big.Int).SetBytes(result))
-	q := new(big.Float).Quo(a, maxFloat).SetPrec(10)
-
-	f, _ := q.Float64()
-	return f <= threshold
 }

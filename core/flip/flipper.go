@@ -145,7 +145,7 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 		return err
 	}
 
-	key, err := fp.ipfsProxy.Add(data, fp.ipfsProxy.ShouldPin(ipfs.Flip, fp.secStore.GetAddress(), rlp.Hash(data)))
+	key, err := fp.ipfsProxy.Add(data, fp.ipfsProxy.ShouldPin(ipfs.Flip))
 
 	if err != nil {
 		return err
