@@ -80,6 +80,16 @@ func init() {
 	}
 }
 
+func checkIfNonNegative(value *big.Int) error {
+	if value == nil {
+		return nil
+	}
+	if value.Sign() == -1 {
+		return errors.New("value must be non-negative")
+	}
+	return nil
+}
+
 func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, mempoolTx bool) error {
 	sender, _ := types.Sender(tx)
 
@@ -89,6 +99,18 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 
 	if len(tx.Payload) > MaxPayloadSize {
 		return InvalidPayload
+	}
+
+	if err := checkIfNonNegative(tx.Amount); err != nil {
+		return errors.Wrap(err, "amount")
+	}
+
+	if err := checkIfNonNegative(tx.MaxFee); err != nil {
+		return errors.Wrap(err, "maxFee")
+	}
+
+	if err := checkIfNonNegative(tx.Tips); err != nil {
+		return errors.Wrap(err, "tips")
 	}
 
 	globalEpoch := appState.State.Epoch()
