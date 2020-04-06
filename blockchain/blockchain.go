@@ -400,7 +400,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	// update state
 	appState.State.AddBalance(coinbase, balanceAdd)
 	appState.State.AddStake(coinbase, stakeAdd)
-	collector.CompleteProposerRewardBalanceUpdate(statsCollector, coinbase, appState)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	if penaltySub != nil {
 		appState.State.SubPenalty(coinbase, penaltySub)
 	}
@@ -679,7 +679,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)
 		appState.State.AddStake(addr, stakeAdd)
-		collector.CompleteCommitteeRewardBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		if penaltySub != nil {
 			appState.State.SubPenalty(addr, penaltySub)
 		}
@@ -717,7 +717,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	statsCollector collector.StatsCollector) (*big.Int, error) {
 
 	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
-	defer collector.CompleteTxBalanceUpdate(statsCollector, tx, appState)
+	defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
 	stateDB := appState.State
 

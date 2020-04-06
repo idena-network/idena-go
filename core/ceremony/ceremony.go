@@ -723,7 +723,7 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
-		collector.CompleteVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
 
 	if value.state.NewbieOrBetter() {
@@ -732,7 +732,7 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 		collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
-		collector.CompleteFailedValidationBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AfterKillIdentity(statsCollector, addr, appState)
 	}
 	return identitiesCount
