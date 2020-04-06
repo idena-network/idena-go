@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/events"
@@ -33,7 +32,6 @@ import (
 	"github.com/whyrusleeping/go-logging"
 	"io"
 	"io/ioutil"
-	"math/big"
 	"math/rand"
 	"net"
 	"os"
@@ -60,7 +58,6 @@ var (
 	EmptyCid cid.Cid
 	MinCid   [CidLength]byte
 	MaxCid   [CidLength]byte
-	maxFloat *big.Float
 )
 
 func init() {
@@ -70,8 +67,6 @@ func init() {
 	for i := range MaxCid {
 		MaxCid[i] = 0xFF
 	}
-
-	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
 }
 
 type Proxy interface {
