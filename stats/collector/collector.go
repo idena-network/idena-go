@@ -45,8 +45,7 @@ type StatsCollector interface {
 	AddKilledBurntCoins(addr common.Address, amount *big.Int)
 	AddBurnTxBurntCoins(addr common.Address, tx *types.Transaction)
 
-	AfterKillIdentity(addr common.Address, appState *appstate.AppState)
-	AfterAddStake(addr common.Address, amount *big.Int)
+	AfterAddStake(addr common.Address, amount *big.Int, appState *appstate.AppState)
 
 	AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int)
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
@@ -357,26 +356,15 @@ func AddBurnTxBurntCoins(c StatsCollector, addr common.Address, tx *types.Transa
 	c.AddBurnTxBurntCoins(addr, tx)
 }
 
-func (c *collectorStub) AfterKillIdentity(addr common.Address, appState *appstate.AppState) {
+func (c *collectorStub) AfterAddStake(addr common.Address, amount *big.Int, appState *appstate.AppState) {
 	// do nothing
 }
 
-func AfterKillIdentity(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+func AfterAddStake(c StatsCollector, addr common.Address, amount *big.Int, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.AfterKillIdentity(addr, appState)
-}
-
-func (c *collectorStub) AfterAddStake(addr common.Address, amount *big.Int) {
-	// do nothing
-}
-
-func AfterAddStake(c StatsCollector, addr common.Address, amount *big.Int) {
-	if c == nil {
-		return
-	}
-	c.AfterAddStake(addr, amount)
+	c.AfterAddStake(addr, amount, appState)
 }
 
 func (c *collectorStub) AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int) {

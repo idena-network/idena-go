@@ -405,7 +405,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 		appState.State.SubPenalty(coinbase, penaltySub)
 	}
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AfterAddStake(statsCollector, coinbase, stake)
+	collector.AfterAddStake(statsCollector, coinbase, stake, appState)
 	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
 	collector.AddProposerReward(statsCollector, coinbase, reward, stake)
@@ -685,7 +685,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		}
 		collector.AddMintedCoins(statsCollector, r)
 		collector.AddMintedCoins(statsCollector, s)
-		collector.AfterAddStake(statsCollector, addr, s)
+		collector.AfterAddStake(statsCollector, addr, s, appState)
 		collector.AfterSubPenalty(statsCollector, addr, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, addr, penaltySub)
 		collector.AddFinalCommitteeReward(statsCollector, addr, r, s)
@@ -772,7 +772,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			}
 		}
 
-		collector.AfterKillIdentity(statsCollector, sender, appState)
 		collector.AddActivationTxBalanceTransfer(statsCollector, tx, change)
 		if sender != *tx.To {
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
@@ -810,7 +809,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stakeToTransfer := new(big.Int).Sub(stake, fee)
 		stateDB.AddBalance(*tx.To, stakeToTransfer)
 		stateDB.AddBalance(*tx.To, amount)
-		collector.AfterKillIdentity(statsCollector, sender, appState)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
@@ -828,7 +826,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			stateDB.AddInvite(sender, 1)
 		}
-		collector.AfterKillIdentity(statsCollector, *tx.To, appState)
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())

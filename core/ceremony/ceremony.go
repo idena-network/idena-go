@@ -733,7 +733,6 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 		collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
-		collector.AfterKillIdentity(statsCollector, addr, appState)
 	}
 	return identitiesCount
 }

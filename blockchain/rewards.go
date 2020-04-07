@@ -75,7 +75,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				collector.AddMintedCoins(statsCollector, reward)
 				collector.AddMintedCoins(statsCollector, stake)
 				collector.AddValidationReward(statsCollector, addr, age, reward, stake)
-				collector.AfterAddStake(statsCollector, addr, stake)
+				collector.AfterAddStake(statsCollector, addr, stake, appState)
 			}
 		}
 	})
@@ -112,7 +112,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AddFlipsReward(statsCollector, addr, reward, stake, author.StrongFlipCids, author.WeakFlipCids)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 }
 
@@ -180,7 +180,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age, txHash, isSavedInviteWinner)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
 	for addr, author := range authors.GoodAuthors {
