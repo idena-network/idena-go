@@ -58,6 +58,8 @@ type StatsCollector interface {
 	BeginEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	CompleteBalanceUpdate(appState *appstate.AppState)
+
+	SetCommitteeRewardShare(amount *big.Int)
 }
 
 type collectorStub struct {
@@ -475,4 +477,15 @@ func CompleteBalanceUpdate(c StatsCollector, appState *appstate.AppState) {
 		return
 	}
 	c.CompleteBalanceUpdate(appState)
+}
+
+func (c *collectorStub) SetCommitteeRewardShare(amount *big.Int) {
+	// do nothing
+}
+
+func SetCommitteeRewardShare(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetCommitteeRewardShare(amount)
 }

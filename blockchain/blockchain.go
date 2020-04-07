@@ -659,6 +659,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	}
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
+	collector.SetCommitteeRewardShare(statsCollector, totalReward)
 
 	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
 	newbieReward, newbieStake := splitReward(totalReward, true, chain.config.Consensus)
