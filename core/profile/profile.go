@@ -31,7 +31,7 @@ func (pm *Manager) AddProfile(pr Profile) ([]byte, error) {
 		return nil, errors.Errorf("profile data is too big, max expected size %v, actual %v",
 			maxIpfsDataSize, len(encodedData))
 	}
-	hash, err := pm.ipfsProxy.Add(encodedData)
+	hash, err := pm.ipfsProxy.Add(encodedData, true)
 	if err != nil {
 		return nil, err
 	}
