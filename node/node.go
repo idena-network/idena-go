@@ -39,12 +39,6 @@ import (
 	"github.com/tendermint/tm-db"
 )
 
-const (
-	// todo set real values
-	totalTxLimit = 100000
-	addrTxLimit  = 1000
-)
-
 type Node struct {
 	config          *config.Config
 	blockchain      *blockchain.Blockchain
@@ -156,7 +150,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	offlineDetector := blockchain.NewOfflineDetector(config, db, appState, secStore, bus)
 	votes := pengings.NewVotes(appState, bus, offlineDetector)
 
-	txpool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, config.Consensus.MinFeePerByte)
+	txpool := mempool.NewTxPool(appState, bus, config.Mempool, config.Consensus.MinFeePerByte)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)

@@ -4,86 +4,15 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/secstore"
-	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-db"
 	"math/big"
 	"testing"
 )
-
-func TestTxPool_checkTotalTxLimit(t *testing.T) {
-	pool := getPool()
-
-	r := require.New(t)
-
-	tr := &types.Transaction{
-		AccountNonce: 1,
-	}
-	pool.pending[tr.Hash()] = tr
-	r.Nil(pool.checkTotalTxLimit())
-
-	pool.totalTxLimit = 1
-	r.Error(pool.checkTotalTxLimit())
-
-	pool.totalTxLimit = 2
-	r.Nil(pool.checkTotalTxLimit())
-
-	tr = &types.Transaction{
-		AccountNonce: 2,
-	}
-	pool.pending[tr.Hash()] = tr
-	r.Error(pool.checkTotalTxLimit())
-}
-
-func TestTxPool_checkAddrTxLimit(t *testing.T) {
-	pool := getPool()
-
-	r := require.New(t)
-
-	address := tests.GetRandAddr()
-	r.Nil(pool.checkAddrTxLimit(address))
-
-	pool.addrTxLimit = 1
-	r.Nil(pool.checkAddrTxLimit(address))
-
-	pool.pendingPerAddr[address] = make(map[common.Hash]*types.Transaction)
-	tr := &types.Transaction{}
-	pool.pendingPerAddr[address][tr.Hash()] = tr
-	r.Error(pool.checkAddrTxLimit(address))
-}
-
-func TestTxPool_checkAddrCeremonyTx(t *testing.T) {
-	pool := getPool()
-
-	r := require.New(t)
-
-	key, _ := crypto.GenerateKey()
-	sender := crypto.PubkeyToAddress(key.PublicKey)
-
-	tx := &types.Transaction{Type: types.SubmitAnswersHashTx}
-	tx, _ = types.SignTx(tx, key)
-
-	r.NoError(pool.checkAddrCeremonyTx(tx))
-
-	pool.pendingPerAddr[sender] = make(map[common.Hash]*types.Transaction)
-	pool.pendingPerAddr[sender][tx.Hash()] = tx
-
-	tx = &types.Transaction{Type: types.SubmitLongAnswersTx}
-	tx, _ = types.SignTx(tx, key)
-	r.NoError(pool.checkAddrCeremonyTx(tx))
-
-	tx = &types.Transaction{Type: types.SendTx}
-	tx, _ = types.SignTx(tx, key)
-	r.NoError(pool.checkAddrCeremonyTx(tx))
-
-	tx = &types.Transaction{Type: types.SubmitAnswersHashTx, AccountNonce: 1}
-	tx, _ = types.SignTx(tx, key)
-
-	r.Error(pool.checkAddrCeremonyTx(tx))
-}
 
 func TestTxPool_addDeferredTx(t *testing.T) {
 	bus := eventbus.New()
@@ -92,7 +21,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
-	pool := NewTxPool(appState, bus, -1, -1, big.NewInt(0))
+	pool := NewTxPool(appState, bus, &config.Mempool{TxPoolQueueSlots: -1, TxPoolAddrQueueLimit: -1}, big.NewInt(0))
 	r := require.New(t)
 
 	key, _ = crypto.GenerateKey()
@@ -133,7 +62,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 
 	r.Len(pool.deferredTxs, 0)
 	r.True(pool.knownDeferredTxs.Cardinality() == 0)
-	r.Len(pool.pending, 1)
+	r.Len(pool.executableTxs, 1)
 }
 
 func getPool() *TxPool {
@@ -144,5 +73,8 @@ func getPool() *TxPool {
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
 
-	return NewTxPool(appState, bus, -1, -1, big.NewInt(0))
+	return NewTxPool(appState, bus, &config.Mempool{
+		TxPoolExecutableSlots: -1,
+		TxPoolQueueSlots:      -1,
+	}, big.NewInt(0))
 }

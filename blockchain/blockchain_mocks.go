@@ -17,7 +17,7 @@ import (
 	"math/big"
 )
 
-func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, queueSlots int, executableSlots int, executableLimit int, queueLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	if alloc == nil {
 		alloc = make(map[common.Address]config.GenesisAllocation)
 	}
@@ -35,6 +35,12 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 		Validation:       valConf,
 		Blockchain:       &config.BlockchainConfig{},
 		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
+		Mempool: &config.Mempool{
+			TxPoolQueueSlots:          queueSlots,
+			TxPoolExecutableSlots:     executableSlots,
+			TxPoolAddrExecutableLimit: executableLimit,
+			TxPoolAddrQueueLimit:      queueLimit,
+		},
 	}
 
 	db := db.NewMemDB()
@@ -48,7 +54,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 		}
 	}
 
-	txPool := mempool.NewTxPool(appState, bus, totalTxLimit, addrTxLimit, cfg.Consensus.MinFeePerByte)
+	txPool := mempool.NewTxPool(appState, bus, cfg.Mempool, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
@@ -63,7 +69,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	cfg := config.GetDefaultConsensusConfig()
 	cfg.Automine = true
-	return NewTestBlockchainWithConfig(withIdentity, cfg, &config.ValidationConfig{}, alloc, -1, -1)
+	return NewTestBlockchainWithConfig(withIdentity, cfg, &config.ValidationConfig{}, alloc, -1, -1, 0, 0)
 }
 
 func NewTestBlockchainWithBlocks(blocksCount int, emptyBlocksCount int) (*TestBlockchain, *appstate.AppState) {
@@ -98,7 +104,7 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	if cfg.OfflineDetection == nil {
 		cfg.OfflineDetection = config.GetDefaultOfflineDetectionConfig()
 	}
-	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
+	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 
 	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
@@ -140,7 +146,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 		Blockchain:       &config.BlockchainConfig{},
 		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
 	}
-	txPool := mempool.NewTxPool(appState, bus, -1, -1, cfg.Consensus.MinFeePerByte)
+	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
 
 	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline)

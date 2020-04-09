@@ -29,7 +29,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
 	pool.Add(GetTx(3, 0, key1))
 	pool.Add(GetTx(1, 0, key1))
@@ -75,19 +75,21 @@ func TestTxPool_TxLimits(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, _, pool, _ := newBlockchain(true, alloc, 3, 2)
+	_, _, pool, _ := newBlockchain(true, alloc, 1, 2, 1, 1)
 
 	tx := GetTx(1, 0, key1)
 	err := pool.Add(tx)
 	require.Nil(t, err)
 
-	err = pool.Add(GetTx(2, 1, key1))
+	tx2 :=GetTx(2, 0, key1)
+	err = pool.Add(tx2)
 	require.Nil(t, err)
 
-	err = pool.Add(GetTx(3, 2, key1))
+
+	err = pool.Add( GetTx(3, 2, key1))
 	require.NotNil(t, err)
 
-	err = pool.Add(GetTx(4, 3, key2))
+	err = pool.Add(GetTx(1, 0, key2))
 	require.Nil(t, err)
 
 	// total limit
@@ -100,7 +102,12 @@ func TestTxPool_TxLimits(t *testing.T) {
 	require.NotNil(t, err)
 
 	pool.Remove(tx)
-	err = pool.Add(GetTx(7, 5, key2))
+	err = pool.Add(GetTx(2, 0, key2))
+	require.NotNil(t, err)
+
+	pool.Remove(tx2)
+
+	err = pool.Add(GetTx(2, 0, key2))
 	require.Nil(t, err)
 }
 
@@ -114,7 +121,7 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 		Balance: balance,
 	}
 
-	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -153,7 +160,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		Balance: getAmount(200),
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -11, -1)
 
 	tx1 := GetTypesTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
 	err := pool.Add(tx1)
@@ -259,7 +266,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 		}
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
 	// Current epoch = 1
 	app.State.IncEpoch()
@@ -362,8 +369,8 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	}
 }
 
-func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, queueSlots int, executableSlots int, executableLimit int, queueLimit int) (*blockchain.TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0)
-	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
+	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, queueSlots, executableSlots, executableLimit, queueLimit)
 }

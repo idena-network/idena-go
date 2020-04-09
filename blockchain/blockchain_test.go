@@ -310,7 +310,7 @@ func Test_CalculatePenalty(t *testing.T) {
 func Test_applyNextBlockFee(t *testing.T) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
-	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 
 	appState := chain.appState.Readonly(1)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
@@ -23,8 +24,8 @@ const (
 
 var (
 	DuplicateTxError = errors.New("tx with same hash already exists")
-
-	priorityTypes = map[types.TxType]bool{
+	MempoolFullError = errors.New("mempool is full")
+	priorityTypes    = map[types.TxType]bool{
 		types.SubmitAnswersHashTx:  true,
 		types.SubmitShortAnswersTx: true,
 		types.SubmitLongAnswersTx:  true,
@@ -40,10 +41,10 @@ type TransactionPool interface {
 type TxPool struct {
 	knownDeferredTxs mapset.Set
 	deferredTxs      []*types.Transaction
-	pending          map[common.Hash]*types.Transaction
-	pendingPerAddr   map[common.Address]map[common.Hash]*types.Transaction
-	totalTxLimit     int
-	addrTxLimit      int
+	all              *txMap
+	executableTxs    map[common.Address]*sortedTxs
+	pendingTxs       map[common.Address]*txMap
+	cfg              *config.Mempool
 	txSubscription   chan *types.Transaction
 	mutex            *sync.Mutex
 	appState         *appstate.AppState
@@ -56,13 +57,13 @@ type TxPool struct {
 	tmpNonceCache    *state.NonceCache
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, addrTxLimit int, minFeePerByte *big.Int) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool, minFeePerByte *big.Int) *TxPool {
 	pool := &TxPool{
-		pending:          make(map[common.Hash]*types.Transaction),
-		pendingPerAddr:   make(map[common.Address]map[common.Hash]*types.Transaction),
+		all:              newTxMap(-1),
+		executableTxs:    make(map[common.Address]*sortedTxs),
+		pendingTxs:       make(map[common.Address]*txMap),
 		knownDeferredTxs: mapset.NewSet(),
-		totalTxLimit:     totalTxLimit,
-		addrTxLimit:      addrTxLimit,
+		cfg:              cfg,
 		mutex:            &sync.Mutex{},
 		appState:         appState,
 		log:              log.New(),
@@ -78,173 +79,320 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, totalTxLimit int, 
 	return pool
 }
 
-func (txpool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
-	txpool.head = head
-	txpool.coinbase = coinbase
+func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
+	pool.head = head
+	pool.coinbase = coinbase
 }
 
-func (txpool *TxPool) addDeferredTx(tx *types.Transaction) {
-	if txpool.knownDeferredTxs.Contains(tx.Hash()) {
+func (pool *TxPool) addDeferredTx(tx *types.Transaction) {
+	if pool.knownDeferredTxs.Contains(tx.Hash()) {
 		return
 	}
-	txpool.deferredTxs = append(txpool.deferredTxs, tx)
-	if len(txpool.deferredTxs) > MaxDeferredTxs {
-		txpool.deferredTxs[0] = nil
-		txpool.deferredTxs = txpool.deferredTxs[1:]
+	pool.deferredTxs = append(pool.deferredTxs, tx)
+	if len(pool.deferredTxs) > MaxDeferredTxs {
+		pool.deferredTxs[0] = nil
+		pool.deferredTxs = pool.deferredTxs[1:]
 	}
-	txpool.knownDeferredTxs.Add(tx.Hash())
+	pool.knownDeferredTxs.Add(tx.Hash())
 }
 
-func (txpool *TxPool) Validate(tx *types.Transaction) error {
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
-	return txpool.validate(tx)
-}
-
-func (txpool *TxPool) validate(tx *types.Transaction) error {
-
-	if err := txpool.checkTotalTxLimit(); err != nil {
-		return err
-	}
-
-	hash := tx.Hash()
-
-	if _, ok := txpool.pending[hash]; ok {
+func (pool *TxPool) Validate(tx *types.Transaction) error {
+	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
 	}
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
 
+	if err := pool.checkLimits(tx); err != nil {
+		return err
+	}
+	return pool.validate(tx)
+}
+
+func (pool *TxPool) checkLimits(tx *types.Transaction) error {
+	if priorityTypes[tx.Type] {
+		return pool.checkPriorityTxLimits(tx)
+	}
+	return pool.checkRegularTxLimits(tx)
+}
+
+func (pool *TxPool) checkPriorityTxLimits(tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
+	if executable, ok := pool.executableTxs[sender]; ok {
+		for _, existingTx := range executable.txs {
+			if existingTx.Type == tx.Type {
+				return errors.New("multiple ceremony transaction")
+			}
+		}
+	}
+	if txs, ok := pool.pendingTxs[sender]; ok {
+		for _, existingTx := range txs.txs {
+			if existingTx.Type == tx.Type {
+				return errors.New("multiple ceremony transaction")
+			}
+		}
+	}
+	return nil
+}
+
+func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
+	var totalLimit = 0
+	if pool.cfg.TxPoolExecutableSlots < 0 || pool.cfg.TxPoolQueueSlots < 0 {
+		totalLimit = -1
+	} else {
+		totalLimit = pool.cfg.TxPoolExecutableSlots*pool.cfg.TxPoolAddrExecutableLimit +
+			pool.cfg.TxPoolQueueSlots*pool.cfg.TxPoolAddrQueueLimit
+	}
+	if totalLimit > 0 && len(pool.all.txs) >= totalLimit {
+		return errors.New("tx queue max size reached")
+	}
 	sender, _ := types.Sender(tx)
 
-	if err := txpool.checkAddrTxLimit(sender); err != nil {
-		return err
+	if byAddr, ok := pool.executableTxs[sender]; ok {
+		if byAddr.Full() {
+			if pending, ok := pool.pendingTxs[sender]; ok {
+				if pending.Full() {
+					return MempoolFullError
+				}
+			}
+			if len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+				return MempoolFullError
+			}
+		}
 	}
 
-	if err := txpool.checkAddrCeremonyTx(tx); err != nil {
-		return err
-	}
+	return nil
+}
 
-	appState := txpool.appState.Readonly(txpool.head.Height())
+func (pool *TxPool) validate(tx *types.Transaction) error {
+	appState := pool.appState.Readonly(pool.head.Height())
 
 	if appState == nil {
 		return errors.New("tx can't be validated")
 	}
-	return validation.ValidateTx(appState, tx, txpool.minFeePerByte, true)
+	return validation.ValidateTx(appState, tx, pool.minFeePerByte, true)
 }
 
-func (txpool *TxPool) Add(tx *types.Transaction) error {
+func (pool *TxPool) Add(tx *types.Transaction) error {
 
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
+	if _, ok := pool.all.Get(tx.Hash()); ok {
+		return DuplicateTxError
+	}
+
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
+
+	if err := pool.checkLimits(tx); err != nil {
+		return err
+	}
 
 	sender, _ := types.Sender(tx)
 
-	if txpool.isSyncing && sender != txpool.coinbase {
-		txpool.addDeferredTx(tx)
+	if pool.isSyncing && sender != pool.coinbase {
+		pool.addDeferredTx(tx)
 		return nil
 	}
 
-	if err := txpool.validate(tx); err != nil {
-		if err != DuplicateTxError && sender == txpool.coinbase {
+	if err := pool.validate(tx); err != nil {
+		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
 		return err
 	}
 
-	hash := tx.Hash()
+	return pool.put(tx)
+}
 
-	txpool.pending[hash] = tx
-	senderPending := txpool.pendingPerAddr[sender]
-	if senderPending == nil {
-		senderPending = make(map[common.Hash]*types.Transaction)
-		txpool.pendingPerAddr[sender] = senderPending
+func (pool *TxPool) putToPending(tx *types.Transaction) error {
+	sender, _ := types.Sender(tx)
+	set, ok := pool.pendingTxs[sender]
+	if !ok {
+		set = newTxMap(pool.cfg.TxPoolAddrQueueLimit)
+
 	}
-	senderPending[hash] = tx
+	err := set.Add(tx)
+	if err == nil {
+		pool.pendingTxs[sender] = set
+	}
+	return err
+}
 
-	txpool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
-	if txpool.tmpNonceCache != nil {
-		txpool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+func (pool *TxPool) put(tx *types.Transaction) error {
+
+	sender, _ := types.Sender(tx)
+
+	executable, ok := pool.executableTxs[sender]
+	if !ok {
+		executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
 	}
 
-	txpool.bus.Publish(&events.NewTxEvent{
+	isExecutable := true
+
+	if executable.Empty() {
+		globalEpoch := pool.appState.State.Epoch()
+		nonce := pool.appState.State.GetNonce(sender)
+		if tx.Epoch != globalEpoch || tx.AccountNonce != nonce+1 {
+			isExecutable = false
+		}
+	}
+	var err error
+	if isExecutable {
+		err = executable.Add(tx)
+		if err != nil {
+			err = pool.putToPending(tx)
+		} else {
+			pool.executableTxs[sender] = executable
+		}
+	} else {
+		err = pool.putToPending(tx)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	pool.all.Add(tx)
+
+	pool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+	if pool.tmpNonceCache != nil {
+		pool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+	}
+
+	pool.bus.Publish(&events.NewTxEvent{
 		Tx:  tx,
-		Own: sender == txpool.coinbase,
+		Own: sender == pool.coinbase,
 	})
-
 	return nil
 }
 
-func (txpool *TxPool) GetPendingTransaction() []*types.Transaction {
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
+func (pool *TxPool) GetPendingTransaction() []*types.Transaction {
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
 
 	var list []*types.Transaction
 
-	for _, tx := range txpool.pending {
+	for _, tx := range pool.all.txs {
 		list = append(list, tx)
 	}
 	return list
 }
 
-func (txpool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
+func (pool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
 
 	var list []*types.Transaction
 
-	for _, tx := range txpool.pendingPerAddr[address] {
-		list = append(list, tx)
+	if executable, ok := pool.executableTxs[address]; ok {
+		for _, tx := range executable.txs {
+			list = append(list, tx)
+		}
 	}
+
+	if pending, ok := pool.pendingTxs[address]; ok {
+		for _, tx := range pending.txs {
+			list = append(list, tx)
+		}
+	}
+
 	return list
 }
 
-func (txpool *TxPool) GetTx(hash common.Hash) *types.Transaction {
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
+func (pool *TxPool) GetTx(hash common.Hash) *types.Transaction {
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
 
-	tx, ok := txpool.pending[hash]
+	tx, ok := pool.all.Get(hash)
 	if ok {
 		return tx
 	}
 	return nil
 }
 
-func (txpool *TxPool) BuildBlockTransactions() []*types.Transaction {
-	ctx := txpool.createBuildingContext()
+func (pool *TxPool) BuildBlockTransactions() []*types.Transaction {
+	ctx := pool.createBuildingContext()
 	ctx.addPriorityTxsToBlock()
 	ctx.addTxsToBlock()
 	return ctx.blockTxs
 }
 
-func (txpool *TxPool) Remove(transaction *types.Transaction) {
-	txpool.mutex.Lock()
-	defer txpool.mutex.Unlock()
-	delete(txpool.pending, transaction.Hash())
+func (pool *TxPool) Remove(transaction *types.Transaction) {
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
+	pool.all.Remove(transaction.Hash())
 
 	sender, _ := types.Sender(transaction)
-	senderPending := txpool.pendingPerAddr[sender]
-	delete(senderPending, transaction.Hash())
-	if len(senderPending) == 0 {
-		delete(txpool.pendingPerAddr, sender)
+
+	if executable, ok := pool.executableTxs[sender]; ok {
+		executable.Remove(transaction)
+		if executable.Empty() {
+			delete(pool.executableTxs, sender)
+		}
+	}
+
+	if pending, ok := pool.pendingTxs[sender]; ok {
+		pending.Remove(transaction.Hash())
+		if pending.Empty() {
+			delete(pool.pendingTxs, sender)
+		}
 	}
 }
 
-func (txpool *TxPool) ResetTo(block *types.Block) {
+func (pool *TxPool) movePendingsToExecutable(senders map[common.Address]struct{}) {
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
+	for sender := range senders {
+		if pending, ok := pool.pendingTxs[sender]; ok {
 
-	txpool.head = block.Header
+			executable, ok := pool.executableTxs[sender]
+			if !ok {
+				executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
+			}
+
+			for _, tx := range pending.Sorted() {
+				if executable.Empty() {
+					epoch := pool.appState.State.Epoch()
+					nonce := pool.appState.State.GetNonce(sender)
+					if epoch != tx.Epoch || tx.AccountNonce != nonce+1 {
+						break
+					}
+				}
+				if executable.Add(tx) == nil {
+					pending.Remove(tx.Hash())
+				} else {
+					break
+				}
+			}
+			if pending.Empty() {
+				delete(pool.pendingTxs, sender)
+			}
+		}
+	}
+}
+
+func (pool *TxPool) ResetTo(block *types.Block) {
+
+	pool.head = block.Header
+
+	updatedSenders := map[common.Address]struct{}{}
 
 	for _, tx := range block.Body.Transactions {
-		txpool.Remove(tx)
+		pool.Remove(tx)
+		sender, _ := types.Sender(tx)
+		updatedSenders[sender] = struct{}{}
 	}
 
-	txpool.mutex.Lock()
-	txpool.tmpNonceCache = state.NewNonceCache(txpool.appState.State)
-	txpool.mutex.Unlock()
+	pool.movePendingsToExecutable(updatedSenders)
 
-	globalEpoch := txpool.appState.State.Epoch()
+	pool.mutex.Lock()
+	pool.tmpNonceCache = state.NewNonceCache(pool.appState.State)
+	pool.mutex.Unlock()
 
-	pending := txpool.GetPendingTransaction()
+	globalEpoch := pool.appState.State.Epoch()
 
-	appState := txpool.appState.Readonly(txpool.head.Height())
+	pending := pool.GetPendingTransaction()
+
+	appState := pool.appState.Readonly(pool.head.Height())
 
 	minErrorNonce := make(map[common.Address]uint32)
 
@@ -253,9 +401,9 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 			continue
 		}
 
-		if err := validation.ValidateTx(appState, tx, txpool.minFeePerByte, true); err != nil {
+		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, true); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
-				txpool.Remove(tx)
+				pool.Remove(tx)
 				continue
 			}
 			sender, _ := types.Sender(tx)
@@ -272,7 +420,7 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
-			txpool.Remove(tx)
+			pool.Remove(tx)
 			continue
 		}
 		if tx.Epoch > globalEpoch {
@@ -282,67 +430,51 @@ func (txpool *TxPool) ResetTo(block *types.Block) {
 		sender, _ := types.Sender(tx)
 
 		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
-			txpool.Remove(tx)
-			txpool.log.Info("Tx removed by nonce", "err", tx.Hash())
+			pool.Remove(tx)
+			pool.log.Info("Tx removed by nonce", "err", tx.Hash())
 			continue
 		}
 
-		txpool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+		pool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
-	txpool.mutex.Lock()
-	txpool.appState.NonceCache = txpool.tmpNonceCache
-	txpool.tmpNonceCache = nil
-	txpool.mutex.Unlock()
+	pool.mutex.Lock()
+	pool.appState.NonceCache = pool.tmpNonceCache
+	pool.tmpNonceCache = nil
+	pool.mutex.Unlock()
 }
 
-func (txpool *TxPool) checkTotalTxLimit() error {
-	if txpool.totalTxLimit > 0 && len(txpool.pending) >= txpool.totalTxLimit {
-		return errors.New("tx queue max size reached")
-	}
-	return nil
-}
-
-func (txpool *TxPool) checkAddrTxLimit(sender common.Address) error {
-	if txpool.addrTxLimit > 0 && len(txpool.pendingPerAddr[sender]) >= txpool.addrTxLimit {
-		return errors.New("address tx queue max size reached")
-	}
-	return nil
-}
-
-func (txpool *TxPool) checkAddrCeremonyTx(tx *types.Transaction) error {
-	if !priorityTypes[tx.Type] {
-		return nil
-	}
-	sender, _ := types.Sender(tx)
-	for _, existingTx := range txpool.pendingPerAddr[sender] {
-		if existingTx.Type == tx.Type {
-			return errors.New("multiple ceremony transaction")
-		}
-	}
-	return nil
-}
-
-func (txpool *TxPool) createBuildingContext() *buildingContext {
+func (pool *TxPool) createBuildingContext() *buildingContext {
 	curNoncesPerSender := make(map[common.Address]uint32)
 	var txs []*types.Transaction
-	txpool.mutex.Lock()
-	globalEpoch := txpool.appState.State.Epoch()
+	pool.mutex.Lock()
+	globalEpoch := pool.appState.State.Epoch()
 	withPriorityTx := false
-	for _, tx := range txpool.pending {
+	for _, tx := range pool.all.txs {
 		if tx.Epoch != globalEpoch {
 			continue
 		}
 		txs = append(txs, tx)
 		withPriorityTx = withPriorityTx || priorityTypes[tx.Type]
 	}
-	for sender := range txpool.pendingPerAddr {
-		if txpool.appState.State.GetEpoch(sender) < globalEpoch {
+	for sender := range pool.executableTxs {
+		if pool.appState.State.GetEpoch(sender) < globalEpoch {
 			curNoncesPerSender[sender] = 0
 		} else {
-			curNoncesPerSender[sender] = txpool.appState.State.GetNonce(sender)
+			curNoncesPerSender[sender] = pool.appState.State.GetNonce(sender)
 		}
 	}
-	txpool.mutex.Unlock()
+
+	for sender := range pool.pendingTxs {
+		if _, ok := curNoncesPerSender[sender]; ok {
+			continue
+		}
+		if pool.appState.State.GetEpoch(sender) < globalEpoch {
+			curNoncesPerSender[sender] = 0
+		} else {
+			curNoncesPerSender[sender] = pool.appState.State.GetNonce(sender)
+		}
+	}
+	pool.mutex.Unlock()
 
 	sort.SliceStable(txs, func(i, j int) bool {
 		return txs[i].AccountNonce < txs[j].AccountNonce
@@ -361,19 +493,124 @@ func (txpool *TxPool) createBuildingContext() *buildingContext {
 		}
 	}
 
-	return newBuildingContext(txpool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
+	return newBuildingContext(pool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
 }
 
-func (txpool *TxPool) StartSync() {
-	txpool.isSyncing = true
+func (pool *TxPool) StartSync() {
+	pool.isSyncing = true
 }
 
-func (txpool *TxPool) StopSync(block *types.Block) {
-	txpool.isSyncing = false
-	txpool.ResetTo(block)
-	for _, tx := range txpool.deferredTxs {
-		txpool.Add(tx)
+func (pool *TxPool) StopSync(block *types.Block) {
+	pool.isSyncing = false
+	pool.ResetTo(block)
+	for _, tx := range pool.deferredTxs {
+		pool.Add(tx)
 	}
-	txpool.deferredTxs = make([]*types.Transaction, 0)
-	txpool.knownDeferredTxs.Clear()
+	pool.deferredTxs = make([]*types.Transaction, 0)
+	pool.knownDeferredTxs.Clear()
+}
+
+var (
+	setIsFullErr     = errors.New("txs for address is full")
+	sortedTxNonceErr = errors.New("nonce is not sequential")
+)
+
+type txMap struct {
+	mutex  sync.RWMutex
+	txs    map[common.Hash]*types.Transaction
+	maxTxs int
+}
+
+func (m *txMap) Get(hash common.Hash) (*types.Transaction, bool) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	tx, ok := m.txs[hash]
+	return tx, ok
+}
+
+func (m *txMap) Add(tx *types.Transaction) error {
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if _, ok := priorityTypes[tx.Type]; !ok && m.Full() {
+		return setIsFullErr
+	}
+	m.txs[tx.Hash()] = tx
+	return nil
+}
+
+func (m *txMap) Full() bool {
+	return m.maxTxs > 0 && len(m.txs) >= m.maxTxs
+}
+
+func (m *txMap) Remove(hash common.Hash) {
+	delete(m.txs, hash)
+}
+
+func (m *txMap) Empty() bool {
+	return len(m.txs) == 0
+}
+
+func (m *txMap) Sorted() []*types.Transaction {
+	result := make([]*types.Transaction, 0)
+	for _, tx := range m.txs {
+		result = append(result, tx)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].AccountNonce < result[j].AccountNonce && result[i].Epoch < result[j].Epoch
+	})
+	return result
+}
+
+func newTxMap(maxTxs int) *txMap {
+	return &txMap{
+		txs:    make(map[common.Hash]*types.Transaction),
+		maxTxs: maxTxs,
+	}
+}
+
+type sortedTxs struct {
+	txs    []*types.Transaction
+	maxTxs int
+}
+
+func newSortedTxs(maxTxs int) *sortedTxs {
+	return &sortedTxs{
+		txs:    make([]*types.Transaction, 0),
+		maxTxs: maxTxs,
+	}
+}
+
+func (s *sortedTxs) Add(tx *types.Transaction) error {
+
+	if _, ok := priorityTypes[tx.Type]; !ok && s.Full() {
+		return setIsFullErr
+	}
+	if len(s.txs) > 0 && (tx.AccountNonce != s.txs[len(s.txs)-1].AccountNonce+1 || tx.Epoch != s.txs[len(s.txs)-1].Epoch) {
+		return sortedTxNonceErr
+	}
+	s.txs = append(s.txs, tx)
+	return nil
+}
+
+func (s *sortedTxs) Full() bool {
+	return s.maxTxs > 0 && len(s.txs) >= s.maxTxs
+}
+
+func (s *sortedTxs) Remove(transaction *types.Transaction) {
+	i := sort.Search(len(s.txs), func(i int) bool {
+		return s.txs[i].AccountNonce >= transaction.AccountNonce
+	})
+
+	if i < len(s.txs) && s.txs[i].Hash() == transaction.Hash() {
+		s.txs[i] = s.txs[len(s.txs)-1]
+		s.txs[len(s.txs)-1] = nil
+		s.txs = s.txs[:len(s.txs)-1]
+	}
+}
+
+func (s *sortedTxs) Empty() bool {
+	return len(s.txs) == 0
 }
