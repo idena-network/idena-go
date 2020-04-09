@@ -183,6 +183,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 	defer pool.mutex.Unlock()
 
 	if err := pool.checkLimits(tx); err != nil {
+		log.Warn("Tx limits", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}
 
@@ -358,6 +359,7 @@ func (pool *TxPool) movePendingTxsToExecutable() {
 				}
 			}
 			if executable.Add(tx) == nil {
+				pool.executableTxs[sender] = executable
 				pending.Remove(tx.Hash())
 			} else {
 				break
