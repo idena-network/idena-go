@@ -145,7 +145,7 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 		return err
 	}
 
-	key, err := fp.ipfsProxy.Add(data)
+	_, err = fp.ipfsProxy.Add(data, fp.ipfsProxy.ShouldPin(ipfs.Flip) || local)
 
 	if err != nil {
 		return err
@@ -156,12 +156,6 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	fp.bus.Publish(&events.NewFlipEvent{Flip: flip})
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
-
-	if local {
-		if err := fp.ipfsProxy.Pin(key.Bytes()); err != nil {
-			return err
-		}
-	}
 
 	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		return err
