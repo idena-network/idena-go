@@ -358,6 +358,10 @@ func (pool *TxPool) movePendingTxsToExecutable() {
 			if executable.Empty() {
 				epoch := pool.appState.State.Epoch()
 				nonce := pool.appState.State.GetNonce(sender)
+				accountEpoch := pool.appState.State.GetEpoch(sender)
+				if accountEpoch < epoch {
+					nonce = 0
+				}
 				if epoch != tx.Epoch || tx.AccountNonce != nonce+1 {
 					break
 				}
