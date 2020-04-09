@@ -234,6 +234,10 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	if executable.Empty() {
 		globalEpoch := pool.appState.State.Epoch()
 		nonce := pool.appState.State.GetNonce(sender)
+		accountEpoch := pool.appState.State.GetEpoch(sender)
+		if accountEpoch < globalEpoch {
+			nonce = 0
+		}
 		if tx.Epoch != globalEpoch || tx.AccountNonce != nonce+1 {
 			isExecutable = false
 		}
