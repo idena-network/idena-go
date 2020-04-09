@@ -554,7 +554,13 @@ func (m *txMap) Sorted() []*types.Transaction {
 	}
 	m.mutex.RUnlock()
 	sort.SliceStable(result, func(i, j int) bool {
-		return result[i].AccountNonce < result[j].AccountNonce && result[i].Epoch < result[j].Epoch
+		if result[i].Epoch < result[j].Epoch {
+			return true
+		}
+		if result[i].Epoch > result[j].Epoch {
+			return false
+		}
+		return result[i].AccountNonce < result[j].AccountNonce
 	})
 	return result
 }

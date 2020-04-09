@@ -103,20 +103,62 @@ func TestSortedTxs_Remove(t *testing.T) {
 	}))
 
 	sortedTxs.Remove(&types.Transaction{
-		AccountNonce: 3,
+		AccountNonce: 2,
 		Epoch:        1,
 	})
 
 	require.Len(t, sortedTxs.txs, 2)
 
-	require.Equal(t, uint32(2), sortedTxs.txs[0].AccountNonce)
+	require.Equal(t, uint32(3), sortedTxs.txs[0].AccountNonce)
 	require.Equal(t, uint32(4), sortedTxs.txs[1].AccountNonce)
 
-
 	sortedTxs.Remove(&types.Transaction{
-		AccountNonce: 2,
+		AccountNonce: 4,
 		Epoch:        1,
 	})
 
 	require.Len(t, sortedTxs.txs, 1)
+}
+
+func TestTxMap_Sorted(t *testing.T) {
+	txMap := newTxMap(4)
+	require.NoError(t, txMap.Add(&types.Transaction{
+		AccountNonce: 1,
+		Epoch:        1,
+	}))
+	require.NoError(t, txMap.Add(&types.Transaction{
+		AccountNonce: 2,
+		Epoch:        1,
+	}))
+	require.NoError(t, txMap.Add(&types.Transaction{
+		AccountNonce: 3,
+		Epoch:        1,
+	}))
+	require.NoError(t, txMap.Add(&types.Transaction{
+		AccountNonce: 1,
+		Epoch:        2,
+	}))
+
+	require.Error(t, txMap.Add(&types.Transaction{
+		AccountNonce: 5,
+		Epoch:        1,
+	}))
+
+	sorted := txMap.Sorted()
+	require.Len(t, sorted, 4)
+
+	require.Equal(t, uint32(1), sorted[0].AccountNonce)
+	require.Equal(t, uint16(1), sorted[0].Epoch)
+	require.Equal(t, uint32(2), sorted[1].AccountNonce)
+	require.Equal(t, uint32(3), sorted[2].AccountNonce)
+	require.Equal(t, uint32(1), sorted[3].AccountNonce)
+
+	require.NoError(t, txMap.Add(&types.Transaction{
+		AccountNonce: 4,
+		Epoch:        1,
+		Type:         types.SubmitShortAnswersTx,
+	}))
+
+	sorted = txMap.Sorted()
+	require.Equal(t, uint32(4), sorted[3].AccountNonce)
 }
