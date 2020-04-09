@@ -14,10 +14,10 @@ type Mempool struct {
 func GetDefaultMempoolConfig() *Mempool {
 	return &Mempool{
 		TxPoolQueueSlots:      256,
-		TxPoolExecutableSlots: 512,
+		TxPoolExecutableSlots: 1024,
 
 		TxPoolAddrQueueLimit:      32,
-		TxPoolAddrExecutableLimit: 64,
+		TxPoolAddrExecutableLimit: 32,
 		TxLifetime:                time.Hour * 3,
 	}
 }

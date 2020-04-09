@@ -121,14 +121,14 @@ func (pool *TxPool) checkPriorityTxLimits(tx *types.Transaction) error {
 	if executable, ok := pool.executableTxs[sender]; ok {
 		for _, existingTx := range executable.txs {
 			if existingTx.Type == tx.Type {
-				return errors.New("multiple ceremony transaction")
+				return errors.Errorf("multiple ceremony transaction [type=%v] in executable queue", tx.Type)
 			}
 		}
 	}
 	if txs, ok := pool.pendingTxs[sender]; ok {
 		for _, existingTx := range txs.txs {
 			if existingTx.Type == tx.Type {
-				return errors.New("multiple ceremony transaction")
+				return errors.Errorf("multiple ceremony transaction [type=%v] in pending queue", tx.Type)
 			}
 		}
 	}
@@ -207,8 +207,10 @@ func (pool *TxPool) putToPending(tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 	set, ok := pool.pendingTxs[sender]
 	if !ok {
+		if len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+			return MempoolFullError
+		}
 		set = newTxMap(pool.cfg.TxPoolAddrQueueLimit)
-
 	}
 	err := set.Add(tx)
 	if err == nil {
@@ -338,34 +340,31 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 	}
 }
 
-func (pool *TxPool) movePendingsToExecutable(senders map[common.Address]struct{}) {
+func (pool *TxPool) movePendingTxsToExecutable() {
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
-	for sender := range senders {
-		if pending, ok := pool.pendingTxs[sender]; ok {
+	for sender, pending := range pool.pendingTxs {
+		executable, ok := pool.executableTxs[sender]
+		if !ok {
+			executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
+		}
 
-			executable, ok := pool.executableTxs[sender]
-			if !ok {
-				executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
-			}
-
-			for _, tx := range pending.Sorted() {
-				if executable.Empty() {
-					epoch := pool.appState.State.Epoch()
-					nonce := pool.appState.State.GetNonce(sender)
-					if epoch != tx.Epoch || tx.AccountNonce != nonce+1 {
-						break
-					}
-				}
-				if executable.Add(tx) == nil {
-					pending.Remove(tx.Hash())
-				} else {
+		for _, tx := range pending.Sorted() {
+			if executable.Empty() {
+				epoch := pool.appState.State.Epoch()
+				nonce := pool.appState.State.GetNonce(sender)
+				if epoch != tx.Epoch || tx.AccountNonce != nonce+1 {
 					break
 				}
 			}
-			if pending.Empty() {
-				delete(pool.pendingTxs, sender)
+			if executable.Add(tx) == nil {
+				pending.Remove(tx.Hash())
+			} else {
+				break
 			}
+		}
+		if pending.Empty() {
+			delete(pool.pendingTxs, sender)
 		}
 	}
 }
@@ -374,15 +373,11 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	pool.head = block.Header
 
-	updatedSenders := map[common.Address]struct{}{}
-
 	for _, tx := range block.Body.Transactions {
 		pool.Remove(tx)
-		sender, _ := types.Sender(tx)
-		updatedSenders[sender] = struct{}{}
 	}
 
-	pool.movePendingsToExecutable(updatedSenders)
+	pool.movePendingTxsToExecutable()
 
 	pool.mutex.Lock()
 	pool.tmpNonceCache = state.NewNonceCache(pool.appState.State)
@@ -457,17 +452,6 @@ func (pool *TxPool) createBuildingContext() *buildingContext {
 		withPriorityTx = withPriorityTx || priorityTypes[tx.Type]
 	}
 	for sender := range pool.executableTxs {
-		if pool.appState.State.GetEpoch(sender) < globalEpoch {
-			curNoncesPerSender[sender] = 0
-		} else {
-			curNoncesPerSender[sender] = pool.appState.State.GetNonce(sender)
-		}
-	}
-
-	for sender := range pool.pendingTxs {
-		if _, ok := curNoncesPerSender[sender]; ok {
-			continue
-		}
 		if pool.appState.State.GetEpoch(sender) < globalEpoch {
 			curNoncesPerSender[sender] = 0
 		} else {
@@ -555,9 +539,11 @@ func (m *txMap) Empty() bool {
 
 func (m *txMap) Sorted() []*types.Transaction {
 	result := make([]*types.Transaction, 0)
+	m.mutex.RLock()
 	for _, tx := range m.txs {
 		result = append(result, tx)
 	}
+	m.mutex.RUnlock()
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].AccountNonce < result[j].AccountNonce && result[i].Epoch < result[j].Epoch
 	})

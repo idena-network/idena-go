@@ -78,3 +78,40 @@ func getPool() *TxPool {
 		TxPoolQueueSlots:      -1,
 	}, big.NewInt(0))
 }
+
+func TestSortedTxs_Remove(t *testing.T) {
+	sortedTxs := newSortedTxs(10)
+	require.NoError(t, sortedTxs.Add(&types.Transaction{
+		AccountNonce: 2,
+		Epoch:        1,
+	}))
+	require.NoError(t, sortedTxs.Add(&types.Transaction{
+		AccountNonce: 3,
+		Epoch:        1,
+	}))
+
+	require.Error(t, sortedTxs.Add(&types.Transaction{
+		AccountNonce: 3,
+		Epoch:        2,
+	}))
+
+	require.Error(t, sortedTxs.Add(&types.Transaction{
+		AccountNonce: 5,
+		Epoch:        1,
+	}))
+
+	require.NoError(t, sortedTxs.Add(&types.Transaction{
+		AccountNonce: 4,
+		Epoch:        1,
+	}))
+
+	sortedTxs.Remove(&types.Transaction{
+		AccountNonce: 3,
+		Epoch:        1,
+	})
+
+	require.Len(t, sortedTxs.txs, 2)
+
+	require.Equal(t, uint32(2), sortedTxs.txs[0].AccountNonce)
+	require.Equal(t, uint32(4), sortedTxs.txs[1].AccountNonce)
+}
