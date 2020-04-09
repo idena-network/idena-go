@@ -549,6 +549,8 @@ func (m *txMap) Full() bool {
 }
 
 func (m *txMap) Remove(hash common.Hash) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	delete(m.txs, hash)
 }
 
