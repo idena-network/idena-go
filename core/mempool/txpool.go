@@ -389,7 +389,12 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	appState := pool.appState.Readonly(pool.head.Height())
 
-	minErrorNonce := make(map[common.Address]uint32)
+	type txError struct {
+		nonce uint32
+		err   error
+	}
+
+	minErrorNonce := make(map[common.Address]txError)
 
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {
@@ -403,11 +408,11 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 			}
 			sender, _ := types.Sender(tx)
 			if n, ok := minErrorNonce[sender]; ok {
-				if tx.AccountNonce < n {
-					minErrorNonce[sender] = tx.AccountNonce
+				if tx.AccountNonce < n.nonce {
+					minErrorNonce[sender] = txError{tx.AccountNonce, err}
 				}
 			} else {
-				minErrorNonce[sender] = tx.AccountNonce
+				minErrorNonce[sender] = txError{tx.AccountNonce, err}
 			}
 			continue
 		}
@@ -424,9 +429,13 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 		sender, _ := types.Sender(tx)
 
-		if n, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= n {
+		if txError, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= txError.nonce {
 			pool.Remove(tx)
-			pool.log.Info("Tx removed by nonce", "err", tx.Hash())
+			if tx.AccountNonce == txError.nonce {
+				pool.log.Info("Tx is invalid", "tx", tx.Hash().Hex(), "err", txError.err)
+			} else {
+				pool.log.Info("Tx removed by nonce", "tx", tx.Hash().Hex())
+			}
 			continue
 		}
 
@@ -591,7 +600,7 @@ func (s *sortedTxs) Remove(transaction *types.Transaction) {
 	})
 
 	if i < len(s.txs) && s.txs[i].Hash() == transaction.Hash() {
-		s.txs[i] = s.txs[len(s.txs)-1]
+		copy(s.txs[i:], s.txs[i+1:])
 		s.txs[len(s.txs)-1] = nil
 		s.txs = s.txs[:len(s.txs)-1]
 	}

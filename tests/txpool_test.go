@@ -62,6 +62,30 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	require.Equal(t, uint32(1), result[0].AccountNonce)
 }
 
+func TestTxPool_BuildBlockTransactions2(t *testing.T) {
+
+	keys := make([]*ecdsa.PrivateKey, 0)
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+	for i := 0; i < 2000; i++ {
+		key, _ := crypto.GenerateKey()
+		keys = append(keys, key)
+		alloc[crypto.PubkeyToAddress(key.PublicKey)] = config.GenesisAllocation{
+			Balance: balance,
+			State:   uint8(state.Verified),
+		}
+	}
+
+	_, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
+	app.State.SetValidationPeriod(state.ShortSessionPeriod)
+	for _, key := range keys {
+		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, (common.Hash{}).Bytes())))
+	}
+
+	result := pool.BuildBlockTransactions()
+	require.Equal(t, 2000, len(result))
+}
+
 func TestTxPool_TxLimits(t *testing.T) {
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -81,12 +105,11 @@ func TestTxPool_TxLimits(t *testing.T) {
 	err := pool.Add(tx)
 	require.Nil(t, err)
 
-	tx2 :=GetTx(2, 0, key1)
+	tx2 := GetTx(2, 0, key1)
 	err = pool.Add(tx2)
 	require.Nil(t, err)
 
-
-	err = pool.Add( GetTx(3, 2, key1))
+	err = pool.Add(GetTx(3, 2, key1))
 	require.NotNil(t, err)
 
 	err = pool.Add(GetTx(1, 0, key2))

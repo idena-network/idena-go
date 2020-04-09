@@ -73,10 +73,7 @@ func getPool() *TxPool {
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
 
-	return NewTxPool(appState, bus, &config.Mempool{
-		TxPoolExecutableSlots: -1,
-		TxPoolQueueSlots:      -1,
-	}, big.NewInt(0))
+	return NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), big.NewInt(0))
 }
 
 func TestSortedTxs_Remove(t *testing.T) {
@@ -114,4 +111,12 @@ func TestSortedTxs_Remove(t *testing.T) {
 
 	require.Equal(t, uint32(2), sortedTxs.txs[0].AccountNonce)
 	require.Equal(t, uint32(4), sortedTxs.txs[1].AccountNonce)
+
+
+	sortedTxs.Remove(&types.Transaction{
+		AccountNonce: 2,
+		Epoch:        1,
+	})
+
+	require.Len(t, sortedTxs.txs, 1)
 }
