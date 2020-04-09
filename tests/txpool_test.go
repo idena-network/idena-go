@@ -31,15 +31,15 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 
 	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
-	pool.Add(GetTx(3, 0, key1))
-	pool.Add(GetTx(1, 0, key1))
-	pool.Add(GetTx(2, 0, key1))
-	pool.Add(GetTx(6, 0, key2))
-	pool.Add(GetTx(5, 0, key2))
+	require.NoError(t, pool.Add(GetTx(3, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(1, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(2, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(6, 0, key2)))
+	require.NoError(t, pool.Add(GetTx(5, 0, key2)))
 
 	result := pool.BuildBlockTransactions()
 
-	require.Equal(t, 3, len(result))
+	require.Equal(t, 2, len(result))
 
 	for i := uint32(0); i < uint32(len(result)); i++ {
 		require.Equal(t, i+1, result[i].AccountNonce)

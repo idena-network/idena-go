@@ -155,7 +155,7 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 					return MempoolFullError
 				}
 			}
-			if len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+			if pool.cfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
 				return MempoolFullError
 			}
 		}
@@ -207,7 +207,7 @@ func (pool *TxPool) putToPending(tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 	set, ok := pool.pendingTxs[sender]
 	if !ok {
-		if len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+		if pool.cfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
 			return MempoolFullError
 		}
 		set = newTxMap(pool.cfg.TxPoolAddrQueueLimit)
@@ -453,14 +453,14 @@ func (pool *TxPool) createBuildingContext() *buildingContext {
 	pool.mutex.Lock()
 	globalEpoch := pool.appState.State.Epoch()
 	withPriorityTx := false
-	for _, tx := range pool.all.txs {
-		if tx.Epoch != globalEpoch {
-			continue
+	for sender, executable := range pool.executableTxs {
+		for _, tx := range executable.txs {
+			if tx.Epoch != globalEpoch {
+				continue
+			}
+			txs = append(txs, tx)
+			withPriorityTx = withPriorityTx || priorityTypes[tx.Type]
 		}
-		txs = append(txs, tx)
-		withPriorityTx = withPriorityTx || priorityTypes[tx.Type]
-	}
-	for sender := range pool.executableTxs {
 		if pool.appState.State.GetEpoch(sender) < globalEpoch {
 			curNoncesPerSender[sender] = 0
 		} else {
