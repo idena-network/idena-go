@@ -53,13 +53,17 @@ Custom json configuration can be used if `--config=<config file name>` parameter
   "IpfsConf": {
     "Profile": "server",
     "IpfsPort": 40405,
-    "BootNodes": []
+    "BootNodes": [],
+    "BlockPinThreshold": 0.3,
+    "FlipPinThreshold": 0.5
   },
   "Sync": {
     "FastSync": true
   }
 }
 ```
+
+By default, blocks and flips are pinned in local ipfs storage with 30% and 50% probability respectively. If you want to pin (save) locally all blocks and flips, set 1 for `BlockPinThreshold` and `FlipPinThreshold`.
 
 #### Local automine node
 

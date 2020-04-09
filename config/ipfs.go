@@ -12,4 +12,13 @@ type IpfsConfig struct {
 	GracePeriod        string
 	ReproviderInterval string
 	Profile            string
+	BlockPinThreshold  float32
+	FlipPinThreshold   float32
+}
+
+func GetDefaultIpfsConfig() *IpfsConfig {
+	return &IpfsConfig{
+		BlockPinThreshold: 0.3,
+		FlipPinThreshold:  0.5,
+	}
 }

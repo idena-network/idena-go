@@ -43,7 +43,7 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 	for _, item := range cases {
 		data := random.GetRandomBytes(uint32(item))
 
-		cid, err := proxy.Add(data)
+		cid, err := proxy.Add(data, false)
 
 		require.NoError(err)
 

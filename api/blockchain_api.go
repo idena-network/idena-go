@@ -153,6 +153,9 @@ type Syncing struct {
 
 func (api *BlockchainApi) Syncing() Syncing {
 	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers() || !api.baseApi.engine.Synced()
+	if api.bc.Config().Consensus.Automine {
+		isSyncing = false
+	}
 	current, highest := api.d.SyncProgress()
 	if !isSyncing {
 		highest = current

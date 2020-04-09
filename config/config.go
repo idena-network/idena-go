@@ -223,6 +223,12 @@ func MakeConfigFromFile(file string) (*Config, error) {
 
 func getDefaultConfig(dataDir string) *Config {
 
+	ipfsConfig := GetDefaultIpfsConfig()
+	ipfsConfig.DataDir = filepath.Join(dataDir, DefaultIpfsDataDir)
+	ipfsConfig.IpfsPort = DefaultIpfsPort
+	ipfsConfig.BootNodes = DefaultIpfsBootstrapNodes
+	ipfsConfig.SwarmKey = DefaultSwarmKey
+
 	return &Config{
 		DataDir: dataDir,
 		Network: 0x1, // testnet
@@ -237,12 +243,7 @@ func getDefaultConfig(dataDir string) *Config {
 			FirstCeremonyTime: DefaultCeremonyTime,
 			GodAddress:        common.HexToAddress(DefaultGodAddress),
 		},
-		IpfsConf: &IpfsConfig{
-			DataDir:   filepath.Join(dataDir, DefaultIpfsDataDir),
-			IpfsPort:  DefaultIpfsPort,
-			BootNodes: DefaultIpfsBootstrapNodes,
-			SwarmKey:  DefaultSwarmKey,
-		},
+		IpfsConf:   ipfsConfig,
 		Validation: &ValidationConfig{},
 		Sync: &SyncConfig{
 			FastSync:      true,
