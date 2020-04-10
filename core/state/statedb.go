@@ -159,7 +159,6 @@ func (s *StateDB) Clear() {
 	s.stateGlobalDirty = false
 	s.stateStatusSwitch = nil
 	s.stateStatusSwitchDirty = false
-	s.lock = sync.Mutex{}
 }
 
 func (s *StateDB) Version() int64 {
