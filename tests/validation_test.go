@@ -57,10 +57,10 @@ func Test_InvalidMaxFeeTx(t *testing.T) {
 	signedTx, _ := types.SignTx(tx, key) // tx size 97
 
 	// 97 * 1 < 190
-	require.Nil(t, validation.ValidateTx(appState, signedTx, big.NewInt(1), true))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, big.NewInt(1), false))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, big.NewInt(1), validation.InboundTx))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, big.NewInt(1), validation.InBlockTx))
 
 	// 97 * 2 > 190
-	require.Equal(t, validation.InvalidMaxFee, validation.ValidateTx(appState, signedTx, big.NewInt(2), false))
-	require.Equal(t, validation.InvalidMaxFee, validation.ValidateTx(appState, signedTx, big.NewInt(2), false))
+	require.Equal(t, validation.InvalidMaxFee, validation.ValidateTx(appState, signedTx, big.NewInt(2), validation.InBlockTx))
+	require.Equal(t, validation.InvalidMaxFee, validation.ValidateTx(appState, signedTx, big.NewInt(2), validation.InBlockTx))
 }
