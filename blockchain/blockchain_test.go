@@ -205,13 +205,13 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	signedTx2, _ := types.SignTx(tx2, key)
 
 	chain.appState.State.SetFeePerByte(chain.config.Consensus.MinFeePerByte)
-	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, false))
-	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
 
 	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
 
 	require.Nil(err)
-	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {

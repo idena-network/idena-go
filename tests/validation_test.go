@@ -30,12 +30,12 @@ func Test_BigFeeTx(t *testing.T) {
 	minFeePerByte := big.NewInt(1)
 
 	appState.State.SetFeePerByte(big.NewInt(2))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, true))
-	require.Equal(t, validation.BigFee, validation.ValidateTx(appState, signedTx, minFeePerByte, false))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
+	require.Equal(t, validation.BigFee, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
 
 	appState.State.SetFeePerByte(big.NewInt(1))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, true))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, false))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
 }
 
 func Test_InvalidMaxFeeTx(t *testing.T) {

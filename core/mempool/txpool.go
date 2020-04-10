@@ -96,6 +96,7 @@ func (pool *TxPool) addDeferredTx(tx *types.Transaction) {
 	pool.knownDeferredTxs.Add(tx.Hash())
 }
 
+// validate tx as inbound transaction
 func (pool *TxPool) Validate(tx *types.Transaction) error {
 	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
@@ -106,7 +107,7 @@ func (pool *TxPool) Validate(tx *types.Transaction) error {
 	if err := pool.checkLimits(tx); err != nil {
 		return err
 	}
-	return pool.validate(tx)
+	return pool.validate(tx, validation.InboundTx)
 }
 
 func (pool *TxPool) checkLimits(tx *types.Transaction) error {
@@ -164,13 +165,13 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 	return nil
 }
 
-func (pool *TxPool) validate(tx *types.Transaction) error {
+func (pool *TxPool) validate(tx *types.Transaction, txType validation.TxType) error {
 	appState := pool.appState.Readonly(pool.head.Height())
 
 	if appState == nil {
 		return errors.New("tx can't be validated")
 	}
-	return validation.ValidateTx(appState, tx, pool.minFeePerByte, true)
+	return validation.ValidateTx(appState, tx, pool.minFeePerByte, txType)
 }
 
 func (pool *TxPool) Add(tx *types.Transaction) error {
@@ -194,7 +195,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 		return nil
 	}
 
-	if err := pool.validate(tx); err != nil {
+	if err := pool.validate(tx, validation.InboundTx); err != nil {
 		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
@@ -403,7 +404,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 			continue
 		}
 
-		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, true); err != nil {
+		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, validation.MempoolTx); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
 				pool.Remove(tx)
 				continue

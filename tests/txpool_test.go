@@ -276,7 +276,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	var keys []*ecdsa.PrivateKey
 
 	var addresses []common.Address
-
+ё
 	for i := 0; i < 8; i++ {
 		key, _ := crypto.GenerateKey()
 		keys = append(keys, key)
