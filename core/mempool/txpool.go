@@ -273,15 +273,7 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 }
 
 func (pool *TxPool) GetPendingTransaction() []*types.Transaction {
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
-
-	var list []*types.Transaction
-
-	for _, tx := range pool.all.txs {
-		list = append(list, tx)
-	}
-	return list
+	return pool.all.List()
 }
 
 func (pool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
@@ -574,6 +566,17 @@ func (m *txMap) Sorted() []*types.Transaction {
 		}
 		return result[i].AccountNonce < result[j].AccountNonce
 	})
+	return result
+}
+
+func (m *txMap) List() []*types.Transaction {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	result := make([]*types.Transaction, 0, len(m.txs))
+
+	for _, tx := range m.txs {
+		result = append(result, tx)
+	}
 	return result
 }
 
