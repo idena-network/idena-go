@@ -100,5 +100,5 @@ func (ctx *buildingContext) addTxsToBlock() {
 }
 
 func (ctx *buildingContext) checkFee(tx *types.Transaction) bool {
-	return validation.ValidateFee(ctx.appState, tx, false) == nil
+	return validation.ValidateFee(ctx.appState, tx, validation.InBlockTx) == nil
 }

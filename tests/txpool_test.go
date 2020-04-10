@@ -29,17 +29,17 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
-	pool.Add(GetTx(3, 0, key1))
-	pool.Add(GetTx(1, 0, key1))
-	pool.Add(GetTx(2, 0, key1))
-	pool.Add(GetTx(6, 0, key2))
-	pool.Add(GetTx(5, 0, key2))
+	require.NoError(t, pool.Add(GetTx(3, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(1, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(2, 0, key1)))
+	require.NoError(t, pool.Add(GetTx(6, 0, key2)))
+	require.NoError(t, pool.Add(GetTx(5, 0, key2)))
 
 	result := pool.BuildBlockTransactions()
 
-	require.Equal(t, 3, len(result))
+	require.Equal(t, 2, len(result))
 
 	for i := uint32(0); i < uint32(len(result)); i++ {
 		require.Equal(t, i+1, result[i].AccountNonce)
@@ -62,6 +62,30 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	require.Equal(t, uint32(1), result[0].AccountNonce)
 }
 
+func TestTxPool_BuildBlockTransactions2(t *testing.T) {
+
+	keys := make([]*ecdsa.PrivateKey, 0)
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+	for i := 0; i < 2000; i++ {
+		key, _ := crypto.GenerateKey()
+		keys = append(keys, key)
+		alloc[crypto.PubkeyToAddress(key.PublicKey)] = config.GenesisAllocation{
+			Balance: balance,
+			State:   uint8(state.Verified),
+		}
+	}
+
+	_, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
+	app.State.SetValidationPeriod(state.ShortSessionPeriod)
+	for _, key := range keys {
+		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, (common.Hash{}).Bytes())))
+	}
+
+	result := pool.BuildBlockTransactions()
+	require.Equal(t, 2000, len(result))
+}
+
 func TestTxPool_TxLimits(t *testing.T) {
 	key1, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -75,19 +99,20 @@ func TestTxPool_TxLimits(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, _, pool, _ := newBlockchain(true, alloc, 3, 2)
+	_, _, pool, _ := newBlockchain(true, alloc, 1, 2, 1, 1)
 
 	tx := GetTx(1, 0, key1)
 	err := pool.Add(tx)
 	require.Nil(t, err)
 
-	err = pool.Add(GetTx(2, 1, key1))
+	tx2 := GetTx(2, 0, key1)
+	err = pool.Add(tx2)
 	require.Nil(t, err)
 
 	err = pool.Add(GetTx(3, 2, key1))
 	require.NotNil(t, err)
 
-	err = pool.Add(GetTx(4, 3, key2))
+	err = pool.Add(GetTx(1, 0, key2))
 	require.Nil(t, err)
 
 	// total limit
@@ -100,7 +125,12 @@ func TestTxPool_TxLimits(t *testing.T) {
 	require.NotNil(t, err)
 
 	pool.Remove(tx)
-	err = pool.Add(GetTx(7, 5, key2))
+	err = pool.Add(GetTx(2, 0, key2))
+	require.NotNil(t, err)
+
+	pool.Remove(tx2)
+
+	err = pool.Add(GetTx(2, 0, key2))
 	require.Nil(t, err)
 }
 
@@ -114,7 +144,7 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 		Balance: balance,
 	}
 
-	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -153,7 +183,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		Balance: getAmount(200),
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -11, -1)
 
 	tx1 := GetTypesTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
 	err := pool.Add(tx1)
@@ -246,7 +276,6 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	var keys []*ecdsa.PrivateKey
 
 	var addresses []common.Address
-
 	for i := 0; i < 8; i++ {
 		key, _ := crypto.GenerateKey()
 		keys = append(keys, key)
@@ -259,7 +288,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 		}
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1)
+	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
 	// Current epoch = 1
 	app.State.IncEpoch()
@@ -362,8 +391,8 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	}
 }
 
-func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, totalTxLimit int, addrTxLimit int) (*blockchain.TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
+func newBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation, queueSlots int, executableSlots int, executableLimit int, queueLimit int) (*blockchain.TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0)
-	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, totalTxLimit, addrTxLimit)
+	return blockchain.NewTestBlockchainWithConfig(withIdentity, conf, &config.ValidationConfig{}, alloc, queueSlots, executableSlots, executableLimit, queueLimit)
 }

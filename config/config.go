@@ -35,6 +35,7 @@ type Config struct {
 	Sync             *SyncConfig
 	OfflineDetection *OfflineDetectionConfig
 	Blockchain       *BlockchainConfig
+	Mempool          *Mempool
 }
 
 func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) error {
@@ -253,6 +254,7 @@ func getDefaultConfig(dataDir string) *Config {
 			StoreCertRange: DefaultStoreCertRange,
 			BurnTxRange:    DefaultBurntTxRange,
 		},
+		Mempool: GetDefaultMempoolConfig(),
 	}
 }
 

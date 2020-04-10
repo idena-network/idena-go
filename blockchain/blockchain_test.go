@@ -205,13 +205,13 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	signedTx2, _ := types.SignTx(tx2, key)
 
 	chain.appState.State.SetFeePerByte(chain.config.Consensus.MinFeePerByte)
-	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, false))
-	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
 
 	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
 
 	require.Nil(err)
-	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, false))
+	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
@@ -310,7 +310,7 @@ func Test_CalculatePenalty(t *testing.T) {
 func Test_applyNextBlockFee(t *testing.T) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
-	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1)
+	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 
 	appState := chain.appState.Readonly(1)
 

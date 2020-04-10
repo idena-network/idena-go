@@ -180,9 +180,10 @@ func (s *IdentityStateDB) Reset() {
 }
 
 func (s *IdentityStateDB) Clear() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.stateIdentities = make(map[common.Address]*stateApprovedIdentity)
 	s.stateIdentitiesDirty = make(map[common.Address]struct{})
-	s.lock = sync.Mutex{}
 }
 
 // Retrieve a state object or create a new state object if nil

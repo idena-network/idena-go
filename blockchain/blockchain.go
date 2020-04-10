@@ -690,7 +690,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	fee := new(big.Int)
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, validation.InBlockTx); err != nil {
 			return nil, nil, err
 		}
 		if fee, err = chain.ApplyTxOnState(appState, tx, statsCollector); err != nil {
@@ -1104,7 +1104,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
 	for _, tx := range txs {
-		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, false); err != nil {
+		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, validation.InBlockTx); err != nil {
 			continue
 		}
 		if fee, err := chain.ApplyTxOnState(appState, tx, nil); err == nil {

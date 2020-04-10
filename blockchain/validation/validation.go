@@ -20,6 +20,14 @@ const (
 	GodValidUntilNetworkSize = 10
 )
 
+type TxType int
+
+const (
+	InBlockTx = 1
+	MempoolTx = 2
+	InboundTx = 3
+)
+
 var (
 	NodeAlreadyActivated = errors.New("node is already in validator set")
 	InvalidSignature     = errors.New("invalid signature")
@@ -58,7 +66,7 @@ var (
 	}
 )
 
-type validator func(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error
+type validator func(appState *appstate.AppState, tx *types.Transaction, txType TxType) error
 
 func init() {
 	validators = map[types.TxType]validator{
@@ -90,7 +98,7 @@ func checkIfNonNegative(value *big.Int) error {
 	return nil
 }
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, mempoolTx bool) error {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -131,7 +139,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 	}
 
 	currentPeriod := appState.State.ValidationPeriod()
-	if _, ok := nonCeremonialTxs[tx.Type]; ok && mempoolTx && (currentPeriod == state.FlipLotteryPeriod || currentPeriod == state.ShortSessionPeriod) {
+	if _, ok := nonCeremonialTxs[tx.Type]; ok && txType != InBlockTx && (currentPeriod == state.FlipLotteryPeriod || currentPeriod == state.ShortSessionPeriod) {
 		return LateTx
 	}
 
@@ -139,16 +147,16 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 	if !ok {
 		return nil
 	}
-	if err := validator(appState, tx, mempoolTx); err != nil {
+	if err := validator(appState, tx, txType); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	var cost *big.Int
-	if mempoolTx {
+	if txType != InBlockTx {
 		cost = calculateMaxCost(tx)
 	} else {
 		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
@@ -166,8 +174,8 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 	return nil
 }
 
-func ValidateFee(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
-	if mempoolTx {
+func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	if txType != InBlockTx {
 		return nil
 	}
 	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
@@ -186,18 +194,18 @@ func calculateMaxCost(tx *types.Transaction) *big.Int {
 }
 
 // specific validation for sendTx
-func validateSendTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSendTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil {
 		return RecipientRequired
 	}
 
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
 
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 
@@ -205,7 +213,7 @@ func validateSendTx(appState *appstate.AppState, tx *types.Transaction, mempoolT
 }
 
 // specific validation for approving tx
-func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if len(tx.Payload) == 0 {
@@ -223,10 +231,10 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.ValidatorsCache.Contains(*tx.To) {
@@ -247,16 +255,16 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, me
 	return nil
 }
 
-func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	godAddress := appState.State.GodAddress()
@@ -279,16 +287,16 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, me
 	return nil
 }
 
-func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
@@ -332,22 +340,22 @@ func validateSubmitFlipTx(appState *appstate.AppState, tx *types.Transaction, me
 	return nil
 }
 
-func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if len(tx.Payload) != common.HashLength {
 		return InvalidPayload
 	}
-	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
@@ -360,22 +368,22 @@ func validateSubmitAnswersHashTx(appState *appstate.AppState, tx *types.Transact
 	return nil
 }
 
-func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
+	if txType == InboundTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
 		return LateTx
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
-	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
+	if appState.State.ValidationPeriod() < state.LongSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
 
@@ -412,22 +420,22 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 	return nil
 }
 
-func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if mempoolTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
+	if txType == InboundTx && appState.State.ValidationPeriod() == state.AfterLongSessionPeriod {
 		return LateTx
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
-	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && !mempoolTx {
+	if appState.State.ValidationPeriod() < state.ShortSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
@@ -440,19 +448,19 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 	return nil
 }
 
-func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
-	if appState.State.ValidationPeriod() < state.LongSessionPeriod && !mempoolTx {
+	if appState.State.ValidationPeriod() < state.LongSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
 	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
@@ -464,16 +472,16 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, memp
 	return nil
 }
 
-func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
@@ -503,17 +511,17 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	return nil
 }
 
-func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
 	var txFee *big.Int
-	if mempoolTx {
+	if txType != InBlockTx {
 		txFee = tx.MaxFeeOrZero()
 	} else {
 		txFee = fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
@@ -534,15 +542,15 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	return nil
 }
 
-func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
@@ -555,7 +563,7 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, m
 	return nil
 }
 
-func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
@@ -563,10 +571,10 @@ func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transacti
 	if sender != appState.State.GodAddress() {
 		return InvalidSender
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
@@ -576,15 +584,15 @@ func validateChangeGodAddressTx(appState *appstate.AppState, tx *types.Transacti
 	return nil
 }
 
-func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
 	sender, _ := types.Sender(tx)
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	attachment := attachments.ParseBurnAttachment(tx)
@@ -594,15 +602,15 @@ func validateBurnTx(appState *appstate.AppState, tx *types.Transaction, mempoolT
 	return nil
 }
 
-func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
 	sender, _ := types.Sender(tx)
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	attachment := attachments.ParseChangeProfileAttachment(tx)
@@ -612,16 +620,16 @@ func validateChangeProfileTx(appState *appstate.AppState, tx *types.Transaction,
 	return nil
 }
 
-func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, mempoolTx bool) error {
+func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if tx.To != nil {
 		return InvalidRecipient
 	}
-	if err := ValidateFee(appState, tx, mempoolTx); err != nil {
+	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, mempoolTx); err != nil {
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
 		return err
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {

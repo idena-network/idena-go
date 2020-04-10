@@ -26,15 +26,15 @@ func Test_ValidateDeleteFlipTx(t *testing.T) {
 	}
 
 	tx := buildTx(nil)
-	err := validation.ValidateTx(appState, tx, minFeePerByte, false)
+	err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx)
 	require.Equal(t, validation.FlipIsMissing, err)
 
 	tx = buildTx([]byte{0x1, 0x2, 0x3})
-	err = validation.ValidateTx(appState, tx, minFeePerByte, false)
+	err = validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx)
 	require.Equal(t, validation.FlipIsMissing, err)
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	appState.State.AddFlip(addr, []byte{0x1, 0x2, 0x3}, 0)
-	err = validation.ValidateTx(appState, tx, minFeePerByte, false)
+	err = validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx)
 	require.Equal(t, nil, err)
 }
