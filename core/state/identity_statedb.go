@@ -180,6 +180,8 @@ func (s *IdentityStateDB) Reset() {
 }
 
 func (s *IdentityStateDB) Clear() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.stateIdentities = make(map[common.Address]*stateApprovedIdentity)
 	s.stateIdentitiesDirty = make(map[common.Address]struct{})
 }

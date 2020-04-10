@@ -151,6 +151,8 @@ func (s *StateDB) Load(height uint64) error {
 }
 
 func (s *StateDB) Clear() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.stateAccounts = make(map[common.Address]*stateAccount)
 	s.stateAccountsDirty = make(map[common.Address]struct{})
 	s.stateIdentities = make(map[common.Address]*stateIdentity)
@@ -845,7 +847,6 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
 		s.stateStatusSwitchDirty = false
 	}
-
 
 	// if epoch has changed
 	if s.epochDirty {
