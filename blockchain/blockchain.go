@@ -400,10 +400,10 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	// update state
 	appState.State.AddBalance(coinbase, balanceAdd)
 	appState.State.AddStake(coinbase, stakeAdd)
-	collector.CompleteBalanceUpdate(statsCollector, appState)
 	if penaltySub != nil {
 		appState.State.SubPenalty(coinbase, penaltySub)
 	}
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
 	collector.AfterAddStake(statsCollector, coinbase, stake, appState)
 	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
@@ -562,7 +562,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			appState.State.SetInvites(addr, 0)
 		}
 		collector.BeforeClearPenalty(statsCollector, addr, appState)
+		collector.BeginEpochPenaltyResetBalanceUpdate(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.State.ClearFlips(addr)
 		appState.State.ResetValidationTxBits(addr)
 
@@ -642,7 +644,9 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
 		collector.BeforeSetPenalty(statsCollector, addr, appState)
+		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
 		appState.State.SetPenalty(addr, math.ToInt(res))
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
 
 	appState.IdentityState.SetOnline(addr, false)
@@ -680,10 +684,10 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)
 		appState.State.AddStake(addr, stakeAdd)
-		collector.CompleteBalanceUpdate(statsCollector, appState)
 		if penaltySub != nil {
 			appState.State.SubPenalty(addr, penaltySub)
 		}
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, r)
 		collector.AddMintedCoins(statsCollector, s)
 		collector.AfterAddStake(statsCollector, addr, s, appState)

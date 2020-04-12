@@ -57,6 +57,8 @@ type StatsCollector interface {
 	BeginCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginPenaltyBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginEpochPenaltyResetBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	CompleteBalanceUpdate(appState *appstate.AppState)
 
 	SetCommitteeRewardShare(amount *big.Int)
@@ -466,6 +468,28 @@ func BeginFailedValidationBalanceUpdate(c StatsCollector, addr common.Address, a
 		return
 	}
 	c.BeginFailedValidationBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginPenaltyBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginPenaltyBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginPenaltyBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginEpochPenaltyResetBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginEpochPenaltyResetBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginEpochPenaltyResetBalanceUpdate(addr, appState)
 }
 
 func (c *collectorStub) CompleteBalanceUpdate(appState *appstate.AppState) {
