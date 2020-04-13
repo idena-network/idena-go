@@ -24,6 +24,13 @@ var (
 	maxFloat *big.Float
 )
 
+type FlipKeysPool interface {
+	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
+	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
+	GetFlipPackagesHashes() []common.Hash128
+	GetFlipKeys() []*types.PublicFlipKey
+}
+
 func init() {
 	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
 }
