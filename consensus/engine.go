@@ -101,22 +101,25 @@ func (engine *Engine) GetProcess() string {
 	return engine.process
 }
 
-func (engine *Engine) ReadonlyAppState() *appstate.AppState {
+func (engine *Engine) ReadonlyAppState() (*appstate.AppState, error) {
 	currentBlock := engine.chain.Head.Height()
 	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
-		return engine.appStateCache.appState
+		return engine.appStateCache.appState, nil
 	}
 	engine.appStateCacheMutex.Lock()
 	defer engine.appStateCacheMutex.Unlock()
 	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
-		return engine.appStateCache.appState
+		return engine.appStateCache.appState, nil
 	}
-	s := engine.appState.Readonly(currentBlock)
+	s, err := engine.appState.Readonly(currentBlock)
+	if err != nil {
+		return nil, err
+	}
 	engine.appStateCache = &appStateCache{
 		block:    currentBlock,
 		appState: s,
 	}
-	return s
+	return s, nil
 }
 
 func (engine *Engine) alignTime() {

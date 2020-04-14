@@ -28,14 +28,14 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
 		defaultTree:   true,
 	}
 }
-func (s *AppState) Readonly(height uint64) *AppState {
-	st, err := s.State.Readonly(height)
+func (s *AppState) ForCheck(height uint64) (*AppState, error) {
+	st, err := s.State.ForCheck(height)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	identityState, err := s.IdentityState.Readonly(height)
+	identityState, err := s.IdentityState.ForCheck(height)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	validatorsCache := s.ValidatorsCache.Clone()
@@ -43,22 +43,53 @@ func (s *AppState) Readonly(height uint64) *AppState {
 		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
 		validatorsCache.Load()
 	}
-
+	nonceClone, err := s.NonceCache.Clone(st)
+	if err != nil {
+		return nil, err
+	}
 	return &AppState{
 		State:           st,
 		IdentityState:   identityState,
 		ValidatorsCache: validatorsCache,
-		NonceCache:      s.NonceCache.Clone(st),
-	}
+		NonceCache:      nonceClone,
+	}, nil
 }
 
-func (s *AppState) ForCheckWithNewCache(height uint64) (*AppState, error) {
-
-	state, err := s.State.ForCheck(height)
+func (s *AppState) Readonly(height uint64) (*AppState, error) {
+	st, err := s.State.Readonly(int64(height))
 	if err != nil {
 		return nil, err
 	}
-	identityState, err := s.IdentityState.ForCheck(height)
+	identityState, err := s.IdentityState.Readonly(height)
+	if err != nil {
+		return nil, err
+	}
+
+	validatorsCache := s.ValidatorsCache.Clone()
+	if validatorsCache.Height() != height {
+		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
+		validatorsCache.Load()
+	}
+	nonceClone, err := s.NonceCache.Clone(st)
+	if err != nil {
+		return nil, err
+	}
+	return &AppState{
+		State:           st,
+		IdentityState:   identityState,
+		ValidatorsCache: validatorsCache,
+		NonceCache:      nonceClone,
+	}, nil
+}
+
+// loads appState
+func (s *AppState) ForCheckWithOverwrite(height uint64) (*AppState, error) {
+
+	state, err := s.State.ForCheckWithOverwrite(height)
+	if err != nil {
+		return nil, err
+	}
+	identityState, err := s.IdentityState.ForCheckWithOverwrite(height)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +113,11 @@ func (s *AppState) Initialize(height uint64) error {
 	}
 	s.ValidatorsCache = validators.NewValidatorsCache(s.IdentityState, s.State.GodAddress())
 	s.ValidatorsCache.Load()
-	s.NonceCache = state.NewNonceCache(s.State)
+	cache, err := state.NewNonceCache(s.State)
+	if err != nil {
+		return err
+	}
+	s.NonceCache = cache
 
 	return nil
 }

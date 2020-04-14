@@ -38,7 +38,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	}
 }
 
-func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
+func (s *IdentityStateDB) ForCheckWithOverwrite(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
@@ -55,7 +55,7 @@ func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	}, nil
 }
 
-func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
+func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
@@ -64,6 +64,22 @@ func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
 
 	return &IdentityStateDB{
 		db:                   db,
+		original:             s.original,
+		tree:                 tree,
+		stateIdentities:      make(map[common.Address]*stateApprovedIdentity),
+		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		log:                  log.New(),
+	}, nil
+}
+
+func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
+	tree := NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), s.tree.KeepEvery(), s.tree.KeepRecent())
+	if _, err := tree.LazyLoad(int64(height)); err != nil {
+		return nil, err
+	}
+
+	return &IdentityStateDB{
+		db:                   s.db,
 		original:             s.original,
 		tree:                 tree,
 		stateIdentities:      make(map[common.Address]*stateApprovedIdentity),

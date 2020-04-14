@@ -6,29 +6,36 @@ import (
 )
 
 type AsyncKeysPool struct {
-	inner *KeysPool
-	queue chan *types.PrivateFlipKeysPackage
+	inner        *KeysPool
+	privateQueue chan *types.PrivateFlipKeysPackage
+	publicQueue  chan *types.PublicFlipKey
 }
 
 func NewAsyncKeysPool(inner *KeysPool) FlipKeysPool {
 	pool := &AsyncKeysPool{
-		inner: inner,
-		queue: make(chan *types.PrivateFlipKeysPackage, 20000),
+		inner:        inner,
+		privateQueue: make(chan *types.PrivateFlipKeysPackage, 20000),
+		publicQueue:  make(chan *types.PublicFlipKey, 20000),
 	}
-	go pool.loop()
+	go pool.readPrivateQueue()
+	go pool.readPublicQueue()
 	return pool
 }
 
-func (pool *AsyncKeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error {
+func (pool *AsyncKeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, _ bool) error {
 	select {
-	case pool.queue <- keysPackage:
+	case pool.privateQueue <- keysPackage:
 	default:
 	}
 	return nil
 }
 
-func (pool *AsyncKeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
-	return pool.inner.AddPublicFlipKey(key, own)
+func (pool *AsyncKeysPool) AddPublicFlipKey(key *types.PublicFlipKey, _ bool) error {
+	select {
+	case pool.publicQueue <- key:
+	default:
+	}
+	return nil
 }
 
 func (pool *AsyncKeysPool) GetFlipPackagesHashes() []common.Hash128 {
@@ -39,11 +46,40 @@ func (pool *AsyncKeysPool) GetFlipKeys() []*types.PublicFlipKey {
 	return pool.inner.GetFlipKeys()
 }
 
-func (pool *AsyncKeysPool) loop() {
+func (pool *AsyncKeysPool) readPrivateQueue() {
 	for {
-		select {
-		case p := <-pool.queue:
-			pool.inner.AddPrivateKeysPackage(p, false)
+
+		batch := make([]*types.PrivateFlipKeysPackage, 1)
+		batch[0] = <-pool.privateQueue
+
+	batchLoop:
+		for i := 0; i < batchSize-1; i++ {
+			select {
+			case tx := <-pool.privateQueue:
+				batch = append(batch, tx)
+			default:
+				break batchLoop
+			}
 		}
+		pool.inner.AddPrivateFlipKeysPackages(batch)
+	}
+}
+
+func (pool *AsyncKeysPool) readPublicQueue() {
+	for {
+
+		batch := make([]*types.PublicFlipKey, 1)
+		batch[0] = <-pool.publicQueue
+
+	batchLoop:
+		for i := 0; i < batchSize-1; i++ {
+			select {
+			case tx := <-pool.publicQueue:
+				batch = append(batch, tx)
+			default:
+				break batchLoop
+			}
+		}
+		pool.inner.AddPublicFlipKeys(batch)
 	}
 }

@@ -18,20 +18,28 @@ type NonceCache struct {
 	accounts map[common.Address]map[uint16]*account
 }
 
-func NewNonceCache(sdb *StateDB) *NonceCache {
+func NewNonceCache(sdb *StateDB) (*NonceCache, error) {
+	readonly, err := sdb.Readonly(-1)
+	if err != nil {
+		return nil, err
+	}
 	return &NonceCache{
-		StateDB:  sdb.MemoryState(),
+		StateDB:  readonly,
 		mu:       &sync.RWMutex{},
 		accounts: make(map[common.Address]map[uint16]*account),
-	}
+	}, nil
 }
 
-func (ns *NonceCache) Clone(db *StateDB) *NonceCache {
+func (ns *NonceCache) Clone(db *StateDB) (*NonceCache, error) {
+	readonly, err := db.Readonly(-1)
+	if err != nil {
+		return nil, err
+	}
 	return &NonceCache{
-		StateDB:  db.MemoryState(),
+		StateDB:  readonly,
 		mu:       ns.mu,
 		accounts: ns.accounts,
-	}
+	}, nil
 }
 
 // GetNonce returns the canonical nonce for the managed or unmanaged account.

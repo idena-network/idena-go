@@ -42,7 +42,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
-	appState := chain.appState.Readonly(1)
+	appState, _ := chain.appState.ForCheck(1)
 	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, nil)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
@@ -312,7 +312,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 
-	appState := chain.appState.Readonly(1)
+	appState, _ := chain.appState.ForCheck(1)
 
 	block := generateBlock(4, 10000) // block size 770008
 	chain.applyNextBlockFee(appState, block)

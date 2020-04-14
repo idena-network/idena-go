@@ -2,6 +2,8 @@ package mempool
 
 import "github.com/idena-network/idena-go/blockchain/types"
 
+const batchSize = 10
+
 type AsyncTxPool struct {
 	txPool *TxPool
 	queue  chan *types.Transaction
@@ -30,9 +32,19 @@ func (pool *AsyncTxPool) GetPendingTransaction() []*types.Transaction {
 
 func (pool *AsyncTxPool) loop() {
 	for {
-		select {
-		case tx := <-pool.queue:
-			pool.txPool.Add(tx)
+
+		batch := make([]*types.Transaction, 1)
+		batch[0] = <-pool.queue
+
+	batchLoop:
+		for i := 0; i < batchSize-1; i++ {
+			select {
+			case tx := <-pool.queue:
+				batch = append(batch, tx)
+			default:
+				break batchLoop
+			}
 		}
+		pool.txPool.AddTxs(batch)
 	}
 }

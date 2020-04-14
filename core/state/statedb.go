@@ -95,7 +95,7 @@ func NewLazy(db dbm.DB) *StateDB {
 	}
 }
 
-func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
+func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
@@ -113,7 +113,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	}, nil
 }
 
-func (s *StateDB) Readonly(height uint64) (*StateDB, error) {
+func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
@@ -130,19 +130,20 @@ func (s *StateDB) Readonly(height uint64) (*StateDB, error) {
 	}, nil
 }
 
-func (s *StateDB) MemoryState() *StateDB {
-	tree := NewMutableTree(s.db)
-	tree.Load()
+func (s *StateDB) Readonly(height int64) (*StateDB, error) {
+	tree := NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), s.tree.KeepEvery(), s.tree.KeepRecent())
+	if _, err := tree.LazyLoad(height); err != nil {
+		return nil, err
+	}
 	return &StateDB{
-		original:             s.original,
 		db:                   s.db,
-		tree:                 tree.GetImmutable(),
+		tree:                 tree,
 		stateAccounts:        make(map[common.Address]*stateAccount),
 		stateAccountsDirty:   make(map[common.Address]struct{}),
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *StateDB) Load(height uint64) error {
