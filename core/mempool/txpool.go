@@ -178,6 +178,7 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 	appState, err := pool.appState.Readonly(pool.head.Height())
 
 	if err != nil {
+		pool.log.Warn("txpool: failed to create readonly appState", "err", err)
 		return
 	}
 	for _, tx := range txs {

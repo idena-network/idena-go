@@ -306,6 +306,7 @@ func (p *KeysPool) AddPublicFlipKeys(batch []*types.PublicFlipKey) {
 	appState, err := p.appState.Readonly(p.head.Height())
 
 	if err != nil {
+		p.log.Warn("keyspool.AddPublicFlipKeys: failed to create readonly appState", "err", err)
 		return
 	}
 
@@ -318,6 +319,7 @@ func (p *KeysPool) AddPrivateFlipKeysPackages(batch []*types.PrivateFlipKeysPack
 	appState, err := p.appState.Readonly(p.head.Height())
 
 	if err != nil {
+		p.log.Warn("keyspool.AddPrivateFlipKeysPackages: failed to create readonly appState", "err", err)
 		return
 	}
 
