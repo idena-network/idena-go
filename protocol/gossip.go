@@ -47,7 +47,7 @@ type IdenaGossipHandler struct {
 	pushPullManager *PushPullManager
 
 	txpool              mempool.TransactionPool
-	flipKeyPool         *mempool.KeysPool
+	flipKeyPool         mempool.FlipKeysPool
 	flipper             *flip.Flipper
 	txChan              chan *events.NewTxEvent
 	flipKeyChan         chan *events.NewFlipKeyEvent
@@ -87,7 +87,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		flipKeysPackageChan: make(chan *events.NewFlipKeysPackageEvent, 200),
 		flipper:             fp,
 		bus:                 bus,
-		flipKeyPool:         flipKeyPool,
+		flipKeyPool:         mempool.NewAsyncKeysPool(flipKeyPool),
 		appVersion:          appVersion,
 		log:                 log.New(),
 		pendingPeers:        make(map[peer.ID]struct{}),
