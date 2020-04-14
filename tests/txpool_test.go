@@ -76,8 +76,14 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 		}
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
+	chain, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
 	app.State.SetValidationPeriod(state.ShortSessionPeriod)
+	app.Commit(nil)
+
+	block := chain.GenerateEmptyBlock()
+	chain.Head = block.Header
+	pool.ResetTo(block)
+
 	for _, key := range keys {
 		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, (common.Hash{}).Bytes())))
 	}
@@ -288,11 +294,16 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 		}
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
 	// Current epoch = 1
 	app.State.IncEpoch()
+	app.State.SetValidationPeriod(state.LongSessionPeriod)
 	app.Commit(nil)
+
+	block := chain.GenerateEmptyBlock()
+	chain.Head = block.Header
+	pool.ResetTo(block)
 
 	addressIndex := 0
 	// Prev epoch
