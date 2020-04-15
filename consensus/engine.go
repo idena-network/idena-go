@@ -116,7 +116,7 @@ func (engine *Engine) ReadonlyAppState() (*appstate.AppState, error) {
 		return nil, err
 	}
 	engine.appStateCache = &appStateCache{
-		block:    currentBlock,
+		block:    uint64(s.State.Version()),
 		appState: s,
 	}
 	return s, nil
