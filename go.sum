@@ -242,6 +242,8 @@ github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed h1:
 github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed/go.mod h1:Qqvq6JH/oMZGwqs3N1Fqhv8NVhrdYcO0BW4wssv21LA=
 github.com/idena-network/iavl v0.12.3-0.20200120102243-63464c8983b7 h1:uNcNrosbcT53pMHMuIONssPnUHV+G67Ju2VfZr76yaQ=
 github.com/idena-network/iavl v0.12.3-0.20200120102243-63464c8983b7/go.mod h1:7nSUPdrsHEZ2nNZa+9gaIrcJciWd1jCQZXtcyARU82k=
+github.com/idena-network/iavl v0.12.3-0.20200414113415-041d1524315e h1:ZCfuq5h0G3FDhkAJ5kmkuDVQnSrRjdlz4nnf8Ba7Ctk=
+github.com/idena-network/iavl v0.12.3-0.20200414113415-041d1524315e/go.mod h1:7nSUPdrsHEZ2nNZa+9gaIrcJciWd1jCQZXtcyARU82k=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/ipfs/bbloom v0.0.1 h1:s7KkiBPfxCeDVo47KySjK0ACPc5GJRUxFpdyWEuDjhw=
 github.com/ipfs/bbloom v0.0.1/go.mod h1:oqo8CVWsJFMOZqTglBG4wydCE4IQA/G2/SEofB0rjUI=

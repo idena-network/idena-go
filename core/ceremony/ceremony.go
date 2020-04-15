@@ -258,8 +258,12 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 				select {
 				case <-ticker.C:
 					if time.Now().UTC().After(validationTime) {
-						vc.startShortSession(vc.appState.Readonly(vc.chain.Head.Height()))
-						vc.log.Info("Timer triggered")
+						if appState, err := vc.appState.Readonly(vc.chain.Head.Height()); err == nil {
+							vc.startShortSession(appState)
+							vc.log.Info("Timer triggered")
+						} else {
+							vc.log.Error("Can not start short session with timer", "err", err)
+						}
 						return
 					}
 				case <-ctx.Done():

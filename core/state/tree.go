@@ -195,6 +195,10 @@ func (t *MutableTree) AvailableVersions() []int {
 	return t.tree.AvailableVersions()
 }
 
+func (t *MutableTree) LazyLoad(version int64) (int64, error) {
+	return t.tree.LazyLoadVersion(version)
+}
+
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
 }

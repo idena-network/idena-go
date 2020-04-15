@@ -39,7 +39,8 @@ type KeysPool struct {
 	db                        dbm.DB
 	appState                  *appstate.AppState
 	flipKeys                  map[common.Address]*types.PublicFlipKey
-	mutex                     sync.Mutex
+	publicKeyMutex            sync.Mutex
+	privateKeysMutex          sync.Mutex
 	bus                       eventbus.Bus
 	head                      *types.Header
 	log                       log.Logger
@@ -85,16 +86,16 @@ func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
 }
 
 func (p *KeysPool) Has(hash common.Hash128) bool {
-	p.mutex.Lock()
+	p.privateKeysMutex.Lock()
 	_, ok := p.flipKeyPackagesByHash[hash]
-	p.mutex.Unlock()
+	p.privateKeysMutex.Unlock()
 	return ok
 }
 
 func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
-	p.mutex.Lock()
+	p.privateKeysMutex.Lock()
 	value, ok := p.flipKeyPackagesByHash[hash]
-	p.mutex.Unlock()
+	p.privateKeysMutex.Unlock()
 	return value, ok
 }
 
@@ -104,86 +105,95 @@ func (p *KeysPool) MaxPulls() uint32 {
 
 func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
 
-	err := func() error {
-		p.mutex.Lock()
-		defer p.mutex.Unlock()
-
-		hash := key.Hash()
-
-		sender, _ := types.SenderFlipKey(key)
-
-		if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
-			return errors.New("sender has already published his key")
-		}
-
-		appState := p.appState.Readonly(p.head.Height())
-
-		if err := validateFlipKey(appState, key); err != nil {
-			log.Warn("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
-			return err
-		}
-
-		p.flipKeys[sender] = key
-
-		p.appState.EvidenceMap.NewFlipsKey(sender)
-
-		return nil
-	}()
-
+	appState, err := p.appState.Readonly(p.head.Height())
 	if err != nil {
 		return err
 	}
+
+	if err := p.putPublicFlipKey(key, appState, own); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate.AppState, own bool) error {
+	p.publicKeyMutex.Lock()
+	defer p.publicKeyMutex.Unlock()
+
+	hash := key.Hash()
+
+	sender, _ := types.SenderFlipKey(key)
+
+	if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
+		return errors.New("sender has already published his key")
+	}
+
+	if err := validateFlipKey(appState, key); err != nil {
+		log.Trace("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
+		return err
+	}
+
+	p.flipKeys[sender] = key
+
+	p.appState.EvidenceMap.NewFlipsKey(sender)
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
 		Key: key,
 		Own: own,
 	})
-
 	return nil
 }
 
 func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error {
 
+	sender, _ := types.SenderFlipKeysPackage(keysPackage)
+
+	appState, err := p.appState.Readonly(p.head.Height())
+	if err != nil {
+		return err
+	}
+
+	err = p.putPrivateFlipKeysPackage(keysPackage, appState, own)
+
+	if err != nil {
+		log.Trace("Unable to add private keys package", "err", err, "sender", sender.Hex())
+		return err
+	}
+
+	return err
+}
+
+func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysPackage, appState *appstate.AppState, own bool) error {
+
 	hash := keysPackage.Hash()
 	sender, _ := types.SenderFlipKeysPackage(keysPackage)
 
-	err := func() error {
-		p.mutex.Lock()
-		defer p.mutex.Unlock()
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
 
-		if old, ok := p.flipKeyPackages[sender]; ok && old.Epoch >= keysPackage.Epoch {
-			return errors.New("sender has already published his keys package")
-		}
+	if old, ok := p.flipKeyPackages[sender]; ok && old.Epoch >= keysPackage.Epoch {
+		return errors.New("sender has already published his keys package")
+	}
 
-		appState := p.appState.Readonly(p.head.Height())
-
-		if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
-			log.Warn("PrivateFLipKeysPackage is not valid", "hash", hash.Hex(), "err", err)
-			return err
-		}
-
-		p.flipKeyPackages[sender] = keysPackage
-		p.flipKeyPackagesByHash[keysPackage.Hash128()] = keysPackage
-
-		return nil
-	}()
-
-	if err != nil {
-		log.Warn("Unable to add private keys package", "err", err, "sender", sender.Hex())
+	if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
+		log.Trace("PrivateFLipKeysPackage is not valid", "hash", hash.Hex(), "err", err)
 		return err
 	}
+
+	p.flipKeyPackages[sender] = keysPackage
+	p.flipKeyPackagesByHash[keysPackage.Hash128()] = keysPackage
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
 		Key: keysPackage,
 		Own: own,
 	})
-
 	return nil
 }
 
 func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.publicKeyMutex.Lock()
+	defer p.publicKeyMutex.Unlock()
 
 	var list []*types.PublicFlipKey
 
@@ -194,8 +204,8 @@ func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
 }
 
 func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
 
 	var list []common.Hash128
 
@@ -206,13 +216,12 @@ func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
 }
 
 func (p *KeysPool) GetPublicFlipKey(address common.Address) *ecies.PrivateKey {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
 	return p.getPublicFlipKey(address)
 }
 
 func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
+	p.publicKeyMutex.Lock()
+	defer p.publicKeyMutex.Unlock()
 	key, ok := p.flipKeys[address]
 	if !ok {
 		return nil
@@ -223,8 +232,8 @@ func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
 }
 
 func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
 
 	if data, ok := p.encryptedPrivateKeysCache[address]; ok {
 		return data
@@ -272,8 +281,11 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 }
 
 func (p *KeysPool) Clear() {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.privateKeysMutex.Lock()
+	p.publicKeyMutex.Lock()
+
+	defer p.privateKeysMutex.Unlock()
+	defer p.publicKeyMutex.Unlock()
 
 	p.cancelLoadingCtx()
 	p.privateKeyIndexes = nil
@@ -285,9 +297,35 @@ func (p *KeysPool) Clear() {
 }
 
 func (p *KeysPool) InitializePrivateKeyIndexes(indexes map[common.Address]int) {
-	p.mutex.Lock()
+	p.privateKeysMutex.Lock()
 	p.privateKeyIndexes = indexes
-	p.mutex.Unlock()
+	p.privateKeysMutex.Unlock()
+}
+
+func (p *KeysPool) AddPublicFlipKeys(batch []*types.PublicFlipKey) {
+	appState, err := p.appState.Readonly(p.head.Height())
+
+	if err != nil {
+		p.log.Warn("keyspool.AddPublicFlipKeys: failed to create readonly appState", "err", err)
+		return
+	}
+
+	for _, k := range batch {
+		p.putPublicFlipKey(k, appState, false)
+	}
+}
+
+func (p *KeysPool) AddPrivateFlipKeysPackages(batch []*types.PrivateFlipKeysPackage) {
+	appState, err := p.appState.Readonly(p.head.Height())
+
+	if err != nil {
+		p.log.Warn("keyspool.AddPrivateFlipKeysPackages: failed to create readonly appState", "err", err)
+		return
+	}
+
+	for _, k := range batch {
+		p.putPrivateFlipKeysPackage(k, appState, false)
+	}
 }
 
 func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {

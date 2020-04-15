@@ -265,7 +265,8 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 }
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
-	return chain.generateEmptyBlock(chain.appState.Readonly(chain.Head.Height()), chain.Head)
+	appState, _ := chain.appState.ForCheck(chain.Head.Height())
+	return chain.generateEmptyBlock(appState, chain.Head)
 }
 
 func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppState,
@@ -968,7 +969,7 @@ func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState := chain.appState.Readonly(chain.Head.Height())
+	checkState, _ := chain.appState.ForCheck(chain.Head.Height())
 
 	filteredTxs, totalFee, totalTips := chain.filterTxs(checkState, txs)
 	body := &types.Body{
@@ -1277,7 +1278,11 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 
 func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) error {
 	if checkState == nil {
-		checkState = chain.appState.Readonly(chain.Head.Height())
+		var err error
+		checkState, err = chain.appState.ForCheck(chain.Head.Height())
+		if err != nil {
+			return err
+		}
 	}
 
 	return chain.validateBlock(checkState, block, chain.Head)
@@ -1481,7 +1486,7 @@ func (chain *Blockchain) Genesis() common.Hash {
 }
 
 func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.BlockBundle) error {
-	checkState, err := chain.appState.ForCheckWithNewCache(startHeight)
+	checkState, err := chain.appState.ForCheckWithOverwrite(startHeight)
 	if err != nil {
 		return err
 	}

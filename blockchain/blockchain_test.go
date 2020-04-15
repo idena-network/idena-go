@@ -42,7 +42,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
-	appState := chain.appState.Readonly(1)
+	appState, _ := chain.appState.ForCheck(1)
 	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, nil)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
@@ -312,7 +312,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 
-	appState := chain.appState.Readonly(1)
+	appState, _ := chain.appState.ForCheck(1)
 
 	block := generateBlock(4, 10000) // block size 770008
 	chain.applyNextBlockFee(appState, block)
@@ -734,7 +734,7 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 				},
 			},
 			GodAddress:        addr,
-			FirstCeremonyTime: 1, //01.01.2099
+			FirstCeremonyTime: 1999999999,
 		},
 		Validation: &config.ValidationConfig{
 			ShortSessionDuration: 1 * time.Second,
@@ -742,9 +742,14 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 		},
 		Blockchain: &config.BlockchainConfig{},
 	}
-	chain, _ := NewCustomTestBlockchainWithConfig(0, 0, key, cfg)
+	chain, app := NewCustomTestBlockchainWithConfig(0, 0, key, cfg)
 
-	stateDb := chain.appState.State
+	app.State.SetValidationPeriod(state.LongSessionPeriod)
+	app.Commit(nil)
+
+	block := chain.GenerateEmptyBlock()
+	chain.Head = block.Header
+	chain.txpool.ResetTo(block)
 
 	tx := &types.Transaction{
 		Type:         types.SubmitAnswersHashTx,
@@ -760,8 +765,8 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 
 	chain.GenerateBlocks(3)
 
-	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
-	require.False(t, stateDb.HasValidationTx(addr, types.SubmitShortAnswersTx))
+	require.True(t, app.State.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.False(t, app.State.HasValidationTx(addr, types.SubmitShortAnswersTx))
 
 	tx = &types.Transaction{
 		Type:         types.EvidenceTx,
@@ -773,8 +778,8 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	chain.GenerateBlocks(1)
-	require.True(t, stateDb.HasValidationTx(addr, types.SubmitAnswersHashTx))
-	require.True(t, stateDb.HasValidationTx(addr, types.EvidenceTx))
+	require.True(t, app.State.HasValidationTx(addr, types.SubmitAnswersHashTx))
+	require.True(t, app.State.HasValidationTx(addr, types.EvidenceTx))
 
 	tx = &types.Transaction{
 		Type:         types.EvidenceTx,
