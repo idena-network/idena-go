@@ -34,6 +34,7 @@ import (
 	math2 "math"
 	"math/big"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -72,6 +73,7 @@ type Blockchain struct {
 	ipfs            ipfs.Proxy
 	timing          *timing
 	bus             eventbus.Bus
+	updateHeadMutex sync.Mutex
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationAuthors, bool)
 	isSyncing       bool
 }
@@ -285,13 +287,16 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 		return err
 	}
 
+	chain.updateHeadMutex.Lock()
 	if err := chain.insertBlock(block, diff); err != nil {
+		chain.updateHeadMutex.Unlock()
 		return err
 	}
 
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
+	chain.updateHeadMutex.Unlock()
 
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
@@ -1833,4 +1838,10 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 		common.ClearDb(oldStateDb)
 	}()
 	return nil
+}
+
+func (chain *Blockchain) ReadonlyState() (*appstate.AppState, error) {
+	chain.updateHeadMutex.Lock()
+	defer chain.updateHeadMutex.Unlock()
+	return chain.appState.Readonly(chain.Head.Height())
 }
