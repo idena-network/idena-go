@@ -44,6 +44,8 @@ type Proposals struct {
 	potentialForkedPeers mapset.Set
 
 	proposeCache *cache.Cache
+	// used for requesting blocks by hash from peers
+	blockCache *cache.Cache
 }
 
 type blockPeer struct {
@@ -68,6 +70,7 @@ func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDete
 		pendingProofs:        &sync.Map{},
 		potentialForkedPeers: mapset.NewSet(),
 		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
+		blockCache:           cache.New(time.Minute, time.Minute),
 	}
 	return p, p.proofsByRound, p.pendingProofs
 }
@@ -282,4 +285,26 @@ func (proposals *Proposals) AvgTimeDiff(round uint64, start int64) decimal.Decim
 		return decimal.Zero
 	}
 	return decimal.Avg(diffs[0], diffs[1:]...)
+}
+
+// mark block as approved for adding to blockCache
+func (proposals *Proposals) ApproveBlock(hash common.Hash) {
+	proposals.blockCache.Add(hash.Hex(), nil, cache.DefaultExpiration)
+}
+
+func (proposals *Proposals) AddBlock(block *types.Block) {
+	if block == nil {
+		return
+	}
+	if _, ok := proposals.blockCache.Get(block.Hash().Hex()); ok {
+		proposals.blockCache.Set(block.Hash().Hex(), block, cache.DefaultExpiration)
+	}
+}
+
+func (proposals *Proposals) GetBlock(hash common.Hash) *types.Block {
+	block, _ := proposals.blockCache.Get(hash.Hex())
+	if block == nil {
+		return nil
+	}
+	return block.(*types.Block)
 }
