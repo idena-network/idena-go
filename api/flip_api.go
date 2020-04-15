@@ -66,6 +66,8 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 
 	tx, err := api.baseApi.getSignedTx(addr, nil, types.SubmitFlipTx, decimal.Zero, decimal.Zero, decimal.Zero, 0, 0, attachments.CreateFlipSubmitAttachment(cid.Bytes(), args.PairId), nil)
 
+	log.Info("Building new flip tx", "hash", tx.Hash().Hex(), "nonce", tx.AccountNonce, "epoch", tx.Epoch)
+
 	if err != nil {
 		return FlipSubmitResponse{}, err
 	}
@@ -79,7 +81,9 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if err := api.fp.AddNewFlip(flip, true); err != nil {
 		return FlipSubmitResponse{}, err
 	}
-	log.Info("flip submitted", "hash", tx.Hash(), "nonce", tx.AccountNonce)
+
+	log.Info("Flip submitted", "hash", tx.Hash().Hex())
+
 	return FlipSubmitResponse{
 		TxHash: tx.Hash(),
 		Hash:   cid.String(),
