@@ -171,6 +171,9 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 	if appState.State.HasValidationTx(sender, tx.Type) {
 		return DuplicatedTx
 	}
+	if appState.State.ValidationPeriod() == state.NonePeriod {
+		return EarlyTx
+	}
 	return nil
 }
 
