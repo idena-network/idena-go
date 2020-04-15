@@ -257,7 +257,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		block := h.bcn.GetBlock(query.Hash)
 		if block != nil {
-			p.sendMsg(ProposeBlock, block, false)
+			p.sendMsg(Block, block, false)
 		}
 	case GetBlocksRange:
 		var query getBlocksRangeRequest
@@ -326,6 +326,16 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if entry, ok := h.pushPullManager.GetEntry(pullHash); ok {
 			h.sendEntry(p, pullHash, entry)
 		}
+	case Block:
+		block := new(types.Block)
+		if err := msg.Decode(block); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if h.isProcessed(block) {
+			return nil
+		}
+		p.markPayload(block)
+		h.proposals.AddBlock(block)
 	}
 
 	return nil
