@@ -523,6 +523,7 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 	if err == nil {
 		return block, nil
 	}
+	engine.proposals.ApproveBlock(hash)
 	engine.pm.RequestBlockByHash(hash)
 
 	for start := time.Now(); time.Since(start) < engine.config.WaitBlockDelay; {
