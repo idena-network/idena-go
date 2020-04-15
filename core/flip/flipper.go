@@ -157,6 +157,8 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 
 	fp.epochDb.WriteFlipCid(c.Bytes())
 
+	log.Info("Sending new flip tx", "hash", flip.Tx.Hash().Hex(), "nonce", flip.Tx.AccountNonce, "epoch", flip.Tx.Epoch)
+
 	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
 		return err
 	}
