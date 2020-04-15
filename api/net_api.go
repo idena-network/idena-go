@@ -3,7 +3,6 @@ package api
 import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/protocol"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // NetApi offers helper utils
@@ -41,11 +40,6 @@ func (api *NetApi) IpfsAddress() string {
 	return api.pm.Endpoint()
 }
 
-func (api *NetApi) AddPeer(peerId, url string) error {
-	id, err := peer.Decode(peerId)
-	if err != nil {
-		return err
-	}
-
-	return api.pm.AddPeer(id, url)
+func (api *NetApi) AddPeer(url string) error {
+	return api.pm.AddPeer(url)
 }

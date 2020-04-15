@@ -789,16 +789,24 @@ func (h *IdenaGossipHandler) Endpoint() string {
 	return h.host.ID().Pretty()
 }
 
-func (h *IdenaGossipHandler) AddPeer(peerId peer.ID, addr string) error {
-	ma, err := multiaddr.NewMultiaddr(addr)
+func (h *IdenaGossipHandler) AddPeer(url string) error {
+	ma, err := multiaddr.NewMultiaddr(url)
+
 	if err != nil {
 		return err
 	}
+
+	transportAddr, peerId := peer.SplitAddr(ma)
+
+	if transportAddr == nil || peerId == "" {
+		return errors.New("invalid url")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 
 	err = h.host.Connect(ctx, peer.AddrInfo{
 		ID:    peerId,
-		Addrs: []multiaddr.Multiaddr{ma},
+		Addrs: []multiaddr.Multiaddr{transportAddr},
 	})
 	cancel()
 	return err
