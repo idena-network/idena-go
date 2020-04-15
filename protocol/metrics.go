@@ -44,6 +44,8 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			return "getForkBlockRange"
 		case FlipKeysPackage:
 			return "flipKeysPackage"
+		case Block:
+			return "block"
 		default:
 			return fmt.Sprintf("unknown code %v", code)
 		}
