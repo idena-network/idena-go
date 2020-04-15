@@ -107,7 +107,12 @@ func (pool *TxPool) Validate(tx *types.Transaction) error {
 	if err := pool.checkLimits(tx); err != nil {
 		return err
 	}
-	return pool.validate(tx, validation.InboundTx)
+	appState, err := pool.appState.Readonly(pool.head.Height())
+
+	if err != nil {
+		return errors.WithMessage(err, "tx can't be validated")
+	}
+	return pool.validate(tx, appState, validation.InboundTx)
 }
 
 func (pool *TxPool) checkLimits(tx *types.Transaction) error {
@@ -165,17 +170,48 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 	return nil
 }
 
-func (pool *TxPool) validate(tx *types.Transaction, txType validation.TxType) error {
-	appState := pool.appState.Readonly(pool.head.Height())
-
-	if appState == nil {
-		return errors.New("tx can't be validated")
-	}
+func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState, txType validation.TxType) error {
 	return validation.ValidateTx(appState, tx, pool.minFeePerByte, txType)
+}
+
+func (pool *TxPool) AddTxs(txs []*types.Transaction) {
+	appState, err := pool.appState.Readonly(pool.head.Height())
+
+	if err != nil {
+		pool.log.Warn("txpool: failed to create readonly appState", "err", err)
+		return
+	}
+	for _, tx := range txs {
+
+		sender, _ := types.Sender(tx)
+
+		if pool.isSyncing && sender != pool.coinbase {
+			pool.addDeferredTx(tx)
+			continue
+		}
+
+		pool.add(tx, appState)
+	}
 }
 
 func (pool *TxPool) Add(tx *types.Transaction) error {
 
+	sender, _ := types.Sender(tx)
+
+	if pool.isSyncing && sender != pool.coinbase {
+		pool.addDeferredTx(tx)
+		return nil
+	}
+
+	appState, err := pool.appState.Readonly(pool.head.Height())
+
+	if err != nil {
+		return errors.WithMessage(err, "tx can't be validated")
+	}
+	return pool.add(tx, appState)
+}
+
+func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) error {
 	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
 	}
@@ -190,12 +226,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 
 	sender, _ := types.Sender(tx)
 
-	if pool.isSyncing && sender != pool.coinbase {
-		pool.addDeferredTx(tx)
-		return nil
-	}
-
-	if err := pool.validate(tx, validation.InboundTx); err != nil {
+	if err := pool.validate(tx, appState, validation.InboundTx); err != nil {
 		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
@@ -383,14 +414,14 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	pool.movePendingTxsToExecutable()
 
 	pool.mutex.Lock()
-	pool.tmpNonceCache = state.NewNonceCache(pool.appState.State)
+	pool.tmpNonceCache, _ = state.NewNonceCache(pool.appState.State)
 	pool.mutex.Unlock()
 
 	globalEpoch := pool.appState.State.Epoch()
 
 	pending := pool.GetPendingTransaction()
 
-	appState := pool.appState.Readonly(pool.head.Height())
+	appState, _ := pool.appState.Readonly(pool.head.Height())
 
 	type txError struct {
 		nonce uint32

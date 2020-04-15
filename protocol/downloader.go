@@ -247,28 +247,6 @@ func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, 
 	}
 }
 
-func (d *Downloader) GetBlock(header *types.Header) (*types.Block, error) {
-	if header.EmptyBlockHeader != nil {
-		return &types.Block{
-			Header: header,
-			Body:   &types.Body{},
-		}, nil
-	}
-	if txs, err := d.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
-		return nil, err
-	} else {
-		if len(txs) > 0 {
-			d.log.Debug("Retrieve block body from ipfs", "hash", header.Hash().Hex())
-		}
-		body := &types.Body{}
-		body.FromBytes(txs)
-		return &types.Block{
-			Header: header,
-			Body:   body,
-		}, nil
-	}
-}
-
 func (d *Downloader) SeekBlocks(fromBlock, toBlock uint64, peers []peer.ID) chan *types.BlockBundle {
 	return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, 0, d.statsCollector).SeekBlocks(fromBlock, toBlock, peers)
 }

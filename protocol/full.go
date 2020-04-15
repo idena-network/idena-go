@@ -129,7 +129,7 @@ func (fs *fullSync) processBatch(batch *batch, attemptNum int) error {
 		return errors.New("number of attempts exceeded limit")
 	}
 
-	checkState, err := fs.appState.ForCheckWithNewCache(fs.chain.Head.Height())
+	checkState, err := fs.appState.ForCheckWithOverwrite(fs.chain.Head.Height())
 	if err != nil {
 		return err
 	}

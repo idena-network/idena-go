@@ -31,7 +31,7 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 
 	stateHash := appState.State.Root()
 	identityHash := appState.IdentityState.Root()
-	forCheck, _ := appState.ForCheckWithNewCache(1)
+	forCheck, _ := appState.ForCheckWithOverwrite(1)
 
 	forCheck.State.SetNonce(addr, 1)
 	forCheck.State.SetNonce(addr2, 3)
