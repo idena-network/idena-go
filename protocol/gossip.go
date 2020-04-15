@@ -286,6 +286,10 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := msg.Decode(flipKey); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if h.isProcessed(flipKey) {
+			return nil
+		}
+		p.markPayload(flipKey)
 		h.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
