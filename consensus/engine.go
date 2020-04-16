@@ -111,7 +111,7 @@ func (engine *Engine) ReadonlyAppState() (*appstate.AppState, error) {
 	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
 		return engine.appStateCache.appState, nil
 	}
-	s, err := engine.chain.ReadonlyState()
+	s, err := engine.appState.Readonly(engine.chain.Head.Height())
 	if err != nil {
 		return nil, err
 	}

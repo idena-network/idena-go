@@ -43,15 +43,11 @@ func (s *AppState) ForCheck(height uint64) (*AppState, error) {
 		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
 		validatorsCache.Load()
 	}
-	nonceClone, err := s.NonceCache.Clone(st)
-	if err != nil {
-		return nil, err
-	}
 	return &AppState{
 		State:           st,
 		IdentityState:   identityState,
 		ValidatorsCache: validatorsCache,
-		NonceCache:      nonceClone,
+		NonceCache:      s.NonceCache,
 	}, nil
 }
 
@@ -70,15 +66,11 @@ func (s *AppState) Readonly(height uint64) (*AppState, error) {
 		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
 		validatorsCache.Load()
 	}
-	nonceClone, err := s.NonceCache.Clone(st)
-	if err != nil {
-		return nil, err
-	}
 	return &AppState{
 		State:           st,
 		IdentityState:   identityState,
 		ValidatorsCache: validatorsCache,
-		NonceCache:      nonceClone,
+		NonceCache:      s.NonceCache,
 	}, nil
 }
 
