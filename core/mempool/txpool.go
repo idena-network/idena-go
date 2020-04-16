@@ -411,7 +411,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	globalEpoch := pool.appState.State.Epoch()
 
 	pool.appState.NonceCache.Lock()
-	defer pool.appState.NonceCache.UnLock()
+
 	pool.appState.NonceCache.Clear()
 
 	pending := pool.GetPendingTransaction()
@@ -425,6 +425,8 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	minErrorNonce := make(map[common.Address]txError)
 
+	removingTxs := make(map[common.Hash]*types.Transaction)
+
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {
 			continue
@@ -432,7 +434,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, validation.MempoolTx); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
-				pool.Remove(tx)
+				removingTxs[tx.Hash()] = tx
 				continue
 			}
 			sender, _ := types.Sender(tx)
@@ -449,7 +451,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
-			pool.Remove(tx)
+			removingTxs[tx.Hash()] = tx
 			continue
 		}
 		if tx.Epoch > globalEpoch {
@@ -459,7 +461,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 		sender, _ := types.Sender(tx)
 
 		if txError, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= txError.nonce {
-			pool.Remove(tx)
+			removingTxs[tx.Hash()] = tx
 			if tx.AccountNonce == txError.nonce {
 				pool.log.Info("Tx is invalid", "tx", tx.Hash().Hex(), "err", txError.err)
 			} else {
@@ -472,6 +474,10 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	}
 	if err := pool.appState.NonceCache.ReloadFallback(); err != nil {
 		pool.log.Warn("failed to reload nonce cache", "err", err)
+	}
+	pool.appState.NonceCache.UnLock()
+	for _, tx := range removingTxs {
+		pool.Remove(tx)
 	}
 }
 
