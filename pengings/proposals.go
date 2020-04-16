@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
@@ -46,6 +47,7 @@ type Proposals struct {
 	proposeCache *cache.Cache
 	// used for requesting blocks by hash from peers
 	blockCache *cache.Cache
+	appState   *appstate.AppState
 }
 
 type blockPeer struct {
@@ -59,9 +61,10 @@ type proposedBlock struct {
 	receivingTime time.Time
 }
 
-func NewProposals(chain *blockchain.Blockchain, detector *blockchain.OfflineDetector) (*Proposals, *sync.Map, *sync.Map) {
+func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, detector *blockchain.OfflineDetector) (*Proposals, *sync.Map, *sync.Map) {
 	p := &Proposals{
 		chain:                chain,
+		appState:             appState,
 		offlineDetector:      detector,
 		log:                  log.New(),
 		proofsByRound:        &sync.Map{},
@@ -168,21 +171,28 @@ func (proposals *Proposals) ProcessPendingProofs() []*Proof {
 func (proposals *Proposals) ProcessPendingBlocks() []*types.BlockProposal {
 	var result []*types.BlockProposal
 
+	checkState, err := proposals.appState.ForCheck(proposals.chain.Head.Height())
+	if err != nil {
+		proposals.log.Warn("failed to create checkState", "err", err)
+	}
 	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
+
 		blockPeer := value.(*blockPeer)
-		if added, pending := proposals.AddProposedBlock(blockPeer.proposal, blockPeer.peerId, blockPeer.receivingTime); added {
+		if added, pending := proposals.AddProposedBlock(blockPeer.proposal, blockPeer.peerId, blockPeer.receivingTime, checkState); added {
 			result = append(result, blockPeer.proposal)
 		} else if !pending {
 			proposals.pendingBlocks.Delete(key)
 		}
-
+		if checkState != nil {
+			checkState.Reset()
+		}
 		return true
 	})
 
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time) (added bool, pending bool) {
+func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time, checkState *appstate.AppState) (added bool, pending bool) {
 	if !proposal.IsValid() {
 		return false, false
 	}
@@ -199,7 +209,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 		if _, ok := round.Load(block.Hash()); ok {
 			return false, false
 		}
-		if err := proposals.chain.ValidateBlock(block, nil); err != nil {
+		if err := proposals.chain.ValidateBlock(block, checkState); err != nil {
 			log.Warn("Failed proposed block validation", "err", err.Error())
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {

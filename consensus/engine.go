@@ -313,7 +313,7 @@ func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block 
 	engine.pm.ProposeProof(proposal.Height(), hash, proof, engine.pubKey)
 	engine.pm.ProposeBlock(proposal)
 
-	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC())
+	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC(), nil)
 	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, proposal.Height())
 
 	return proposal.Block

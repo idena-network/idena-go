@@ -224,7 +224,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(proposal.Block.Height() - 1)
-		if ok, _ := h.proposals.AddProposedBlock(proposal, p.id, time.Now().UTC()); ok {
+		if ok, _ := h.proposals.AddProposedBlock(proposal, p.id, time.Now().UTC(), nil); ok {
 			h.ProposeBlock(proposal)
 		}
 	case Vote:
