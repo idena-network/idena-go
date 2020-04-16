@@ -154,7 +154,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector)
-	proposals, proofsByRound, pendingProofs := pengings.NewProposals(chain, offlineDetector)
+	proposals, proofsByRound, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion)
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
