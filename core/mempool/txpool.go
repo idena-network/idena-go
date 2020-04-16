@@ -8,7 +8,6 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
-	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
@@ -54,7 +53,6 @@ type TxPool struct {
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
 	minFeePerByte    *big.Int
-	tmpNonceCache    *state.NonceCache
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool, minFeePerByte *big.Int) *TxPool {
@@ -293,9 +291,6 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	pool.all.Add(tx)
 
 	pool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
-	if pool.tmpNonceCache != nil {
-		pool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
-	}
 
 	pool.bus.Publish(&events.NewTxEvent{
 		Tx:  tx,
@@ -413,11 +408,11 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	pool.movePendingTxsToExecutable()
 
-	pool.mutex.Lock()
-	pool.tmpNonceCache, _ = state.NewNonceCache(pool.appState.State)
-	pool.mutex.Unlock()
-
 	globalEpoch := pool.appState.State.Epoch()
+
+	pool.appState.NonceCache.Lock()
+
+	pool.appState.NonceCache.Clear()
 
 	pending := pool.GetPendingTransaction()
 
@@ -430,6 +425,8 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	minErrorNonce := make(map[common.Address]txError)
 
+	removingTxs := make(map[common.Hash]*types.Transaction)
+
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {
 			continue
@@ -437,7 +434,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, validation.MempoolTx); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
-				pool.Remove(tx)
+				removingTxs[tx.Hash()] = tx
 				continue
 			}
 			sender, _ := types.Sender(tx)
@@ -454,7 +451,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	for _, tx := range pending {
 		if tx.Epoch < globalEpoch {
-			pool.Remove(tx)
+			removingTxs[tx.Hash()] = tx
 			continue
 		}
 		if tx.Epoch > globalEpoch {
@@ -464,7 +461,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 		sender, _ := types.Sender(tx)
 
 		if txError, ok := minErrorNonce[sender]; ok && tx.AccountNonce >= txError.nonce {
-			pool.Remove(tx)
+			removingTxs[tx.Hash()] = tx
 			if tx.AccountNonce == txError.nonce {
 				pool.log.Info("Tx is invalid", "tx", tx.Hash().Hex(), "err", txError.err)
 			} else {
@@ -473,12 +470,15 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 			continue
 		}
 
-		pool.tmpNonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
+		pool.appState.NonceCache.UnsafeSetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
-	pool.mutex.Lock()
-	pool.appState.NonceCache = pool.tmpNonceCache
-	pool.tmpNonceCache = nil
-	pool.mutex.Unlock()
+	if err := pool.appState.NonceCache.ReloadFallback(); err != nil {
+		pool.log.Warn("failed to reload nonce cache", "err", err)
+	}
+	pool.appState.NonceCache.UnLock()
+	for _, tx := range removingTxs {
+		pool.Remove(tx)
+	}
 }
 
 func (pool *TxPool) createBuildingContext() *buildingContext {
