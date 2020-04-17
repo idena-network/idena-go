@@ -46,8 +46,8 @@ func (ns *NonceCache) UnLock() {
 	ns.mu.Unlock()
 }
 
-func (ns *NonceCache) ReloadFallback() error {
-	readonly, err := ns.fallback.Readonly(-1)
+func (ns *NonceCache) ReloadFallback(sdb *StateDB) error {
+	readonly, err := sdb.Readonly(-1)
 	if err != nil {
 		return err
 	}

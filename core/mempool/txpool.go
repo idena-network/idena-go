@@ -74,6 +74,11 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempoo
 			newBlockEvent := e.(*events.NewBlockEvent)
 			pool.head = newBlockEvent.Block.Header
 		})
+	_ = pool.bus.Subscribe(events.FastSyncCompleted, func(event eventbus.Event) {
+		pool.appState.NonceCache.Lock()
+		pool.appState.NonceCache.ReloadFallback(pool.appState.State)
+		pool.appState.NonceCache.UnLock()
+	})
 	return pool
 }
 
@@ -414,6 +419,10 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	pool.appState.NonceCache.Clear()
 
+	if err := pool.appState.NonceCache.ReloadFallback(pool.appState.State); err != nil {
+		pool.log.Warn("failed to reload nonce cache", "err", err)
+	}
+
 	pending := pool.GetPendingTransaction()
 
 	appState, _ := pool.appState.Readonly(pool.head.Height())
@@ -472,9 +481,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 		pool.appState.NonceCache.UnsafeSetNonce(sender, tx.Epoch, tx.AccountNonce)
 	}
-	if err := pool.appState.NonceCache.ReloadFallback(); err != nil {
-		pool.log.Warn("failed to reload nonce cache", "err", err)
-	}
+
 	pool.appState.NonceCache.UnLock()
 	for _, tx := range removingTxs {
 		pool.Remove(tx)
