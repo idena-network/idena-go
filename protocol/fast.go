@@ -142,7 +142,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 				return b.Header.Height(), err
 			}
 			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
-			fs.chain.HandleTxs(b.Header, txs)
+			fs.chain.Indexer().HandleBlockTransactions(b.Header, txs)
 		}
 	}
 	return 0, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/tendermint/tm-db"
@@ -56,8 +57,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	txPool := mempool.NewTxPool(appState, bus, cfg.Mempool, cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
+	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
@@ -106,8 +108,9 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	}
 	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
+	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore)
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 
@@ -148,8 +151,9 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	}
 	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), cfg.Consensus.MinFeePerByte)
 	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
+	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 
-	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline)
+	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore)
 	copy.InitializeChain()
 	appState.Initialize(copy.Head.Height())
 	return &TestBlockchain{db, copy}, appState
