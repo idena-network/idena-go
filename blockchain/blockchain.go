@@ -23,6 +23,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
@@ -68,6 +69,7 @@ type Blockchain struct {
 	txpool          *mempool.TxPool
 	appState        *appstate.AppState
 	offlineDetector *OfflineDetector
+	indexer         *indexer
 	secretKey       *ecdsa.PrivateKey
 	ipfs            ipfs.Proxy
 	timing          *timing
@@ -87,7 +89,7 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
-	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector) *Blockchain {
+	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore) *Blockchain {
 	return &Blockchain{
 		repo:            database.NewRepo(db),
 		config:          config,
@@ -99,6 +101,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		bus:             bus,
 		secStore:        secStore,
 		offlineDetector: offlineDetector,
+		indexer:         newBlockchainIndexer(db, bus, config, keyStore),
 	}
 }
 
@@ -117,6 +120,10 @@ func (chain *Blockchain) Network() types.Network {
 
 func (chain *Blockchain) Config() *config.Config {
 	return chain.config
+}
+
+func (chain *Blockchain) Indexer() *indexer {
+	return chain.indexer
 }
 
 func (chain *Blockchain) InitializeChain() error {
@@ -145,6 +152,7 @@ func (chain *Blockchain) InitializeChain() error {
 			return err
 		}
 	}
+	chain.indexer.initialize(chain.coinBaseAddress)
 	chain.PreliminaryHead = chain.repo.ReadPreliminaryHead()
 	log.Info("Chain initialized", "block", chain.Head.Hash().Hex(), "height", chain.Head.Height())
 	log.Info("Coinbase address", "addr", chain.coinBaseAddress.Hex())
@@ -1129,7 +1137,7 @@ func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentitySta
 	chain.insertHeader(block.Header)
 	chain.WriteIdentityStateDiff(block.Height(), diff)
 	chain.WriteTxIndex(block.Hash(), block.Body.Transactions)
-	chain.HandleTxs(block.Header, block.Body.Transactions)
+	chain.indexer.HandleBlockTransactions(block.Header, block.Body.Transactions)
 	chain.setCurrentHead(block.Header)
 	return nil
 }
@@ -1682,46 +1690,6 @@ func (chain *Blockchain) RemovePreliminaryHead(batch dbm.Batch) {
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
 	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0
-}
-
-func (chain *Blockchain) HandleTxs(header *types.Header, txs []*types.Transaction) {
-	chain.repo.DeleteOutdatedBurntCoins(header.Height(), chain.config.Blockchain.BurnTxRange)
-	for _, tx := range txs {
-		sender, _ := types.Sender(tx)
-		chain.handleOwnTx(header, sender, tx)
-		chain.handleBurnTx(header.Height(), sender, tx)
-		chain.handleOwnDeleteFlipTx(sender, tx)
-	}
-}
-
-func (chain *Blockchain) handleOwnTx(header *types.Header, sender common.Address, tx *types.Transaction) {
-	if sender == chain.coinBaseAddress || tx.To != nil && *tx.To == chain.coinBaseAddress {
-		chain.repo.SaveTx(chain.coinBaseAddress, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
-	}
-}
-
-func (chain *Blockchain) handleBurnTx(height uint64, sender common.Address, tx *types.Transaction) {
-	if tx.Type != types.BurnTx {
-		return
-	}
-	attachment := attachments.ParseBurnAttachment(tx)
-	if attachment == nil {
-		return
-	}
-	chain.repo.SaveBurntCoins(height, tx.Hash(), sender, attachment.Key, tx.AmountOrZero())
-}
-
-func (chain *Blockchain) handleOwnDeleteFlipTx(sender common.Address, tx *types.Transaction) {
-	if tx.Type != types.DeleteFlipTx || sender != chain.coinBaseAddress {
-		return
-	}
-	attachment := attachments.ParseDeleteFlipAttachment(tx)
-	if attachment == nil {
-		return
-	}
-	chain.bus.Publish(&events.DeleteFlipEvent{
-		FlipCid: attachment.Cid,
-	})
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
