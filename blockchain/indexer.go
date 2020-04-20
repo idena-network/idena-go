@@ -44,6 +44,7 @@ func (i *indexer) HandleBlockTransactions(header *types.Header, txs []*types.Tra
 	for _, item := range accounts {
 		accountsMap[item.Address] = struct{}{}
 	}
+	accountsMap[i.coinbase] = struct{}{}
 
 	for _, tx := range txs {
 		sender, _ := types.Sender(tx)
@@ -54,7 +55,7 @@ func (i *indexer) HandleBlockTransactions(header *types.Header, txs []*types.Tra
 }
 
 func (i *indexer) handleOwnTx(header *types.Header, sender common.Address, tx *types.Transaction, accountsMap map[common.Address]struct{}) {
-	if _, ok := accountsMap[sender]; ok || sender == i.coinbase {
+	if _, ok := accountsMap[sender]; ok {
 		i.repo.SaveTx(sender, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
 	}
 	if tx.To != nil {
@@ -62,7 +63,7 @@ func (i *indexer) handleOwnTx(header *types.Header, sender common.Address, tx *t
 		if sender == to {
 			return
 		}
-		if _, ok := accountsMap[to]; ok || to == i.coinbase {
+		if _, ok := accountsMap[to]; ok {
 			i.repo.SaveTx(to, header.Hash(), header.Time().Uint64(), header.FeePerByte(), tx)
 		}
 	}
