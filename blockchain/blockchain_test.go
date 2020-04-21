@@ -316,15 +316,16 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	block := generateBlock(4, 10000) // block size 770008
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(10585842132568359), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(105858421325683595), appState.State.FeePerByte())
 
 	block = generateBlock(5, 5000) // block size 385008
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(10234318711227387), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(102343187112273882), appState.State.FeePerByte())
 
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, chain.config.Consensus.MinFeePerByte, appState.State.FeePerByte())
+	// 0.1 / networkSize, where networkSize is 0, feePerByte = 0.1 DNA
+	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(10)), appState.State.FeePerByte())
 }
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
@@ -477,7 +478,8 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 		GenesisConf: &config.GenesisConf{
 			Alloc: map[common.Address]config.GenesisAllocation{
 				addr: {
-					State: uint8(state.Verified),
+					State:   uint8(state.Verified),
+					Balance: new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(100)),
 				},
 			},
 			GodAddress:        addr,
@@ -489,7 +491,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	chain, state := NewCustomTestBlockchainWithConfig(5, 0, key, cfg)
 
 	//  add pending request to switch online
-	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err := chain.txpool.Add(tx)
 	require.NoError(err)
 
@@ -499,7 +501,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.False(state.IdentityState.IsOnline(addr))
 
 	// fail to switch online again
-	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.Add(tx)
 	require.Error(err, "should not validate tx if switch is already pending")
 
@@ -512,13 +514,13 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 
 	// fail to switch online again
 	chain.GenerateBlocks(5)
-	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.Add(tx)
 	require.Error(err, "should not validate tx if identity already has online status")
 
 	// add pending request to switch offline
 	chain.GenerateBlocks(4)
-	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
 	err = chain.txpool.Add(tx)
 	require.NoError(err)
 
@@ -530,7 +532,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.True(chain.Head.Flags().HasFlag(types.IdentityUpdate))
 
 	// add pending request to switch offline
-	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.Add(tx)
 	require.NoError(err)
 	chain.GenerateBlocks(1)
@@ -538,7 +540,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.Equal(1, len(state.State.StatusSwitchAddresses()))
 
 	// remove pending request to switch online
-	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
 	err = chain.txpool.Add(tx)
 	require.NoError(err)
 	chain.GenerateBlocks(1)
@@ -706,4 +708,14 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+}
+
+func Test_a(t *testing.T) {
+	minFeePerByte := math.ToInt(decimal.NewFromFloat(0.1).Div(decimal.NewFromInt(int64(100))).Mul(decimal.NewFromBigInt(common.DnaBase, 0)))
+
+	fmt.Println(minFeePerByte.String())
+	m := big.NewInt(1e+2)
+	if minFeePerByte.Cmp(m) == -1 {
+		minFeePerByte = new(big.Int).Set(m)
+	}
 }
