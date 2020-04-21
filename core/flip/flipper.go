@@ -315,7 +315,7 @@ func (fp *Flipper) Load(cids [][]byte) {
 
 		cid, _ := cid.Cast(key)
 
-		data, err := fp.ipfsProxy.Get(key)
+		data, err := fp.ipfsProxy.Get(key, ipfs.Flip)
 
 		if err != nil {
 			fp.log.Warn("Can't get flip by cid", "cid", cid.String(), "err", err)
@@ -392,7 +392,7 @@ func (fp *Flipper) UnpinFlip(flipCid []byte) {
 }
 
 func (fp *Flipper) GetRawFlip(flipCid []byte) (*IpfsFlip, error) {
-	data, err := fp.ipfsProxy.Get(flipCid)
+	data, err := fp.ipfsProxy.Get(flipCid, ipfs.Flip)
 	if err != nil {
 		return nil, err
 	}

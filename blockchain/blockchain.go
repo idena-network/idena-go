@@ -1376,7 +1376,7 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 			Body:   &types.Body{},
 		}
 	}
-	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
+	if bodyBytes, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash, ipfs.Block); err != nil {
 		return nil
 	} else {
 		body := &types.Body{}
@@ -1433,7 +1433,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 		return nil, nil
 	}
 
-	data, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash)
+	data, err := chain.ipfs.Get(header.ProposedHeader.IpfsHash, ipfs.Block)
 	if err != nil {
 		return nil, nil
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/events"
@@ -50,14 +51,16 @@ const (
 type DataType = uint32
 
 const (
-	Block DataType = 1
-	Flip  DataType = 2
+	Block   DataType = 1
+	Flip    DataType = 2
+	Profile DataType = 3
 )
 
 var (
-	EmptyCid cid.Cid
-	MinCid   [CidLength]byte
-	MaxCid   [CidLength]byte
+	EmptyCid  cid.Cid
+	MinCid    [CidLength]byte
+	MaxCid    [CidLength]byte
+	TooBigErr = errors.New("ipfs data is too big")
 )
 
 func init() {
@@ -71,7 +74,7 @@ func init() {
 
 type Proxy interface {
 	Add(data []byte, pin bool) (cid.Cid, error)
-	Get(key []byte) ([]byte, error)
+	Get(key []byte, dataType DataType) ([]byte, error)
 	LoadTo(key []byte, to io.Writer, ctx context.Context, onLoading func(size, loaded int64)) error
 	Pin(key []byte) error
 	Unpin(key []byte) error
@@ -234,6 +237,17 @@ func (p *ipfsProxy) ShouldPin(dataType DataType) bool {
 	return true
 }
 
+func (p *ipfsProxy) maxSize(dataType DataType) int64 {
+	switch dataType {
+	case Flip:
+		return common.MaxFlipSize
+	case Profile:
+		return common.MaxProfileSize
+	default:
+		return -1
+	}
+}
+
 func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 	if len(data) == 0 {
 		return EmptyCid, nil
@@ -300,7 +314,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	return path.Cid(), nil
 }
 
-func (p *ipfsProxy) Get(key []byte) ([]byte, error) {
+func (p *ipfsProxy) Get(key []byte, dataType DataType) ([]byte, error) {
 	if len(key) == 0 {
 		return []byte{}, nil
 	}
@@ -311,10 +325,10 @@ func (p *ipfsProxy) Get(key []byte) ([]byte, error) {
 	if c == EmptyCid {
 		return []byte{}, nil
 	}
-	return p.get(path.IpfsPath(c))
+	return p.get(path.IpfsPath(c), dataType)
 }
 
-func (p *ipfsProxy) get(path path.Path) ([]byte, error) {
+func (p *ipfsProxy) get(path path.Path, dataType DataType) ([]byte, error) {
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
@@ -334,6 +348,17 @@ func (p *ipfsProxy) get(path path.Path) ([]byte, error) {
 	}
 	file := files.ToFile(f)
 	defer file.Close()
+
+	maxSize := p.maxSize(dataType)
+	if maxSize > 0 {
+		size, err := file.Size()
+		if err != nil {
+			return nil, err
+		}
+		if size > maxSize {
+			return nil, TooBigErr
+		}
+	}
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(file)
@@ -670,7 +695,7 @@ func (i *memoryIpfs) Add(data []byte, pin bool) (cid.Cid, error) {
 	return cid, nil
 }
 
-func (i *memoryIpfs) Get(key []byte) ([]byte, error) {
+func (i *memoryIpfs) Get(key []byte, dataType DataType) ([]byte, error) {
 	if len(key) == 0 {
 		return []byte{}, nil
 	}
