@@ -9,6 +9,22 @@ import (
 	"testing"
 )
 
+var proxy Proxy
+
+func init() {
+	var err error
+	proxy, err = NewIpfsProxy(&config.IpfsConfig{
+		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
+		BootNodes:   []string{},
+		IpfsPort:    4012,
+		DataDir:     "./datadir-ipfs",
+		GracePeriod: "20s",
+	}, eventbus.New())
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestIpfsProxy_Cid(t *testing.T) {
 
 	require := require.New(t)
@@ -24,14 +40,6 @@ func TestIpfsProxy_Cid(t *testing.T) {
 func TestIpfsProxy_Get_Cid(t *testing.T) {
 	require := require.New(t)
 
-	proxy, err := NewIpfsProxy(&config.IpfsConfig{
-		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
-		BootNodes:   []string{},
-		IpfsPort:    4012,
-		DataDir:     "./datadir-ipfs",
-		GracePeriod: "20s",
-	}, eventbus.New())
-	require.NoError(err)
 	cid, _ := proxy.Cid([]byte{0x1})
 	cid2, _ := proxy.Cid([]byte{0x1})
 
@@ -63,17 +71,8 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 func TestIpfsProxy_Get_Limit(t *testing.T) {
 	require := require.New(t)
 
-	proxy, err := NewIpfsProxy(&config.IpfsConfig{
-		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
-		BootNodes:   []string{},
-		IpfsPort:    4012,
-		DataDir:     "./datadir-ipfs-2",
-		GracePeriod: "20s",
-	}, eventbus.New())
-	require.NoError(err)
-
 	data := random.GetRandomBytes(uint32(common.MaxFlipSize))
-	cid, err := proxy.Add(data, false )
+	cid, err := proxy.Add(data, false)
 	require.NoError(err)
 
 	_, err = proxy.Get(cid.Bytes(), Flip)
@@ -86,7 +85,7 @@ func TestIpfsProxy_Get_Limit(t *testing.T) {
 	require.NoError(err)
 
 	data = random.GetRandomBytes(uint32(common.MaxProfileSize))
-	cid, err = proxy.Add(data, false )
+	cid, err = proxy.Add(data, false)
 	require.NoError(err)
 
 	_, err = proxy.Get(cid.Bytes(), Flip)
@@ -96,7 +95,7 @@ func TestIpfsProxy_Get_Limit(t *testing.T) {
 	require.NoError(err)
 
 	data = random.GetRandomBytes(uint32(common.MaxProfileSize + 1))
-	cid, err = proxy.Add(data, false )
+	cid, err = proxy.Add(data, false)
 	require.NoError(err)
 
 	_, err = proxy.Get(cid.Bytes(), Flip)

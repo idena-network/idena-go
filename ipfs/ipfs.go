@@ -645,15 +645,15 @@ func loadPlugins(cfg *config.IpfsConfig) error {
 	plugins, err := loader.NewPluginLoader(pluginPath)
 
 	if err != nil {
-		return errors.New("ipfs plugin loader error")
+		return errors.WithMessage(err, "ipfs plugin loader error")
 	}
 
 	if err := plugins.Initialize(); err != nil {
-		return errors.New("ipfs plugin initialization error")
+		return errors.WithMessage(err, "ipfs plugin initialization error")
 	}
 
 	if err := plugins.Inject(); err != nil {
-		return errors.New("ipfs plugin inject error")
+		return errors.WithMessage(err, "ipfs plugin inject error")
 	}
 
 	return nil
