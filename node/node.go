@@ -150,7 +150,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	offlineDetector := blockchain.NewOfflineDetector(config, db, appState, secStore, bus)
 	votes := pengings.NewVotes(appState, bus, offlineDetector)
 
-	txpool := mempool.NewTxPool(appState, bus, config.Mempool, config.Consensus.MinFeePerByte)
+	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore)
