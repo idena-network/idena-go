@@ -701,18 +701,19 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	statsCollector collector.StatsCollector) (totalFee *big.Int, totalTips *big.Int, err error) {
 	totalFee = new(big.Int)
 	totalTips = new(big.Int)
-	fee := new(big.Int)
+	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
-		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, validation.InBlockTx); err != nil {
+		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {
 			return nil, nil, err
 		}
-		if fee, err = chain.ApplyTxOnState(appState, tx, statsCollector); err != nil {
+		if usedFee, err := chain.ApplyTxOnState(appState, tx, statsCollector); err != nil {
 			return nil, nil, err
+		} else {
+			totalFee.Add(totalFee, usedFee)
+			totalTips.Add(totalTips, tx.TipsOrZero())
 		}
-
-		totalFee.Add(totalFee, fee)
-		totalTips.Add(totalTips, tx.TipsOrZero())
 	}
 
 	return totalFee, totalTips, nil
@@ -878,9 +879,12 @@ func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *t
 }
 
 func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppState, block *types.Block) *big.Int {
+
+	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+
 	feePerByte := appState.State.FeePerByte()
-	if feePerByte == nil || feePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
-		feePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
+	if feePerByte == nil || feePerByte.Cmp(minFeePerByte) == -1 {
+		feePerByte = new(big.Int).Set(minFeePerByte)
 	}
 
 	blockSize := len(block.Body.Bytes())
@@ -896,8 +900,8 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 		Mul(decimal.NewFromBigInt(feePerByte, 0))
 
 	newFeePerByte := math.ToInt(newFeePerByteD)
-	if newFeePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
-		newFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
+	if newFeePerByte.Cmp(minFeePerByte) == -1 {
+		newFeePerByte = new(big.Int).Set(minFeePerByte)
 	}
 	return newFeePerByte
 }
@@ -1099,10 +1103,12 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction) ([]*types.Transaction, *big.Int, *big.Int) {
 	var result []*types.Transaction
 
+	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
 	for _, tx := range txs {
-		if err := validation.ValidateTx(appState, tx, chain.config.Consensus.MinFeePerByte, validation.InBlockTx); err != nil {
+		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {
 			continue
 		}
 		if fee, err := chain.ApplyTxOnState(appState, tx, nil); err == nil {
