@@ -204,14 +204,14 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	signedTx1, _ := types.SignTx(tx1, key)
 	signedTx2, _ := types.SignTx(tx2, key)
 
-	chain.appState.State.SetFeePerByte(chain.config.Consensus.MinFeePerByte)
-	require.Nil(validation.ValidateTx(chain.appState, signedTx1, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
-	require.Nil(validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
+	chain.appState.State.SetFeePerByte(fee2.MinFeePerByte)
+	require.Nil(validation.ValidateTx(chain.appState, signedTx1, fee2.MinFeePerByte, validation.InBlockTx))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
 
 	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
 
 	require.Nil(err)
-	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, chain.config.Consensus.MinFeePerByte, validation.InBlockTx))
+	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
@@ -308,9 +308,7 @@ func Test_CalculatePenalty(t *testing.T) {
 }
 
 func Test_applyNextBlockFee(t *testing.T) {
-	conf := config.GetDefaultConsensusConfig()
-	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
-	chain, _, _, _ := NewTestBlockchainWithConfig(true, conf, &config.ValidationConfig{}, nil, -1, -1, 0, 0)
+	chain, _, _, _ := NewTestBlockchain(true, nil)
 
 	appState, _ := chain.appState.ForCheck(1)
 
@@ -329,8 +327,6 @@ func Test_applyNextBlockFee(t *testing.T) {
 }
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
-	conf := config.GetDefaultConsensusConfig()
-	conf.MinFeePerByte = big.NewInt(0).Div(common.DnaBase, big.NewInt(100))
 	chain, _ := NewTestBlockchainWithBlocks(100, 0)
 
 	chain.GenerateEmptyBlocks(10)
@@ -708,14 +704,4 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
-}
-
-func Test_a(t *testing.T) {
-	minFeePerByte := math.ToInt(decimal.NewFromFloat(0.1).Div(decimal.NewFromInt(int64(100))).Mul(decimal.NewFromBigInt(common.DnaBase, 0)))
-
-	fmt.Println(minFeePerByte.String())
-	m := big.NewInt(1e+2)
-	if minFeePerByte.Cmp(m) == -1 {
-		minFeePerByte = new(big.Int).Set(m)
-	}
 }

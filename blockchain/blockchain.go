@@ -891,10 +891,6 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 
 	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	if minFeePerByte.Cmp(chain.config.Consensus.MinFeePerByte) == -1 {
-		minFeePerByte = new(big.Int).Set(chain.config.Consensus.MinFeePerByte)
-	}
-
 	feePerByte := appState.State.FeePerByte()
 	if feePerByte == nil || feePerByte.Cmp(minFeePerByte) == -1 {
 		feePerByte = new(big.Int).Set(minFeePerByte)

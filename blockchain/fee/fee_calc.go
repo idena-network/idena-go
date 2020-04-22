@@ -16,6 +16,10 @@ const (
 	submitFlipTxSize = 116
 )
 
+var (
+	MinFeePerByte = big.NewInt(1e+2)
+)
+
 func GetFeePerByteForNetwork(networkSize int) *big.Int {
 	if networkSize == 0 {
 		networkSize = 1
@@ -24,7 +28,13 @@ func GetFeePerByteForNetwork(networkSize int) *big.Int {
 		Div(decimal.NewFromInt(int64(networkSize))).
 		Mul(decimal.NewFromBigInt(common.DnaBase, 0))
 
-	return math.ToInt(minFeePerByteD)
+	minFeePerByte := math.ToInt(minFeePerByteD)
+
+	if minFeePerByte.Cmp(MinFeePerByte) == -1 {
+		minFeePerByte = new(big.Int).Set(MinFeePerByte)
+	}
+
+	return minFeePerByte
 }
 
 func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
