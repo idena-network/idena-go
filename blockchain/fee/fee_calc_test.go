@@ -49,11 +49,23 @@ func TestCalculateCostForInvitation(t *testing.T) {
 	}
 	const networkSize = 100
 
-	//tx cost (amount = 1, fee = 0.16), total 1.16
-	//cost := new(big.Int).Add(big.NewInt(83e+16), tx.AmountOrZero())
-
-	// invitation cost (110 for 100 networkSize)
-	//cost.Add(cost, new(big.Int).Mul(big.NewInt(InvitationCoef/networkSize), common.DnaBase))
-
 	require.Equal(t, 0, tx.AmountOrZero().Cmp(CalculateCost(networkSize, new(big.Int).Div(common.DnaBase, big.NewInt(100)), tx)))
+}
+
+func Test_GetFeePerByteForNetwork(t *testing.T) {
+	require := require.New(t)
+
+	require.Zero(big.NewInt(1e+17).Cmp(GetFeePerByteForNetwork(0)))
+
+	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerByteForNetwork(10)))
+
+	require.Zero(big.NewInt(1e+15).Cmp(GetFeePerByteForNetwork(100)))
+
+	require.Zero(big.NewInt(2e+13).Cmp(GetFeePerByteForNetwork(5000)))
+
+	require.Zero(big.NewInt(1e+12).Cmp(GetFeePerByteForNetwork(100000)))
+
+	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerByteForNetwork(1e+17)))
+
+	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerByteForNetwork(1e+18)))
 }

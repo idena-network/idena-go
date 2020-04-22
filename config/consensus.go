@@ -33,7 +33,6 @@ type ConsensusConf struct {
 	SavedInviteRewardCoef             float32
 	SavedInviteWinnerRewardCoef       float32
 	FeeSensitivityCoef                float32
-	MinFeePerByte                     *big.Int
 	MinBlockDistance                  time.Duration
 	MaxCommitteeSize                  int
 	StatusSwitchRange                 uint64
@@ -68,7 +67,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		SavedInviteRewardCoef:             1.0,
 		SavedInviteWinnerRewardCoef:       2.0,
 		FeeSensitivityCoef:                0.25,
-		MinFeePerByte:                     big.NewInt(1e+2),
 		MinBlockDistance:                  time.Second * 20,
 		MaxCommitteeSize:                  100,
 		StatusSwitchRange:                 50,
