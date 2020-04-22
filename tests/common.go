@@ -50,6 +50,7 @@ func GetFullTx(nonce uint32, epoch uint16, key *ecdsa.PrivateKey, txType types.T
 		Amount:       amount,
 		Epoch:        epoch,
 		Payload:      payload,
+		MaxFee:       new(big.Int).Mul(common.DnaBase, big.NewInt(20)),
 	}
 
 	signedTx, _ := types.SignTx(&tx, key)

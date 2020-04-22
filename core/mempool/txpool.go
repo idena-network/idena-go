@@ -2,6 +2,7 @@ package mempool
 
 import (
 	"github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -11,7 +12,6 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
-	"math/big"
 	"sort"
 	"sync"
 )
@@ -52,10 +52,9 @@ type TxPool struct {
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
-	minFeePerByte    *big.Int
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool, minFeePerByte *big.Int) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool) *TxPool {
 	pool := &TxPool{
 		all:              newTxMap(-1),
 		executableTxs:    make(map[common.Address]*sortedTxs),
@@ -66,7 +65,6 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempoo
 		appState:         appState,
 		log:              log.New(),
 		bus:              bus,
-		minFeePerByte:    minFeePerByte,
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -174,7 +172,8 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 }
 
 func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState, txType validation.TxType) error {
-	return validation.ValidateTx(appState, tx, pool.minFeePerByte, txType)
+	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+	return validation.ValidateTx(appState, tx, minFeePerByte, txType)
 }
 
 func (pool *TxPool) AddTxs(txs []*types.Transaction) {
@@ -436,12 +435,14 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	removingTxs := make(map[common.Hash]*types.Transaction)
 
+	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {
 			continue
 		}
 
-		if err := validation.ValidateTx(appState, tx, pool.minFeePerByte, validation.MempoolTx); err != nil {
+		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.MempoolTx); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
 				removingTxs[tx.Hash()] = tx
 				continue
