@@ -70,7 +70,7 @@ type stateApprovedIdentity struct {
 type stateGlobal struct {
 	data Global
 
-	onDirty func(withEpoch bool) // Callback method to mark a state object newly dirty
+	onDirty func() // Callback method to mark a state object newly dirty
 }
 type stateStatusSwitch struct {
 	data IdentityStatusSwitch
@@ -211,7 +211,7 @@ func newIdentityObject(address common.Address, data Identity, onDirty func(addr 
 }
 
 // newGlobalObject creates a global state object.
-func newGlobalObject(data Global, onDirty func(withEpoch bool)) *stateGlobal {
+func newGlobalObject(data Global, onDirty func()) *stateGlobal {
 	return &stateGlobal{
 		data:    data,
 		onDirty: onDirty,
@@ -609,7 +609,7 @@ func (s *stateGlobal) Epoch() uint16 {
 
 func (s *stateGlobal) IncEpoch() {
 	s.data.Epoch++
-	s.touch(true)
+	s.touch()
 }
 
 func (s *stateGlobal) VrfProposerThreshold() float64 {
@@ -622,7 +622,7 @@ func (s *stateGlobal) VrfProposerThresholdRaw() uint64 {
 
 func (s *stateGlobal) SetVrfProposerThreshold(value float64) {
 	s.data.VrfProposerThreshold = math2.Float64bits(value)
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) AddBlockBit(empty bool) {
@@ -634,7 +634,7 @@ func (s *stateGlobal) AddBlockBit(empty bool) {
 		s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, 0, 1)
 	}
 	s.data.EmptyBlocksBits.SetBit(s.data.EmptyBlocksBits, EmptyBlocksBitsSize, 0)
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) EmptyBlocksCount() int {
@@ -657,16 +657,16 @@ func (s *stateGlobal) LastSnapshot() uint64 {
 
 func (s *stateGlobal) SetLastSnapshot(height uint64) {
 	s.data.LastSnapshot = height
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) ValidationPeriod() ValidationPeriod {
 	return s.data.ValidationPeriod
 }
 
-func (s *stateGlobal) touch(withEpoch bool) {
+func (s *stateGlobal) touch() {
 	if s.onDirty != nil {
-		s.onDirty(withEpoch)
+		s.onDirty()
 	}
 }
 
@@ -676,17 +676,17 @@ func (s *stateGlobal) NextValidationTime() *big.Int {
 
 func (s *stateGlobal) SetNextValidationTime(unix int64) {
 	s.data.NextValidationTime = big.NewInt(unix)
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) SetValidationPeriod(period ValidationPeriod) {
 	s.data.ValidationPeriod = period
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) SetGodAddress(godAddress common.Address) {
 	s.data.GodAddress = godAddress
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) GodAddress() common.Address {
@@ -695,7 +695,7 @@ func (s *stateGlobal) GodAddress() common.Address {
 
 func (s *stateGlobal) SetFlipWordsSeed(seed types.Seed) {
 	s.data.WordsSeed = seed
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) FlipWordsSeed() types.Seed {
@@ -704,12 +704,12 @@ func (s *stateGlobal) FlipWordsSeed() types.Seed {
 
 func (s *stateGlobal) SetEpoch(epoch uint16) {
 	s.data.Epoch = epoch
-	s.touch(true)
+	s.touch()
 }
 
 func (s *stateGlobal) SetEpochBlock(height uint64) {
 	s.data.EpochBlock = height
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) EpochBlock() uint64 {
@@ -718,7 +718,7 @@ func (s *stateGlobal) EpochBlock() uint64 {
 
 func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
 	s.data.FeePerByte = fee
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) FeePerByte() *big.Int {
@@ -727,7 +727,7 @@ func (s *stateGlobal) FeePerByte() *big.Int {
 
 func (s *stateGlobal) SubGodAddressInvite() {
 	s.data.GodAddressInvites -= 1
-	s.touch(false)
+	s.touch()
 }
 
 func (s *stateGlobal) GodAddressInvites() uint16 {
@@ -736,7 +736,7 @@ func (s *stateGlobal) GodAddressInvites() uint16 {
 
 func (s *stateGlobal) SetGodAddressInvites(count uint16) {
 	s.data.GodAddressInvites = count
-	s.touch(false)
+	s.touch()
 }
 
 // EncodeRLP implements rlp.Encoder.
