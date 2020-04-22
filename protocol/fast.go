@@ -149,7 +149,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 }
 
 func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (types.Transactions, error) {
-	if txs, err := fs.ipfs.Get(ipfsHash); err != nil {
+	if txs, err := fs.ipfs.Get(ipfsHash, ipfs.Block); err != nil {
 		return nil, err
 	} else {
 		if len(txs) > 0 {

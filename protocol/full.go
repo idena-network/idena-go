@@ -210,7 +210,7 @@ func (fs *fullSync) GetBlock(header *types.Header) (*types.Block, error) {
 			Body:   &types.Body{},
 		}, nil
 	}
-	if txs, err := fs.ipfs.Get(header.ProposedHeader.IpfsHash); err != nil {
+	if txs, err := fs.ipfs.Get(header.ProposedHeader.IpfsHash, ipfs.Block); err != nil {
 		return nil, err
 	} else {
 		if len(txs) > 0 {

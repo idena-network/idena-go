@@ -15,6 +15,7 @@ const (
 	WordPairsPerFlip   = 3
 
 	MaxFlipSize = 1024 * 600
+	MaxProfileSize = 1024 * 1024
 )
 
 func ShortSessionExtraFlipsCount() uint {

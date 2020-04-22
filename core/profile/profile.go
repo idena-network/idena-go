@@ -1,13 +1,10 @@
 package profile
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/pkg/errors"
-)
-
-const (
-	maxIpfsDataSize = 1024 * 600
 )
 
 type Manager struct {
@@ -27,9 +24,9 @@ func NewProfileManager(ipfsProxy ipfs.Proxy) *Manager {
 
 func (pm *Manager) AddProfile(pr Profile) ([]byte, error) {
 	encodedData, _ := rlp.EncodeToBytes(pr)
-	if len(encodedData) > maxIpfsDataSize {
+	if len(encodedData) > common.MaxProfileSize {
 		return nil, errors.Errorf("profile data is too big, max expected size %v, actual %v",
-			maxIpfsDataSize, len(encodedData))
+			common.MaxProfileSize, len(encodedData))
 	}
 	hash, err := pm.ipfsProxy.Add(encodedData, true)
 	if err != nil {
@@ -39,7 +36,7 @@ func (pm *Manager) AddProfile(pr Profile) ([]byte, error) {
 }
 
 func (pm *Manager) GetProfile(hash []byte) (Profile, error) {
-	encodedData, err := pm.ipfsProxy.Get(hash)
+	encodedData, err := pm.ipfsProxy.Get(hash, ipfs.Profile)
 	if err != nil {
 		return Profile{}, err
 	}
