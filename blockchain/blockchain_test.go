@@ -705,3 +705,47 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 }
+
+func Test_ClearDustAccounts(t *testing.T) {
+	require := require.New(t)
+	key, _ := crypto.GenerateKey()
+	_, s := NewCustomTestBlockchain(1, 0, key)
+
+	s.State.AddBalance(common.Address{0x1}, big.NewInt(1))
+	s.State.AddBalance(common.Address{0x2}, common.DnaBase)
+	s.State.AddBalance(common.Address{0x3}, new(big.Int).Div(common.DnaBase, big.NewInt(100)))
+	s.State.AddBalance(common.Address{0x4}, new(big.Int).Mul(common.DnaBase, big.NewInt(100)))
+	s.State.AddBalance(common.Address{0x5}, new(big.Int).Mul(common.DnaBase, big.NewInt(5000)))
+	s.State.AddBalance(common.Address{0x6}, big.NewInt(999_999_999_999))
+
+	s.State.Commit(true)
+
+	// accounts with balance less than 0.1 DNA should be removed (1, 3, 6)
+	clearDustAccounts(s, 100)
+
+	s.State.Commit(true)
+
+	require.False(s.State.AccountExists(common.Address{0x1}))
+	require.True(s.State.AccountExists(common.Address{0x2}))
+	require.False(s.State.AccountExists(common.Address{0x3}))
+	require.True(s.State.AccountExists(common.Address{0x4}))
+	require.True(s.State.AccountExists(common.Address{0x5}))
+	require.False(s.State.AccountExists(common.Address{0x6}))
+
+	s.State.Clear()
+
+	s.State.SetBalance(common.Address{0x4}, big.NewInt(1))
+	s.State.SetBalance(common.Address{0x7}, big.NewInt(100))
+	s.State.SetBalance(common.Address{0x8}, new(big.Int).Mul(common.DnaBase, big.NewInt(100)))
+
+	// accounts with balance less than 2 DNA should be removed (2, 4)
+	clearDustAccounts(s, 5)
+
+	s.State.Commit(true)
+
+	require.False(s.State.AccountExists(common.Address{0x2}))
+	require.False(s.State.AccountExists(common.Address{0x4}))
+	require.True(s.State.AccountExists(common.Address{0x5}))
+	require.False(s.State.AccountExists(common.Address{0x7}))
+	require.True(s.State.AccountExists(common.Address{0x8}))
+}

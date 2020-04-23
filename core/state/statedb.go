@@ -73,7 +73,6 @@ type StateDB struct {
 
 	stateGlobal            *stateGlobal
 	stateGlobalDirty       bool
-	epochDirty             bool
 	stateStatusSwitch      *stateStatusSwitch
 	stateStatusSwitchDirty bool
 
@@ -234,6 +233,12 @@ func (s *StateDB) NextValidationTime() time.Time {
 /*
  * SETTERS
  */
+
+func (s *StateDB) ClearAccount(addr common.Address) {
+	stateObject := s.GetOrNewAccountObject(addr)
+	stateObject.SetNonce(0)
+	stateObject.SetBalance(big.NewInt(0))
+}
 
 // AddBalance adds amount to the account associated with addr
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
@@ -735,12 +740,11 @@ func (s *StateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 
 // MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
-func (s *StateDB) MarkStateGlobalObjectDirty(withEpoch bool) {
+func (s *StateDB) MarkStateGlobalObjectDirty() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.stateGlobalDirty = true
-	s.epochDirty = s.epochDirty || withEpoch
 }
 
 func (s *StateDB) MarkStateStatusSwitchObjectDirty() {
@@ -768,7 +772,7 @@ func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdenti
 
 func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 	stateObject = newGlobalObject(Global{}, s.MarkStateGlobalObjectDirty)
-	stateObject.touch(true)
+	stateObject.touch()
 	s.setStateGlobalObject(stateObject)
 	return stateObject
 }
@@ -847,31 +851,6 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	if s.stateStatusSwitchDirty {
 		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
 		s.stateStatusSwitchDirty = false
-	}
-
-	// if epoch has changed
-	if s.epochDirty {
-		currentEpoch := s.Epoch()
-		// remove account if epoch is lower
-		s.IterateAccounts(func(key []byte, value []byte) bool {
-			if key == nil {
-				return true
-			}
-			addr := common.Address{}
-			addr.SetBytes(key[1:])
-
-			var data Account
-			if err := rlp.DecodeBytes(value, &data); err != nil {
-				return false
-			}
-
-			if data.Epoch < currentEpoch && data.Balance.Sign() == 0 {
-				s.deleteStateAccountObject(newAccountObject(addr, data, s.MarkStateAccountObjectDirty))
-			}
-
-			return false
-		})
-		s.epochDirty = false
 	}
 }
 
@@ -975,6 +954,38 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		}
 		s.lock.Unlock()
 		var data Identity
+		if err := rlp.DecodeBytes(value, &data); err != nil {
+			return false
+		}
+		callback(addr, data)
+		return false
+	})
+}
+
+func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account Account)) {
+	usedAccounts := make(map[common.Address]Account)
+	s.lock.Lock()
+	for addr, item := range s.stateAccounts {
+		usedAccounts[addr] = item.data
+	}
+	s.lock.Unlock()
+
+	for addr, item := range usedAccounts {
+		callback(addr, item)
+	}
+
+	s.IterateAccounts(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+
+		if _, ok := usedAccounts[addr]; ok {
+			return false
+		}
+
+		var data Account
 		if err := rlp.DecodeBytes(value, &data); err != nil {
 			return false
 		}
