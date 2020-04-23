@@ -47,6 +47,7 @@ import (
 const (
 	CidLength        = 36
 	ZeroPeersTimeout = 2 * time.Minute
+	GcPeriod         = time.Second * 15
 )
 
 type DataType = uint32
@@ -98,6 +99,9 @@ type ipfsProxy struct {
 	nilNode              *core.IpfsNode
 	lastPeersUpdatedTime time.Time
 	bus                  eventbus.Bus
+	lastGcCancel         time.Time
+	gcCancel             context.CancelFunc
+	gcMutex              sync.RWMutex
 }
 
 func (p *ipfsProxy) Host() core2.Host {
@@ -143,6 +147,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	}
 
 	go p.watchPeers()
+	go p.gc()
 	return p, nil
 }
 
@@ -166,8 +171,37 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 	if err != nil {
 		return nil, nil, func() {}, err
 	}
-	go corerepo.PeriodicGC(ctx, node)
 	return node, ctx, cancelCtx, nil
+}
+
+func (p *ipfsProxy) gc() {
+	for {
+		select {
+		case <-time.After(GcPeriod):
+			if time.Since(p.lastGcCancel) < GcPeriod {
+				continue
+			}
+			p.gcMutex.Lock()
+			ctx, cancel := context.WithCancel(p.nodeCtx)
+			p.gcCancel = cancel
+			p.gcMutex.Unlock()
+			if err := corerepo.ConditionalGC(ctx, p.node, 0); err != nil {
+				p.log.Info("ipfs gc error", "err", err)
+			}
+			cancel()
+			p.gcCancel = nil
+			p.lastGcCancel = time.Now()
+		}
+	}
+}
+
+func (p *ipfsProxy) cancelGc() {
+	p.lastGcCancel = time.Now()
+	cancelFunc := p.gcCancel
+	if cancelFunc != nil {
+		cancelFunc()
+		p.gcCancel = nil
+	}
 }
 
 func (p *ipfsProxy) changePort() {
@@ -254,6 +288,10 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 		return EmptyCid, nil
 	}
 
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
+
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 	api, _ := coreapi.NewCoreAPI(p.node)
@@ -294,6 +332,10 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
+
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*1)
@@ -332,6 +374,11 @@ func (p *ipfsProxy) Get(key []byte, dataType DataType) ([]byte, error) {
 func (p *ipfsProxy) get(path path.Path, dataType DataType) ([]byte, error) {
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
+
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
+
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -385,6 +432,11 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
+
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
+
 	api, _ := coreapi.NewCoreAPI(p.node)
 
 	f, err := api.Unixfs().Get(ctx, path.IpfsPath(c))
@@ -415,6 +467,10 @@ func (p *ipfsProxy) Pin(key []byte) error {
 		return err
 	}
 
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
@@ -439,6 +495,10 @@ func (p *ipfsProxy) Unpin(key []byte) error {
 	if err != nil {
 		return err
 	}
+
+	p.gcMutex.RLock()
+	p.cancelGc()
+	defer p.gcMutex.RUnlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
