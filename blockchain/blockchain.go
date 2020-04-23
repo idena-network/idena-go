@@ -449,6 +449,8 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 			statsCollector)
 	}
 
+	clearDustAccounts(appState, networkSize)
+
 	appState.State.IncEpoch()
 
 	validationTime := appState.State.NextValidationTime()
@@ -576,6 +578,18 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 	})
 
 	setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
+}
+
+func clearDustAccounts(appState *appstate.AppState, networkSize int) {
+	commonTxSize := big.NewInt(100)
+	minFeePerByte := fee.GetFeePerByteForNetwork(networkSize)
+	commonTxCost := new(big.Int).Mul(commonTxSize, minFeePerByte)
+
+	appState.State.IterateOverAccounts(func(addr common.Address, account state.Account) {
+		if account.Balance.Cmp(commonTxCost) == -1 {
+			appState.State.ClearAccount(addr)
+		}
+	})
 }
 
 func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Address) {
