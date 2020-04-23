@@ -17,6 +17,7 @@ import (
 	"github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-ipfs/core/corerepo"
 	"github.com/ipfs/go-ipfs/core/coreunix"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
@@ -165,7 +166,7 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 	if err != nil {
 		return nil, nil, func() {}, err
 	}
-
+	go corerepo.PeriodicGC(ctx, node)
 	return node, ctx, cancelCtx, nil
 }
 
