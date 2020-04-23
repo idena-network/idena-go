@@ -735,6 +735,8 @@ func Test_ClearDustAccounts(t *testing.T) {
 	s.State.Clear()
 
 	s.State.SetBalance(common.Address{0x4}, big.NewInt(1))
+	s.State.SetBalance(common.Address{0x7}, big.NewInt(100))
+	s.State.SetBalance(common.Address{0x8}, new(big.Int).Mul(common.DnaBase, big.NewInt(100)))
 
 	// accounts with balance less than 2 DNA should be removed (2, 4)
 	clearDustAccounts(s, 5)
@@ -744,4 +746,6 @@ func Test_ClearDustAccounts(t *testing.T) {
 	require.False(s.State.AccountExists(common.Address{0x2}))
 	require.False(s.State.AccountExists(common.Address{0x4}))
 	require.True(s.State.AccountExists(common.Address{0x5}))
+	require.False(s.State.AccountExists(common.Address{0x7}))
+	require.True(s.State.AccountExists(common.Address{0x8}))
 }
