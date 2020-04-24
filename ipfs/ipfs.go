@@ -176,22 +176,20 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 
 func (p *ipfsProxy) gc() {
 	for {
-		select {
-		case <-time.After(GcPeriod):
-			if time.Since(p.lastGcCancel) < GcPeriod {
-				continue
-			}
-			p.gcMutex.Lock()
-			ctx, cancel := context.WithCancel(p.nodeCtx)
-			p.gcCancel = cancel
-			p.gcMutex.Unlock()
-			if err := corerepo.ConditionalGC(ctx, p.node, 0); err != nil {
-				p.log.Info("ipfs gc error", "err", err)
-			}
-			cancel()
-			p.gcCancel = nil
-			p.lastGcCancel = time.Now()
+		time.Sleep(GcPeriod)
+		if time.Since(p.lastGcCancel) < GcPeriod {
+			continue
 		}
+		p.gcMutex.Lock()
+		ctx, cancel := context.WithCancel(p.nodeCtx)
+		p.gcCancel = cancel
+		p.gcMutex.Unlock()
+		if err := corerepo.ConditionalGC(ctx, p.node, 0); err != nil {
+			p.log.Debug("ipfs gc error", "err", err)
+		}
+		cancel()
+		p.gcCancel = nil
+		p.lastGcCancel = time.Now()
 	}
 }
 
