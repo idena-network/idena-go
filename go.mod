@@ -26,7 +26,7 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.2.7
 	github.com/libp2p/go-libp2p-core v0.5.1
 	github.com/libp2p/go-msgio v0.0.4
-	github.com/libp2p/go-yamux v1.3.5
+	github.com/libp2p/go-yamux v1.3.6
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multiaddr v0.2.1
 	github.com/multiformats/go-multihash v0.0.13
