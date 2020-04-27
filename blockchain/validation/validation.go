@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	MaxPayloadSize           = 1024
+	MaxPayloadSize           = 3 * 1024
 	GodValidUntilNetworkSize = 10
 )
 
