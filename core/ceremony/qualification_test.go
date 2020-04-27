@@ -108,8 +108,9 @@ func Test_qualifyCandidate(t *testing.T) {
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	flipQualificationMap[10] = FlipQualification{
-		status: Qualified,
-		answer: types.Left,
+		status:     Qualified,
+		answer:     types.Left,
+		wrongWords: true,
 	}
 	flipQualificationMap[11] = FlipQualification{
 		status: NotQualified,
@@ -192,8 +193,8 @@ func Test_qualifyCandidate(t *testing.T) {
 	mShortPoint, mShortQualifiedFlipsCount, _, _, _ := q.qualifyCandidate(maliciousCandidate, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 
 	// then
-	require.Equal(t, float32(3.5), shortPoint)
-	require.Equal(t, uint32(4), shortQualifiedFlipsCount)
+	require.Equal(t, float32(2.5), shortPoint)
+	require.Equal(t, uint32(3), shortQualifiedFlipsCount)
 	require.Equal(t, float32(4.5), longPoint)
 	require.Equal(t, uint32(6), longQualifiedFlipsCount)
 
