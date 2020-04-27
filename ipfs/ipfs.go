@@ -92,6 +92,12 @@ type Proxy interface {
 	ShouldPin(dataType DataType) bool
 	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
 }
+
+type peerData struct {
+	url string
+	t   time.Time
+}
+
 type ipfsProxy struct {
 	node                 *core.IpfsNode
 	log                  log.Logger
@@ -107,6 +113,7 @@ type ipfsProxy struct {
 	gcCancel             context.CancelFunc
 	gcMutex              sync.RWMutex
 	p                    map[peer.ID]string
+	peerData             map[peer.ID]peerData
 }
 
 func (p *ipfsProxy) Host() core2.Host {
@@ -149,7 +156,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 		lastPeersUpdatedTime: time.Now().UTC(),
 		nilNode:              nilNode,
 		bus:                  bus,
-		p:                    make(map[peer.ID]string),
+		peerData:             make(map[peer.ID]peerData),
 	}
 
 	go p.watchPeers()
@@ -260,8 +267,12 @@ func (p *ipfsProxy) writeToFile() {
 		fmt.Println(err)
 	}
 
-	for key, value := range p.p {
-		f.WriteString(fmt.Sprintf("%v:%v\n", key.String(), value))
+	for key, value := range p.peerData {
+		if time.Since(value.t) > time.Hour*24 {
+			delete(p.peerData, key)
+			continue
+		}
+		f.WriteString(fmt.Sprintf("%v,%v,%v\n", key.String(), value.url, value.t.String()))
 	}
 }
 
@@ -285,7 +296,10 @@ func (p *ipfsProxy) watchPeers() {
 		}
 
 		for _, item := range info {
-			p.p[item.ID()] = item.Address().String()
+			p.peerData[item.ID()] = peerData{
+				url: item.Address().String(),
+				t:   time.Now(),
+			}
 		}
 
 		if idx%30 == 0 {
