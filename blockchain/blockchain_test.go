@@ -664,6 +664,8 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
 	}
 
 	for i, item := range identities {
@@ -704,6 +706,14 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationAuthors{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xb}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xc}))
 }
 
 func Test_ClearDustAccounts(t *testing.T) {
