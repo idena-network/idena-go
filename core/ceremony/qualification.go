@@ -179,27 +179,29 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 
 		var answerPoint float32
-		switch status {
-		case Qualified:
-			if qual.answer == answer {
-				answerPoint = 1
+		if !shortSession || !qual.wrongWords {
+			switch status {
+			case Qualified:
+				if qual.answer == answer {
+					answerPoint = 1
+				}
+				qualifiedFlipsCount += 1
+			case WeaklyQualified:
+				switch {
+				case qual.answer == answer:
+					answerPoint = 1
+					qualifiedFlipsCount += 1
+					break
+				case answer == types.None:
+					qualifiedFlipsCount += 1
+					break
+				case qual.answer != types.Inappropriate:
+					answerPoint = 0.5
+					qualifiedFlipsCount += 1
+				}
 			}
-			qualifiedFlipsCount += 1
-		case WeaklyQualified:
-			switch {
-			case qual.answer == answer:
-				answerPoint = 1
-				qualifiedFlipsCount += 1
-				break
-			case answer == types.None:
-				qualifiedFlipsCount += 1
-				break
-			case qual.answer != types.Inappropriate:
-				answerPoint = 0.5
-				qualifiedFlipsCount += 1
-			}
+			point += answerPoint
 		}
-		point += answerPoint
 		flipAnswers[flipIdx] = statsTypes.FlipAnswerStats{
 			Respondent: candidate,
 			Answer:     answer,
@@ -318,5 +320,5 @@ func qualifyWrongWords(data []bool) bool {
 			wrongCount += 1
 		}
 	}
-	return float32(wrongCount)/float32(len(data)) >= 0.66
+	return float32(wrongCount)/float32(len(data)) > 0.5
 }
