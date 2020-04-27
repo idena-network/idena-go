@@ -29,12 +29,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
+	"math/rand"
 	"sync"
 	"time"
 )
 
 const (
-	LotterySeedLag = 100
+	LotterySeedLag                      = 100
+	MaxFlipKeysPackageBroadcastDelaySec = 120
 )
 
 const (
@@ -331,8 +333,14 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 		vc.calculateCeremonyCandidates()
 		vc.calculatePrivateFlipKeysIndexes()
 		vc.logInfoWithInteraction("Flip lottery started")
+
+		go vc.delayedFlipPackageBroadcast()
 	}
-	vc.broadcastPrivateFlipKeysPackage(vc.appState)
+	// attempt to broadcast own flip key package since MaxFlipKeysPackageBroadcastDelaySec seconds after flip lottery has started
+	shift := vc.config.Validation.GetFlipLotteryDuration() - MaxFlipKeysPackageBroadcastDelaySec*time.Second
+	if shift < 0 || vc.appState.State.NextValidationTime().Sub(time.Now().UTC()) < shift {
+		vc.broadcastPrivateFlipKeysPackage(vc.appState)
+	}
 }
 
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
@@ -457,6 +465,12 @@ func (vc *ValidationCeremony) broadcastPublicFipKey(appState *appstate.AppState)
 	vc.keysPool.AddPublicFlipKey(signedMsg, true)
 	vc.publicKeySent = true
 }
+func (vc *ValidationCeremony) delayedFlipPackageBroadcast() {
+	if vc.shouldInteractWithNetwork() {
+		time.Sleep(time.Duration(rand.Intn(MaxFlipKeysPackageBroadcastDelaySec)) * time.Second)
+		vc.broadcastPrivateFlipKeysPackage(vc.appState)
+	}
+}
 
 func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate.AppState) {
 	if vc.privateKeysSent || !vc.shouldInteractWithNetwork() || !vc.shouldBroadcastFlipKey(appState) {
@@ -491,8 +505,12 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 		return
 	}
 
-	vc.keysPool.AddPrivateKeysPackage(signedMsg, true)
-	vc.privateKeysSent = true
+	if err := vc.keysPool.AddPrivateKeysPackage(signedMsg, true); err != nil {
+		vc.log.Error("failed to add key package", "epoch", epoch, "err", err)
+	} else {
+		vc.log.Info("private flip keys package has been broadcast")
+		vc.privateKeysSent = true
+	}
 }
 
 func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
@@ -967,7 +985,6 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 			authorResults[author].AllFlipsNotQualified = true
 		}
 	}
-
 	for author := range badAuthors {
 		delete(goodAuthors, author)
 	}
