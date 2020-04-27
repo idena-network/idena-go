@@ -518,7 +518,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	}
 	lastScore := identitiesWithInvites[index-1].score
 	for i := index; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
-		appState.State.SetInvites(identity.address, getInvitesCount(identitiesWithInvites[i].state))
+		appState.State.SetInvites(identitiesWithInvites[i].address, getInvitesCount(identitiesWithInvites[i].state))
 	}
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
