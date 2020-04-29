@@ -238,6 +238,7 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	vc.qualification.restore()
 	vc.calculateCeremonyCandidates()
+	vc.calculatePrivateFlipKeysIndexes()
 	vc.startValidationShortSessionTimer()
 }
 
@@ -1216,7 +1217,7 @@ func (vc *ValidationCeremony) ShortSessionStarted() bool {
 }
 
 func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
-	if !vc.isCandidate() {
+	if vc.candidates == nil || !vc.isCandidate() {
 		return
 	}
 	myIndex := vc.getOwnCandidateIndex()
