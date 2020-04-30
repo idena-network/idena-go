@@ -19,7 +19,6 @@ type pullRequest struct {
 	hash pushPullHash
 }
 
-
 type PushPullManager struct {
 	pendingPushes *cache.Cache
 	mutex         sync.Mutex
@@ -62,6 +61,9 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 				hash: hash,
 			})
 			m.makeRequest(id, hash)
+			if holder.SupportPendingRequests() {
+				holder.PushTracker().RegisterPull(hash.Hash)
+			}
 			m.mutex.Unlock()
 			return
 		}
@@ -70,14 +72,23 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 	value, _ := m.pendingPushes.Get(key)
 
 	pendingPush := value.(*pendingPush)
-	if pendingPush.cnt >= holder.MaxPulls() {
+	if pendingPush.cnt >= holder.MaxParallelPulls() {
+		if holder.SupportPendingRequests() {
+			holder.PushTracker().AddPendingPush(id, hash.Hash)
+		}
 		return
 	}
 	cnt := atomic.AddUint32(&pendingPush.cnt, 1)
-	if cnt >= holder.MaxPulls() {
+	if cnt >= holder.MaxParallelPulls() {
+		if holder.SupportPendingRequests() {
+			holder.PushTracker().AddPendingPush(id, hash.Hash)
+		}
 		return
 	}
 	m.makeRequest(id, hash)
+	if holder.SupportPendingRequests() {
+		holder.PushTracker().RegisterPull(hash.Hash)
+	}
 }
 
 func (m *PushPullManager) makeRequest(peer peer.ID, hash pushPullHash) {
@@ -97,4 +108,23 @@ func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, bool) {
 
 func (m *PushPullManager) Requests() chan pullRequest {
 	return m.requests
+}
+
+func (m *PushPullManager) Run() {
+	for entryType, holder := range m.entryHolders {
+		if holder.SupportPendingRequests() {
+			go m.loop(entryType, holder)
+		}
+	}
+}
+
+func (m *PushPullManager) loop(entryType pushType, holder entry.Holder) {
+	for {
+		req := <-holder.PushTracker().Requests()
+		m.makeRequest(req.Id, pushPullHash{
+			Type: entryType,
+			Hash: req.Hash,
+		})
+		holder.PushTracker().RegisterPull(req.Hash)
+	}
 }
