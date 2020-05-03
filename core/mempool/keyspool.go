@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/entry"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
@@ -39,8 +40,8 @@ type KeysPool struct {
 	db                        dbm.DB
 	appState                  *appstate.AppState
 	flipKeys                  map[common.Address]*types.PublicFlipKey
-	publicKeyMutex            sync.Mutex
-	privateKeysMutex          sync.Mutex
+	publicKeyMutex            sync.RWMutex
+	privateKeysMutex          sync.RWMutex
 	bus                       eventbus.Bus
 	head                      *types.Header
 	log                       log.Logger
@@ -52,11 +53,12 @@ type KeysPool struct {
 	packagesLoadingCtx        context.Context
 	cancelLoadingCtx          context.CancelFunc
 	self                      common.Address
+	pushTracker               entry.PendingPushTracker
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &KeysPool{
+	pool := &KeysPool{
 		db:                        db,
 		appState:                  appState,
 		bus:                       bus,
@@ -68,7 +70,10 @@ func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secSt
 		secStore:                  secStore,
 		packagesLoadingCtx:        ctx,
 		cancelLoadingCtx:          cancel,
+		pushTracker:               entry.NewDefaultPushTracker(0),
 	}
+	pool.pushTracker.SetHolder(pool)
+	return pool
 }
 
 func (p *KeysPool) Initialize(head *types.Header) {
@@ -80,27 +85,37 @@ func (p *KeysPool) Initialize(head *types.Header) {
 			newBlockEvent := e.(*events.NewBlockEvent)
 			p.head = newBlockEvent.Block.Header
 		})
+	p.pushTracker.Run()
 }
 
 func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
+	//ignore it, entries are adding via AddPrivateKeysPackage
+}
+
+func (p *KeysPool) PushTracker() entry.PendingPushTracker {
+	return p.pushTracker
 }
 
 func (p *KeysPool) Has(hash common.Hash128) bool {
-	p.privateKeysMutex.Lock()
+	p.privateKeysMutex.RLock()
 	_, ok := p.flipKeyPackagesByHash[hash]
-	p.privateKeysMutex.Unlock()
+	p.privateKeysMutex.RUnlock()
 	return ok
 }
 
 func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
-	p.privateKeysMutex.Lock()
+	p.privateKeysMutex.RLock()
 	value, ok := p.flipKeyPackagesByHash[hash]
-	p.privateKeysMutex.Unlock()
+	p.privateKeysMutex.RUnlock()
 	return value, ok
 }
 
-func (p *KeysPool) MaxPulls() uint32 {
+func (p *KeysPool) MaxParallelPulls() uint32 {
 	return 3
+}
+
+func (p *KeysPool) SupportPendingRequests() bool {
+	return true
 }
 
 func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
@@ -182,7 +197,10 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	}
 
 	p.flipKeyPackages[sender] = keysPackage
-	p.flipKeyPackagesByHash[keysPackage.Hash128()] = keysPackage
+	shortHash := keysPackage.Hash128()
+	p.flipKeyPackagesByHash[shortHash] = keysPackage
+
+	p.pushTracker.RemovePull(shortHash)
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
 		Key: keysPackage,
@@ -192,8 +210,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 }
 
 func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
-	p.publicKeyMutex.Lock()
-	defer p.publicKeyMutex.Unlock()
+	p.publicKeyMutex.RLock()
+	defer p.publicKeyMutex.RUnlock()
 
 	var list []*types.PublicFlipKey
 
@@ -204,8 +222,8 @@ func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
 }
 
 func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
-	p.privateKeysMutex.Lock()
-	defer p.privateKeysMutex.Unlock()
+	p.privateKeysMutex.RLock()
+	defer p.privateKeysMutex.RUnlock()
 
 	var list []common.Hash128
 
@@ -220,8 +238,8 @@ func (p *KeysPool) GetPublicFlipKey(address common.Address) *ecies.PrivateKey {
 }
 
 func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
-	p.publicKeyMutex.Lock()
-	defer p.publicKeyMutex.Unlock()
+	p.publicKeyMutex.RLock()
+	defer p.publicKeyMutex.RUnlock()
 	key, ok := p.flipKeys[address]
 	if !ok {
 		return nil
