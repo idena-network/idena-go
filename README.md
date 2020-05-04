@@ -53,7 +53,6 @@ Custom json configuration can be used if `--config=<config file name>` parameter
   "IpfsConf": {
     "Profile": "server",
     "IpfsPort": 40405,
-    "BootNodes": [],
     "BlockPinThreshold": 0.3,
     "FlipPinThreshold": 0.5
   },
