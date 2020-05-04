@@ -29,7 +29,7 @@ var (
 		"/ip4/167.172.106.202/tcp/40405/ipfs/Qma1F1LXHGA1RLuBDN66nuZE8Pm1249UTX7Q6CbhFnfTG2",
 		"/ip4/104.248.248.29/tcp/40405/ipfs/QmTzKWYksgjm8aecWAJC5pAMidkhWjj86R9MdGA8dVJxQc",
 		"/ip4/161.35.18.60/tcp/40405/ipfs/QmaBWm6dXsc6Y1MZ1x4ZTqHdjy32PGmyGmNPmHnxGGgrXF",
-		"/ip4/35.184.126.97/tcp/40405/ipfs/QmYEM7yPRHBUyzNJvdL34ut2uyJSAk66AeZXzu3Cftofec",
+		"/ip4/35.184.126.97/tcp/40405/ipfs/QmTCNEjBbbyY1nvv2homwmqHgYtt3WWg8PxvmQqJqcXHrL",
 	}
 	CfgFileFlag = cli.StringFlag{
 		Name:  "config",
