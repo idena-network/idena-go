@@ -599,7 +599,7 @@ type ValidationResult struct {
 	NewIdentityState uint8
 }
 
-type Inviter struct {
+type InviterValidationResult struct {
 	SuccessfulInvites   []*SuccessfulInvite
 	SavedInvites        uint8
 	NewIdentityState    uint8
@@ -621,7 +621,7 @@ type ValidationResults struct {
 	BadAuthors    map[common.Address]BadAuthorReason
 	GoodAuthors   map[common.Address]*ValidationResult
 	AuthorResults map[common.Address]*AuthorResults
-	GoodInviters  map[common.Address]*Inviter
+	GoodInviters  map[common.Address]*InviterValidationResult
 }
 
 type BadAuthorReason = byte

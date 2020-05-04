@@ -53,7 +53,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 			auth3:  {StrongFlipCids: [][]byte{{0x1}, {0x1}}, WeakFlipCids: [][]byte{{0x1}}, Missed: false, NewIdentityState: uint8(state.Verified)},
 			failed: {StrongFlipCids: [][]byte{{0x1}, {0x1}}, WeakFlipCids: [][]byte{{0x1}}, Missed: true},
 		},
-		GoodInviters: map[common.Address]*types.Inviter{
+		GoodInviters: map[common.Address]*types.InviterValidationResult{
 			auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
 			auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
 			auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},

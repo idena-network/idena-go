@@ -759,6 +759,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		}
 	}
 	validationResults := new(types.ValidationResults)
+	validationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
 	validationResults.BadAuthors, validationResults.GoodAuthors, validationResults.AuthorResults = vc.analyzeAuthors(flipQualification)
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
@@ -807,7 +808,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		incSuccessfulInvites(validationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
 		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationResults)
-		setValidationResultToGoodInviter(addr, newIdentityState, validationResults, identity.Invites)
+		setValidationResultToGoodInviter(validationResults, addr, newIdentityState, identity.Invites)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -888,7 +889,7 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 	}
 }
 
-func setValidationResultToGoodInviter(address common.Address, newState state.IdentityState, validationResults *types.ValidationResults, invites uint8) {
+func setValidationResultToGoodInviter(validationResults *types.ValidationResults, address common.Address, newState state.IdentityState, invites uint8) {
 	goodInviter, ok := getOrPutGoodInviter(validationResults, address)
 	if !ok {
 		return
@@ -920,13 +921,13 @@ func incSuccessfulInvites(validationResults *types.ValidationResults, god common
 	}
 }
 
-func getOrPutGoodInviter(validationResults *types.ValidationResults, address common.Address) (*types.Inviter, bool) {
+func getOrPutGoodInviter(validationResults *types.ValidationResults, address common.Address) (*types.InviterValidationResult, bool) {
 	if _, isBadAuthor := validationResults.BadAuthors[address]; isBadAuthor {
 		return nil, false
 	}
 	inviter, ok := validationResults.GoodInviters[address]
 	if !ok {
-		inviter = &types.Inviter{}
+		inviter = &types.InviterValidationResult{}
 		validationResults.GoodInviters[address] = inviter
 	}
 	return inviter, true

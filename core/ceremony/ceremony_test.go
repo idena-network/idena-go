@@ -463,7 +463,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 
 	validationResults := &types.ValidationResults{
 		BadAuthors:   map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
-		GoodInviters: make(map[common.Address]*types.Inviter),
+		GoodInviters: make(map[common.Address]*types.InviterValidationResult),
 	}
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
