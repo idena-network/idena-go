@@ -95,7 +95,7 @@ type ValidationCeremony struct {
 type epochApplyingCache struct {
 	epochApplyingResult map[common.Address]cacheValue
 	validationFailed    bool
-	validationAuthors   *types.ValidationAuthors
+	validationResults   *types.ValidationResults
 }
 
 type cacheValue struct {
@@ -737,7 +737,7 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	return identitiesCount
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, authors *types.ValidationAuthors, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, authors *types.ValidationResults, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
@@ -745,14 +745,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
-			return vc.appState.ValidatorsCache.NetworkSize(), applyingCache.validationAuthors, true
+			return vc.appState.ValidatorsCache.NetworkSize(), applyingCache.validationResults, true
 		}
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
 				identitiesCount += applyOnState(appState, statsCollector, addr, value)
 			}
-			return identitiesCount, applyingCache.validationAuthors, false
+			return identitiesCount, applyingCache.validationResults, false
 		}
 	}
 
@@ -778,8 +778,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			WrongWords: item.wrongWords,
 		}
 	}
-	validationAuthors := new(types.ValidationAuthors)
-	validationAuthors.BadAuthors, validationAuthors.GoodAuthors, validationAuthors.AuthorResults = vc.analyzeAuthors(flipQualification)
+	validationResults := new(types.ValidationResults)
+	validationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
+	validationResults.BadAuthors, validationResults.GoodAuthors, validationResults.AuthorResults = vc.analyzeAuthors(flipQualification)
 
 	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
 
@@ -825,8 +826,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			newTotalQualifiedFlipsCount, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-		incSuccessfulInvites(validationAuthors, god, identity, identityBirthday, newIdentityState, vc.epoch)
-		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationAuthors, identity.Invites)
+		incSuccessfulInvites(validationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
+		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationResults)
+		setValidationResultToGoodInviter(validationResults, addr, newIdentityState, identity.Invites)
 
 		value := cacheValue{
 			state:                    newIdentityState,
@@ -859,10 +861,10 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		stats.Failed = true
 		vc.epochApplyingCache[height] = epochApplyingCache{
 			epochApplyingResult: epochApplyingValues,
-			validationAuthors:   validationAuthors,
+			validationResults:   validationResults,
 			validationFailed:    true,
 		}
-		return vc.appState.ValidatorsCache.NetworkSize(), validationAuthors, true
+		return vc.appState.ValidatorsCache.NetworkSize(), validationResults, true
 	}
 
 	for addr, value := range epochApplyingValues {
@@ -875,8 +877,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
-			if vr, ok := validationAuthors.GoodAuthors[identity.Inviter.Address]; ok {
-				vr.SavedInvites += 1
+			if goodInviter, ok := validationResults.GoodInviters[identity.Inviter.Address]; ok {
+				goodInviter.SavedInvites += 1
 			}
 		}
 
@@ -892,24 +894,32 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	vc.epochApplyingCache[height] = epochApplyingCache{
 		epochApplyingResult: epochApplyingValues,
-		validationAuthors:   validationAuthors,
+		validationResults:   validationResults,
 		validationFailed:    false,
 	}
 
-	return identitiesCount, validationAuthors, false
+	return identitiesCount, validationResults, false
 }
 
-func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool, validationAuthors *types.ValidationAuthors, invites uint8) {
-	goodAuthors := validationAuthors.GoodAuthors
+func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool, validationResults *types.ValidationResults) {
+	goodAuthors := validationResults.GoodAuthors
 	if vr, ok := goodAuthors[address]; ok {
 		vr.Missed = missed
 		vr.NewIdentityState = uint8(newState)
-		vr.PayInvitationReward = newState.NewbieOrBetter()
-		vr.SavedInvites = invites
 	}
 }
 
-func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common.Address, invitee state.Identity,
+func setValidationResultToGoodInviter(validationResults *types.ValidationResults, address common.Address, newState state.IdentityState, invites uint8) {
+	goodInviter, ok := getOrPutGoodInviter(validationResults, address)
+	if !ok {
+		return
+	}
+	goodInviter.PayInvitationReward = newState.NewbieOrBetter()
+	goodInviter.SavedInvites = invites
+	goodInviter.NewIdentityState = uint8(newState)
+}
+
+func incSuccessfulInvites(validationResults *types.ValidationResults, god common.Address, invitee state.Identity,
 	birthday uint16, newState state.IdentityState, currentEpoch uint16) {
 	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
 		return
@@ -918,21 +928,29 @@ func incSuccessfulInvites(validationAuthors *types.ValidationAuthors, god common
 	if newAge > 3 {
 		return
 	}
-	goodAuthors := validationAuthors.GoodAuthors
-	if vr, ok := goodAuthors[invitee.Inviter.Address]; ok {
-		vr.SuccessfulInvites = append(vr.SuccessfulInvites, &types.SuccessfulInvite{
-			Age:    newAge,
-			TxHash: invitee.Inviter.TxHash,
-		})
-	} else if invitee.Inviter.Address == god {
-		goodAuthors[god] = &types.ValidationResult{
-			SuccessfulInvites: []*types.SuccessfulInvite{{
-				Age:    newAge,
-				TxHash: invitee.Inviter.TxHash,
-			}},
-			PayInvitationReward: true,
-		}
+	goodInviter, ok := getOrPutGoodInviter(validationResults, invitee.Inviter.Address)
+	if !ok {
+		return
 	}
+	goodInviter.SuccessfulInvites = append(goodInviter.SuccessfulInvites, &types.SuccessfulInvite{
+		Age:    newAge,
+		TxHash: invitee.Inviter.TxHash,
+	})
+	if invitee.Inviter.Address == god {
+		goodInviter.PayInvitationReward = true
+	}
+}
+
+func getOrPutGoodInviter(validationResults *types.ValidationResults, address common.Address) (*types.InviterValidationResult, bool) {
+	if _, isBadAuthor := validationResults.BadAuthors[address]; isBadAuthor {
+		return nil, false
+	}
+	inviter, ok := validationResults.GoodInviters[address]
+	if !ok {
+		inviter = &types.InviterValidationResult{}
+		validationResults.GoodInviters[address] = inviter
+	}
+	return inviter, true
 }
 
 func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults) {

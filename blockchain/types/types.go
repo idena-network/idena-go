@@ -593,13 +593,17 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
 }
 
 type ValidationResult struct {
-	StrongFlipCids      [][]byte
-	WeakFlipCids        [][]byte
+	StrongFlipCids   [][]byte
+	WeakFlipCids     [][]byte
+	Missed           bool
+	NewIdentityState uint8
+}
+
+type InviterValidationResult struct {
 	SuccessfulInvites   []*SuccessfulInvite
-	PayInvitationReward bool
-	Missed              bool
 	SavedInvites        uint8
 	NewIdentityState    uint8
+	PayInvitationReward bool
 }
 
 type SuccessfulInvite struct {
@@ -613,10 +617,11 @@ type AuthorResults struct {
 	AllFlipsNotQualified   bool
 }
 
-type ValidationAuthors struct {
+type ValidationResults struct {
 	BadAuthors    map[common.Address]BadAuthorReason
 	GoodAuthors   map[common.Address]*ValidationResult
 	AuthorResults map[common.Address]*AuthorResults
+	GoodInviters  map[common.Address]*InviterValidationResult
 }
 
 type BadAuthorReason = byte

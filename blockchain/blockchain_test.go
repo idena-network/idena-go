@@ -676,7 +676,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	s.Commit(nil)
 
-	setNewIdentitiesAttributes(s, 12, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 12, 100, false, &types.ValidationResults{}, nil)
 
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
@@ -684,23 +684,23 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x2}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -708,7 +708,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationAuthors{}, nil)
+	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
