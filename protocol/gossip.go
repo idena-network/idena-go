@@ -94,12 +94,13 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		metrics:             new(metricCollector),
 		connManager:         NewConnManager(host, cfg),
 	}
-	handler.pushPullManager.AddEntryHolder(pushVote, entry.NewDefaultHolder(3))
-	handler.pushPullManager.AddEntryHolder(pushBlock, entry.NewDefaultHolder(3))
-	handler.pushPullManager.AddEntryHolder(pushProof, entry.NewDefaultHolder(3))
-	handler.pushPullManager.AddEntryHolder(pushFlip, entry.NewDefaultHolder(1))
+	handler.pushPullManager.AddEntryHolder(pushVote, entry.NewDefaultHolder(3, nil))
+	handler.pushPullManager.AddEntryHolder(pushBlock, entry.NewDefaultHolder(3, nil))
+	handler.pushPullManager.AddEntryHolder(pushProof, entry.NewDefaultHolder(3, nil))
+	handler.pushPullManager.AddEntryHolder(pushFlip, entry.NewDefaultHolder(1, nil))
 	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
-	handler.pushPullManager.AddEntryHolder(pushTx, entry.NewDefaultHolder(1))
+	handler.pushPullManager.AddEntryHolder(pushTx, entry.NewDefaultHolder(2, nil))
+	handler.pushPullManager.Run()
 	handler.registerMetrics()
 	return handler
 }

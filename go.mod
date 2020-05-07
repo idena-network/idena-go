@@ -3,7 +3,7 @@ module github.com/idena-network/idena-go
 require (
 	github.com/RoaringBitmap/roaring v0.4.23
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
-	github.com/awnumar/memguard v0.22.1
+	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
