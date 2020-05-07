@@ -74,7 +74,7 @@ type Blockchain struct {
 	ipfs            ipfs.Proxy
 	timing          *timing
 	bus             eventbus.Bus
-	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationAuthors, bool)
+	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
 	isSyncing       bool
 }
 
@@ -105,7 +105,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationAuthors, bool)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -440,12 +440,12 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
-	networkSize, authors, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
+	networkSize, validationResults, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, authors, statsCollector)
+	setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
 
 	if !failed {
-		rewardValidIdentities(appState, chain.config.Consensus, authors, block.Height()-appState.State.EpochBlock(), block.Seed(),
+		rewardValidIdentities(appState, chain.config.Consensus, validationResults, block.Height()-appState.State.EpochBlock(), block.Seed(),
 			statsCollector)
 	}
 
@@ -464,9 +464,9 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
-func calculateNewIdentityStatusFlags(authors *types.ValidationAuthors) map[common.Address]state.ValidationStatusFlag {
+func calculateNewIdentityStatusFlags(validationResults *types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
 	m := make(map[common.Address]state.ValidationStatusFlag)
-	for addr, item := range authors.AuthorResults {
+	for addr, item := range validationResults.AuthorResults {
 		var status state.ValidationStatusFlag
 		if item.HasOneReportedFlip {
 			status |= state.AtLeastOneFlipReported
@@ -524,9 +524,9 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
-	authors *types.ValidationAuthors, statsCollector collector.StatsCollector) {
+	validationResults *types.ValidationResults, statsCollector collector.StatsCollector) {
 	_, flips := common.NetworkParams(networkSize)
-	identityFlags := calculateNewIdentityStatusFlags(authors)
+	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
 	identitiesWithInvites := make([]identityWithInvite, 0)
 	addIdentityWithInvite := func(elem identityWithInvite) {

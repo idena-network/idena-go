@@ -19,27 +19,27 @@ import (
 	"sort"
 )
 
-func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
+func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
 	blocks uint64, seed types.Seed, statsCollector collector.StatsCollector) {
 
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(blocks)))
 
-	collector.SetAuthors(statsCollector, authors)
+	collector.SetValidationResults(statsCollector, validationResults)
 	collector.SetTotalReward(statsCollector, totalReward)
 
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
 
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	addSuccessfulValidationReward(appState, config, authors, totalRewardD, statsCollector)
-	addFlipReward(appState, config, authors, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, authors, totalRewardD, seed, statsCollector)
+	addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
+	addFlipReward(appState, config, validationResults, totalRewardD, statsCollector)
+	addInvitationReward(appState, config, validationResults, totalRewardD, seed, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
-	authors *types.ValidationAuthors, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
+	validationResults *types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfulValidationRewardPercent))
 
 	epoch := appState.State.Epoch()
@@ -47,7 +47,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	normalizedAges := float32(0)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := authors.BadAuthors[addr]; !ok {
+			if _, ok := validationResults.BadAuthors[addr]; !ok {
 				normalizedAges += normalAge(epoch - identity.Birthday)
 			}
 		}
@@ -63,7 +63,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := authors.BadAuthors[addr]; !ok {
+			if _, ok := validationResults.BadAuthors[addr]; !ok {
 				age := epoch - identity.Birthday
 				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
@@ -81,12 +81,12 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	})
 }
 
-func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
+func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
 	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	flipRewardD := totalReward.Mul(decimal.NewFromFloat32(config.FlipRewardPercent))
 
 	totalFlips := float32(0)
-	for _, author := range authors.GoodAuthors {
+	for _, author := range validationResults.GoodAuthors {
 		if author.Missed {
 			continue
 		}
@@ -98,7 +98,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalFlips))
 	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
-	for addr, author := range authors.GoodAuthors {
+	for addr, author := range validationResults.GoodAuthors {
 		if author.Missed {
 			continue
 		}
@@ -129,7 +129,7 @@ func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
 	}
 }
 
-func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, authors *types.ValidationAuthors,
+func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
 	totalReward decimal.Decimal, seed types.Seed, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
@@ -143,14 +143,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 
 	addresses := make([]common.Hash, 0)
 	totalWeight := float32(0)
-	for addr, author := range authors.GoodAuthors {
-		if !author.PayInvitationReward {
+	for addr, inviter := range validationResults.GoodInviters {
+		if !inviter.PayInvitationReward {
 			continue
 		}
-		for _, successfulInvite := range author.SuccessfulInvites {
+		for _, successfulInvite := range inviter.SuccessfulInvites {
 			totalWeight += getInvitationRewardCoef(successfulInvite.Age, config)
 		}
-		for i := uint8(0); i < author.SavedInvites; i++ {
+		for i := uint8(0); i < inviter.SavedInvites; i++ {
 			addresses = addAddress(addresses, rlp.Hash(append(addr[:], i)))
 		}
 	}
@@ -183,18 +183,18 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
-	for addr, author := range authors.GoodAuthors {
-		if !author.PayInvitationReward {
+	for addr, inviter := range validationResults.GoodInviters {
+		if !inviter.PayInvitationReward {
 			continue
 		}
-		isNewbie := author.NewIdentityState == uint8(state.Newbie)
-		for _, successfulInvite := range author.SuccessfulInvites {
+		isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
+		for _, successfulInvite := range inviter.SuccessfulInvites {
 			if weight := getInvitationRewardCoef(successfulInvite.Age, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
 				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, false)
 			}
 		}
-		for i := uint8(0); i < author.SavedInvites; i++ {
+		for i := uint8(0); i < inviter.SavedInvites; i++ {
 			hash := rlp.Hash(append(addr[:], i))
 			if _, ok := win[hash]; ok {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
