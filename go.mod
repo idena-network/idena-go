@@ -23,7 +23,7 @@ require (
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.1
 	github.com/ipfs/go-unixfs v0.2.4
-	github.com/ipfs/interface-go-ipfs-core v0.2.7
+	github.com/ipfs/interface-go-ipfs-core v0.3.0
 	github.com/libp2p/go-libp2p-core v0.5.3
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.6
