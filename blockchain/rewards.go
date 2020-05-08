@@ -68,13 +68,14 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
 				reward, stake := splitReward(math.ToInt(totalReward), identity.State == state.Newbie, config)
+				collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
 				appState.State.AddBalance(addr, reward)
 				appState.State.AddStake(addr, stake)
-				collector.AfterBalanceUpdate(statsCollector, addr, appState)
+				collector.CompleteBalanceUpdate(statsCollector, appState)
 				collector.AddMintedCoins(statsCollector, reward)
 				collector.AddMintedCoins(statsCollector, stake)
 				collector.AddValidationReward(statsCollector, addr, age, reward, stake)
-				collector.AfterAddStake(statsCollector, addr, stake)
+				collector.AfterAddStake(statsCollector, addr, stake, appState)
 			}
 		}
 	})
@@ -104,13 +105,14 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, au
 		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(float32(len(author.StrongFlipCids) +
 			len(author.WeakFlipCids))))
 		reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
+		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AddFlipsReward(statsCollector, addr, reward, stake, author.StrongFlipCids, author.WeakFlipCids)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 }
 
@@ -171,13 +173,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, txHash *common.Hash,
 		isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
+		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, reward)
 		appState.State.AddStake(addr, stake)
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AddInvitationsReward(statsCollector, addr, reward, stake, age, txHash, isSavedInviteWinner)
-		collector.AfterAddStake(statsCollector, addr, stake)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
 	for addr, author := range authors.GoodAuthors {
@@ -209,8 +212,9 @@ func addFoundationPayouts(appState *appstate.AppState, config *config.ConsensusC
 	payout := totalReward.Mul(decimal.NewFromFloat32(config.FoundationPayoutsPercent))
 	total := math.ToInt(payout)
 	godAddress := appState.State.GodAddress()
+	collector.BeginEpochRewardBalanceUpdate(statsCollector, godAddress, appState)
 	appState.State.AddBalance(godAddress, total)
-	collector.AfterBalanceUpdate(statsCollector, godAddress, appState)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	collector.AddMintedCoins(statsCollector, total)
 	collector.SetTotalFoundationPayouts(statsCollector, total)
 	collector.AddFoundationPayout(statsCollector, godAddress, total)
@@ -221,8 +225,9 @@ func addZeroWalletFund(appState *appstate.AppState, config *config.ConsensusConf
 	payout := totalReward.Mul(decimal.NewFromFloat32(config.ZeroWalletPercent))
 	total := math.ToInt(payout)
 	zeroAddress := common.Address{}
+	collector.BeginEpochRewardBalanceUpdate(statsCollector, zeroAddress, appState)
 	appState.State.AddBalance(zeroAddress, total)
-	collector.AfterBalanceUpdate(statsCollector, zeroAddress, appState)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	collector.AddMintedCoins(statsCollector, total)
 	collector.SetTotalZeroWalletFund(statsCollector, total)
 	collector.AddZeroWalletFund(statsCollector, zeroAddress, total)

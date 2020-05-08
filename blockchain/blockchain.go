@@ -396,15 +396,16 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	// calculate penalty
 	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(coinbase))
 
+	collector.BeginProposerRewardBalanceUpdate(statsCollector, coinbase, appState)
 	// update state
 	appState.State.AddBalance(coinbase, balanceAdd)
 	appState.State.AddStake(coinbase, stakeAdd)
 	if penaltySub != nil {
 		appState.State.SubPenalty(coinbase, penaltySub)
 	}
-	collector.AfterBalanceUpdate(statsCollector, coinbase, appState)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AfterAddStake(statsCollector, coinbase, stake)
+	collector.AfterAddStake(statsCollector, coinbase, stake, appState)
 	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
 	collector.AddProposerReward(statsCollector, coinbase, reward, stake)
@@ -561,7 +562,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			appState.State.SetInvites(addr, 0)
 		}
 		collector.BeforeClearPenalty(statsCollector, addr, appState)
+		collector.BeginEpochPenaltyResetBalanceUpdate(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.State.ClearFlips(addr)
 		appState.State.ResetValidationTxBits(addr)
 
@@ -641,7 +644,9 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 		coins := decimal.NewFromBigInt(totalPenalty, 0)
 		res := coins.Div(decimal.New(int64(networkSize), 0))
 		collector.BeforeSetPenalty(statsCollector, addr, appState)
+		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
 		appState.State.SetPenalty(addr, math.ToInt(res))
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
 
 	appState.IdentityState.SetOnline(addr, false)
@@ -658,6 +663,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	}
 	totalReward := big.NewInt(0)
 	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Cardinality())))
+	collector.SetCommitteeRewardShare(statsCollector, totalReward)
 
 	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
 	newbieReward, newbieStake := splitReward(totalReward, true, chain.config.Consensus)
@@ -674,16 +680,17 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		// calculate penalty
 		balanceAdd, stakeAdd, penaltySub := calculatePenalty(r, s, appState.State.GetPenalty(addr))
 
+		collector.BeginCommitteeRewardBalanceUpdate(statsCollector, addr, appState)
 		// update state
 		appState.State.AddBalance(addr, balanceAdd)
 		appState.State.AddStake(addr, stakeAdd)
 		if penaltySub != nil {
 			appState.State.SubPenalty(addr, penaltySub)
 		}
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, r)
 		collector.AddMintedCoins(statsCollector, s)
-		collector.AfterAddStake(statsCollector, addr, s)
+		collector.AfterAddStake(statsCollector, addr, s, appState)
 		collector.AfterSubPenalty(statsCollector, addr, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, addr, penaltySub)
 		collector.AddFinalCommitteeReward(statsCollector, addr, r, s)
@@ -713,6 +720,9 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.Transaction,
 	statsCollector collector.StatsCollector) (*big.Int, error) {
+
+	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+	defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
 	stateDB := appState.State
 
@@ -767,9 +777,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			}
 		}
 
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
-		collector.AfterKillIdentity(statsCollector, sender, appState)
-		collector.AfterBalanceUpdate(statsCollector, recipient, appState)
 		collector.AddActivationTxBalanceTransfer(statsCollector, tx, change)
 		if sender != *tx.To {
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
@@ -777,11 +784,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 	case types.SendTx:
 		stateDB.SubBalance(sender, totalCost)
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
-		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 	case types.BurnTx:
 		stateDB.SubBalance(sender, totalCost)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
 	case types.InviteTx:
 		if sender == stateDB.GodAddress() {
@@ -798,8 +802,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.SetGeneticCode(*tx.To, generation+1, append(code[1:], sender[0]))
 
 		stateDB.SetInviter(*tx.To, sender, tx.Hash())
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
-		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
 	case types.KillTx:
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
@@ -812,9 +814,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stakeToTransfer := new(big.Int).Sub(stake, fee)
 		stateDB.AddBalance(*tx.To, stakeToTransfer)
 		stateDB.AddBalance(*tx.To, amount)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
-		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
-		collector.AfterKillIdentity(statsCollector, sender, appState)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
@@ -832,37 +831,29 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			stateDB.AddInvite(sender, 1)
 		}
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
-		collector.AfterBalanceUpdate(statsCollector, *tx.To, appState)
-		collector.AfterKillIdentity(statsCollector, *tx.To, appState)
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
 		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.OnlineStatusTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.ToggleStatusSwitchAddress(sender)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.ChangeGodAddressTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		appState.State.SetGodAddress(*tx.To)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.ChangeProfileTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.DeleteFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
-		collector.AfterBalanceUpdate(statsCollector, sender, appState)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	}
