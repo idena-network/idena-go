@@ -616,7 +616,6 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		ipfsConfig.Swarm.EnableAutoNATService = true
 		ipfsConfig.Swarm.EnableAutoRelay = true
 		ipfsConfig.Swarm.EnableRelayHop = true
 		ipfsConfig.Experimental.FilestoreEnabled = true
