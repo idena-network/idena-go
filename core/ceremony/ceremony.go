@@ -714,15 +714,18 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 }
 
 func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
+	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	appState.State.SetState(addr, value.state)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
 	appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
 	appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef)))
+		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
 
 	if value.state.NewbieOrBetter() {
@@ -730,8 +733,6 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	} else if value.state == state.Killed {
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
-		collector.AfterBalanceUpdate(statsCollector, addr, appState)
-		collector.AfterKillIdentity(statsCollector, addr, appState)
 	}
 	return identitiesCount
 }
