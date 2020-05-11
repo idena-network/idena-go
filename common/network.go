@@ -14,7 +14,7 @@ const (
 	WordDictionarySize = 3300
 	WordPairsPerFlip   = 3
 
-	MaxFlipSize = 1024 * 600
+	MaxFlipSize    = 1024 * 600
 	MaxProfileSize = 1024 * 1024
 )
 
@@ -33,27 +33,11 @@ func LongSessionFlipsCount(networkSize int) uint {
 }
 
 func NetworkParams(networkSize int) (epochDuration int, flips int) {
-	epochDurationF := math.Round(math.Pow(float64(networkSize), 0.33))
-	epochDuration = int(epochDurationF)
-
 	if networkSize == 0 {
 		return 1, 0
 	}
-
-	var invitesCount float64
-	if networkSize > 1 {
-		invitesCount = 20 / math.Pow(math.Log10(float64(networkSize)), 2)
-	} else {
-		invitesCount = 1000
-	}
-
-	if invitesCount < 1 {
-		flips = int(math.Round((1 + invitesCount) * 5))
-	} else {
-		flips = int(math.Round(epochDurationF * 2.0 / 7.0))
-	}
-
-	flips = int(math2.Max(3, uint64(flips)))
+	epochDuration = int(math.Round(math.Pow(float64(networkSize), 0.33)))
+	flips = 3
 	return
 }
 

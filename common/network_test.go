@@ -27,11 +27,11 @@ func TestNetworkParams(t *testing.T) {
 
 	e, f = NetworkParams(50000)
 	require.Equal(36, e)
-	require.Equal(10, f)
+	require.Equal(3, f)
 
 	e, f = NetworkParams(10000000)
 	require.Equal(204, e)
-	require.Equal(7, f)
+	require.Equal(3, f)
 }
 
 func TestLongSessionFlipsCount(t *testing.T) {
@@ -42,10 +42,10 @@ func TestLongSessionFlipsCount(t *testing.T) {
 	require.Equal(uint(15), LongSessionFlipsCount(5))
 	require.Equal(uint(30), LongSessionFlipsCount(10))
 	require.Equal(uint(30), LongSessionFlipsCount(1000))
-	require.Equal(uint(40), LongSessionFlipsCount(3000))
-	require.Equal(uint(50), LongSessionFlipsCount(5000))
-	require.Equal(uint(100), LongSessionFlipsCount(30000))
-	require.Equal(uint(90), LongSessionFlipsCount(100000))
+	require.Equal(uint(30), LongSessionFlipsCount(3000))
+	require.Equal(uint(30), LongSessionFlipsCount(5000))
+	require.Equal(uint(30), LongSessionFlipsCount(30000))
+	require.Equal(uint(30), LongSessionFlipsCount(100000))
 }
 
 func TestNormalizedEpochDuration(t *testing.T) {
