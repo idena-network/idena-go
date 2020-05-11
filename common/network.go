@@ -14,7 +14,7 @@ const (
 	WordDictionarySize = 3300
 	WordPairsPerFlip   = 3
 
-	MaxFlipSize = 1024 * 600
+	MaxFlipSize    = 1024 * 600
 	MaxProfileSize = 1024 * 1024
 )
 
@@ -66,7 +66,7 @@ func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Dur
 	if validationTime.Weekday() != time.Saturday {
 		return day * 20
 	}
-	return day * time.Duration(math2.MinInt(91, int(math.Round(math.Pow(float64(networkSize), 0.33)/21)*21)))
+	return day * time.Duration(math2.MinInt(28, int(math.Round(math.Pow(float64(networkSize), 0.33)/21)*21)))
 }
 
 func GodAddressInvitesCount(networkSize int) uint16 {
