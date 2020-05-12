@@ -386,16 +386,29 @@ func (s *IdentityStateDB) DropPreliminary() {
 	b.WriteSync()
 }
 
+type keyValuePair struct {
+	key   []byte
+	value []byte
+}
+
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
 	preliminaryPrefix := identityStatePrefix(height + 1)
 	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
 	it, err := s.db.Iterator(nil, nil)
-	defer it.Close()
 	if err != nil {
+		it.Close()
 		return nil, err
 	}
+	var data []keyValuePair
 	for ; it.Valid(); it.Next() {
-		if err := pdb.Set(it.Key(), it.Value()); err != nil {
+		data = append(data, keyValuePair{
+			key:   it.Key(),
+			value: it.Value(),
+		})
+	}
+	it.Close()
+	for _, item := range data {
+		if err := pdb.Set(item.key, item.value); err != nil {
 			return nil, err
 		}
 	}

@@ -18,9 +18,13 @@ func Copy(source, dest db.DB) error {
 }
 
 func ClearDb(db db.DB) {
+	var keys [][]byte
 	it, _ := db.Iterator(nil, nil)
-	defer it.Close()
 	for ; it.Valid(); it.Next() {
-		db.Delete(it.Key())
+		keys = append(keys, it.Key())
+	}
+	it.Close()
+	for _, key := range keys {
+		db.Delete(key)
 	}
 }
