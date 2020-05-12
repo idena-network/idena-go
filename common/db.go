@@ -2,15 +2,27 @@ package common
 
 import db "github.com/tendermint/tm-db"
 
+type KeyValuePair struct {
+	Key   []byte
+	Value []byte
+}
+
 func Copy(source, dest db.DB) error {
 	it, err := source.Iterator(nil, nil)
 	if err != nil {
 		return err
 	}
-	defer it.Close()
-
+	var data []KeyValuePair
 	for ; it.Valid(); it.Next() {
-		if err := dest.Set(it.Key(), it.Value()); err != nil {
+		data = append(data, KeyValuePair{
+			Key:   it.Key(),
+			Value: it.Value(),
+		})
+	}
+	it.Close()
+
+	for _, item := range data {
+		if err := dest.Set(item.Key, item.Value); err != nil {
 			return err
 		}
 	}

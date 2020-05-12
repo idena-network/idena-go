@@ -386,11 +386,6 @@ func (s *IdentityStateDB) DropPreliminary() {
 	b.WriteSync()
 }
 
-type keyValuePair struct {
-	key   []byte
-	value []byte
-}
-
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
 	preliminaryPrefix := identityStatePrefix(height + 1)
 	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
@@ -399,16 +394,16 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 		it.Close()
 		return nil, err
 	}
-	var data []keyValuePair
+	var data []common.KeyValuePair
 	for ; it.Valid(); it.Next() {
-		data = append(data, keyValuePair{
-			key:   it.Key(),
-			value: it.Value(),
+		data = append(data, common.KeyValuePair{
+			Key:   it.Key(),
+			Value: it.Value(),
 		})
 	}
 	it.Close()
 	for _, item := range data {
-		if err := pdb.Set(item.key, item.value); err != nil {
+		if err := pdb.Set(item.Key, item.Value); err != nil {
 			return nil, err
 		}
 	}
