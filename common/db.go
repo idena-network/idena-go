@@ -6,9 +6,9 @@ const (
 	MaxMemoryItems = 1000
 )
 
-type KeyValuePair struct {
-	Key   []byte
-	Value []byte
+type keyValuePair struct {
+	key   []byte
+	value []byte
 }
 
 func Copy(source, dest db.DB) error {
@@ -20,22 +20,22 @@ func Copy(source, dest db.DB) error {
 		if err != nil {
 			return err
 		}
-		var data []KeyValuePair
+		var data []keyValuePair
 		for ; it.Valid(); it.Next() {
 			if len(data) == MaxMemoryItems {
 				nextStartKey = it.Key()
 				moreData = true
 				break
 			}
-			data = append(data, KeyValuePair{
-				Key:   it.Key(),
-				Value: it.Value(),
+			data = append(data, keyValuePair{
+				key:   it.Key(),
+				value: it.Value(),
 			})
 		}
 		it.Close()
 
 		for _, item := range data {
-			if err := dest.Set(item.Key, item.Value); err != nil {
+			if err := dest.Set(item.key, item.value); err != nil {
 				return err
 			}
 		}
