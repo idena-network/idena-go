@@ -731,7 +731,7 @@ func Test_ClearDustAccounts(t *testing.T) {
 	s.State.Commit(true)
 
 	// accounts with balance less than 0.1 DNA should be removed (1, 3, 6)
-	clearDustAccounts(s, 100)
+	clearDustAccounts(s, 100, nil)
 
 	s.State.Commit(true)
 
@@ -749,7 +749,7 @@ func Test_ClearDustAccounts(t *testing.T) {
 	s.State.SetBalance(common.Address{0x8}, new(big.Int).Mul(common.DnaBase, big.NewInt(100)))
 
 	// accounts with balance less than 2 DNA should be removed (2, 4)
-	clearDustAccounts(s, 5)
+	clearDustAccounts(s, 5, nil)
 
 	s.State.Commit(true)
 
