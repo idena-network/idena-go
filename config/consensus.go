@@ -38,6 +38,7 @@ type ConsensusConf struct {
 	MaxCommitteeSize                  int
 	StatusSwitchRange                 uint64
 	InvitesPercent                    float32
+	MinProposerThreshold              float64
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
@@ -73,5 +74,6 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		MaxCommitteeSize:                  100,
 		StatusSwitchRange:                 50,
 		InvitesPercent:                    0.5,
+		MinProposerThreshold:              0.5,
 	}
 }
