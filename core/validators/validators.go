@@ -56,6 +56,10 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		return set
 	}
 
+	if len(v.validOnlineNodes) < limit {
+		return nil
+	}
+
 	rndSeed := rlp.Hash([]interface{}{
 		seed, round, step,
 	})
@@ -67,9 +71,7 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 	for i := 0; i < limit; i++ {
 		set.Add(v.validOnlineNodes[indexes[i]])
 	}
-	if set.Cardinality() < limit {
-		return nil
-	}
+
 	return set
 }
 
@@ -162,4 +164,3 @@ func sortValidNodes(nodes []common.Address) []common.Address {
 	})
 	return nodes
 }
-
