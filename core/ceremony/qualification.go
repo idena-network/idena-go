@@ -40,6 +40,8 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 		m = q.longAnswers
 	}
 
+	q.lock.Lock()
+	defer q.lock.Unlock()
 	if _, ok := m[sender]; ok {
 		return
 	}
@@ -52,6 +54,8 @@ func (q *qualification) persist() {
 	if !q.hasNewAnswers {
 		return
 	}
+	q.lock.RLock()
+	defer q.lock.RUnlock()
 
 	var short, long []database.DbAnswer
 	for k, v := range q.shortAnswers {
@@ -75,6 +79,8 @@ func (q *qualification) persist() {
 func (q *qualification) restore() {
 	short, long := q.epochDb.ReadAnswers()
 
+	q.lock.Lock()
+	defer q.lock.Unlock()
 	for _, item := range short {
 		q.shortAnswers[item.Addr] = item.Ans
 	}
@@ -85,6 +91,9 @@ func (q *qualification) restore() {
 }
 
 func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
+
+	q.lock.RLock()
+	defer q.lock.RUnlock()
 
 	data := make([]struct {
 		answer     []types.Answer
@@ -125,12 +134,14 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
 	flipsToSolve []int, shortSession bool, notApprovedFlips mapset.Set) (point float32, qualifiedFlipsCount uint32, flipAnswers map[int]statsTypes.FlipAnswerStats, noQual bool, noAnswer bool) {
 
+	q.lock.RLock()
 	var answerBytes []byte
 	if shortSession {
 		answerBytes = q.shortAnswers[candidate]
 	} else {
 		answerBytes = q.longAnswers[candidate]
 	}
+	q.lock.RUnlock()
 
 	// candidate didn't send answers
 	if answerBytes == nil {
