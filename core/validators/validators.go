@@ -2,13 +2,14 @@ package validators
 
 import (
 	"bytes"
+	"encoding/binary"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/rlp"
-	"math/big"
+	"math/rand"
 	"sort"
 	"sync"
 )
@@ -55,9 +56,16 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		return set
 	}
 
-	cnt := new(big.Int).SetInt64(int64(len(v.validOnlineNodes)))
-	for i := uint32(0); i < uint32(limit*3) && set.Cardinality() < limit; i++ {
-		set.Add(v.validOnlineNodes[indexGenerator(seed, round, step, i, cnt)])
+	rndSeed := rlp.Hash([]interface{}{
+		seed, round, step,
+	})
+	randSeed := binary.LittleEndian.Uint64(rndSeed[:])
+	random := rand.New(rand.NewSource(int64(randSeed)))
+
+	indexes := random.Perm(len(v.validOnlineNodes))
+
+	for i := 0; i < limit; i++ {
+		set.Add(v.validOnlineNodes[indexes[i]])
 	}
 	if set.Cardinality() < limit {
 		return nil
@@ -155,10 +163,3 @@ func sortValidNodes(nodes []common.Address) []common.Address {
 	return nodes
 }
 
-func indexGenerator(seed types.Seed, round uint64, step uint8, iteration uint32, maxValue *big.Int) int64 {
-	data := rlp.Hash([]interface{}{
-		seed, round, step, iteration,
-	})
-	var hash = new(big.Int).SetBytes(data[:])
-	return new(big.Int).Mod(hash, maxValue).Int64()
-}
