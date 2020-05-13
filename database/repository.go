@@ -428,7 +428,9 @@ func (r *Repo) GetSavedTxs(address common.Address, count int, token []byte) (txs
 	for ; it.Valid(); it.Next() {
 		key, value := it.Key(), it.Value()
 		if len(txs) == count {
-			return txs, key[:len(key)-common.HashLength]
+			continuationToken := make([]byte, len(key)-common.HashLength)
+			copy(continuationToken, key[:len(key)-common.HashLength])
+			return txs, continuationToken
 		}
 		tx := new(types.SavedTransaction)
 		if err := rlp.DecodeBytes(value, tx); err != nil {

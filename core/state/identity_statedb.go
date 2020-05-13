@@ -389,16 +389,11 @@ func (s *IdentityStateDB) DropPreliminary() {
 func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB, error) {
 	preliminaryPrefix := identityStatePrefix(height + 1)
 	pdb := dbm.NewPrefixDB(s.original, preliminaryPrefix)
-	it, err := s.db.Iterator(nil, nil)
-	defer it.Close()
-	if err != nil {
+
+	if err := common.Copy(s.db, pdb); err != nil {
 		return nil, err
 	}
-	for ; it.Valid(); it.Next() {
-		if err := pdb.Set(it.Key(), it.Value()); err != nil {
-			return nil, err
-		}
-	}
+
 	b := s.original.NewBatch()
 	setIdentityPrefix(b, preliminaryPrefix, true)
 	if err := b.WriteSync(); err != nil {
