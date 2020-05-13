@@ -43,14 +43,29 @@ func Copy(source, dest db.DB) error {
 	return nil
 }
 
-func ClearDb(db db.DB) {
-	var keys [][]byte
-	it, _ := db.Iterator(nil, nil)
-	for ; it.Valid(); it.Next() {
-		keys = append(keys, it.Key())
+func ClearDb(db db.DB) error {
+	moreData := true
+	for moreData {
+		moreData = false
+		it, err := db.Iterator(nil, nil)
+		if err != nil {
+			return err
+		}
+		var keys [][]byte
+		for ; it.Valid(); it.Next() {
+			if len(keys) == MaxMemoryItems {
+				moreData = true
+				break
+			}
+			keys = append(keys, it.Key())
+		}
+		it.Close()
+
+		for _, key := range keys {
+			if err := db.Delete(key); err != nil {
+				return err
+			}
+		}
 	}
-	it.Close()
-	for _, key := range keys {
-		db.Delete(key)
-	}
+	return nil
 }

@@ -32,14 +32,20 @@ func TestCopy(t *testing.T) {
 
 func TestClearDb(t *testing.T) {
 	db1 := db.NewPrefixDB(db.NewMemDB(), []byte{0x1})
-	for k := byte(0); k < 255; k++ {
-		require.NoError(t, db1.Set([]byte{k}, []byte{k}))
+	var data [][]byte
+	const count = 2500
+	for k := uint32(0); k < count; k++ {
+		bs := make([]byte, 4)
+		binary.LittleEndian.PutUint32(bs, k)
+		data = append(data, bs)
+
+		require.NoError(t, db1.Set(bs, []byte{byte(k % 255)}))
 	}
 
 	ClearDb(db1)
 
-	for k := byte(0); k < 255; k++ {
-		has, _ := db1.Has([]byte{k})
+	for k := 0; k < count; k++ {
+		has, _ := db1.Has(data[k])
 		require.False(t, has)
 	}
 }
