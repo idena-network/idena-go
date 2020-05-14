@@ -58,11 +58,16 @@ type Balance struct {
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
 	state := api.baseApi.getAppState()
+	currentEpoch := state.State.Epoch()
+	nonce, epoch := state.State.GetNonce(address), state.State.GetEpoch(address)
+	if epoch < currentEpoch {
+		nonce = 0
+	}
 
 	return Balance{
 		Stake:   blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
 		Balance: blockchain.ConvertToFloat(state.State.GetBalance(address)),
-		Nonce:   state.State.GetNonce(address),
+		Nonce:   nonce,
 	}
 }
 
