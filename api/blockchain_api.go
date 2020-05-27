@@ -55,7 +55,7 @@ type Block struct {
 	Hash         common.Hash     `json:"hash"`
 	ParentHash   common.Hash     `json:"parentHash"`
 	Height       uint64          `json:"height"`
-	Time         *big.Int        `json:"timestamp"`
+	Time         int64           `json:"timestamp"`
 	Root         common.Hash     `json:"root"`         // root of state tree
 	IdentityRoot common.Hash     `json:"identityRoot"` // root of approved identities tree
 	IpfsHash     *string         `json:"ipfsCid"`      // ipfs hash of block body
@@ -78,7 +78,7 @@ type Transaction struct {
 	Payload   hexutil.Bytes   `json:"payload"`
 	BlockHash common.Hash     `json:"blockHash"`
 	UsedFee   decimal.Decimal `json:"usedFee"`
-	Timestamp uint64          `json:"timestamp"`
+	Timestamp int64           `json:"timestamp"`
 }
 
 type BurntCoins struct {
@@ -121,13 +121,13 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 
 	var blockHash common.Hash
 	var feePerByte *big.Int
-	var timestamp uint64
+	var timestamp int64
 	if idx != nil {
 		blockHash = idx.BlockHash
 		block := api.bc.GetBlock(blockHash)
 		if block != nil {
 			feePerByte = block.Header.FeePerByte()
-			timestamp = block.Header.Time().Uint64()
+			timestamp = block.Header.Time()
 		}
 	}
 	return convertToTransaction(tx, blockHash, feePerByte, timestamp)
@@ -210,8 +210,13 @@ func (api *BlockchainApi) FeePerByte() *big.Int {
 
 func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) (common.Hash, error) {
 	var tx types.Transaction
-	if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
-		return common.Hash{}, err
+	if err := tx.FromBytes(bytesTx); err != nil {
+		//TODO: remove later
+		if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
+			return common.Hash{}, err
+		} else {
+			tx.UseRlp()
+		}
 	}
 
 	return api.baseApi.sendInternalTx(ctx, &tx)
@@ -225,7 +230,13 @@ func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
 
 	tx := api.baseApi.getTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload)
 
-	data, err := rlp.EncodeToBytes(tx)
+	var data []byte
+	var err error
+	if args.UseProto {
+		data, err = tx.ToBytes()
+	} else {
+		data, err = rlp.EncodeToBytes(tx)
+	}
 
 	if err != nil {
 		return nil, err
@@ -267,7 +278,7 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 	return res
 }
 
-func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp uint64) *Transaction {
+func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp int64) *Transaction {
 	sender, _ := types.Sender(tx)
 	return &Transaction{
 		Hash:      tx.Hash(),

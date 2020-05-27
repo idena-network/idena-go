@@ -1,10 +1,10 @@
 package protocol
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/rlp"
-	"github.com/pkg/errors"
+	models "github.com/idena-network/idena-go/protobuf"
 	"time"
 )
 
@@ -27,10 +27,21 @@ type Msg struct {
 	Payload []byte
 }
 
-func (msg *Msg) Decode(val interface{}) error {
-	if err := rlp.DecodeBytes(msg.Payload, val); err != nil {
-		return errors.Errorf("invalid message (code %x) %v", msg.Code, err)
+func (msg *Msg) ToBytes() ([]byte, error) {
+	protoMsg := &models.ProtoMsg{
+		Code:    msg.Code,
+		Payload: msg.Payload,
 	}
+	return proto.Marshal(protoMsg)
+}
+
+func (msg *Msg) FromBytes(data []byte) error {
+	protoMsg := new(models.ProtoMsg)
+	if err := proto.Unmarshal(data, protoMsg); err != nil {
+		return err
+	}
+	msg.Code = protoMsg.Code
+	msg.Payload = protoMsg.Payload
 	return nil
 }
 
@@ -38,31 +49,35 @@ type handshakeData struct {
 	NetworkId    types.Network
 	Height       uint64
 	GenesisBlock common.Hash
-	Timestamp    uint64
+	Timestamp    int64
 	AppVersion   string
 	Peers        uint32
 }
 
-type getBlockBodyRequest struct {
-	Hash common.Hash
+func (h *handshakeData) ToBytes() ([]byte, error) {
+	protoHandshake := &models.ProtoHandshake{
+		NetworkId:  h.NetworkId,
+		Height:     h.Height,
+		Genesis:    h.GenesisBlock[:],
+		Timestamp:  h.Timestamp,
+		AppVersion: h.AppVersion,
+		Peers:      h.Peers,
+	}
+	return proto.Marshal(protoHandshake)
 }
 
-type getBlocksRangeRequest struct {
-	BatchId uint32
-	From    uint64
-	To      uint64
-}
-
-type getForkBlocksRangeRequest struct {
-	BatchId uint32
-	Blocks  []common.Hash
-}
-
-type proposeProof struct {
-	Hash   common.Hash
-	Proof  []byte
-	PubKey []byte
-	Round  uint64
+func (h *handshakeData) FromBytes(data []byte) error {
+	protoHandshake := new(models.ProtoHandshake)
+	if err := proto.Unmarshal(data, protoHandshake); err != nil {
+		return err
+	}
+	h.NetworkId = protoHandshake.NetworkId
+	h.Height = protoHandshake.Height
+	h.GenesisBlock = common.BytesToHash(protoHandshake.Genesis)
+	h.Timestamp = protoHandshake.Timestamp
+	h.AppVersion = protoHandshake.AppVersion
+	h.Peers = protoHandshake.Peers
+	return nil
 }
 
 type pushType uint8
@@ -79,6 +94,24 @@ const (
 type pushPullHash struct {
 	Type pushType
 	Hash common.Hash128
+}
+
+func (h *pushPullHash) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoPullPushHash{
+		Type: uint32(h.Type),
+		Hash: h.Hash[:],
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (h *pushPullHash) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoPullPushHash)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	h.Hash = common.BytesToHash128(protoObj.Hash)
+	h.Type = pushType(protoObj.Type)
+	return nil
 }
 
 func (h *pushPullHash) String() string {

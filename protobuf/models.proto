@@ -1,0 +1,430 @@
+syntax = "proto3";
+package models;
+
+message ProtoTransaction {
+    message Data {
+        uint32 nonce = 1;
+        uint32 epoch = 2;
+        uint32 type = 3;
+        bytes to = 4;
+        bytes amount = 5;
+        bytes maxFee = 6;
+        bytes tips = 7;
+        bytes payload = 8;
+    }
+    Data data = 1;
+    bytes signature = 2;
+}
+
+message ProtoBlockHeader {
+    message Proposed {
+        bytes parentHash = 1;
+        uint64 height = 2;
+        int64 timestamp = 3;
+        bytes txHash = 4;
+        bytes proposerPubKey = 5;
+        bytes root = 6;
+        bytes identityRoot = 7;
+        uint32 flags = 8;
+        bytes ipfsHash = 9;
+        bytes offlineAddr = 10;
+        bytes txBloom = 11;
+        bytes blockSeed = 12;
+        bytes feePerByte = 13;
+        uint32 upgrade = 14;
+        bytes seedProof = 15;
+    }
+
+    message Empty {
+        bytes parentHash = 1;
+        uint64 height = 2;
+        bytes root = 3;
+        bytes identityRoot = 4;
+        int64 timestamp = 5;
+        bytes blockSeed = 6;
+        uint32 flags = 7;
+    }
+
+    Proposed proposedHeader = 1;
+    Empty emptyHeader = 2;
+}
+
+message ProtoBlockBody {
+    repeated ProtoTransaction transactions = 1;
+}
+
+message ProtoBlock {
+    ProtoBlockHeader header = 1;
+    ProtoBlockBody body = 2;
+}
+
+message ProtoBlockProposal {
+    message Data {
+        ProtoBlockHeader header = 1;
+        ProtoBlockBody body = 2;
+    }
+    Data data = 1;
+    bytes signature = 2;
+}
+
+message ProtoIpfsFlip {
+    bytes pubKey = 1;
+    bytes publicPart = 2;
+    bytes privatePart = 3;
+}
+
+message ProtoBlockCert {
+    message Signature {
+        bool turnOffline = 1;
+        uint32 upgrade = 2;
+        bytes signature = 3;
+    }
+
+    uint64 round = 1;
+    uint32 step = 2;
+    bytes votedHash = 3;
+    repeated Signature signatures = 4;
+}
+
+message ProtoWeakCertificates {
+    repeated bytes hashes = 1;
+}
+
+message ProtoTransactionIndex {
+    bytes blockHash = 1;
+    uint32 idx = 2;
+}
+
+message ProtoFlipPrivateKeys {
+    repeated bytes keys = 1;
+}
+
+message ProtoProfile {
+    bytes nickname = 1;
+    bytes info = 2;
+}
+
+message ProtoHandshake {
+    uint32 networkId = 1;
+    uint64 height = 2;
+    bytes genesis = 3;
+    int64 timestamp = 4;
+    string appVersion = 5;
+    uint32 peers = 6;
+}
+
+message ProtoMsg {
+    uint64 code = 1;
+    bytes payload = 2;
+}
+
+message ProtoIdentityStateDiff {
+    message IdentityStateDiffValue {
+        bytes address = 1;
+        bool deleted = 2;
+        bytes value = 3;
+    }
+
+    repeated IdentityStateDiffValue values = 1;
+}
+
+message ProtoSnapshotBlock {
+    message KeyValue {
+        bytes key = 1;
+        bytes value = 2;
+    }
+
+    repeated KeyValue data = 1;
+}
+
+message ProtoGossipBlockRange {
+    message Block {
+        ProtoBlockHeader header = 1;
+        ProtoBlockCert cert = 2;
+        ProtoIdentityStateDiff diff = 3;
+    }
+    uint32 batchId = 1;
+    repeated Block blocks = 2;
+}
+
+message ProtoProposeProof {
+    bytes hash = 1;
+    bytes proof = 2;
+    bytes pubKey = 3;
+    uint64 round = 4;
+}
+
+message ProtoVote {
+    message Data {
+        uint64 round = 1;
+        uint32 step = 2;
+        bytes parentHash = 3;
+        bytes votedHash = 4;
+        bool turnOffline = 5;
+        uint32 upgrade = 6;
+    }
+
+    Data data = 1;
+    bytes signature = 2;
+}
+
+message ProtoGetBlockByHashRequest {
+    bytes hash = 1;
+}
+
+message ProtoGetBlocksRangeRequest {
+    uint32 batchId = 1;
+    uint64 from = 2;
+    uint64 to = 3;
+}
+
+message ProtoGetForkBlockRangeRequest {
+    uint32 batchId = 1;
+    repeated bytes blocks = 2;
+}
+
+message ProtoFlip {
+    ProtoTransaction transaction = 1;
+    bytes publicPart = 2;
+    bytes privatePart = 3;
+}
+
+message ProtoFlipKey {
+    message Data {
+        bytes key = 1;
+        uint32 epoch = 2;
+    }
+
+    Data data = 1;
+    bytes signature = 2;
+}
+
+message ProtoManifest {
+    bytes cid = 1;
+    uint64 height = 2;
+    bytes root = 3;
+}
+
+message ProtoPrivateFlipKeysPackage {
+    message Data {
+        bytes package = 1;
+        uint32 epoch = 2;
+    }
+
+    Data data = 1;
+    bytes signature = 2;
+}
+
+message ProtoPullPushHash {
+    uint32 type = 1;
+    bytes hash = 2;
+}
+
+// Db models
+
+message ProtoSnapshotManifestDb {
+    bytes cid = 1;
+    uint64 height = 2;
+    string fileName = 3;
+    bytes root = 4;
+}
+
+message ProtoShortAnswerDb {
+    bytes hash = 1;
+    int64 timestamp = 2;
+}
+
+message ProtoAnswersDb {
+    message Answer {
+        bytes address = 1;
+        bytes answers = 2;
+    }
+
+    repeated Answer answers = 1;
+}
+
+message ProtoBurntCoins {
+    bytes address = 1;
+    string key = 2;
+    bytes amount = 3;
+}
+
+message ProtoSavedTransaction {
+    ProtoTransaction tx = 1;
+    bytes feePerBye = 2;
+    bytes blockHash = 3;
+    int64 timestamp = 4;
+}
+
+message ProtoActivityMonitor {
+    message Activity {
+        bytes address = 1;
+        int64 timestamp = 2;
+    }
+    int64 timestamp = 1;
+    repeated Activity activities = 2;
+}
+// Transaction attachments
+
+message ProtoShortAnswerAttachment {
+    bytes answers = 1;
+    bytes proof = 2;
+    bytes key = 3;
+    bytes salt = 4;
+}
+
+message ProtoFlipSubmitAttachment {
+    bytes cid = 1;
+    uint32 pair = 2;
+}
+
+message ProtoOnlineStatusAttachment {
+    bool online = 1;
+}
+
+message ProtoBurnAttachment {
+    string key = 1;
+}
+
+message ProtoChangeProfileAttachment {
+    bytes hash = 1;
+}
+
+message ProtoDeleteFlipAttachment {
+    bytes cid = 1;
+}
+
+// State
+
+message ProtoStateAccount {
+    uint32 nonce = 1;
+    uint32 epoch = 2;
+    bytes balance = 3;
+}
+
+message ProtoStateIdentity {
+
+    message Flip {
+        bytes cid = 1;
+        uint32 pair = 2;
+    }
+
+    message TxAddr {
+        bytes hash = 1;
+        bytes address = 2;
+    }
+
+    bytes stake = 1;
+    uint32 invites = 2;
+    uint32 birthday = 3;
+    uint32 state = 4;
+    uint32 qualifiedFlips = 5;
+    uint32 shortFlipPoints = 6;
+    bytes pubKey = 7;
+    uint32 requiredFlips = 8;
+    repeated Flip flips = 9;
+    uint32 generation = 10;
+    bytes code = 11;
+    repeated TxAddr invitees = 12;
+    TxAddr inviter = 13;
+    bytes penalty = 14;
+    uint32 validationBits = 15;
+    uint32 validationStatus = 16;
+    bytes profileHash = 17;
+}
+
+message ProtoStateGlobal {
+    uint32 epoch = 1;
+    int64 nextValidationTime = 2;
+    uint32 validationPeriod = 3;
+    bytes godAddress = 4;
+    bytes wordsSeed = 5;
+    uint64 lastSnapshot = 6;
+    uint64 epochBlock = 7;
+    bytes feePerByte = 8;
+    uint64 vrfProposerThreshold = 9;
+    bytes emptyBlocksBits = 10;
+    uint32 godAddressInvites = 11;
+}
+
+message ProtoStateApprovedIdentity {
+    bool approved = 1;
+    bool online = 2;
+}
+
+message ProtoStateIdentityStatusSwitch {
+    repeated bytes addresses = 1;
+}
+
+message ProtoPredefinedState {
+
+    message Global {
+        uint32 epoch = 1;
+        int64 nextValidationTime = 2;
+        uint32 validationPeriod = 3;
+        bytes godAddress = 4;
+        bytes wordsSeed = 5;
+        uint64 lastSnapshot = 6;
+        uint64 epochBlock = 7;
+        bytes feePerByte = 8;
+        uint64 vrfProposerThreshold = 9;
+        bytes emptyBlocksBits = 10;
+        uint32 godAddressInvites = 11;
+    }
+
+    message StatusSwitch {
+        repeated bytes addresses = 1;
+    }
+
+    message Account {
+        bytes address = 1;
+        uint32 nonce = 2;
+        uint32 epoch = 3;
+        bytes balance = 4;
+    }
+
+    message Identity {
+        message Flip {
+            bytes cid = 1;
+            uint32 pair = 2;
+        }
+
+        message TxAddr {
+            bytes hash = 1;
+            bytes address = 2;
+        }
+
+        bytes address = 1;
+        bytes stake = 2;
+        uint32 invites = 3;
+        uint32 birthday = 4;
+        uint32 state = 5;
+        uint32 qualifiedFlips = 6;
+        uint32 shortFlipPoints = 7;
+        bytes pubKey = 8;
+        uint32 requiredFlips = 9;
+        repeated Flip flips = 10;
+        uint32 generation = 11;
+        bytes code = 12;
+        repeated TxAddr invitees = 13;
+        TxAddr inviter = 14;
+        bytes penalty = 15;
+        uint32 validationBits = 16;
+        uint32 validationStatus = 17;
+        bytes profileHash = 18;
+    }
+
+    message ApprovedIdentity {
+        bytes address = 1;
+        bool approved = 2;
+        bool online = 3;
+    }
+
+    uint64 block = 1;
+    bytes seed = 2;
+    Global global = 3;
+    StatusSwitch statusSwitch = 4;
+    repeated Account accounts = 5;
+    repeated Identity identities = 6;
+    repeated ApprovedIdentity approvedIdentities = 7;
+}

@@ -15,7 +15,6 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/tendermint/tm-db"
-	"math/big"
 )
 
 func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, queueSlots int, executableSlots int, executableLimit int, queueLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
@@ -169,7 +168,8 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 			TurnOffline: false,
 		},
 	}
-	vote.Signature = chain.secStore.Sign(vote.Header.SignatureHash().Bytes())
+	hash := crypto.SignatureHash(vote)
+	vote.Signature = chain.secStore.Sign(hash[:])
 	cert := types.FullBlockCert{Votes: []*types.Vote{vote}}
 	chain.WriteCertificate(block.Header.Hash(), cert.Compress(), true)
 }
@@ -177,7 +177,7 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
 		block := chain.ProposeBlock()
-		block.Block.Header.ProposedHeader.Time = big.NewInt(0).Add(chain.Head.Time(), big.NewInt(20))
+		block.Block.Header.ProposedHeader.Time = chain.Head.Time() + 20
 		err := chain.AddBlock(block.Block, nil, collector.NewStatsCollector())
 		if err != nil {
 			panic(err)

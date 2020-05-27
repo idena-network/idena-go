@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -25,7 +26,7 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	cid2 "github.com/ipfs/go-cid"
@@ -196,8 +197,8 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 		}
 
 		blockNumber = predefinedState.Block
-		seed = predefinedState.Seed
-		feePerByte = predefinedState.Global.FeePerByte
+		seed = types.BytesToSeed(predefinedState.Seed)
+		feePerByte = common.BigIntOrNil(predefinedState.Global.FeePerByte)
 
 		err = chain.appState.CommitAt(blockNumber - 1)
 		if err != nil {
@@ -231,7 +232,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	block := &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
-			Time:         big.NewInt(0),
+			Time:         0,
 			Height:       blockNumber,
 			Root:         chain.appState.State.Root(),
 			IdentityRoot: chain.appState.IdentityState.Root(),
@@ -249,14 +250,14 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 }
 
 func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) *types.Block {
-	prevTimestamp := time.Unix(prevBlock.Time().Int64(), 0)
+	prevTimestamp := time.Unix(prevBlock.Time(), 0)
 
 	block := &types.Block{
 		Header: &types.Header{
 			EmptyBlockHeader: &types.EmptyBlockHeader{
 				ParentHash: prevBlock.Hash(),
 				Height:     prevBlock.Height() + 1,
-				Time:       new(big.Int).SetInt64(prevTimestamp.Add(EmptyBlockTimeIncrement).Unix()),
+				Time:       prevTimestamp.Add(EmptyBlockTimeIncrement).Unix(),
 			},
 		},
 		Body: &types.Body{},
@@ -415,7 +416,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 
 func calculatePenalty(balanceAppend *big.Int, stakeAppend *big.Int, currentPenalty *big.Int) (balanceAdd *big.Int, stakeAdd *big.Int, penaltySub *big.Int) {
 
-	if currentPenalty == nil {
+	if common.ZeroOrNil(currentPenalty) {
 		return balanceAppend, stakeAppend, nil
 	}
 
@@ -899,11 +900,10 @@ func (chain *Blockchain) calculateNextBlockFeePerByte(appState *appstate.AppStat
 	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
 
 	feePerByte := appState.State.FeePerByte()
-	if feePerByte == nil || feePerByte.Cmp(minFeePerByte) == -1 {
+	if common.ZeroOrNil(feePerByte) || feePerByte.Cmp(minFeePerByte) == -1 {
 		feePerByte = new(big.Int).Set(minFeePerByte)
 	}
-
-	blockSize := len(block.Body.Bytes())
+	blockSize := len(block.Body.ToBytes())
 	k := chain.config.Consensus.FeeSensitivityCoef
 	maxBlockSize := mempool.BlockBodySize
 
@@ -993,9 +993,9 @@ func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
 		Transactions: filteredTxs,
 	}
 	var cid cid2.Cid
-	cid, _ = chain.ipfs.Cid(body.Bytes())
+	cid, _ = chain.ipfs.Cid(body.ToBytes())
 
-	prevBlockTime := time.Unix(chain.Head.Time().Int64(), 0)
+	prevBlockTime := time.Unix(chain.Head.Time(), 0)
 	newBlockTime := prevBlockTime.Add(MinBlockDelay).Unix()
 	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
 		newBlockTime = localTime
@@ -1007,7 +1007,7 @@ func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
-		Time:           new(big.Int).SetInt64(newBlockTime),
+		Time:           newBlockTime,
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
 		IpfsHash:       cidBytes,
@@ -1143,7 +1143,7 @@ func (chain *Blockchain) insertHeader(header *types.Header) {
 }
 
 func (chain *Blockchain) insertBlock(block *types.Block, diff *state.IdentityStateDiff) error {
-	_, err := chain.ipfs.Add(block.Body.Bytes(), chain.ipfs.ShouldPin(ipfs.Block))
+	_, err := chain.ipfs.Add(block.Body.ToBytes(), chain.ipfs.ShouldPin(ipfs.Block))
 	if err != nil {
 		return errors.Wrap(BlockInsertionErr, err.Error())
 	}
@@ -1159,7 +1159,7 @@ func (chain *Blockchain) WriteTxIndex(hash common.Hash, txs types.Transactions) 
 	for i, tx := range txs {
 		idx := &types.TransactionIndex{
 			BlockHash: hash,
-			Idx:       uint16(i),
+			Idx:       uint32(i),
 		}
 		chain.repo.WriteTxIndex(tx.Hash(), idx)
 	}
@@ -1199,7 +1199,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return err
 	}
 
-	if checkState.State.FeePerByte().Cmp(block.Header.ProposedHeader.FeePerByte) != 0 {
+	if !common.ZeroOrNil(block.Header.ProposedHeader.FeePerByte) && checkState.State.FeePerByte().Cmp(block.Header.ProposedHeader.FeePerByte) != 0 {
 		return errors.New("fee rate is invalid")
 	}
 
@@ -1235,7 +1235,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
-	cid, _ := chain.ipfs.Cid(block.Body.Bytes())
+	cid, _ := chain.ipfs.Cid(block.Body.ToBytes())
 
 	var cidBytes []byte
 	if cid != ipfs.EmptyCid {
@@ -1318,12 +1318,12 @@ func validateBlockParentHash(block *types.Header, prevBlock *types.Header) error
 }
 
 func validateBlockTimestamp(block *types.Header, prevBlock *types.Header) error {
-	blockTime := time.Unix(block.Time().Int64(), 0)
+	blockTime := time.Unix(block.Time(), 0)
 
 	if blockTime.Sub(time.Now().UTC()) > MaxFutureBlockOffset {
 		return errors.New("block from future")
 	}
-	prevBlockTime := time.Unix(prevBlock.Time().Int64(), 0)
+	prevBlockTime := time.Unix(prevBlock.Time(), 0)
 
 	if blockTime.Sub(prevBlockTime) < MinBlockDelay {
 		return errors.Errorf("block is too close to previous one, prev: %v, current: %v", prevBlockTime.Unix(), blockTime.Unix())
@@ -1453,7 +1453,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 	body := &types.Body{}
 	body.FromBytes(data)
 
-	if uint16(len(body.Transactions)) < idx.Idx {
+	if uint32(len(body.Transactions)) < idx.Idx {
 		return nil, nil
 	}
 	tx := body.Transactions[idx.Idx]
@@ -1661,13 +1661,12 @@ func (chain *Blockchain) GetCertificate(hash common.Hash) *types.BlockCert {
 }
 
 func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff {
-
 	data := chain.repo.ReadIdentityStateDiff(height)
 	if data == nil {
 		return nil
 	}
 	diff := new(state.IdentityStateDiff)
-	rlp.DecodeBytes(data, diff)
+	diff.FromBytes(data)
 	return diff
 }
 
@@ -1689,7 +1688,8 @@ func (chain *Blockchain) ReadPreliminaryHead() *types.Header {
 
 func (chain *Blockchain) WriteIdentityStateDiff(height uint64, diff *state.IdentityStateDiff) {
 	if !diff.Empty() {
-		chain.repo.WriteIdentityStateDiff(height, diff.Bytes())
+		b, _ := diff.ToBytes()
+		chain.repo.WriteIdentityStateDiff(height, b)
 	}
 }
 
@@ -1713,13 +1713,13 @@ func (chain *Blockchain) ReadTotalBurntCoins() []*types.BurntCoins {
 	return chain.repo.GetTotalBurntCoins()
 }
 
-func readPredefinedState() (*state.PredefinedState, error) {
+func readPredefinedState() (*models.ProtoPredefinedState, error) {
 	data, err := Asset("stategen.out")
 	if err != nil {
 		return nil, err
 	}
-	predefinedState := new(state.PredefinedState)
-	if err := rlp.DecodeBytes(data, predefinedState); err != nil {
+	predefinedState := new(models.ProtoPredefinedState)
+	if err := proto.Unmarshal(data, predefinedState); err != nil {
 		return nil, err
 	}
 	return predefinedState, nil

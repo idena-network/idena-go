@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/coreos/go-semver/semver"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -14,9 +15,11 @@ import (
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/rlp"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -171,10 +174,10 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		return err
 	}
 	switch msg.Code {
-
 	case BlocksRange:
 		var response blockRange
-		if err := msg.Decode(&response); err != nil {
+
+		if err := response.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.log.Trace("Income blocks range", "batchId", response.BatchId)
@@ -197,29 +200,29 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 
 	case ProposeProof:
-		query := new(proposeProof)
-		if err := msg.Decode(query); err != nil {
+		query := new(models.ProtoProposeProof)
+		if err := proto.Unmarshal(msg.Payload, query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 
-		if h.isProcessed(query) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(query)
+		p.markPayload(msg.Payload)
 		// if peer proposes this msg it should be on `query.Round-1` height
 		p.setHeight(query.Round - 1)
-		if ok, _ := h.proposals.AddProposeProof(query.Proof, query.Hash, query.PubKey, query.Round); ok {
+		if ok, _ := h.proposals.AddProposeProof(query.Proof, common.BytesToHash(query.Hash), query.PubKey, query.Round); ok {
 			h.proposeProof(query)
 		}
 	case ProposeBlock:
 		proposal := new(types.BlockProposal)
-		if err := msg.Decode(proposal); err != nil {
+		if err := proposal.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(proposal) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(proposal)
+		p.markPayload(msg.Payload)
 		if proposal.Block == nil || len(proposal.Signature) == 0 {
 			return nil
 		}
@@ -230,87 +233,96 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 	case Vote:
 		vote := new(types.Vote)
-		if err := msg.Decode(vote); err != nil {
+		if err := vote.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(vote) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(vote)
+		p.markPayload(msg.Payload)
 		p.setPotentialHeight(vote.Header.Round - 1)
 		if h.votes.AddVote(vote) {
 			h.SendVote(vote)
 		}
 	case NewTx:
 		tx := new(types.Transaction)
-		if err := msg.Decode(tx); err != nil {
-			return errResp(DecodeErr, "%v: %v", msg, err)
+		if err := tx.FromBytes(msg.Payload); err != nil {
+			//TODO: remove later
+			if err := rlp.DecodeBytes(msg.Payload, &tx); err != nil {
+				return errResp(DecodeErr, "%v: %v", msg, err)
+			} else {
+				tx.UseRlp()
+			}
 		}
-		if h.isProcessed(tx) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(tx)
+		p.markPayload(msg.Payload)
 		h.txpool.Add(tx)
 	case GetBlockByHash:
-		var query getBlockBodyRequest
-		if err := msg.Decode(&query); err != nil {
+		query := new(models.ProtoGetBlockByHashRequest)
+		if err := proto.Unmarshal(msg.Payload, query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		block := h.bcn.GetBlock(query.Hash)
+		block := h.bcn.GetBlock(common.BytesToHash(query.Hash))
 		if block != nil {
 			p.sendMsg(Block, block, false)
 		}
 	case GetBlocksRange:
-		var query getBlocksRangeRequest
-		if err := msg.Decode(&query); err != nil {
+		query := new(models.ProtoGetBlocksRangeRequest)
+		if err := proto.Unmarshal(msg.Payload, query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		h.provideBlocks(p, query.BatchId, query.From, query.To)
 	case GetForkBlockRange:
-		query := new(getForkBlocksRangeRequest)
-		if err := msg.Decode(query); err != nil {
+		query := new(models.ProtoGetForkBlockRangeRequest)
+		if err := proto.Unmarshal(msg.Payload, query); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		h.provideForkBlocks(p, query.BatchId, query.Blocks)
+		var blocks []common.Hash
+		for _, item := range query.Blocks {
+			blocks = append(blocks, common.BytesToHash(item))
+		}
+		h.provideForkBlocks(p, query.BatchId, blocks)
 	case FlipBody:
 		f := new(types.Flip)
-		if err := msg.Decode(f); err != nil {
+		if err := f.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(f) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(f)
+		p.markPayload(msg.Payload)
 		h.flipper.AddNewFlip(f, false)
 	case FlipKey:
 		flipKey := new(types.PublicFlipKey)
-		if err := msg.Decode(flipKey); err != nil {
+		if err := flipKey.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(flipKey) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(flipKey)
+		p.markPayload(msg.Payload)
 		h.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
-		if err := msg.Decode(manifest); err != nil {
+		if err := manifest.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		p.manifest = manifest
 	case FlipKeysPackage:
 		keysPackage := new(types.PrivateFlipKeysPackage)
-		if err := msg.Decode(keysPackage); err != nil {
+		if err := keysPackage.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(keysPackage) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(keysPackage)
+		p.markPayload(msg.Payload)
 		h.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
 	case Push:
 		pushHash := new(pushPullHash)
-		if err := msg.Decode(pushHash); err != nil {
+		if err := pushHash.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 
@@ -318,28 +330,28 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return nil
 		}
 
-		p.markPayload(pushHash)
+		p.markPayload(msg.Payload)
 		h.pushPullManager.addPush(p.id, *pushHash)
 	case Pull:
-		var pullHash pushPullHash
-		if err := msg.Decode(&pullHash); err != nil {
+		pullHash := new(pushPullHash)
+		if err := pullHash.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		if pullHash.Invalid() {
 			return nil
 		}
-		if entry, ok := h.pushPullManager.GetEntry(pullHash); ok {
-			h.sendEntry(p, pullHash, entry)
+		if entry, ok := h.pushPullManager.GetEntry(*pullHash); ok {
+			h.sendEntry(p, *pullHash, entry)
 		}
 	case Block:
 		block := new(types.Block)
-		if err := msg.Decode(block); err != nil {
+		if err := block.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if h.isProcessed(block) {
+		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(block)
+		p.markPayload(msg.Payload)
 		h.proposals.AddBlock(block)
 	}
 
@@ -467,7 +479,7 @@ func (h *IdenaGossipHandler) BanPeer(peerId peer.ID, reason error) {
 	}
 }
 
-func (h *IdenaGossipHandler) isProcessed(payload interface{}) bool {
+func (h *IdenaGossipHandler) isProcessed(payload []byte) bool {
 	return h.peers.HasPayload(payload)
 }
 
@@ -583,7 +595,7 @@ func (h *IdenaGossipHandler) GetBlocksRange(peerId peer.ID, from uint64, to uint
 	id := atomic.AddUint32(&batchId, 1)
 	peerBatches.(*sync.Map).Store(id, b)
 	h.batchedLock.Unlock()
-	peer.sendMsg(GetBlocksRange, &getBlocksRangeRequest{
+	peer.sendMsg(GetBlocksRange, &models.ProtoGetBlocksRangeRequest{
 		BatchId: batchId,
 		From:    from,
 		To:      to,
@@ -609,51 +621,60 @@ func (h *IdenaGossipHandler) GetForkBlockRange(peerId peer.ID, ownBlocks []commo
 	id := atomic.AddUint32(&batchId, 1)
 	peerBatches.(*sync.Map).Store(id, b)
 	h.batchedLock.Unlock()
-	peer.sendMsg(GetForkBlockRange, &getForkBlocksRangeRequest{
+	var data [][]byte
+	for _, item := range ownBlocks {
+		data = append(data, item[:])
+	}
+	peer.sendMsg(GetForkBlockRange, &models.ProtoGetForkBlockRangeRequest{
 		BatchId: batchId,
-		Blocks:  ownBlocks,
+		Blocks:  data,
 	}, false)
 	return b, nil
 }
 
 func (h *IdenaGossipHandler) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
-	payload := &proposeProof{
-		Round:  round,
-		Hash:   hash,
-		PubKey: pubKey,
+	protoObj := &models.ProtoProposeProof{
+		Hash:   hash[:],
 		Proof:  proof,
+		PubKey: pubKey,
+		Round:  round,
 	}
-	h.proposeProof(payload)
+	h.proposeProof(protoObj)
 }
 
-func (h *IdenaGossipHandler) proposeProof(payload *proposeProof) {
+func (h *IdenaGossipHandler) proposeProof(payload *models.ProtoProposeProof) {
+	b, _ := proto.Marshal(payload)
 	hash := pushPullHash{
 		Type: pushProof,
-		Hash: rlp.Hash128(payload),
+		Hash: crypto.Hash128(b),
 	}
 	h.pushPullManager.AddEntry(hash, payload)
 	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
+	b, _ := block.ToBytes()
 	hash := pushPullHash{
 		Type: pushBlock,
-		Hash: rlp.Hash128(block),
+		Hash: crypto.Hash128(b),
 	}
 	h.pushPullManager.AddEntry(hash, block)
 	h.sendPush(hash)
 }
+
 func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
+	b, _ := vote.ToBytes()
 	hash := pushPullHash{
 		Type: pushVote,
-		Hash: rlp.Hash128(vote),
+		Hash: crypto.Hash128(b),
 	}
 	h.pushPullManager.AddEntry(hash, vote)
 	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
-	h.peers.SendWithFilter(Push, hash, false)
+	data, _ := hash.ToBytes()
+	h.peers.SendWithFilter(Push, msgKey(data), hash, false)
 }
 
 func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}) {
@@ -679,32 +700,36 @@ func errResp(code int, format string, v ...interface{}) error {
 }
 
 func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
-
+	b, _ := tx.ToBytes()
 	hash := pushPullHash{
 		Type: pushTx,
-		Hash: rlp.Hash128(tx),
+		Hash: crypto.Hash128(b),
 	}
 	h.pushPullManager.AddEntry(hash, tx)
-	h.peers.SendWithFilter(Push, hash, own)
+	data, _ := hash.ToBytes()
+	h.peers.SendWithFilter(Push, msgKey(data), hash, own)
 }
 
 func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
-
+	b, _ := flip.ToBytes()
 	hash := pushPullHash{
 		Type: pushFlip,
-		Hash: rlp.Hash128(flip),
+		Hash: crypto.Hash128(b),
 	}
 	h.pushPullManager.AddEntry(hash, flip)
 	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
-	h.peers.SendWithFilter(FlipKey, flipKey, own)
+	b, _ := flipKey.ToBytes()
+	h.peers.SendWithFilter(FlipKey, msgKey(b), flipKey, own)
 }
+
 func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
+	b, _ := flipKeysPackage.ToBytes()
 	hash := pushPullHash{
 		Type: pushKeyPackage,
-		Hash: rlp.Hash128(flipKeysPackage),
+		Hash: crypto.Hash128(b),
 	}
 	h.sendPush(hash)
 }
@@ -717,21 +742,23 @@ func (h *IdenaGossipHandler) sendPull(peerId peer.ID, hash pushPullHash) {
 }
 
 func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
-	h.peers.Send(GetBlockByHash, &getBlockBodyRequest{
-		Hash: hash,
+	h.peers.Send(GetBlockByHash, &models.ProtoGetBlockByHashRequest{
+		Hash: hash[:],
 	})
 }
 
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	pending := h.txpool.GetPendingTransaction()
 	for _, tx := range pending {
+		b, _ := tx.ToBytes()
 		payload := pushPullHash{
 			Type: pushTx,
-			Hash: rlp.Hash128(tx),
+			Hash: crypto.Hash128(b),
 		}
 		h.pushPullManager.AddEntry(payload, tx)
 		p.sendMsg(Push, payload, false)
-		p.markPayload(payload)
+		bytes, _ := payload.ToBytes()
+		p.markPayload(bytes)
 	}
 }
 
@@ -756,7 +783,8 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 			Hash: hash,
 		}
 		p.sendMsg(Push, payload, false)
-		p.markPayload(payload)
+		bytes, _ := payload.ToBytes()
+		p.markPayload(bytes)
 	}
 }
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {

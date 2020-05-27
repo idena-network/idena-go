@@ -77,6 +77,7 @@ type Encoder interface {
 //
 // Boolean values are not supported, nor are signed integers, floating
 // point numbers, maps, channels and functions.
+// Deprecated: exists for several future releases. Protobuf should be used instead of RLP.
 func Encode(w io.Writer, val interface{}) error {
 	if outer, ok := w.(*encbuf); ok {
 		// Encode was called by some type's EncodeRLP.
@@ -94,6 +95,7 @@ func Encode(w io.Writer, val interface{}) error {
 
 // EncodeToBytes returns the RLP encoding of val.
 // Please see the documentation of Encode for the encoding rules.
+// Deprecated: exists for several future releases. Protobuf should be used instead of RLP.
 func EncodeToBytes(val interface{}) ([]byte, error) {
 	eb := encbufPool.Get().(*encbuf)
 	defer encbufPool.Put(eb)

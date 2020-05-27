@@ -47,7 +47,7 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 }
 
 func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	if networkSize == 0 || feePerByte == nil {
+	if networkSize == 0 || common.ZeroOrNil(feePerByte) {
 		return big.NewInt(0)
 	}
 	if tx.Type == types.SubmitFlipTx || tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitShortAnswersTx ||

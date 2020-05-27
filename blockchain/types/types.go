@@ -2,9 +2,10 @@ package types
 
 import (
 	"bytes"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -54,20 +55,33 @@ type Seed [32]byte
 
 func (h Seed) Bytes() []byte { return h[:] }
 
+func (h *Seed) SetBytes(b []byte) {
+	if len(b) > len(h) {
+		b = b[len(b)-32:]
+	}
+	copy(h[32-len(b):], b)
+}
+
+func BytesToSeed(b []byte) Seed {
+	var a Seed
+	a.SetBytes(b)
+	return a
+}
+
 type EmptyBlockHeader struct {
 	ParentHash   common.Hash
 	Height       uint64
 	Root         common.Hash
 	IdentityRoot common.Hash
 	BlockSeed    Seed
-	Time         *big.Int
+	Time         int64
 	Flags        BlockFlag
 }
 
 type ProposedHeader struct {
 	ParentHash     common.Hash
 	Height         uint64
-	Time           *big.Int    `json:"timestamp"`
+	Time           int64
 	TxHash         common.Hash // hash of tx hashes
 	ProposerPubKey []byte
 	Root           common.Hash // root of state tree
@@ -78,7 +92,7 @@ type ProposedHeader struct {
 	TxBloom        []byte
 	BlockSeed      Seed
 	FeePerByte     *big.Int
-	Upgrade        uint16
+	Upgrade        uint32
 	SeedProof      []byte
 }
 
@@ -95,13 +109,14 @@ type VoteHeader struct {
 	ParentHash  common.Hash
 	VotedHash   common.Hash
 	TurnOffline bool
-	Upgrade     uint16
+	Upgrade     uint32
 }
 
 type Block struct {
 	Header *Header
 
 	Body *Body
+
 	// caches
 	hash        atomic.Value
 	proposeHash atomic.Value
@@ -126,6 +141,9 @@ type Transaction struct {
 	// caches
 	hash atomic.Value
 	from atomic.Value
+
+	//TODO: remove later
+	useRlp atomic.Value
 }
 
 type FullBlockCert struct {
@@ -134,7 +152,7 @@ type FullBlockCert struct {
 
 type BlockCertSignature struct {
 	TurnOffline bool
-	Upgrade     uint16
+	Upgrade     uint32
 	Signature   []byte
 }
 
@@ -158,10 +176,6 @@ type BlockProposal struct {
 // Transactions is a Transaction slice type for basic sorting.
 type Transactions []*Transaction
 
-type NewEpochPayload struct {
-	Identities []common.Address
-}
-
 type Vote struct {
 	Header    *VoteHeader
 	Signature []byte
@@ -177,9 +191,28 @@ type Flip struct {
 	PrivatePart []byte
 }
 
-type ActivityMonitor struct {
-	UpdateDt time.Time
-	Data     []*AddrActivity
+func (f *Flip) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoFlip{
+		PublicPart:  f.PublicPart,
+		PrivatePart: f.PrivatePart,
+	}
+	if f.Tx != nil {
+		protoObj.Transaction = f.Tx.ToProto()
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (f *Flip) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoFlip)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	f.PublicPart = protoObj.PublicPart
+	f.PrivatePart = protoObj.PrivatePart
+	if protoObj.Transaction != nil {
+		f.Tx = new(Transaction).FromProto(protoObj.Transaction)
+	}
+	return nil
 }
 
 type AddrActivity struct {
@@ -187,17 +220,96 @@ type AddrActivity struct {
 	Time time.Time
 }
 
+type ActivityMonitor struct {
+	UpdateDt time.Time
+	Data     []*AddrActivity
+}
+
+func (s *ActivityMonitor) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoActivityMonitor{
+		Timestamp: s.UpdateDt.Unix(),
+	}
+	for _, item := range s.Data {
+		protoObj.Activities = append(protoObj.Activities, &models.ProtoActivityMonitor_Activity{
+			Address:   item.Addr[:],
+			Timestamp: item.Time.Unix(),
+		})
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (s *ActivityMonitor) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoActivityMonitor)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	s.UpdateDt = time.Unix(protoObj.Timestamp, 0)
+	for _, item := range protoObj.Activities {
+		s.Data = append(s.Data, &AddrActivity{
+			Addr: common.BytesToAddress(item.Address),
+			Time: time.Unix(item.Timestamp, 0),
+		})
+	}
+
+	return nil
+}
+
 type SavedTransaction struct {
 	Tx         *Transaction
 	FeePerByte *big.Int
 	BlockHash  common.Hash
-	Timestamp  uint64
+	Timestamp  int64
+}
+
+func (s *SavedTransaction) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoSavedTransaction{
+		FeePerBye: common.BigIntBytesOrNil(s.FeePerByte),
+		BlockHash: s.BlockHash[:],
+		Timestamp: s.Timestamp,
+	}
+	if s.Tx != nil {
+		protoObj.Tx = s.Tx.ToProto()
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (s *SavedTransaction) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoSavedTransaction)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	tx := new(Transaction)
+	s.Tx = tx.FromProto(protoObj.Tx)
+	s.Timestamp = protoObj.Timestamp
+	s.BlockHash = common.BytesToHash(protoObj.BlockHash)
+	s.FeePerByte = common.BigIntOrNil(protoObj.FeePerBye)
+	return nil
 }
 
 type BurntCoins struct {
 	Address common.Address
 	Key     string
 	Amount  *big.Int
+}
+
+func (s *BurntCoins) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoBurntCoins{
+		Address: s.Address[:],
+		Key:     s.Key,
+		Amount:  common.BigIntBytesOrNil(s.Amount),
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (s *BurntCoins) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoBurntCoins)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	s.Key = protoObj.Key
+	s.Amount = common.BigIntOrNil(protoObj.Amount)
+	s.Address = common.BytesToAddress(protoObj.Address)
+	return nil
 }
 
 func (b *Block) Hash() common.Hash {
@@ -232,6 +344,96 @@ func (b *Block) Root() common.Hash {
 
 func (b *Block) IdentityRoot() common.Hash {
 	return b.Header.IdentityRoot()
+}
+
+func (b *Block) ToBytes() ([]byte, error) {
+	protoObj := new(models.ProtoBlock)
+	if b.Header != nil {
+		protoObj.Header = b.Header.ToProto()
+	}
+	if b.Body != nil {
+		protoObj.Body = b.Body.ToProto()
+	}
+
+	return proto.Marshal(protoObj)
+}
+
+func (b *Block) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoBlock)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	if protoObj.Header != nil {
+		b.Header = new(Header).FromProto(protoObj.Header)
+	}
+	if protoObj.Body != nil {
+		b.Body = new(Body).FromProto(protoObj.Body)
+	}
+	return nil
+}
+
+func (h *Header) ToProto() *models.ProtoBlockHeader {
+	protoHeader := new(models.ProtoBlockHeader)
+	if h.EmptyBlockHeader != nil {
+		protoHeader.EmptyHeader = h.EmptyBlockHeader.ToProto()
+	}
+	if h.ProposedHeader != nil {
+		protoHeader.ProposedHeader = h.ProposedHeader.ToProto()
+	}
+	return protoHeader
+}
+
+func (h *Header) ToBytes() ([]byte, error) {
+	return proto.Marshal(h.ToProto())
+}
+
+func (h *Header) FromProto(protoHeader *models.ProtoBlockHeader) *Header {
+	if protoHeader.EmptyHeader != nil {
+		empty := &EmptyBlockHeader{
+			ParentHash:   common.BytesToHash(protoHeader.EmptyHeader.ParentHash),
+			Height:       protoHeader.EmptyHeader.Height,
+			Root:         common.BytesToHash(protoHeader.EmptyHeader.Root),
+			IdentityRoot: common.BytesToHash(protoHeader.EmptyHeader.IdentityRoot),
+			BlockSeed:    BytesToSeed(protoHeader.EmptyHeader.BlockSeed),
+			Time:         protoHeader.EmptyHeader.Timestamp,
+			Flags:        BlockFlag(protoHeader.EmptyHeader.Flags),
+		}
+		h.EmptyBlockHeader = empty
+	}
+	if protoHeader.ProposedHeader != nil {
+		proposed := &ProposedHeader{
+			ParentHash:     common.BytesToHash(protoHeader.ProposedHeader.ParentHash),
+			Height:         protoHeader.ProposedHeader.Height,
+			Time:           protoHeader.ProposedHeader.Timestamp,
+			TxHash:         common.BytesToHash(protoHeader.ProposedHeader.TxHash),
+			ProposerPubKey: protoHeader.ProposedHeader.ProposerPubKey,
+			Root:           common.BytesToHash(protoHeader.ProposedHeader.Root),
+			IdentityRoot:   common.BytesToHash(protoHeader.ProposedHeader.IdentityRoot),
+			Flags:          BlockFlag(protoHeader.ProposedHeader.Flags),
+			IpfsHash:       protoHeader.ProposedHeader.IpfsHash,
+			TxBloom:        protoHeader.ProposedHeader.TxBloom,
+			BlockSeed:      BytesToSeed(protoHeader.ProposedHeader.BlockSeed),
+			FeePerByte:     common.BigIntOrNil(protoHeader.ProposedHeader.FeePerByte),
+			Upgrade:        protoHeader.ProposedHeader.Upgrade,
+			SeedProof:      protoHeader.ProposedHeader.SeedProof,
+		}
+		if len(protoHeader.ProposedHeader.OfflineAddr) > 0 {
+			addr := common.BytesToAddress(protoHeader.ProposedHeader.OfflineAddr)
+			proposed.OfflineAddr = &addr
+		}
+		h.ProposedHeader = proposed
+	}
+	return h
+}
+
+func (h *Header) FromBytes(data []byte) error {
+	protoHeader := new(models.ProtoBlockHeader)
+	if err := proto.Unmarshal(data, protoHeader); err != nil {
+		return err
+	}
+
+	h.FromProto(protoHeader)
+	return nil
 }
 
 func (h *Header) Hash() common.Hash {
@@ -279,7 +481,7 @@ func (h *Header) IdentityRoot() common.Hash {
 	}
 }
 
-func (h *Header) Time() *big.Int {
+func (h *Header) Time() int64 {
 	if h.EmptyBlockHeader != nil {
 		return h.EmptyBlockHeader.Time
 	} else {
@@ -328,16 +530,98 @@ func (h *Header) OfflineAddr() *common.Address {
 	}
 }
 
+func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
+	protoProposed := &models.ProtoBlockHeader_Proposed{
+		ParentHash:     h.ParentHash[:],
+		Height:         h.Height,
+		Timestamp:      h.Time,
+		TxHash:         h.TxHash[:],
+		ProposerPubKey: h.ProposerPubKey,
+		Root:           h.Root[:],
+		IdentityRoot:   h.IdentityRoot[:],
+		Flags:          uint32(h.Flags),
+		IpfsHash:       h.IpfsHash,
+		TxBloom:        h.TxBloom,
+		BlockSeed:      h.BlockSeed[:],
+		FeePerByte:     common.BigIntBytesOrNil(h.FeePerByte),
+		Upgrade:        h.Upgrade,
+		SeedProof:      h.SeedProof,
+	}
+	if h.OfflineAddr != nil {
+		protoProposed.OfflineAddr = (*h.OfflineAddr)[:]
+	}
+	return protoProposed
+}
+
 func (h *ProposedHeader) Hash() common.Hash {
-	return rlp.Hash(h)
+	b, _ := proto.Marshal(h.ToProto())
+	return crypto.Hash(b)
+}
+
+func (h *EmptyBlockHeader) ToProto() *models.ProtoBlockHeader_Empty {
+	protoEmpty := &models.ProtoBlockHeader_Empty{
+		ParentHash:   h.ParentHash[:],
+		Height:       h.Height,
+		Root:         h.Root[:],
+		IdentityRoot: h.IdentityRoot[:],
+		Timestamp:    h.Time,
+		BlockSeed:    h.BlockSeed[:],
+		Flags:        uint32(h.Flags),
+	}
+	return protoEmpty
 }
 
 func (h *EmptyBlockHeader) Hash() common.Hash {
-	return rlp.Hash(h)
+	b, _ := proto.Marshal(h.ToProto())
+	return crypto.Hash(b)
 }
 
-func (h *VoteHeader) SignatureHash() common.Hash {
-	return rlp.Hash(h)
+func (v *Vote) ToSignatureBytes() ([]byte, error) {
+	protoObj := &models.ProtoVote_Data{
+		Round:       v.Header.Round,
+		Step:        uint32(v.Header.Step),
+		ParentHash:  v.Header.ParentHash[:],
+		VotedHash:   v.Header.VotedHash[:],
+		TurnOffline: v.Header.TurnOffline,
+		Upgrade:     v.Header.Upgrade,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (v *Vote) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoVote{
+		Signature: v.Signature,
+	}
+	if v.Header != nil {
+		protoObj.Data = &models.ProtoVote_Data{
+			Round:       v.Header.Round,
+			Step:        uint32(v.Header.Step),
+			ParentHash:  v.Header.ParentHash[:],
+			VotedHash:   v.Header.VotedHash[:],
+			TurnOffline: v.Header.TurnOffline,
+			Upgrade:     v.Header.Upgrade,
+		}
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (v *Vote) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoVote)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	v.Signature = protoObj.Signature
+	if protoObj.Data != nil {
+		v.Header = &VoteHeader{
+			Round:       protoObj.Data.Round,
+			Step:        uint8(protoObj.Data.Step),
+			ParentHash:  common.BytesToHash(protoObj.Data.ParentHash),
+			VotedHash:   common.BytesToHash(protoObj.Data.VotedHash),
+			TurnOffline: protoObj.Data.TurnOffline,
+			Upgrade:     protoObj.Data.Upgrade,
+		}
+	}
+	return nil
 }
 
 func (v *Vote) Hash() common.Hash {
@@ -345,18 +629,21 @@ func (v *Vote) Hash() common.Hash {
 	if hash := v.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := common.Hash(rlp.Hash([]interface{}{v.Header.SignatureHash(),
-		v.VoterAddr(),
-	}))
+
+	voteHash := crypto.SignatureHash(v)
+	voterAddr := v.VoterAddr()
+	h := common.Hash(crypto.Hash(append(voteHash[:], voterAddr[:]...)))
+
 	v.hash.Store(h)
 	return h
 }
+
 func (v *Vote) VoterAddr() common.Address {
 	if addr := v.addr.Load(); addr != nil {
 		return addr.(common.Address)
 	}
 
-	hash := v.Header.SignatureHash()
+	hash := crypto.SignatureHash(v)
 
 	addr := common.Address{}
 	pubKey, err := crypto.Ecrecover(hash[:], v.Signature)
@@ -389,18 +676,90 @@ func (tx *Transaction) TipsOrZero() *big.Int {
 }
 
 func (tx *Transaction) Hash() common.Hash {
-
 	if hash := tx.hash.Load(); hash != nil {
 		return hash.(common.Hash)
 	}
-	h := common.Hash(rlp.Hash(tx))
+
+	bytes, _ := tx.ToBytes()
+	h := common.Hash(crypto.Hash(bytes))
 	tx.hash.Store(h)
 	return h
 }
 
 func (tx *Transaction) Size() int {
-	b, _ := rlp.EncodeToBytes(tx)
+	b, _ := tx.ToBytes()
 	return len(b)
+}
+
+func (tx *Transaction) ToSignatureBytes() ([]byte, error) {
+	protoTx := &models.ProtoTransaction_Data{
+		Nonce:   tx.AccountNonce,
+		Epoch:   uint32(tx.Epoch),
+		Type:    uint32(tx.Type),
+		Payload: tx.Payload,
+		Amount:  common.BigIntBytesOrNil(tx.Amount),
+		Tips:    common.BigIntBytesOrNil(tx.Tips),
+		MaxFee:  common.BigIntBytesOrNil(tx.MaxFee),
+	}
+	return proto.Marshal(protoTx)
+}
+
+func (tx *Transaction) ToProto() *models.ProtoTransaction {
+	protoTx := &models.ProtoTransaction{
+		Data: &models.ProtoTransaction_Data{
+			Nonce:   tx.AccountNonce,
+			Epoch:   uint32(tx.Epoch),
+			Type:    uint32(tx.Type),
+			Payload: tx.Payload,
+			Amount:  common.BigIntBytesOrNil(tx.Amount),
+			Tips:    common.BigIntBytesOrNil(tx.Tips),
+			MaxFee:  common.BigIntBytesOrNil(tx.MaxFee),
+		},
+		Signature: tx.Signature,
+	}
+
+	if tx.To != nil {
+		protoTx.Data.To = tx.To.Bytes()
+	}
+	return protoTx
+}
+
+func (tx *Transaction) ToBytes() ([]byte, error) {
+	return proto.Marshal(tx.ToProto())
+}
+
+func (tx *Transaction) FromProto(protoTx *models.ProtoTransaction) *Transaction {
+	if protoTx.Data != nil {
+		tx.AccountNonce = protoTx.Data.GetNonce()
+		tx.Epoch = uint16(protoTx.Data.GetEpoch())
+		tx.Type = TxType(protoTx.Data.GetType())
+		tx.Payload = protoTx.Data.GetPayload()
+
+		if to := protoTx.Data.GetTo(); to != nil {
+			addr := common.BytesToAddress(to)
+			tx.To = &addr
+		}
+		tx.Amount = common.BigIntOrNil(protoTx.Data.Amount)
+		tx.Tips = common.BigIntOrNil(protoTx.Data.Tips)
+		tx.MaxFee = common.BigIntOrNil(protoTx.Data.MaxFee)
+	}
+
+	tx.Signature = protoTx.GetSignature()
+
+	return tx
+}
+
+func (tx *Transaction) FromBytes(data []byte) error {
+	protoTx := new(models.ProtoTransaction)
+	if err := proto.Unmarshal(data, protoTx); err != nil {
+		return err
+	}
+	tx.FromProto(protoTx)
+	return nil
+}
+
+func (tx *Transaction) UseRlp() {
+	tx.useRlp.Store(true)
 }
 
 // Len returns the length of s.
@@ -409,14 +768,57 @@ func (s Transactions) Len() int { return len(s) }
 // Swap swaps the i'th and the j'th element in s.
 func (s Transactions) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// GetRlp implements Rlpable and returns the i'th element of s in rlp.
-func (s Transactions) GetRlp(i int) []byte {
-	enc, _ := rlp.EncodeToBytes(s[i])
+func (s Transactions) GetBytes(i int) []byte {
+	enc, _ := s[i].ToBytes()
 	return enc
 }
 
 func (s *BlockCert) Empty() bool {
 	return s == nil || len(s.Signatures) == 0
+}
+
+func (s *BlockCert) ToProto() *models.ProtoBlockCert {
+	protoObj := &models.ProtoBlockCert{
+		Round:     s.Round,
+		Step:      uint32(s.Step),
+		VotedHash: s.VotedHash[:],
+	}
+	for _, item := range s.Signatures {
+		protoObj.Signatures = append(protoObj.Signatures, &models.ProtoBlockCert_Signature{
+			TurnOffline: item.TurnOffline,
+			Upgrade:     item.Upgrade,
+			Signature:   item.Signature,
+		})
+	}
+	return protoObj
+}
+
+func (s *BlockCert) ToBytes() ([]byte, error) {
+	return proto.Marshal(s.ToProto())
+}
+
+func (s *BlockCert) FromProto(protoObj *models.ProtoBlockCert) *BlockCert {
+	s.Round = protoObj.Round
+	s.Step = uint8(protoObj.Step)
+	s.VotedHash = common.BytesToHash(protoObj.VotedHash)
+
+	for _, item := range protoObj.Signatures {
+		s.Signatures = append(s.Signatures, &BlockCertSignature{
+			TurnOffline: item.TurnOffline,
+			Upgrade:     item.Upgrade,
+			Signature:   item.Signature,
+		})
+	}
+	return s
+}
+
+func (s *BlockCert) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoBlockCert)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	s.FromProto(protoObj)
+	return nil
 }
 
 func (s *FullBlockCert) Compress() *BlockCert {
@@ -438,11 +840,6 @@ func (s *FullBlockCert) Compress() *BlockCert {
 	return cert
 }
 
-func (p NewEpochPayload) Bytes() []byte {
-	enc, _ := rlp.EncodeToBytes(p)
-	return enc
-}
-
 func (f BlockFlag) HasFlag(flag BlockFlag) bool {
 	return f&flag != 0
 }
@@ -451,25 +848,75 @@ func (f BlockFlag) UnsetFlag(flag BlockFlag) BlockFlag {
 	return f &^ flag
 }
 
-func (b Body) Bytes() []byte {
-	if len(b.Transactions) == 0 {
-		return []byte{}
+func (b *Body) ToProto() *models.ProtoBlockBody {
+	protoBody := new(models.ProtoBlockBody)
+
+	for _, item := range b.Transactions {
+		protoBody.Transactions = append(protoBody.Transactions, item.ToProto())
 	}
-	enc, _ := rlp.EncodeToBytes(b)
-	return enc
+	return protoBody
+}
+
+func (b *Body) ToBytes() []byte {
+	res, _ := proto.Marshal(b.ToProto())
+	return res
+}
+
+func (b *Body) FromProto(protoBody *models.ProtoBlockBody) *Body {
+	if len(protoBody.Transactions) > 0 {
+		for _, item := range protoBody.Transactions {
+			tx := new(Transaction).FromProto(item)
+			b.Transactions = append(b.Transactions, tx)
+		}
+	} else {
+		b.Transactions = Transactions{}
+	}
+	return b
 }
 
 func (b *Body) FromBytes(data []byte) {
-	if len(data) != 0 {
-		rlp.DecodeBytes(data, b)
-	}
-	if b.Transactions == nil {
-		b.Transactions = Transactions{}
-	}
+	protoBody := new(models.ProtoBlockBody)
+	proto.Unmarshal(data, protoBody)
+	b.FromProto(protoBody)
 }
 
 func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
+}
+
+func (p *BlockProposal) ToBytes() ([]byte, error) {
+	protoObj := new(models.ProtoBlockProposal)
+	protoObj.Signature = p.Signature
+	protoObj.Data = &models.ProtoBlockProposal_Data{}
+
+	if p.Block != nil {
+		if p.Block.Header != nil {
+			protoObj.Data.Header = p.Header.ToProto()
+		}
+		if p.Block.Body != nil {
+			protoObj.Data.Body = p.Body.ToProto()
+		}
+	}
+
+	return proto.Marshal(protoObj)
+}
+
+func (p *BlockProposal) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoBlockProposal)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	p.Signature = protoObj.Signature
+	if protoObj.Data != nil {
+		p.Block = &Block{}
+		if protoObj.Data.Header != nil {
+			p.Block.Header = new(Header).FromProto(protoObj.Data.Header)
+		}
+		if protoObj.Data.Body != nil {
+			p.Block.Body = new(Body).FromProto(protoObj.Data.Body)
+		}
+	}
+	return nil
 }
 
 func (p *BlockProposal) IsValid() bool {
@@ -491,8 +938,41 @@ type PublicFlipKey struct {
 	from atomic.Value
 }
 
-func (k PublicFlipKey) Hash() common.Hash {
-	return rlp.Hash(k)
+func (k *PublicFlipKey) ToSignatureBytes() ([]byte, error) {
+	protoObj := &models.ProtoFlipKey_Data{
+		Key:   k.Key,
+		Epoch: uint32(k.Epoch),
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (k *PublicFlipKey) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoFlipKey{
+		Data: &models.ProtoFlipKey_Data{
+			Key:   k.Key,
+			Epoch: uint32(k.Epoch),
+		},
+		Signature: k.Signature,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (k *PublicFlipKey) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoFlipKey)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	k.Signature = protoObj.Signature
+	if protoObj.Data != nil {
+		k.Epoch = uint16(protoObj.Data.Epoch)
+		k.Key = protoObj.Data.Key
+	}
+	return nil
+}
+
+func (k *PublicFlipKey) Hash() common.Hash {
+	b, _ := k.ToBytes()
+	return crypto.Hash(b)
 }
 
 type PrivateFlipKeysPackage struct {
@@ -503,12 +983,41 @@ type PrivateFlipKeysPackage struct {
 	from atomic.Value
 }
 
-func (k *PrivateFlipKeysPackage) Hash() common.Hash {
-	return rlp.Hash(k)
+func (k *PrivateFlipKeysPackage) ToSignatureBytes() ([]byte, error) {
+	protoObj := &models.ProtoPrivateFlipKeysPackage_Data{
+		Package: k.Data,
+		Epoch:   uint32(k.Epoch),
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (k *PrivateFlipKeysPackage) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoPrivateFlipKeysPackage{
+		Data: &models.ProtoPrivateFlipKeysPackage_Data{
+			Package: k.Data,
+			Epoch:   uint32(k.Epoch),
+		},
+		Signature: k.Signature,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (k *PrivateFlipKeysPackage) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoPrivateFlipKeysPackage)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	k.Signature = protoObj.Signature
+	if protoObj.Data != nil {
+		k.Data = protoObj.Data.Package
+		k.Epoch = uint16(protoObj.Data.Epoch)
+	}
+	return nil
 }
 
 func (k *PrivateFlipKeysPackage) Hash128() common.Hash128 {
-	return rlp.Hash128(k)
+	b, _ := k.ToBytes()
+	return crypto.Hash128(b)
 }
 
 type Answer byte
@@ -631,3 +1140,28 @@ const (
 	QualifiedByNoneBadAuthor  BadAuthorReason = 1
 	WrongWordsBadAuthor       BadAuthorReason = 2
 )
+
+type TransactionIndex struct {
+	BlockHash common.Hash
+	// tx index in block's body
+	Idx uint32
+}
+
+func (i *TransactionIndex) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoTransactionIndex{
+		BlockHash: i.BlockHash[:],
+		Idx:       i.Idx,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (i *TransactionIndex) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoTransactionIndex)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	i.Idx = protoObj.Idx
+	i.BlockHash = common.BytesToHash(protoObj.BlockHash)
+
+	return nil
+}

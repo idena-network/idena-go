@@ -11,7 +11,6 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
@@ -384,24 +383,24 @@ func Test_analyzeAuthors(t *testing.T) {
 
 	vc.flips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc}}
 	vc.flipAuthorMap = map[common.Hash]common.Address{
-		rlp.Hash([]byte{0x0}): auth1,
-		rlp.Hash([]byte{0x1}): auth1,
-		rlp.Hash([]byte{0x2}): auth1,
+		crypto.Hash([]byte{0x0}): auth1,
+		crypto.Hash([]byte{0x1}): auth1,
+		crypto.Hash([]byte{0x2}): auth1,
 
-		rlp.Hash([]byte{0x3}): auth2,
-		rlp.Hash([]byte{0x4}): auth2,
+		crypto.Hash([]byte{0x3}): auth2,
+		crypto.Hash([]byte{0x4}): auth2,
 
-		rlp.Hash([]byte{0x5}): auth3,
-		rlp.Hash([]byte{0x6}): auth3,
+		crypto.Hash([]byte{0x5}): auth3,
+		crypto.Hash([]byte{0x6}): auth3,
 
-		rlp.Hash([]byte{0x7}): auth4,
-		rlp.Hash([]byte{0x8}): auth4,
+		crypto.Hash([]byte{0x7}): auth4,
+		crypto.Hash([]byte{0x8}): auth4,
 
-		rlp.Hash([]byte{0x9}): auth5,
+		crypto.Hash([]byte{0x9}): auth5,
 
-		rlp.Hash([]byte{0xa}): auth6,
-		rlp.Hash([]byte{0xb}): auth6,
-		rlp.Hash([]byte{0xc}): auth6,
+		crypto.Hash([]byte{0xa}): auth6,
+		crypto.Hash([]byte{0xb}): auth6,
+		crypto.Hash([]byte{0xc}): auth6,
 	}
 
 	qualification := []FlipQualification{

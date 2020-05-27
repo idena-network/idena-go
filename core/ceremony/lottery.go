@@ -5,7 +5,7 @@ import (
 	"container/list"
 	"encoding/binary"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/rlp"
+	"github.com/idena-network/idena-go/crypto"
 	"math/rand"
 )
 
@@ -125,7 +125,7 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 	currentFlipIndexByAuthor := make([]int, candidatesCount)
 	hashMap := make(map[common.Hash]int)
 	for idx, item := range flips {
-		hashMap[common.Hash(rlp.Hash(item))] = idx
+		hashMap[common.Hash(crypto.Hash(item))] = idx
 	}
 
 	randSeed := binary.LittleEndian.Uint64(seed)
@@ -148,7 +148,7 @@ func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int
 	}
 
 	addFlip := func(arr []int, f []byte) []int {
-		flipHash := common.Hash(rlp.Hash(f))
+		flipHash := common.Hash(crypto.Hash(f))
 		flipGlobalIndex := hashMap[flipHash]
 		return append(arr, flipGlobalIndex)
 	}

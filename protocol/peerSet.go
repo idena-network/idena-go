@@ -84,10 +84,8 @@ func (ps *peerSet) Peers() []*protoPeer {
 	return list
 }
 
-func (ps *peerSet) SendWithFilter(msgcode uint64, payload interface{}, highPriority bool) {
-
+func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, highPriority bool) {
 	peers := ps.Peers()
-	key := msgKey(payload)
 
 	for _, p := range peers {
 		if _, ok := p.msgCache.Get(key); !ok {
@@ -105,7 +103,7 @@ func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 	}
 }
 
-func (ps *peerSet) HasPayload(payload interface{}) bool {
+func (ps *peerSet) HasPayload(payload []byte) bool {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 	key := msgKey(payload)

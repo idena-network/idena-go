@@ -287,7 +287,7 @@ func (proposals *Proposals) AvgTimeDiff(round uint64, start int64) decimal.Decim
 		round := m.(*sync.Map)
 		round.Range(func(key, value interface{}) bool {
 			block := value.(*proposedBlock)
-			diffs = append(diffs, decimal.New(block.receivingTime.Unix(), 0).Sub(decimal.NewFromBigInt(block.proposal.Header.Time(), 0)))
+			diffs = append(diffs, decimal.New(block.receivingTime.Unix(), 0).Sub(decimal.New(block.proposal.Header.Time(), 0)))
 			return true
 		})
 	}

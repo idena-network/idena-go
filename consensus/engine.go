@@ -139,7 +139,7 @@ func (engine *Engine) alignTime() {
 		}
 	}
 	correctedNow := now.Add(-offset)
-	headTime := time.Unix(engine.chain.Head.Time().Int64(), 0)
+	headTime := time.Unix(engine.chain.Head.Time(), 0)
 
 	if correctedNow.After(headTime) {
 		maxDelay := engine.config.MinBlockDistance - engine.config.EstimatedBaVariance - engine.config.WaitSortitionProofDelay
@@ -440,7 +440,8 @@ func (engine *Engine) vote(round uint64, step uint8, block common.Hash) {
 		if b, err := engine.proposals.GetBlockByHash(round, block); err == nil {
 			vote.Header.TurnOffline = engine.offlineDetector.VoteForOffline(b)
 		}
-		vote.Signature = engine.secStore.Sign(vote.Header.SignatureHash().Bytes())
+		hash := crypto.SignatureHash(&vote)
+		vote.Signature = engine.secStore.Sign(hash[:])
 		engine.pm.SendVote(&vote)
 
 		engine.log.Info("Voted for", "step", step, "block", block.Hex())

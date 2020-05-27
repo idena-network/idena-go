@@ -3,12 +3,13 @@ package validators
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
 	"math/rand"
 	"sort"
 	"sync"
@@ -60,9 +61,7 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		return nil
 	}
 
-	rndSeed := rlp.Hash([]interface{}{
-		seed, round, step,
-	})
+	rndSeed := crypto.Hash([]byte(fmt.Sprintf("%v-%v-%v", seed, round, step)))
 	randSeed := binary.LittleEndian.Uint64(rndSeed[:])
 	random := rand.New(rand.NewSource(int64(randSeed)))
 
@@ -121,7 +120,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 		addr.SetBytes(key[1:])
 
 		var data state.ApprovedIdentity
-		if err := rlp.DecodeBytes(value, &data); err != nil {
+		if err := data.FromBytes(value); err != nil {
 			return false
 		}
 

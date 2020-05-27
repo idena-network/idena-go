@@ -18,11 +18,12 @@ package state
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/mholt/archiver"
 	"github.com/pkg/errors"
 	"io"
@@ -48,6 +49,8 @@ const (
 
 	DefaultTreeKeepEvery  = int64(1)
 	DefaultTreeKeepRecent = int64(0)
+
+	SnapshotBlockSize = 10000
 )
 
 var (
@@ -224,10 +227,7 @@ func (s *StateDB) SetLastSnapshot(height uint64) {
 
 func (s *StateDB) NextValidationTime() time.Time {
 	stateObject := s.GetOrNewGlobalObject()
-	if stateObject.data.NextValidationTime == nil {
-		return time.Unix(0, 0)
-	}
-	return time.Unix(stateObject.data.NextValidationTime.Int64(), 0)
+	return time.Unix(stateObject.data.NextValidationTime, 0)
 }
 
 /*
@@ -500,9 +500,9 @@ func (s *StateDB) SetGodAddressInvites(count uint16) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+		panic(fmt.Errorf("can't encode account object at %x: %v", addr[:], err))
 	}
 
 	s.tree.Set(append(addressPrefix, addr[:]...), data)
@@ -511,9 +511,9 @@ func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+		panic(fmt.Errorf("can't encode identity object at %x: %v", addr[:], err))
 	}
 
 	s.tree.Set(append(identityPrefix, addr[:]...), data)
@@ -521,9 +521,9 @@ func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
 
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
-		panic(fmt.Errorf("can't encode object, %v", err))
+		panic(fmt.Errorf("can't encode global object, %v", err))
 	}
 
 	s.tree.Set(globalKey, data)
@@ -531,9 +531,9 @@ func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
 
 // updateStateAccountObject writes the given object to the trie.
 func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) {
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
-		panic(fmt.Errorf("can't encode object, %v", err))
+		panic(fmt.Errorf("can't encode status switch object, %v", err))
 	}
 
 	s.tree.Set(statusSwitchKey, data)
@@ -555,6 +555,12 @@ func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
 	s.tree.Remove(append(identityPrefix, addr[:]...))
 }
 
+func (s *StateDB) deleteStateStatusSwitchObject(stateObject *stateStatusSwitch) {
+	stateObject.deleted = true
+
+	s.tree.Remove(statusSwitchKey)
+}
+
 // Retrieve a state account given my the address. Returns nil if not found.
 func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccount) {
 	// Prefer 'live' objects.
@@ -573,7 +579,7 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 		return nil
 	}
 	var data Account
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
+	if err := data.FromBytes(enc); err != nil {
 		s.log.Error("Failed to decode state account object", "addr", addr, "err", err)
 		return nil
 	}
@@ -602,7 +608,7 @@ func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdent
 		return nil
 	}
 	var data Identity
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
+	if err := data.FromBytes(enc); err != nil {
 		s.log.Error("Failed to decode state identity object", "addr", addr, "err", err)
 		return nil
 	}
@@ -625,7 +631,7 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 		return nil
 	}
 	var data Global
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
+	if err := data.FromBytes(enc); err != nil {
 		s.log.Error("Failed to decode state global object", "err", err)
 		return nil
 	}
@@ -638,6 +644,9 @@ func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 func (s *StateDB) getStateStatusSwitch() (stateObject *stateStatusSwitch) {
 	// Prefer 'live' objects.
 	if obj := s.stateStatusSwitch; obj != nil {
+		if obj.deleted {
+			return nil
+		}
 		return obj
 	}
 
@@ -647,7 +656,7 @@ func (s *StateDB) getStateStatusSwitch() (stateObject *stateStatusSwitch) {
 		return nil
 	}
 	var data IdentityStatusSwitch
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
+	if err := data.FromBytes(enc); err != nil {
 		s.log.Error("Failed to decode state status switch object", "err", err)
 		return nil
 	}
@@ -714,7 +723,7 @@ func (s *StateDB) GetOrNewGlobalObject() *stateGlobal {
 
 func (s *StateDB) GetOrNewStatusSwitchObject() *stateStatusSwitch {
 	stateObject := s.getStateStatusSwitch()
-	if stateObject == nil {
+	if stateObject == nil || stateObject.deleted {
 		stateObject = s.createStatusSwitch()
 	}
 	return stateObject
@@ -849,7 +858,11 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	}
 
 	if s.stateStatusSwitchDirty {
-		s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+		if s.stateStatusSwitch.empty() {
+			s.deleteStateStatusSwitchObject(s.stateStatusSwitch)
+		} else {
+			s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+		}
 		s.stateStatusSwitchDirty = false
 	}
 }
@@ -954,7 +967,7 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		}
 		s.lock.Unlock()
 		var data Identity
-		if err := rlp.DecodeBytes(value, &data); err != nil {
+		if err := data.FromBytes(value); err != nil {
 			return false
 		}
 		callback(addr, data)
@@ -986,7 +999,7 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 		}
 
 		var data Account
-		if err := rlp.DecodeBytes(value, &data); err != nil {
+		if err := data.FromBytes(value); err != nil {
 			return false
 		}
 		callback(addr, data)
@@ -1039,11 +1052,11 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 	}
 	defer it.Close()
 
-	sb := &snapshot.Block{}
+	sb := new(models.ProtoSnapshotBlock)
 
-	writeBlock := func(sb *snapshot.Block, name string) error {
+	writeBlock := func(sb *models.ProtoSnapshotBlock, name string) error {
 
-		data, _ := rlp.EncodeToBytes(sb)
+		data, _ := proto.Marshal(sb)
 
 		return tar.Write(archiver.File{
 			FileInfo: archiver.FileInfo{
@@ -1058,13 +1071,16 @@ func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, 
 
 	i := 0
 	for ; it.Valid(); it.Next() {
-		sb.Add(it.Key(), it.Value())
-		if sb.Full() {
+		sb.Data = append(sb.Data, &models.ProtoSnapshotBlock_KeyValue{
+			Key:   it.Key(),
+			Value: it.Value(),
+		})
+		if len(sb.Data) >= SnapshotBlockSize {
 			if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
 				return common.Hash{}, err
 			}
 			i++
-			sb = &snapshot.Block{}
+			sb = new(models.ProtoSnapshotBlock)
 		}
 	}
 	if len(sb.Data) > 0 {
@@ -1093,8 +1109,8 @@ func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) e
 			common.ClearDb(pdb)
 			return err
 		} else {
-			sb := &snapshot.Block{}
-			if err := rlp.DecodeBytes(data, sb); err != nil {
+			sb := new(models.ProtoSnapshotBlock)
+			if err := proto.Unmarshal(data, sb); err != nil {
 				common.ClearDb(pdb)
 				return err
 			}
@@ -1141,65 +1157,79 @@ func (s *StateDB) DropSnapshot(manifest *snapshot.Manifest) {
 	common.ClearDb(pdb)
 }
 
-func (s *StateDB) SetPredefinedGlobal(state *PredefinedState) {
+func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject := s.GetOrNewGlobalObject()
-	stateObject.data.Epoch = state.Global.Epoch
-	stateObject.data.ValidationPeriod = state.Global.ValidationPeriod
-	stateObject.data.WordsSeed = state.Global.WordsSeed
-	stateObject.data.GodAddress = state.Global.GodAddress
+	stateObject.data.Epoch = uint16(state.Global.Epoch)
+	stateObject.data.ValidationPeriod = ValidationPeriod(state.Global.ValidationPeriod)
+	stateObject.data.WordsSeed = types.BytesToSeed(state.Global.WordsSeed)
+	stateObject.data.GodAddress = common.BytesToAddress(state.Global.GodAddress)
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
-	stateObject.data.FeePerByte = state.Global.FeePerByte
+	stateObject.data.FeePerByte = common.BigIntOrNil(state.Global.FeePerByte)
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
-	stateObject.data.EmptyBlocksBits = state.Global.EmptyBlocksBits
-	stateObject.data.GodAddressInvites = state.Global.GodAddressInvites
+	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
+	stateObject.data.GodAddressInvites = uint16(state.Global.GodAddressInvites)
 }
 
-func (s *StateDB) SetPredefinedStatusSwitch(state *PredefinedState) {
+func (s *StateDB) SetPredefinedStatusSwitch(state *models.ProtoPredefinedState) {
 	stateObject := s.GetOrNewStatusSwitchObject()
-	stateObject.data.Addresses = state.StatusSwitch.Addresses
+	for _, item := range state.StatusSwitch.Addresses {
+		stateObject.data.Addresses = append(stateObject.data.Addresses, common.BytesToAddress(item))
+	}
 	stateObject.touch()
 }
 
-func (s *StateDB) SetPredefinedAccounts(state *PredefinedState) {
+func (s *StateDB) SetPredefinedAccounts(state *models.ProtoPredefinedState) {
 	for _, acc := range state.Accounts {
-		stateObject := s.GetOrNewAccountObject(acc.Address)
-		stateObject.SetBalance(acc.Balance)
-		stateObject.SetEpoch(acc.Epoch)
+		stateObject := s.GetOrNewAccountObject(common.BytesToAddress(acc.Address))
+		stateObject.SetBalance(common.BigIntOrNil(acc.Balance))
+		stateObject.SetEpoch(uint16(acc.Epoch))
 		stateObject.setNonce(acc.Nonce)
 	}
 }
 
-func (s *StateDB) SetPredefinedIdentities(state *PredefinedState) {
+func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 	for _, identity := range state.Identities {
 
 		var flips []IdentityFlip
 		for _, item := range identity.Flips {
 			flips = append(flips, IdentityFlip{
-				Pair: item.Pair,
+				Pair: uint8(item.Pair),
 				Cid:  item.Cid,
 			})
 		}
 
-		stateObject := s.GetOrNewIdentityObject(identity.Address)
-		stateObject.data.Birthday = identity.Birthday
+		stateObject := s.GetOrNewIdentityObject(common.BytesToAddress(identity.Address))
+		stateObject.data.Birthday = uint16(identity.Birthday)
 		stateObject.data.Generation = identity.Generation
-		stateObject.data.Stake = identity.Stake
-		stateObject.data.RequiredFlips = identity.RequiredFlips
+		stateObject.data.Stake = common.BigIntOrNil(identity.Stake)
+		stateObject.data.RequiredFlips = uint8(identity.RequiredFlips)
 		stateObject.data.PubKey = identity.PubKey
-		stateObject.data.Invites = identity.Invites
-		stateObject.data.State = identity.State
+		stateObject.data.Invites = uint8(identity.Invites)
+		stateObject.data.State = IdentityState(identity.State)
 		stateObject.data.ShortFlipPoints = identity.ShortFlipPoints
 		stateObject.data.QualifiedFlips = identity.QualifiedFlips
 		stateObject.data.ProfileHash = identity.ProfileHash
 		stateObject.data.Code = identity.Code
 		stateObject.data.Flips = flips
-		stateObject.data.Invitees = identity.Invitees
-		stateObject.data.Inviter = identity.Inviter
-		stateObject.data.Penalty = identity.Penalty
-		stateObject.data.ValidationTxsBits = identity.ValidationTxsBits
-		stateObject.data.LastValidationStatus = identity.LastValidationStatus
+		stateObject.data.Penalty = common.BigIntOrNil(identity.Penalty)
+		stateObject.data.ValidationTxsBits = byte(identity.ValidationBits)
+		stateObject.data.LastValidationStatus = ValidationStatusFlag(identity.ValidationStatus)
+
+		if identity.Inviter != nil {
+			stateObject.data.Inviter = &TxAddr{
+				TxHash:  common.BytesToHash(identity.Inviter.Hash),
+				Address: common.BytesToAddress(identity.Inviter.Address),
+			}
+		}
+		for _, item := range identity.Invitees {
+			stateObject.data.Invitees = append(stateObject.data.Invitees, TxAddr{
+				TxHash:  common.BytesToHash(item.Hash),
+				Address: common.BytesToAddress(item.Address),
+			})
+		}
+
 		stateObject.touch()
 	}
 }

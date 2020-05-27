@@ -1,9 +1,7 @@
 package blockchain
 
 import (
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
-	"math/big"
 	"time"
 )
 
@@ -17,33 +15,33 @@ func NewTiming(conf *config.ValidationConfig) *timing {
 	}
 }
 
-func (t *timing) isFlipLotteryStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	if current := common.TimestampToTime(timestamp); nextValidation.Sub(current) < t.conf.GetFlipLotteryDuration() {
+func (t *timing) isFlipLotteryStarted(nextValidation time.Time, timestamp int64) bool {
+	if current := time.Unix(timestamp, 0); nextValidation.Sub(current) < t.conf.GetFlipLotteryDuration() {
 		return true
 	}
 	return false
 }
 
-func (t *timing) isShortSessionStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	return !common.TimestampToTime(timestamp).Before(nextValidation)
+func (t *timing) isShortSessionStarted(nextValidation time.Time, timestamp int64) bool {
+	return !time.Unix(timestamp, 0).Before(nextValidation)
 }
 
-func (t *timing) isLongSessionStarted(nextValidation time.Time, timestamp *big.Int) bool {
-	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.GetShortSessionDuration() {
+func (t *timing) isLongSessionStarted(nextValidation time.Time, timestamp int64) bool {
+	if current := time.Unix(timestamp, 0); current.Sub(nextValidation) > t.conf.GetShortSessionDuration() {
 		return true
 	}
 	return false
 }
 
-func (t *timing) isAfterLongSessionStarted(nextValidation time.Time, timestamp *big.Int, networkSize int) bool {
-	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) > t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize) {
+func (t *timing) isAfterLongSessionStarted(nextValidation time.Time, timestamp int64, networkSize int) bool {
+	if current := time.Unix(timestamp, 0); current.Sub(nextValidation) > t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize) {
 		return true
 	}
 	return false
 }
 
-func (t *timing) isValidationFinished(nextValidation time.Time, timestamp *big.Int, networkSize int) bool {
-	if current := common.TimestampToTime(timestamp); current.Sub(nextValidation) >
+func (t *timing) isValidationFinished(nextValidation time.Time, timestamp int64, networkSize int) bool {
+	if current := time.Unix(timestamp, 0); current.Sub(nextValidation) >
 		t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize)+t.conf.GetAfterLongSessionDuration() {
 		return true
 	}

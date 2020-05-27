@@ -30,3 +30,21 @@ var (
 
 	DnaBase = big.NewInt(1e+18)
 )
+
+func BigIntBytesOrNil(a *big.Int) []byte {
+	if a == nil {
+		return nil
+	}
+	return a.Bytes()
+}
+
+func BigIntOrNil(a []byte) *big.Int {
+	if a != nil {
+		return new(big.Int).SetBytes(a)
+	}
+	return nil
+}
+
+func ZeroOrNil(a *big.Int) bool {
+	return a == nil || a.Cmp(big.NewInt(0)) == 0
+}
