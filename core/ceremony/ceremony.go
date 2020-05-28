@@ -82,7 +82,7 @@ type ValidationCeremony struct {
 	epoch                    uint16
 	config                   *config.Config
 	applyEpochMutex          sync.Mutex
-	flipAuthorMap            map[common.Hash]common.Address
+	flipAuthorMap            map[string]common.Address
 	flipAuthorMapLock        sync.Mutex
 	epochApplyingCache       map[uint64]epochApplyingCache
 	validationStartCtxCancel context.CancelFunc
@@ -521,19 +521,19 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
+func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[string]common.Address) {
 	nonCandidates := make([]common.Address, 0)
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
-	flipAuthorMap := make(map[common.Hash]common.Address)
+	flipAuthorMap := make(map[string]common.Address)
 
 	addFlips := func(author common.Address, identityFlips []state.IdentityFlip) {
 		for _, f := range identityFlips {
 			authorIndex := len(m)
 			flips = append(flips, f.Cid)
 			flipsPerAuthor[authorIndex] = append(flipsPerAuthor[authorIndex], f.Cid)
-			flipAuthorMap[crypto.Hash(f.Cid)] = author
+			flipAuthorMap[string(f.Cid)] = author
 		}
 	}
 
@@ -978,7 +978,7 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 
 	for i, item := range qualifications {
 		cid := vc.flips[i]
-		author := vc.flipAuthorMap[crypto.Hash(cid)]
+		author := vc.flipAuthorMap[string(cid)]
 		if _, ok := authorResults[author]; !ok {
 			authorResults[author] = new(types.AuthorResults)
 		}
@@ -1220,7 +1220,7 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	vc.flipAuthorMapLock.Lock()
 	defer vc.flipAuthorMapLock.Unlock()
 
-	author, ok := vc.flipAuthorMap[crypto.Hash(cid)]
+	author, ok := vc.flipAuthorMap[string(cid)]
 	if !ok {
 		return 0, 0, errors.New("flip author not found")
 	}
