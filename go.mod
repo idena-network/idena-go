@@ -16,7 +16,7 @@ require (
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/ipfs/fs-repo-migrations v1.5.1
 	github.com/ipfs/go-blockservice v0.1.3
-	github.com/ipfs/go-cid v0.0.5
+	github.com/ipfs/go-cid v0.0.6
 	github.com/ipfs/go-ipfs v0.5.1-0.20200506014919-3339ce3b0e95
 	github.com/ipfs/go-ipfs-config v0.5.3
 	github.com/ipfs/go-ipfs-files v0.0.8
@@ -39,7 +39,7 @@ require (
 	github.com/rjeczalik/notify v0.9.2
 	github.com/rs/cors v1.7.0
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.0
 	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	github.com/tendermint/iavl v0.13.2
 	github.com/tendermint/tm-db v0.5.1
