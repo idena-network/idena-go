@@ -280,8 +280,8 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		var blocks []common.Hash
-		for _, item := range query.Blocks {
-			blocks = append(blocks, common.BytesToHash(item))
+		for idx := range query.Blocks {
+			blocks = append(blocks, common.BytesToHash(query.Blocks[idx]))
 		}
 		h.provideForkBlocks(p, query.BatchId, blocks)
 	case FlipBody:
@@ -622,8 +622,8 @@ func (h *IdenaGossipHandler) GetForkBlockRange(peerId peer.ID, ownBlocks []commo
 	peerBatches.(*sync.Map).Store(id, b)
 	h.batchedLock.Unlock()
 	var data [][]byte
-	for _, item := range ownBlocks {
-		data = append(data, item[:])
+	for idx := range ownBlocks {
+		data = append(data, ownBlocks[idx][:])
 	}
 	peer.sendMsg(GetForkBlockRange, &models.ProtoGetForkBlockRangeRequest{
 		BatchId: batchId,

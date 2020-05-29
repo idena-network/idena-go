@@ -146,14 +146,14 @@ func main() {
 
 			if data.Inviter != nil {
 				identity.Inviter = &models.ProtoPredefinedState_Identity_TxAddr{
-					Hash:    data.Inviter.TxHash.Bytes(),
-					Address: data.Inviter.Address.Bytes(),
+					Hash:    data.Inviter.TxHash[:],
+					Address: data.Inviter.Address[:],
 				}
 			}
-			for _, item := range data.Invitees {
+			for idx := range data.Invitees {
 				identity.Invitees = append(identity.Invitees, &models.ProtoPredefinedState_Identity_TxAddr{
-					Hash:    item.TxHash.Bytes(),
-					Address: item.Address.Bytes(),
+					Hash:    data.Invitees[idx].TxHash[:],
+					Address: data.Invitees[idx].Address[:],
 				})
 			}
 
@@ -174,7 +174,7 @@ func main() {
 				return false
 			}
 			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, &models.ProtoPredefinedState_ApprovedIdentity{
-				Address:  addr.Bytes(),
+				Address:  addr[:],
 				Approved: data.Approved,
 				Online:   false,
 			})

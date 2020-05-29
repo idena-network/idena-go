@@ -245,7 +245,11 @@ func (engine *Engine) loop() {
 		var hash common.Hash
 		var finalCert *types.FullBlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, finalCert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			hash, finalCert, err = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			if err == nil && hash != blockHash {
+				engine.log.Info("Switched to final", "prev", blockHash.Hex(), "final", hash.Hex())
+				blockHash = hash
+			}
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock, nil, engine.statsCollector); err != nil {

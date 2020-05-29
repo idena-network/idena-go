@@ -61,7 +61,7 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		return nil
 	}
 
-	rndSeed := crypto.Hash([]byte(fmt.Sprintf("%v-%v-%v", seed, round, step)))
+	rndSeed := crypto.Hash([]byte(fmt.Sprintf("%v-%v-%v", common.Bytes2Hex(seed[:]), round, step)))
 	randSeed := binary.LittleEndian.Uint64(rndSeed[:])
 	random := rand.New(rand.NewSource(int64(randSeed)))
 

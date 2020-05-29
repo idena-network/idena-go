@@ -1474,7 +1474,7 @@ func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final 
 		return cnt
 	}
 
-	size := int(float64(cnt) * percent)
+	size := int(math2.Round(float64(cnt) * percent))
 	if size > chain.config.Consensus.MaxCommitteeSize {
 		return chain.config.Consensus.MaxCommitteeSize
 	}
@@ -1497,7 +1497,7 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 		return 5
 	}
 	size := chain.GetCommitteeSize(vc, final)
-	return int(float64(size) * chain.config.Consensus.AgreementThreshold)
+	return int(math2.Round(float64(size) * chain.config.Consensus.AgreementThreshold))
 }
 
 func (chain *Blockchain) Genesis() common.Hash {

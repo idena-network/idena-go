@@ -48,7 +48,7 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 		if d.HasPotentialFork() {
 			peers := d.GetForkedPeers().Difference(resolver.triedPeers)
 			if peers.Cardinality() > 0 {
-				peerId = peers.Pop().( peer.ID)
+				peerId = peers.Pop().(peer.ID)
 				break
 			}
 		}
@@ -66,11 +66,11 @@ func (resolver *ForkResolver) loadAndVerifyFork() {
 	blocks := resolver.downloader.SeekForkedBlocks(lastBlocksHashes, peerId)
 	if err := resolver.processBlocks(blocks, peerId); err != nil {
 		resolver.downloader.BanPeer(peerId, err)
-		resolver.log.Warn("invalid fork", err, err)
+		resolver.log.Warn("invalid fork", "err", err)
 	}
 }
 
-func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId  peer.ID) error {
+func (resolver *ForkResolver) processBlocks(blocks chan types.BlockBundle, peerId peer.ID) error {
 	forkBlocks := make([]types.BlockBundle, 0)
 	for {
 		bundle, ok := <-blocks

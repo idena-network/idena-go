@@ -98,8 +98,8 @@ type IdentityStatusSwitch struct {
 
 func (s *IdentityStatusSwitch) ToBytes() ([]byte, error) {
 	protoObj := new(models.ProtoStateIdentityStatusSwitch)
-	for _, item := range s.Addresses {
-		protoObj.Addresses = append(protoObj.Addresses, item[:])
+	for idx := range s.Addresses {
+		protoObj.Addresses = append(protoObj.Addresses, s.Addresses[idx][:])
 	}
 	return proto.Marshal(protoObj)
 }
@@ -109,8 +109,8 @@ func (s *IdentityStatusSwitch) FromBytes(data []byte) error {
 	if err := proto.Unmarshal(data, protoObj); err != nil {
 		return err
 	}
-	for _, item := range protoObj.Addresses {
-		s.Addresses = append(s.Addresses, common.BytesToAddress(item))
+	for idx := range protoObj.Addresses {
+		s.Addresses = append(s.Addresses, common.BytesToAddress(protoObj.Addresses[idx]))
 	}
 	return nil
 }
@@ -251,16 +251,16 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		ValidationStatus: uint32(i.LastValidationStatus),
 		ProfileHash:      i.ProfileHash,
 	}
-	for _, f := range i.Flips {
+	for idx := range i.Flips {
 		protoIdentity.Flips = append(protoIdentity.Flips, &models.ProtoStateIdentity_Flip{
-			Cid:  f.Cid,
-			Pair: uint32(f.Pair),
+			Cid:  i.Flips[idx].Cid,
+			Pair: uint32(i.Flips[idx].Pair),
 		})
 	}
-	for _, invitee := range i.Invitees {
+	for idx := range i.Invitees {
 		protoIdentity.Invitees = append(protoIdentity.Invitees, &models.ProtoStateIdentity_TxAddr{
-			Hash:    invitee.TxHash[:],
-			Address: invitee.Address[:],
+			Hash:    i.Invitees[idx].TxHash[:],
+			Address: i.Invitees[idx].Address[:],
 		})
 	}
 	if i.Inviter != nil {
@@ -292,17 +292,17 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.LastValidationStatus = ValidationStatusFlag(protoIdentity.ValidationStatus)
 	i.ProfileHash = protoIdentity.ProfileHash
 
-	for _, item := range protoIdentity.Flips {
+	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
-			Cid:  item.Cid,
-			Pair: uint8(item.Pair),
+			Cid:  protoIdentity.Flips[idx].Cid,
+			Pair: uint8(protoIdentity.Flips[idx].Pair),
 		})
 	}
 
-	for _, item := range protoIdentity.Invitees {
+	for idx := range protoIdentity.Invitees {
 		i.Invitees = append(i.Invitees, TxAddr{
-			TxHash:  common.BytesToHash(item.Hash),
-			Address: common.BytesToAddress(item.Address),
+			TxHash:  common.BytesToHash(protoIdentity.Invitees[idx].Hash),
+			Address: common.BytesToAddress(protoIdentity.Invitees[idx].Address),
 		})
 	}
 
