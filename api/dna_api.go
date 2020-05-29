@@ -554,3 +554,38 @@ func (api *DnaApi) SignatureAddress(args SignatureAddressArgs) (common.Address, 
 func signatureHash(value string) common.Hash {
 	return rlp.Hash(value)
 }
+
+type ActivateInviteToRandAddrArgs struct {
+	Key string `json:"key"`
+	BaseTxArgs
+}
+
+type ActivateInviteToRandAddrResponse struct {
+	Hash    common.Hash    `json:"hash"`
+	Address common.Address `json:"address"`
+	Key     string         `json:"key"`
+}
+
+func (api *DnaApi) ActivateInviteToRandAddr(ctx context.Context, args ActivateInviteToRandAddrArgs) (ActivateInviteToRandAddrResponse, error) {
+	b, err := hex.DecodeString(args.Key)
+	if err != nil {
+		return ActivateInviteToRandAddrResponse{}, err
+	}
+	var inviteKey *ecdsa.PrivateKey
+	if inviteKey, err = crypto.ToECDSA(b); err != nil {
+		return ActivateInviteToRandAddrResponse{}, err
+	}
+	from := crypto.PubkeyToAddress(inviteKey.PublicKey)
+	toKey, _ := crypto.GenerateKey()
+	payload := crypto.FromECDSAPub(&toKey.PublicKey)
+	to := crypto.PubkeyToAddress(toKey.PublicKey)
+	hash, err := api.baseApi.sendTx(ctx, from, &to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, payload, inviteKey)
+	if err != nil {
+		return ActivateInviteToRandAddrResponse{}, err
+	}
+	return ActivateInviteToRandAddrResponse{
+		Hash:    hash,
+		Address: to,
+		Key:     hex.EncodeToString(crypto.FromECDSA(toKey)),
+	}, nil
+}

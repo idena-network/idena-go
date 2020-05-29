@@ -415,7 +415,8 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 
 func (h *IdenaGossipHandler) dialPeers() {
 	go func() {
-		for {
+		attempts := make(map[peer.ID]struct{})
+		for i := 0; i < 5; i++ {
 			if !h.connManager.CanDial() {
 				return
 			}
@@ -424,9 +425,13 @@ func (h *IdenaGossipHandler) dialPeers() {
 				h.log.Error("dial failed", "err", err)
 				return
 			}
-			peer := h.peers.Peer(stream.Conn().RemotePeer())
+			id := stream.Conn().RemotePeer()
+			peer := h.peers.Peer(id)
 			if peer == nil {
-				h.runPeer(stream, false)
+				if _, ok := attempts[id]; !ok {
+					attempts[id] = struct{}{}
+					h.runPeer(stream, false)
+				}
 			}
 		}
 	}()
