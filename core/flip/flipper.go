@@ -317,8 +317,8 @@ func (fp *Flipper) generateFlipEncryptionKey(public bool) *ecies.PrivateKey {
 	}
 
 	var hash common.Hash
-	// TODO: check before relese!
-	if fp.appState.State.Epoch() < 46 {
+	// TODO: check before release!
+	if fp.appState.State.Epoch() < 47 {
 		hash = rlp.Hash(seed)
 	} else {
 		hash = crypto.Hash(seed)
