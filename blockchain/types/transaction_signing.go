@@ -36,10 +36,8 @@ func Sender(tx *Transaction) (common.Address, error) {
 		return from.(common.Address), nil
 	}
 
-	useRlp := tx.useRlp.Load()
-
 	var hash common.Hash
-	if useRlp != nil {
+	if tx.UseRlp {
 		hash = signatureHash(tx)
 	} else {
 		hash = crypto.SignatureHash(tx)
@@ -57,7 +55,7 @@ func Sender(tx *Transaction) (common.Address, error) {
 // signing method.
 func SenderPubKey(tx *Transaction) ([]byte, error) {
 	var hash common.Hash
-	if tx.useRlp.Load() != nil {
+	if tx.UseRlp {
 		hash = signatureHash(tx)
 	} else {
 		hash = crypto.SignatureHash(tx)

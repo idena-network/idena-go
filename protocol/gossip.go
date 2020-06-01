@@ -20,7 +20,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
 	models "github.com/idena-network/idena-go/protobuf"
-	"github.com/idena-network/idena-go/rlp"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -247,12 +246,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 	case NewTx:
 		tx := new(types.Transaction)
 		if err := tx.FromBytes(msg.Payload); err != nil {
-			//TODO: remove later
-			if err := rlp.DecodeBytes(msg.Payload, &tx); err != nil {
-				return errResp(DecodeErr, "%v: %v", msg, err)
-			} else {
-				tx.UseRlp()
-			}
+			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
 		if h.isProcessed(msg.Payload) {
 			return nil
@@ -653,20 +647,18 @@ func (h *IdenaGossipHandler) proposeProof(payload *models.ProtoProposeProof) {
 }
 
 func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
-	b, _ := block.ToBytes()
 	hash := pushPullHash{
 		Type: pushBlock,
-		Hash: crypto.Hash128(b),
+		Hash: block.Hash128(),
 	}
 	h.pushPullManager.AddEntry(hash, block)
 	h.sendPush(hash)
 }
 
 func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
-	b, _ := vote.ToBytes()
 	hash := pushPullHash{
 		Type: pushVote,
-		Hash: crypto.Hash128(b),
+		Hash: vote.Hash128(),
 	}
 	h.pushPullManager.AddEntry(hash, vote)
 	h.sendPush(hash)
@@ -700,10 +692,9 @@ func errResp(code int, format string, v ...interface{}) error {
 }
 
 func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
-	b, _ := tx.ToBytes()
 	hash := pushPullHash{
 		Type: pushTx,
-		Hash: crypto.Hash128(b),
+		Hash: tx.Hash128(),
 	}
 	h.pushPullManager.AddEntry(hash, tx)
 	data, _ := hash.ToBytes()
@@ -711,10 +702,9 @@ func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 }
 
 func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
-	b, _ := flip.ToBytes()
 	hash := pushPullHash{
 		Type: pushFlip,
-		Hash: crypto.Hash128(b),
+		Hash: flip.Hash128(),
 	}
 	h.pushPullManager.AddEntry(hash, flip)
 	h.sendPush(hash)
@@ -726,10 +716,9 @@ func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own 
 }
 
 func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
-	b, _ := flipKeysPackage.ToBytes()
 	hash := pushPullHash{
 		Type: pushKeyPackage,
-		Hash: crypto.Hash128(b),
+		Hash: flipKeysPackage.Hash128(),
 	}
 	h.sendPush(hash)
 }
@@ -750,10 +739,9 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	pending := h.txpool.GetPendingTransaction()
 	for _, tx := range pending {
-		b, _ := tx.ToBytes()
 		payload := pushPullHash{
 			Type: pushTx,
-			Hash: crypto.Hash128(b),
+			Hash: tx.Hash128(),
 		}
 		h.pushPullManager.AddEntry(payload, tx)
 		p.sendMsg(Push, payload, false)

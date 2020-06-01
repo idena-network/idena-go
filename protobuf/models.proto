@@ -1,6 +1,8 @@
 syntax = "proto3";
 package models;
 
+//protoc --go_opt=paths=source_relative --go_out=./ ./protobuf/*.proto
+
 message ProtoTransaction {
     message Data {
         uint32 nonce = 1;
@@ -14,6 +16,7 @@ message ProtoTransaction {
     }
     Data data = 1;
     bytes signature = 2;
+    bool useRlp = 3;
 }
 
 message ProtoBlockHeader {

@@ -215,7 +215,7 @@ func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) 
 		if err := rlp.DecodeBytes(bytesTx, &tx); err != nil {
 			return common.Hash{}, err
 		} else {
-			tx.UseRlp()
+			tx.UseRlp = true
 		}
 	}
 

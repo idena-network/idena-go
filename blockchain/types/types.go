@@ -119,6 +119,7 @@ type Block struct {
 
 	// caches
 	hash        atomic.Value
+	hash128     atomic.Value
 	proposeHash atomic.Value
 }
 
@@ -138,12 +139,12 @@ type Transaction struct {
 
 	Signature []byte
 
-	// caches
-	hash atomic.Value
-	from atomic.Value
+	UseRlp bool `rlp:"-"`
 
-	//TODO: remove later
-	useRlp atomic.Value
+	// caches
+	hash    atomic.Value
+	hash128 atomic.Value
+	from    atomic.Value
 }
 
 type FullBlockCert struct {
@@ -181,14 +182,17 @@ type Vote struct {
 	Signature []byte
 
 	// caches
-	hash atomic.Value
-	addr atomic.Value
+	hash    atomic.Value
+	hash128 atomic.Value
+	addr    atomic.Value
 }
 
 type Flip struct {
 	Tx          *Transaction
 	PublicPart  []byte
 	PrivatePart []byte
+
+	hash128 atomic.Value
 }
 
 func (f *Flip) ToBytes() ([]byte, error) {
@@ -213,6 +217,18 @@ func (f *Flip) FromBytes(data []byte) error {
 		f.Tx = new(Transaction).FromProto(protoObj.Transaction)
 	}
 	return nil
+}
+
+func (f *Flip) Hash128() common.Hash128 {
+	if hash := f.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	data, _ := f.ToBytes()
+	h := common.Hash128(crypto.Hash128(data))
+
+	f.hash128.Store(h)
+	return h
 }
 
 type AddrActivity struct {
@@ -319,6 +335,18 @@ func (b *Block) Hash() common.Hash {
 	v := b.Header.Hash()
 	b.hash.Store(v)
 	return v
+}
+
+func (b *Block) Hash128() common.Hash128 {
+	if hash := b.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	data, _ := b.ToBytes()
+	h := common.Hash128(crypto.Hash128(data))
+
+	b.hash128.Store(h)
+	return h
 }
 
 func (b *Block) IsEmpty() bool {
@@ -638,6 +666,18 @@ func (v *Vote) Hash() common.Hash {
 	return h
 }
 
+func (v *Vote) Hash128() common.Hash128 {
+	if hash := v.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	b, _ := v.ToBytes()
+	h := common.Hash128(crypto.Hash128(b))
+
+	v.hash128.Store(h)
+	return h
+}
+
 func (v *Vote) VoterAddr() common.Address {
 	if addr := v.addr.Load(); addr != nil {
 		return addr.(common.Address)
@@ -686,6 +726,19 @@ func (tx *Transaction) Hash() common.Hash {
 	return h
 }
 
+func (tx *Transaction) Hash128() common.Hash128 {
+	if hash := tx.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	b, _ := tx.ToBytes()
+	h := common.Hash128(crypto.Hash128(b))
+
+	tx.hash128.Store(h)
+
+	return h
+}
+
 func (tx *Transaction) Size() int {
 	b, _ := tx.ToBytes()
 	return len(b)
@@ -700,6 +753,9 @@ func (tx *Transaction) ToSignatureBytes() ([]byte, error) {
 		Amount:  common.BigIntBytesOrNil(tx.Amount),
 		Tips:    common.BigIntBytesOrNil(tx.Tips),
 		MaxFee:  common.BigIntBytesOrNil(tx.MaxFee),
+	}
+	if tx.To != nil {
+		protoTx.To = tx.To.Bytes()
 	}
 	return proto.Marshal(protoTx)
 }
@@ -716,6 +772,7 @@ func (tx *Transaction) ToProto() *models.ProtoTransaction {
 			MaxFee:  common.BigIntBytesOrNil(tx.MaxFee),
 		},
 		Signature: tx.Signature,
+		UseRlp:    tx.UseRlp,
 	}
 
 	if tx.To != nil {
@@ -745,6 +802,7 @@ func (tx *Transaction) FromProto(protoTx *models.ProtoTransaction) *Transaction 
 	}
 
 	tx.Signature = protoTx.GetSignature()
+	tx.UseRlp = protoTx.GetUseRlp()
 
 	return tx
 }
@@ -756,10 +814,6 @@ func (tx *Transaction) FromBytes(data []byte) error {
 	}
 	tx.FromProto(protoTx)
 	return nil
-}
-
-func (tx *Transaction) UseRlp() {
-	tx.useRlp.Store(true)
 }
 
 // Len returns the length of s.
@@ -980,7 +1034,8 @@ type PrivateFlipKeysPackage struct {
 	Epoch     uint16
 	Signature []byte
 
-	from atomic.Value
+	from    atomic.Value
+	hash128 atomic.Value
 }
 
 func (k *PrivateFlipKeysPackage) ToSignatureBytes() ([]byte, error) {
@@ -1016,8 +1071,15 @@ func (k *PrivateFlipKeysPackage) FromBytes(data []byte) error {
 }
 
 func (k *PrivateFlipKeysPackage) Hash128() common.Hash128 {
-	b, _ := k.ToBytes()
-	return crypto.Hash128(b)
+	if hash := k.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	data, _ := k.ToBytes()
+	h := common.Hash128(crypto.Hash128(data))
+
+	k.hash128.Store(h)
+	return h
 }
 
 type Answer byte
