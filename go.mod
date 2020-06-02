@@ -17,14 +17,14 @@ require (
 	github.com/ipfs/fs-repo-migrations v1.5.1
 	github.com/ipfs/go-blockservice v0.1.3
 	github.com/ipfs/go-cid v0.0.6
-	github.com/ipfs/go-ipfs v0.5.1-0.20200506014919-3339ce3b0e95
-	github.com/ipfs/go-ipfs-config v0.5.3
+	github.com/ipfs/go-ipfs v0.5.2-0.20200601220152-44df41cb08bd
+	github.com/ipfs/go-ipfs-config v0.7.1
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.3.0
-	github.com/libp2p/go-libp2p-core v0.5.3
+	github.com/libp2p/go-libp2p-core v0.5.6
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.7
 	github.com/mholt/archiver v3.1.1+incompatible
@@ -48,9 +48,9 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
+	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
+	golang.org/x/sys v0.0.0-20200523222454-059865788121
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
