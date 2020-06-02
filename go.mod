@@ -12,6 +12,7 @@ require (
 	github.com/frankban/quicktest v1.9.0 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.0
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/ipfs/fs-repo-migrations v1.5.1
@@ -51,6 +52,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
 	golang.org/x/sys v0.0.0-20200523222454-059865788121
+	google.golang.org/protobuf v1.23.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )

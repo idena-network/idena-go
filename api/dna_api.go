@@ -16,7 +16,6 @@ import (
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -73,13 +72,14 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 
 // SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
 type SendTxArgs struct {
-	Type    types.TxType    `json:"type"`
-	From    common.Address  `json:"from"`
-	To      *common.Address `json:"to"`
-	Amount  decimal.Decimal `json:"amount"`
-	MaxFee  decimal.Decimal `json:"maxFee"`
-	Payload *hexutil.Bytes  `json:"payload"`
-	Tips    decimal.Decimal `json:"tips"`
+	Type     types.TxType    `json:"type"`
+	From     common.Address  `json:"from"`
+	To       *common.Address `json:"to"`
+	Amount   decimal.Decimal `json:"amount"`
+	MaxFee   decimal.Decimal `json:"maxFee"`
+	Payload  *hexutil.Bytes  `json:"payload"`
+	Tips     decimal.Decimal `json:"tips"`
+	UseProto bool            `json:"useProto"`
 	BaseTxArgs
 }
 
@@ -231,7 +231,7 @@ func (api *DnaApi) Identities() []Identity {
 		addr.SetBytes(key[1:])
 
 		var data state.Identity
-		if err := rlp.DecodeBytes(value, &data); err != nil {
+		if err := data.FromBytes(value); err != nil {
 			return false
 		}
 		var flipKeyWordPairs []int
@@ -552,7 +552,8 @@ func (api *DnaApi) SignatureAddress(args SignatureAddressArgs) (common.Address, 
 }
 
 func signatureHash(value string) common.Hash {
-	return rlp.Hash(value)
+	h := crypto.Hash([]byte(value))
+	return crypto.Hash(h[:])
 }
 
 type ActivateInviteToRandAddrArgs struct {

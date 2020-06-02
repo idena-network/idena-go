@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"fmt"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -25,7 +24,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	header := &types.ProposedHeader{
 		Height:         2,
 		ParentHash:     chain.Head.Hash(),
-		Time:           new(big.Int).SetInt64(time.Now().UTC().Unix()),
+		Time:           time.Now().UTC().Unix(),
 		ProposerPubKey: chain.pubKey,
 		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
 	}
@@ -58,8 +57,6 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	totalReward.Add(totalReward, tips)
 
 	expectedBalance, stake := splitReward(totalReward, false, chain.config.Consensus)
-
-	fmt.Printf("%v\n%v", expectedBalance, appState.State.GetBalance(chain.coinBaseAddress))
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, stake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
@@ -314,11 +311,11 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	block := generateBlock(4, 10000) // block size 770008
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(105858421325683595), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(104427719116210937), appState.State.FeePerByte())
 
 	block = generateBlock(5, 5000) // block size 385008
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(102343187112273882), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(100212869712413522), appState.State.FeePerByte())
 
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, block)
@@ -341,7 +338,7 @@ func Test_applyVrfProposerThreshold(t *testing.T) {
 
 type txWithTimestamp struct {
 	tx        *types.Transaction
-	timestamp uint64
+	timestamp int64
 }
 
 func generateBlock(height uint64, txsCount int) *types.Block {

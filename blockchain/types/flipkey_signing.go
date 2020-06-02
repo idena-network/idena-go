@@ -4,12 +4,11 @@ import (
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/rlp"
 )
 
 // SignFlipKey returns flip key signed with given private key
 func SignFlipKey(fk *PublicFlipKey, prv *ecdsa.PrivateKey) (*PublicFlipKey, error) {
-	h := signatureFlipKeyHash(fk)
+	h := crypto.SignatureHash(fk)
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
@@ -29,7 +28,7 @@ func SenderFlipKey(fk *PublicFlipKey) (common.Address, error) {
 		return from.(common.Address), nil
 	}
 
-	addr, err := recoverPlain(signatureFlipKeyHash(fk), fk.Signature)
+	addr, err := recoverPlain(crypto.SignatureHash(fk), fk.Signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -39,7 +38,7 @@ func SenderFlipKey(fk *PublicFlipKey) (common.Address, error) {
 
 // SignFlipKey returns flip key signed with given private key
 func SignFlipKeysPackage(fk *PrivateFlipKeysPackage, prv *ecdsa.PrivateKey) (*PrivateFlipKeysPackage, error) {
-	h := signatureFlipKeysPackageHash(fk)
+	h := crypto.SignatureHash(fk)
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
@@ -59,32 +58,10 @@ func SenderFlipKeysPackage(fk *PrivateFlipKeysPackage) (common.Address, error) {
 		return from.(common.Address), nil
 	}
 
-	addr, err := recoverPlain(signatureFlipKeysPackageHash(fk), fk.Signature)
+	addr, err := recoverPlain(crypto.SignatureHash(fk), fk.Signature)
 	if err != nil {
 		return common.Address{}, err
 	}
 	fk.from.Store(addr)
 	return addr, nil
-}
-
-func SenderFlipKeyPubKey(fk *PublicFlipKey) ([]byte, error) {
-	return crypto.Ecrecover(signatureFlipKeyHash(fk).Bytes(), fk.Signature)
-}
-
-// Hash returns the hash to be signed by the sender.
-// It does not uniquely identify the transaction.
-func signatureFlipKeysPackageHash(fk *PrivateFlipKeysPackage) common.Hash {
-	return rlp.Hash([]interface{}{
-		fk.Data,
-		fk.Epoch,
-	})
-}
-
-// Hash returns the hash to be signed by the sender.
-// It does not uniquely identify the transaction.
-func signatureFlipKeyHash(fk *PublicFlipKey) common.Hash {
-	return rlp.Hash([]interface{}{
-		fk.Key,
-		fk.Epoch,
-	})
 }

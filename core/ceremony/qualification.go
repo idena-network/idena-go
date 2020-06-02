@@ -6,9 +6,9 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"sync"
 )
@@ -157,7 +157,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = attachment.Answers
-		if answerBytes == nil || hash != rlp.Hash(append(answerBytes, attachment.Salt...)) {
+		if answerBytes == nil || hash != crypto.Hash(append(answerBytes, attachment.Salt...)) {
 			return 0, flipsCount, nil, false, false
 		}
 	}

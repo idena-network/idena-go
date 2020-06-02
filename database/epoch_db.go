@@ -1,12 +1,12 @@
 package database
 
 import (
-	"bytes"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	dbm "github.com/tendermint/tm-db"
 	"time"
 )
@@ -25,11 +25,6 @@ var (
 
 type EpochDb struct {
 	db dbm.DB
-}
-
-type shortAnswerDb struct {
-	Hash      common.Hash
-	Timestamp uint64
 }
 
 type DbAnswer struct {
@@ -69,13 +64,12 @@ func (edb *EpochDb) Clear() {
 }
 
 func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash, timestamp time.Time) {
-
-	a := shortAnswerDb{
-		Hash:      hash,
-		Timestamp: uint64(timestamp.Unix()),
+	protoAnswer := &models.ProtoShortAnswerDb{
+		Hash:      hash[:],
+		Timestamp: timestamp.Unix(),
 	}
-	encoded, _ := rlp.EncodeToBytes(a)
-	assertNoError(edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), encoded))
+	data, _ := proto.Marshal(protoAnswer)
+	assertNoError(edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), data))
 }
 
 func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
@@ -86,11 +80,11 @@ func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
 	answers := make(map[common.Address]common.Hash)
 
 	for ; it.Valid(); it.Next() {
-		a := &shortAnswerDb{}
-		if err := rlp.DecodeBytes(it.Value(), a); err != nil {
-			log.Error("invalid short answers rlp", "err", err)
+		protoAnswer := new(models.ProtoShortAnswerDb)
+		if err := proto.Unmarshal(it.Value(), protoAnswer); err != nil {
+			log.Error("invalid short answers protobuf model", "err", err)
 		} else {
-			answers[common.BytesToAddress(it.Key())] = a.Hash
+			answers[common.BytesToAddress(it.Key())] = common.BytesToHash(protoAnswer.Hash)
 		}
 	}
 	return answers
@@ -103,12 +97,12 @@ func (edb *EpochDb) GetAnswerHash(address common.Address) common.Hash {
 	if data == nil {
 		return common.Hash{}
 	}
-	a := &shortAnswerDb{}
-	if err := rlp.DecodeBytes(data, a); err != nil {
-		log.Error("invalid short answers rlp", "err", err)
+	protoAnswer := new(models.ProtoShortAnswerDb)
+	if err := proto.Unmarshal(data, protoAnswer); err != nil {
+		log.Error("invalid short answers protobuf model", "err", err)
 		return common.Hash{}
 	}
-	return a.Hash
+	return common.BytesToHash(protoAnswer.Hash)
 }
 
 func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []common.Address {
@@ -117,12 +111,13 @@ func (edb *EpochDb) GetConfirmedRespondents(start time.Time, end time.Time) []co
 	defer it.Close()
 	var result []common.Address
 	for ; it.Valid(); it.Next() {
-		a := &shortAnswerDb{}
-		if err := rlp.DecodeBytes(it.Value(), a); err != nil {
-			log.Error("invalid short answers rlp", "err", err)
+		protoAnswer := new(models.ProtoShortAnswerDb)
+		if err := proto.Unmarshal(it.Value(), protoAnswer); err != nil {
+			log.Error("invalid short answers protobuf model", "err", err)
+			continue
 		}
 
-		t := time.Unix(int64(a.Timestamp), 0)
+		t := time.Unix(int64(protoAnswer.Timestamp), 0)
 		if t.After(start) && t.Before(end) {
 			result = append(result, common.BytesToAddress(it.Key()))
 		}
@@ -142,27 +137,54 @@ func (edb *EpochDb) ReadOwnShortAnswersBits() []byte {
 
 func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
 
-	shortRlp, _ := rlp.EncodeToBytes(short)
-	longRlp, _ := rlp.EncodeToBytes(long)
+	toBytes := func(a []DbAnswer) ([]byte, error) {
+		protoAnswers := new(models.ProtoAnswersDb)
+		for _, item := range a {
+			protoAnswers.Answers = append(protoAnswers.Answers, &models.ProtoAnswersDb_Answer{
+				Address: item.Addr[:],
+				Answers: item.Ans,
+			})
+		}
+		return proto.Marshal(protoAnswers)
+	}
+
+	shortRlp, _ := toBytes(short)
+	longRlp, _ := toBytes(long)
 
 	assertNoError(edb.db.Set(ShortAnswersKey, shortRlp))
 	assertNoError(edb.db.Set(LongShortAnswersKey, longRlp))
 }
 
 func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
-	shortRlp, err := edb.db.Get(ShortAnswersKey)
+
+	fromBytes := func(data []byte) ([]DbAnswer, error) {
+		protoAnswers := new(models.ProtoAnswersDb)
+		if err := proto.Unmarshal(data, protoAnswers); err != nil {
+			return nil, err
+		}
+		var a []DbAnswer
+		for _, item := range protoAnswers.Answers {
+			a = append(a, DbAnswer{
+				Addr: common.BytesToAddress(item.Address),
+				Ans:  item.Answers,
+			})
+		}
+		return a, nil
+	}
+
+	shortProto, err := edb.db.Get(ShortAnswersKey)
 	assertNoError(err)
-	longRlp, err := edb.db.Get(LongShortAnswersKey)
+	longProto, err := edb.db.Get(LongShortAnswersKey)
 	assertNoError(err)
 
-	if shortRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(shortRlp), &short); err != nil {
-			log.Error("invalid short answers rlp", "err", err)
+	if shortProto != nil {
+		if short, err = fromBytes(shortProto); err != nil {
+			log.Error("invalid short answers protobuf model", "err", err)
 		}
 	}
-	if longRlp != nil {
-		if err := rlp.Decode(bytes.NewReader(longRlp), &long); err != nil {
-			log.Error("invalid long answers rlp", "err", err)
+	if longProto != nil {
+		if long, err = fromBytes(longProto); err != nil {
+			log.Error("invalid long answers protobuf model", "err", err)
 		}
 	}
 	return short, long

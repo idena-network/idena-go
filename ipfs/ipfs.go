@@ -7,9 +7,9 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	config2 "github.com/ipfs/go-ipfs-config"
@@ -526,7 +526,7 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 		return EmptyCid, nil
 	}
 
-	hash := rlp.Hash(data)
+	hash := crypto.Hash(data)
 	cacheKey := string(hash[:])
 	if value, ok := p.cidCache.Get(cacheKey); ok {
 		return value.(cid.Cid), nil

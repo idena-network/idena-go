@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 )
@@ -170,7 +171,7 @@ func (s *AppState) ResetTo(height uint64) error {
 	return nil
 }
 
-func (s *AppState) SetPredefinedState(predefinedState *state.PredefinedState) {
+func (s *AppState) SetPredefinedState(predefinedState *models.ProtoPredefinedState) {
 	s.State.SetPredefinedGlobal(predefinedState)
 	s.State.SetPredefinedStatusSwitch(predefinedState)
 	s.State.SetPredefinedAccounts(predefinedState)

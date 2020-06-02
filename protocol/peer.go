@@ -2,12 +2,14 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-msgio"
@@ -150,15 +152,52 @@ func (p *protoPeer) broadcast() {
 }
 
 func makeMsg(msgcode uint64, payload interface{}) []byte {
-	data, err := rlp.EncodeToBytes(payload)
+	data, err := toBytes(msgcode, payload)
 	if err != nil {
 		panic(err)
 	}
-	msg, err := rlp.EncodeToBytes(&Msg{Code: msgcode, Payload: data})
+	msg, err := (&Msg{Code: msgcode, Payload: data}).ToBytes()
 	if err != nil {
 		panic(err)
 	}
 	return snappy.Encode(nil, msg)
+}
+
+func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
+	switch msgcode {
+	case Handshake:
+		return payload.(*handshakeData).ToBytes()
+	case ProposeBlock:
+		return payload.(*types.BlockProposal).ToBytes()
+	case ProposeProof:
+		return proto.Marshal(payload.(*models.ProtoProposeProof))
+	case Vote:
+		return payload.(*types.Vote).ToBytes()
+	case NewTx:
+		return payload.(*types.Transaction).ToBytes()
+	case GetBlockByHash:
+		return proto.Marshal(payload.(*models.ProtoGetBlockByHashRequest))
+	case GetBlocksRange:
+		return proto.Marshal(payload.(*models.ProtoGetBlocksRangeRequest))
+	case BlocksRange:
+		return payload.(*blockRange).ToBytes()
+	case FlipBody:
+		return payload.(*types.Flip).ToBytes()
+	case FlipKey:
+		return payload.(*types.PublicFlipKey).ToBytes()
+	case SnapshotManifest:
+		return payload.(*snapshot.Manifest).ToBytes()
+	case GetForkBlockRange:
+		return proto.Marshal(payload.(*models.ProtoGetForkBlockRangeRequest))
+	case FlipKeysPackage:
+		return payload.(*types.PrivateFlipKeysPackage).ToBytes()
+	case Push, Pull:
+		pullPush := payload.(pushPullHash)
+		return pullPush.ToBytes()
+	case Block:
+		return payload.(*types.Block).ToBytes()
+	}
+	return nil, errors.Errorf("type %T is not serializable", payload)
 }
 
 func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
@@ -170,7 +209,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 			NetworkId:    network,
 			Height:       height,
 			GenesisBlock: genesis,
-			Timestamp:    uint64(time.Now().UTC().Unix()),
+			Timestamp:    time.Now().UTC().Unix(),
 			AppVersion:   appVersion,
 			Peers:        peersCount,
 		})
@@ -209,7 +248,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 		return nil, err
 	}
 	result := new(Msg)
-	if err := rlp.DecodeBytes(msg, result); err != nil {
+	if err := result.FromBytes(msg); err != nil {
 		return nil, err
 	}
 	p.metrics.incomeMessage(result)
@@ -225,7 +264,7 @@ func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, 
 	if msg.Code != Handshake {
 		return errors.New(fmt.Sprintf("first msg has code %x (!= %x)", msg.Code, Handshake))
 	}
-	if err := msg.Decode(&handShake); err != nil {
+	if err := handShake.FromBytes(msg.Payload); err != nil {
 		return errors.New(fmt.Sprintf("can't decode handshake %v: %v", msg, err))
 	}
 	p.appVersion = handShake.AppVersion
@@ -242,7 +281,7 @@ func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, 
 	return nil
 }
 
-func (p *protoPeer) markPayload(payload interface{}) {
+func (p *protoPeer) markPayload(payload []byte) {
 	p.markKey(msgKey(payload))
 }
 
@@ -250,8 +289,8 @@ func (p *protoPeer) markKey(key string) {
 	p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
 }
 
-func msgKey(data interface{}) string {
-	hash := rlp.Hash(data)
+func msgKey(data []byte) string {
+	hash := crypto.Hash(data)
 	return string(hash[:])
 }
 

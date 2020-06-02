@@ -53,7 +53,7 @@ func TestSortedPendingRequests_MoveWithNewTime(t *testing.T) {
 }
 
 func toInt64Array(list *sortedPendingPushes) []int64 {
-	times := []int64{}
+	var times []int64
 	for _, r := range list.list {
 		times = append(times, r.time.Unix())
 	}

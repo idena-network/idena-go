@@ -1,12 +1,9 @@
 package node
 
 import (
-	"bytes"
-	"crypto/ecdsa"
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	util "github.com/idena-network/idena-go/common/ulimit"
 	"github.com/idena-network/idena-go/config"
@@ -23,7 +20,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
@@ -348,11 +344,4 @@ func (node *Node) apis() []rpc.API {
 			Public:    true,
 		},
 	}
-}
-
-func (node *Node) generateSyntheticP2PKey() *ecdsa.PrivateKey {
-	hash := common.Hash(rlp.Hash([]byte("node-p2p-key")))
-	sig := node.secStore.Sign(hash.Bytes())
-	p2pKey, _ := crypto.GenerateKeyFromSeed(bytes.NewReader(sig))
-	return p2pKey
 }
