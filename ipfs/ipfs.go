@@ -620,6 +620,12 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.EnableRelayHop = true
 		ipfsConfig.Experimental.FilestoreEnabled = true
 
+		transformer, _ := config2.Profiles["badgerds"]
+
+		if err := transformer.Transform(ipfsConfig); err != nil {
+			return nil, err
+		}
+
 		err = updateIpfsConfig(ipfsConfig)
 		if err != nil {
 			return nil, err
