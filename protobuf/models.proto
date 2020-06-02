@@ -65,6 +65,7 @@ message ProtoBlockProposal {
     message Data {
         ProtoBlockHeader header = 1;
         ProtoBlockBody body = 2;
+        bytes proof = 3;
     }
     Data data = 1;
     bytes signature = 2;
@@ -151,10 +152,14 @@ message ProtoGossipBlockRange {
 }
 
 message ProtoProposeProof {
-    bytes hash = 1;
-    bytes proof = 2;
-    bytes pubKey = 3;
-    uint64 round = 4;
+    message Data {
+        bytes proof = 1;
+        uint64 round = 2;
+        bytes hash = 3;
+    }
+
+    Data data = 1;
+    bytes signature = 2;
 }
 
 message ProtoVote {

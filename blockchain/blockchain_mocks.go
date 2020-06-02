@@ -176,7 +176,7 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 
 func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
 	for i := 0; i < count; i++ {
-		block := chain.ProposeBlock()
+		block := chain.ProposeBlock([]byte{})
 		block.Block.Header.ProposedHeader.Time = chain.Head.Time() + 20
 		err := chain.AddBlock(block.Block, nil, collector.NewStatsCollector())
 		if err != nil {

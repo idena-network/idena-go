@@ -15,7 +15,6 @@ import (
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state/snapshot"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
@@ -199,19 +198,18 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 
 	case ProposeProof:
-		query := new(models.ProtoProposeProof)
-		if err := proto.Unmarshal(msg.Payload, query); err != nil {
+		proposal := new(types.ProofProposal)
+		if err := proposal.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}
 		p.markPayload(msg.Payload)
 		// if peer proposes this msg it should be on `query.Round-1` height
-		p.setHeight(query.Round - 1)
-		if ok, _ := h.proposals.AddProposeProof(query.Proof, common.BytesToHash(query.Hash), query.PubKey, query.Round); ok {
-			h.proposeProof(query)
+		p.setHeight(proposal.Round - 1)
+		if ok, _ := h.proposals.AddProposeProof(proposal); ok {
+			h.ProposeProof(proposal)
 		}
 	case ProposeBlock:
 		proposal := new(types.BlockProposal)
@@ -626,23 +624,12 @@ func (h *IdenaGossipHandler) GetForkBlockRange(peerId peer.ID, ownBlocks []commo
 	return b, nil
 }
 
-func (h *IdenaGossipHandler) ProposeProof(round uint64, hash common.Hash, proof []byte, pubKey []byte) {
-	protoObj := &models.ProtoProposeProof{
-		Hash:   hash[:],
-		Proof:  proof,
-		PubKey: pubKey,
-		Round:  round,
-	}
-	h.proposeProof(protoObj)
-}
-
-func (h *IdenaGossipHandler) proposeProof(payload *models.ProtoProposeProof) {
-	b, _ := proto.Marshal(payload)
+func (h *IdenaGossipHandler) ProposeProof(proposal *types.ProofProposal) {
 	hash := pushPullHash{
 		Type: pushProof,
-		Hash: crypto.Hash128(b),
+		Hash: proposal.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, payload)
+	h.pushPullManager.AddEntry(hash, proposal)
 	h.sendPush(hash)
 }
 

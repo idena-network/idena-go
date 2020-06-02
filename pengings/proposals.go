@@ -21,13 +21,6 @@ const (
 	DeferFutureProposalsPeriod = 30
 )
 
-type Proof struct {
-	Proof  []byte
-	Hash   common.Hash
-	PubKey []byte
-	Round  uint64
-}
-
 type Proposals struct {
 	log             log.Logger
 	chain           *blockchain.Blockchain
@@ -78,32 +71,33 @@ func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, det
 	return p, p.proofsByRound, p.pendingProofs
 }
 
-func (proposals *Proposals) AddProposeProof(p []byte, hash common.Hash, pubKey []byte, round uint64) (added bool, pending bool) {
+func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (added bool, pending bool) {
 	currentRound := proposals.chain.Round()
-	proof := &Proof{
-		p,
-		hash,
-		pubKey,
-		round,
-	}
-	if round == currentRound {
-		if proposals.proposeCache.Add(hash.Hex(), nil, cache.DefaultExpiration) != nil {
+
+	if proposal.Round == currentRound {
+		if proposals.proposeCache.Add(proposal.Hash.Hex(), nil, cache.DefaultExpiration) != nil {
 			return false, false
 		}
 
-		m, _ := proposals.proofsByRound.LoadOrStore(round, &sync.Map{})
+		m, _ := proposals.proofsByRound.LoadOrStore(proposal.Round, &sync.Map{})
 		byRound := m.(*sync.Map)
-		if _, ok := byRound.Load(hash); ok {
+		if _, ok := byRound.Load(proposal.Hash); ok {
 			return false, false
 		}
 
-		if err := proposals.chain.ValidateProposerProof(p, hash, pubKey); err != nil {
+		pubKey, err := types.ProofProposalPubKey(proposal)
+		if err != nil {
 			return false, false
 		}
-		byRound.Store(hash, proof)
+
+		if err := proposals.chain.ValidateProposerProof(proposal.Proof, pubKey, &proposal.Hash); err != nil {
+			log.Warn("Failed proposed proof validation", "err", err)
+			return false, false
+		}
+		byRound.Store(proposal.Hash, proposal)
 		return true, false
-	} else if currentRound < round && round-currentRound < DeferFutureProposalsPeriod {
-		proposals.pendingProofs.LoadOrStore(proof.Hash, proof)
+	} else if currentRound < proposal.Round && proposal.Round-currentRound < DeferFutureProposalsPeriod {
+		proposals.pendingProofs.LoadOrStore(proposal.Hash, proposal)
 		return false, true
 	}
 	return false, false
@@ -129,7 +123,8 @@ func (proposals *Proposals) GetProposerPubKey(round uint64) []byte {
 
 		v, ok := byRound.Load(list[0])
 		if ok {
-			return v.(*Proof).PubKey
+			pubKey, _ := types.ProofProposalPubKey(v.(*types.ProofProposal))
+			return pubKey
 		}
 	}
 	return nil
@@ -151,12 +146,12 @@ func (proposals *Proposals) CompleteRound(height uint64) {
 	})
 }
 
-func (proposals *Proposals) ProcessPendingProofs() []*Proof {
-	var result []*Proof
+func (proposals *Proposals) ProcessPendingProofs() []*types.ProofProposal {
+	var result []*types.ProofProposal
 
 	proposals.pendingProofs.Range(func(key, value interface{}) bool {
-		proof := value.(*Proof)
-		if added, pending := proposals.AddProposeProof(proof.Proof, proof.Hash, proof.PubKey, proof.Round); added {
+		proof := value.(*types.ProofProposal)
+		if added, pending := proposals.AddProposeProof(proof); added {
 			result = append(result, proof)
 		} else if !pending {
 			proposals.pendingProofs.Delete(key)
@@ -203,6 +198,11 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 			return false, false
 		}
 
+		if err := proposals.chain.ValidateProposerProof(proposal.Proof, block.Header.ProposedHeader.ProposerPubKey, nil); err != nil {
+			log.Warn("Failed proposed block proof validation", "err", err)
+			return false, false
+		}
+
 		m, _ := proposals.blocksByRound.LoadOrStore(block.Height(), &sync.Map{})
 		round := m.(*sync.Map)
 
@@ -210,7 +210,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 			return false, false
 		}
 		if err := proposals.chain.ValidateBlock(block, checkState); err != nil {
-			log.Warn("Failed proposed block validation", "err", err.Error())
+			log.Warn("Failed proposed block validation", "err", err)
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {
 				proposals.potentialForkedPeers.Add(peerId)
