@@ -295,7 +295,9 @@ func (s *SavedTransaction) FromBytes(data []byte) error {
 		return err
 	}
 	tx := new(Transaction)
-	s.Tx = tx.FromProto(protoObj.Tx)
+	if protoObj != nil {
+		s.Tx = tx.FromProto(protoObj.Tx)
+	}
 	s.Timestamp = protoObj.Timestamp
 	s.BlockHash = common.BytesToHash(protoObj.BlockHash)
 	s.FeePerByte = common.BigIntOrNil(protoObj.FeePerBye)

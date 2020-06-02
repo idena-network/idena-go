@@ -46,5 +46,5 @@ func BigIntOrNil(a []byte) *big.Int {
 }
 
 func ZeroOrNil(a *big.Int) bool {
-	return a == nil || a.Cmp(big.NewInt(0)) == 0
+	return a == nil || a.Sign() == 0
 }
