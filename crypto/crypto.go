@@ -31,7 +31,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto/sha3"
-	"github.com/idena-network/idena-go/rlp"
 )
 
 var (
@@ -68,18 +67,6 @@ func Keccak512(data ...[]byte) []byte {
 		d.Write(b)
 	}
 	return d.Sum(nil)
-}
-
-// CreateAddress creates an ethereum address given the bytes and the nonce
-func CreateAddress(b common.Address, nonce uint64) common.Address {
-	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})
-	return common.BytesToAddress(Keccak256(data)[12:])
-}
-
-// CreateAddress2 creates an ethereum address given the address bytes, initial
-// contract code hash and a salt.
-func CreateAddress2(b common.Address, salt [32]byte, inithash []byte) common.Address {
-	return common.BytesToAddress(Keccak256([]byte{0xff}, b.Bytes(), salt[:], inithash)[12:])
 }
 
 // ToECDSA creates a private key with the given D value.
@@ -193,7 +180,7 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand.Reader)
 }
 
-func GenerateKeyFromSeed(rand io.Reader)  (*ecdsa.PrivateKey, error) {
+func GenerateKeyFromSeed(rand io.Reader) (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand)
 }
 

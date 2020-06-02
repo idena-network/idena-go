@@ -8,7 +8,6 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/database"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tm-db"
@@ -170,8 +169,8 @@ func Test_qualifyCandidate(t *testing.T) {
 
 	shortAnswer := short.Bytes()
 	salt := []byte{0x1, 0x10, 0x25}
-	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, salt...)), time.Now())
-	epochDb.WriteAnswerHash(maliciousCandidate, rlp.Hash([]byte{0x0}), time.Now())
+	epochDb.WriteAnswerHash(candidate, crypto.Hash(append(shortAnswer, salt...)), time.Now())
+	epochDb.WriteAnswerHash(maliciousCandidate, crypto.Hash([]byte{0x0}), time.Now())
 	key, _ := crypto.GenerateKey()
 	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, salt, ecies.ImportECDSA(key))
 	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, []byte{0x6}, ecies.ImportECDSA(key))
@@ -225,7 +224,7 @@ func Test_qualifyCandidateWithFewFlips(t *testing.T) {
 
 	shortAnswer := short.Bytes()
 	salt := []byte{0x1, 0x10, 0x25, 0x28}
-	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, salt...)), time.Now())
+	epochDb.WriteAnswerHash(candidate, crypto.Hash(append(shortAnswer, salt...)), time.Now())
 	key, _ := crypto.GenerateKey()
 	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, nil, salt, ecies.ImportECDSA(key))
 	q := qualification{
@@ -242,7 +241,7 @@ func Test_qualifyCandidateWithFewFlips(t *testing.T) {
 	// wrong salt
 	epochDb.Clear()
 	wrongSalt := []byte{0x1}
-	epochDb.WriteAnswerHash(candidate, rlp.Hash(append(shortAnswer, wrongSalt...)), time.Now())
+	epochDb.WriteAnswerHash(candidate, crypto.Hash(append(shortAnswer, wrongSalt...)), time.Now())
 	q2 := qualification{
 		shortAnswers: map[common.Address][]byte{
 			candidate: attachment,

@@ -1,21 +1,10 @@
 package snapshot
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
+	models "github.com/idena-network/idena-go/protobuf"
 )
-
-const (
-	BlockSize = 10000
-)
-
-type KeyValue struct {
-	Key   []byte
-	Value []byte
-}
-
-type Block struct {
-	Data []*KeyValue
-}
 
 type Manifest struct {
 	Root   common.Hash
@@ -23,13 +12,22 @@ type Manifest struct {
 	Cid    []byte
 }
 
-func (sb *Block) Full() bool {
-	return len(sb.Data) >= BlockSize
+func (m *Manifest) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoManifest{
+		Cid:    m.Cid,
+		Height: m.Height,
+		Root:   m.Root[:],
+	}
+	return proto.Marshal(protoObj)
 }
 
-func (sb *Block) Add(key, value []byte) {
-	sb.Data = append(sb.Data, &KeyValue{
-		Key:   key,
-		Value: value,
-	})
+func (m *Manifest) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoManifest)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	m.Root = common.BytesToHash(protoObj.Root)
+	m.Height = protoObj.Height
+	m.Cid = protoObj.Cid
+	return nil
 }

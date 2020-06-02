@@ -10,7 +10,7 @@ import (
 
 // SignTx returns transaction signed with given private key
 func SignTx(tx *Transaction, prv *ecdsa.PrivateKey) (*Transaction, error) {
-	h := signatureHash(tx)
+	h := crypto.SignatureHash(tx)
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,14 @@ func Sender(tx *Transaction) (common.Address, error) {
 		return from.(common.Address), nil
 	}
 
-	addr, err := recoverPlain(signatureHash(tx), tx.Signature)
+	var hash common.Hash
+	if tx.UseRlp {
+		hash = signatureHash(tx)
+	} else {
+		hash = crypto.SignatureHash(tx)
+	}
+
+	addr, err := recoverPlain(hash, tx.Signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -47,11 +54,18 @@ func Sender(tx *Transaction) (common.Address, error) {
 // Sender may cache the address, allowing it to be used regardless of
 // signing method.
 func SenderPubKey(tx *Transaction) ([]byte, error) {
-	return crypto.Ecrecover(signatureHash(tx).Bytes(), tx.Signature)
+	var hash common.Hash
+	if tx.UseRlp {
+		hash = signatureHash(tx)
+	} else {
+		hash = crypto.SignatureHash(tx)
+	}
+	return crypto.Ecrecover(hash[:], tx.Signature)
 }
 
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
+// Deprecated: use crypto.SignatureHash instead of this
 func signatureHash(tx *Transaction) common.Hash {
 	return rlp.Hash([]interface{}{
 		tx.AccountNonce,

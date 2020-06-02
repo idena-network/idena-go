@@ -9,8 +9,8 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/shopspring/decimal"
 	math2 "math"
@@ -151,7 +151,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			totalWeight += getInvitationRewardCoef(successfulInvite.Age, config)
 		}
 		for i := uint8(0); i < inviter.SavedInvites; i++ {
-			addresses = addAddress(addresses, rlp.Hash(append(addr[:], i)))
+			addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
 		}
 	}
 
@@ -195,7 +195,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			}
 		}
 		for i := uint8(0); i < inviter.SavedInvites; i++ {
-			hash := rlp.Hash(append(addr[:], i))
+			hash := crypto.Hash(append(addr[:], i))
 			if _, ok := win[hash]; ok {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
 				addReward(addr, totalReward, isNewbie, 0, nil, true)

@@ -41,7 +41,7 @@ func TestBlockchain_saveOwnTxs(t *testing.T) {
 	for _, item := range txs {
 		header := &types.Header{
 			ProposedHeader: &types.ProposedHeader{
-				Time:       new(big.Int).SetUint64(item.timestamp),
+				Time:       item.timestamp,
 				FeePerByte: big.NewInt(1),
 			},
 		}
@@ -56,7 +56,7 @@ func TestBlockchain_saveOwnTxs(t *testing.T) {
 	require.Equal(uint32(10), data[2].Tx.AccountNonce)
 	require.Equal(uint32(9), data[3].Tx.AccountNonce)
 	require.Equal(uint32(4), data[4].Tx.AccountNonce)
-	require.Equal(uint64(456), data[4].Timestamp)
+	require.Equal(int64(456), data[4].Timestamp)
 	require.NotNil(token)
 
 	data, token = chain.ReadTxs(addr, 4, token)
@@ -77,8 +77,8 @@ func TestBlockchain_saveOwnTxs(t *testing.T) {
 	require.Equal(uint32(2), data[3].Tx.AccountNonce)
 	require.Equal(uint32(1), data[4].Tx.AccountNonce)
 	require.Equal(uint32(1), data[5].Tx.AccountNonce)
-	require.Equal(uint64(20), data[4].Timestamp)
-	require.Equal(uint64(10), data[5].Timestamp)
+	require.Equal(int64(20), data[4].Timestamp)
+	require.Equal(int64(10), data[5].Timestamp)
 	require.Nil(token)
 }
 
@@ -119,7 +119,7 @@ func Test_handleOwnTxsWithAccounts(t *testing.T) {
 	for _, item := range txs {
 		header := &types.Header{
 			ProposedHeader: &types.ProposedHeader{
-				Time:       new(big.Int).SetUint64(item.timestamp),
+				Time:       item.timestamp,
 				FeePerByte: big.NewInt(1),
 			},
 		}
@@ -152,7 +152,7 @@ func Test_Blockchain_saveBurntCoins(t *testing.T) {
 		return &types.Header{
 			ProposedHeader: &types.ProposedHeader{
 				Height: height,
-				Time:   big.NewInt(0),
+				Time:   0,
 			},
 		}
 	}

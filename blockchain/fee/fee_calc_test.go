@@ -13,9 +13,8 @@ func TestCalculateFee(t *testing.T) {
 	tx := &types.Transaction{
 		Type: types.SendTx,
 	}
-	// tx size = 10
-	fee1 := big.NewInt(77e+15)
-	fee2 := big.NewInt(385e+15)
+	fee1 := big.NewInt(69e+15)
+	fee2 := big.NewInt(345e+15)
 
 	// not signed
 	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), tx)))
@@ -35,8 +34,7 @@ func TestCalculateCost(t *testing.T) {
 		Amount: big.NewInt(1e+18),
 		Tips:   big.NewInt(1e+18),
 	}
-	// tx size = 26
-	cost := new(big.Int).Add(big.NewInt(93e+16), tx.AmountOrZero())
+	cost := new(big.Int).Add(big.NewInt(89e+16), tx.AmountOrZero())
 	cost.Add(cost, tx.TipsOrZero())
 	require.Equal(t, 0, cost.Cmp(CalculateCost(100, new(big.Int).Div(common.DnaBase, big.NewInt(100)), tx)))
 }

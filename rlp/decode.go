@@ -125,6 +125,7 @@ type Decoder interface {
 // you need an input limit, use
 //
 //     NewStream(r, limit).Decode(val)
+// Deprecated: exists for several future releases. Protobuf should be used instead of RLP.
 func Decode(r io.Reader, val interface{}) error {
 	// TODO: this could use a Stream from a pool.
 	return NewStream(r, 0).Decode(val)
@@ -133,6 +134,7 @@ func Decode(r io.Reader, val interface{}) error {
 // DecodeBytes parses RLP data from b into val.
 // Please see the documentation of Decode for the decoding rules.
 // The input must contain exactly one value and no trailing data.
+// Deprecated: exists for several future releases. Protobuf should be used instead of RLP.
 func DecodeBytes(b []byte, val interface{}) error {
 	// TODO: this could use a Stream from a pool.
 	r := bytes.NewReader(b)

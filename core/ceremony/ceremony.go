@@ -22,7 +22,6 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/protocol"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
@@ -83,7 +82,7 @@ type ValidationCeremony struct {
 	epoch                    uint16
 	config                   *config.Config
 	applyEpochMutex          sync.Mutex
-	flipAuthorMap            map[common.Hash]common.Address
+	flipAuthorMap            map[string]common.Address
 	flipAuthorMapLock        sync.Mutex
 	epochApplyingCache       map[uint64]epochApplyingCache
 	validationStartCtxCancel context.CancelFunc
@@ -203,19 +202,27 @@ func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common
 	var hash [32]byte
 	if len(prevAnswers) == 0 {
 		vc.epochDb.WriteOwnShortAnswers(answers)
-		hash = rlp.Hash(append(answers.Bytes(), salt[:]...))
+		hash = crypto.Hash(append(answers.Bytes(), salt[:]...))
 	} else {
 		vc.log.Warn("Repeated short answers submitting")
-		hash = rlp.Hash(append(prevAnswers, salt[:]...))
+		hash = crypto.Hash(append(prevAnswers, salt[:]...))
 	}
 	vc.mutex.Unlock()
-	return vc.sendTx(types.SubmitAnswersHashTx, hash[:])
+
+	h, err := vc.sendTx(types.SubmitAnswersHashTx, hash[:])
+	if err != nil {
+		vc.log.Error("cannot send short answers hash tx", "err", err)
+	}
+
+	return h, err
 }
 
 func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.Hash, error) {
 	hash, err := vc.sendTx(types.SubmitLongAnswersTx, answers.Bytes())
 	if err == nil {
 		vc.broadcastEvidenceMap()
+	} else {
+		vc.log.Error("cannot send long answers tx", "err", err)
 	}
 	return hash, err
 }
@@ -437,7 +444,7 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 		conf.GetLongSessionDuration(vc.appState.ValidatorsCache.NetworkSize()) +
 		conf.GetAfterLongSessionDuration() +
 		time.Minute*5 // added extra minutes to prevent time lags
-	headTime := common.TimestampToTime(vc.chain.Head.Time())
+	headTime := time.Unix(vc.chain.Head.Time(), 0)
 
 	// if head's timestamp is close to now() we should interact with network
 	return time.Now().UTC().Sub(headTime) < ceremonyDuration
@@ -514,19 +521,19 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[common.Hash]common.Address) {
+func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Address, [][]byte, map[int][][]byte, map[string]common.Address) {
 	nonCandidates := make([]common.Address, 0)
 	m := make([]*candidate, 0)
 	flips := make([][]byte, 0)
 	flipsPerAuthor := make(map[int][][]byte)
-	flipAuthorMap := make(map[common.Hash]common.Address)
+	flipAuthorMap := make(map[string]common.Address)
 
 	addFlips := func(author common.Address, identityFlips []state.IdentityFlip) {
 		for _, f := range identityFlips {
 			authorIndex := len(m)
 			flips = append(flips, f.Cid)
 			flipsPerAuthor[authorIndex] = append(flipsPerAuthor[authorIndex], f.Cid)
-			flipAuthorMap[rlp.Hash(f.Cid)] = author
+			flipAuthorMap[string(f.Cid)] = author
 		}
 	}
 
@@ -538,7 +545,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() ([]*candidate, []common.Ad
 		addr.SetBytes(key[1:])
 
 		var data state.Identity
-		if err := rlp.DecodeBytes(value, &data); err != nil {
+		if err := data.FromBytes(value); err != nil {
 			return false
 		}
 		if state.IsCeremonyCandidate(data) {
@@ -629,6 +636,8 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, vc.flipKeyWordProof, salt, key)); err == nil {
 		vc.shortAnswersSent = true
+	} else {
+		vc.log.Error("cannot send short answers tx", "err", err)
 	}
 }
 
@@ -674,6 +683,8 @@ func (vc *ValidationCeremony) broadcastEvidenceMap() {
 
 	if _, err := vc.sendTx(types.EvidenceTx, buf.Bytes()); err == nil {
 		vc.evidenceSent = true
+	} else {
+		vc.log.Error("cannot send evidence tx", "err", err)
 	}
 }
 
@@ -684,17 +695,21 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	signedTx := &types.Transaction{}
 
 	if existTx := vc.epochDb.ReadOwnTx(txType); existTx != nil {
-		rlp.DecodeBytes(existTx, signedTx)
+		if err := signedTx.FromBytes(existTx); err != nil {
+			return common.Hash{}, err
+		}
 	} else {
 		addr := vc.secStore.GetAddress()
 		tx := blockchain.BuildTx(vc.appState, addr, nil, txType, decimal.Zero, decimal.Zero, decimal.Zero, 0, 0, payload)
 		var err error
 		signedTx, err = vc.secStore.SignTx(tx)
 		if err != nil {
-			vc.log.Error(err.Error())
 			return common.Hash{}, err
 		}
-		txBytes, _ := rlp.EncodeToBytes(signedTx)
+		txBytes, err := signedTx.ToBytes()
+		if err != nil {
+			return common.Hash{}, err
+		}
 		vc.epochDb.WriteOwnTx(txType, txBytes)
 	}
 
@@ -702,7 +717,6 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 
 	if err != nil {
 		if !vc.epochDb.HasSuccessfulOwnTx(signedTx.Hash()) {
-			vc.log.Error(err.Error())
 			vc.epochDb.RemoveOwnTx(txType)
 		}
 	} else {
@@ -964,7 +978,7 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification)
 
 	for i, item := range qualifications {
 		cid := vc.flips[i]
-		author := vc.flipAuthorMap[rlp.Hash(cid)]
+		author := vc.flipAuthorMap[string(cid)]
 		if _, ok := authorResults[author]; !ok {
 			authorResults[author] = new(types.AuthorResults)
 		}
@@ -1206,7 +1220,7 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	vc.flipAuthorMapLock.Lock()
 	defer vc.flipAuthorMapLock.Unlock()
 
-	author, ok := vc.flipAuthorMap[rlp.Hash(cid)]
+	author, ok := vc.flipAuthorMap[string(cid)]
 	if !ok {
 		return 0, 0, errors.New("flip author not found")
 	}
@@ -1242,7 +1256,7 @@ func (vc *ValidationCeremony) getOwnCandidateIndex() int {
 
 func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
 	seed := []byte(fmt.Sprintf("short-answers-salt-%v", epoch))
-	hash := common.Hash(rlp.Hash(seed))
+	hash := common.Hash(crypto.Hash(seed))
 	sig := secStore.Sign(hash.Bytes())
 	sha := sha3.Sum256(sig)
 	return sha[:]

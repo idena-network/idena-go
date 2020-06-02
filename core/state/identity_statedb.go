@@ -2,10 +2,11 @@ package state
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 	"strconv"
@@ -238,7 +239,7 @@ func (s *IdentityStateDB) getStateIdentity(addr common.Address) (stateObject *st
 		return nil
 	}
 	var data ApprovedIdentity
-	if err := rlp.DecodeBytes(enc, &data); err != nil {
+	if err := data.FromBytes(enc); err != nil {
 		s.log.Error("Failed to decode state identity object", "addr", addr, "err", err)
 		return nil
 	}
@@ -267,9 +268,9 @@ func (s *IdentityStateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 // updateStateAccountObject writes the given object to the trie.
 func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity) (encoded []byte) {
 	addr := stateObject.Address()
-	data, err := rlp.EncodeToBytes(stateObject)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+		panic(fmt.Errorf("can't encode approved identity object at %x: %v", addr[:], err))
 	}
 
 	s.tree.Set(append(identityPrefix, addr[:]...), data)
@@ -402,9 +403,9 @@ func (s *IdentityStateDB) CreatePreliminaryCopy(height uint64) (*IdentityStateDB
 	return s.LoadPreliminary(height)
 }
 
-func (s *IdentityStateDB) SetPredefinedIdentities(state *PredefinedState) {
+func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 	for _, identity := range state.ApprovedIdentities {
-		stateObj := s.GetOrNewIdentityObject(identity.Address)
+		stateObj := s.GetOrNewIdentityObject(common.BytesToAddress(identity.Address))
 		stateObj.data.Online = false
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
@@ -439,9 +440,40 @@ func (diff *IdentityStateDiff) Empty() bool {
 	return diff == nil || len(diff.Values) == 0
 }
 
-func (diff IdentityStateDiff) Bytes() []byte {
-	enc, _ := rlp.EncodeToBytes(diff)
-	return enc
+func (diff *IdentityStateDiff) ToProto() *models.ProtoIdentityStateDiff {
+	protoDiff := new(models.ProtoIdentityStateDiff)
+	for _, item := range diff.Values {
+		protoDiff.Values = append(protoDiff.Values, &models.ProtoIdentityStateDiff_IdentityStateDiffValue{
+			Address: item.Address[:],
+			Deleted: item.Deleted,
+			Value:   item.Value,
+		})
+	}
+	return protoDiff
+}
+
+func (diff *IdentityStateDiff) ToBytes() ([]byte, error) {
+	return proto.Marshal(diff.ToProto())
+}
+
+func (diff *IdentityStateDiff) FromProto(protoDiff *models.ProtoIdentityStateDiff) *IdentityStateDiff {
+	for _, item := range protoDiff.Values {
+		diff.Values = append(diff.Values, &IdentityStateDiffValue{
+			Address: common.BytesToAddress(item.Address),
+			Deleted: item.Deleted,
+			Value:   item.Value,
+		})
+	}
+	return diff
+}
+
+func (diff *IdentityStateDiff) FromBytes(data []byte) error {
+	protoDiff := new(models.ProtoIdentityStateDiff)
+	if err := proto.Unmarshal(data, protoDiff); err != nil {
+		return err
+	}
+	diff.FromProto(protoDiff)
+	return nil
 }
 
 func identityStatePrefix(height uint64) []byte {

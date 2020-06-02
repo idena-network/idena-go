@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/entry"
@@ -14,7 +15,7 @@ import (
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rlp"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/secstore"
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
@@ -136,8 +137,6 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 	p.publicKeyMutex.Lock()
 	defer p.publicKeyMutex.Unlock()
 
-	hash := key.Hash()
-
 	sender, _ := types.SenderFlipKey(key)
 
 	if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
@@ -145,7 +144,7 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 	}
 
 	if err := validateFlipKey(appState, key); err != nil {
-		log.Trace("PublicFlipKey is not valid", "hash", hash.Hex(), "err", err)
+		log.Trace("PublicFlipKey is not valid", "sender", sender.Hex(), "err", err)
 		return err
 	}
 
@@ -180,8 +179,6 @@ func (p *KeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPacka
 }
 
 func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysPackage, appState *appstate.AppState, own bool) error {
-
-	hash := keysPackage.Hash()
 	sender, _ := types.SenderFlipKeysPackage(keysPackage)
 
 	p.privateKeysMutex.Lock()
@@ -192,7 +189,7 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	}
 
 	if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
-		log.Trace("PrivateFLipKeysPackage is not valid", "hash", hash.Hex(), "err", err)
+		log.Trace("PrivateFLipKeysPackage is not valid", "sender", sender.Hex(), "err", err)
 		return err
 	}
 
@@ -376,6 +373,21 @@ type keysArray struct {
 	Pairs [][]byte
 }
 
+func (k *keysArray) ToBytes() ([]byte, error) {
+	protoArray := new(models.ProtoFlipPrivateKeys)
+	protoArray.Keys = append(k.Pairs[:0:0], k.Pairs...)
+	return proto.Marshal(protoArray)
+}
+
+func (k *keysArray) FromBytes(data []byte) error {
+	protoArray := new(models.ProtoFlipPrivateKeys)
+	if err := proto.Unmarshal(data, protoArray); err != nil {
+		return err
+	}
+	k.Pairs = append(protoArray.Keys[:0:0], protoArray.Keys...)
+	return nil
+}
+
 func EncryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *ecies.PrivateKey, pubKeys [][]byte) []byte {
 	keyToEncrypt := crypto.FromECDSA(privateFlipKey.ExportECDSA())
 
@@ -391,7 +403,9 @@ func EncryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *
 		encryptedKeyPairs = append(encryptedKeyPairs, encryptedKey)
 	}
 
-	arrayToEncrypt, _ := rlp.EncodeToBytes(&keysArray{encryptedKeyPairs})
+	arr := &keysArray{encryptedKeyPairs}
+
+	arrayToEncrypt, _ := arr.ToBytes()
 
 	encryptedArray, _ := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
 
@@ -404,7 +418,7 @@ func getEncryptedKeyFromPackage(publicFlipKey *ecies.PrivateKey, data []byte, in
 		return nil, err
 	}
 	keysArray := new(keysArray)
-	if err := rlp.DecodeBytes(decryptedPackage, keysArray); err != nil {
+	if err := keysArray.FromBytes(decryptedPackage); err != nil {
 		return nil, err
 	}
 

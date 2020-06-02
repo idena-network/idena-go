@@ -17,25 +17,23 @@
 package types
 
 import (
-	"bytes"
+	"encoding/binary"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/rlp"
 	"github.com/tendermint/iavl"
 	"github.com/tendermint/tm-db"
 )
 
 type DerivableList interface {
 	Len() int
-	GetRlp(i int) []byte
+	GetBytes(i int) []byte
 }
 
 func DeriveSha(list DerivableList) common.Hash {
-	keybuf := new(bytes.Buffer)
 	tree, _ := iavl.NewMutableTree(db.NewMemDB(), 1024)
 	for i := 0; i < list.Len(); i++ {
-		keybuf.Reset()
-		rlp.Encode(keybuf, uint(i))
-		tree.Set(keybuf.Bytes(), list.GetRlp(i))
+		key := make([]byte, 4)
+		binary.LittleEndian.PutUint32(key, uint32(i))
+		tree.Set(key, list.GetBytes(i))
 	}
 
 	var result common.Hash

@@ -139,7 +139,7 @@ func (engine *Engine) alignTime() {
 		}
 	}
 	correctedNow := now.Add(-offset)
-	headTime := time.Unix(engine.chain.Head.Time().Int64(), 0)
+	headTime := time.Unix(engine.chain.Head.Time(), 0)
 
 	if correctedNow.After(headTime) {
 		maxDelay := engine.config.MinBlockDistance - engine.config.EstimatedBaVariance - engine.config.WaitSortitionProofDelay
@@ -245,7 +245,11 @@ func (engine *Engine) loop() {
 		var hash common.Hash
 		var finalCert *types.FullBlockCert
 		if blockHash != emptyBlock.Hash() {
-			hash, finalCert, _ = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			hash, finalCert, err = engine.countVotes(round, types.Final, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, true), engine.config.WaitForStepDelay)
+			if err == nil && hash != blockHash {
+				engine.log.Info("Switched to final", "prev", blockHash.Hex(), "final", hash.Hex())
+				blockHash = hash
+			}
 		}
 		if blockHash == emptyBlock.Hash() {
 			if err := engine.chain.AddBlock(emptyBlock, nil, engine.statsCollector); err != nil {
@@ -440,7 +444,8 @@ func (engine *Engine) vote(round uint64, step uint8, block common.Hash) {
 		if b, err := engine.proposals.GetBlockByHash(round, block); err == nil {
 			vote.Header.TurnOffline = engine.offlineDetector.VoteForOffline(b)
 		}
-		vote.Signature = engine.secStore.Sign(vote.Header.SignatureHash().Bytes())
+		hash := crypto.SignatureHash(&vote)
+		vote.Signature = engine.secStore.Sign(hash[:])
 		engine.pm.SendVote(&vote)
 
 		engine.log.Info("Voted for", "step", step, "block", block.Hex())
