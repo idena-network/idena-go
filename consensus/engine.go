@@ -198,12 +198,12 @@ func (engine *Engine) loop() {
 
 		engine.process = "Check if I'm proposer"
 
-		isProposer, proposerHash, proposerProof := engine.chain.GetProposerSortition()
+		isProposer, proofHash, proposerProof := engine.chain.GetProposerSortition()
 
 		var block *types.Block
 		if isProposer {
 			engine.process = "Propose block"
-			block = engine.proposeBlock(proposerHash, proposerProof)
+			block = engine.proposeBlock(proposerProof, proofHash)
 			if block != nil {
 				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round, "thresholdVrf", engine.appState.State.VrfProposerThreshold())
 			}
@@ -298,7 +298,7 @@ func (engine *Engine) completeRound(round uint64) {
 	engine.proposals.CompleteRound(round)
 
 	for _, proof := range engine.proposals.ProcessPendingProofs() {
-		engine.pm.ProposeProof(proof.Round, proof.Hash, proof.Proof, proof.PubKey)
+		engine.pm.ProposeProof(proof)
 	}
 	engine.log.Debug("Pending proposals processed")
 	for _, block := range engine.proposals.ProcessPendingBlocks() {
@@ -309,16 +309,25 @@ func (engine *Engine) completeRound(round uint64) {
 	engine.votes.CompleteRound(round)
 }
 
-func (engine *Engine) proposeBlock(hash common.Hash, proof []byte) *types.Block {
-	proposal := engine.chain.ProposeBlock()
+func (engine *Engine) proposeBlock(proof []byte, proofHash common.Hash) *types.Block {
+	proposal := engine.chain.ProposeBlock(proof)
 
 	engine.log.Info("Proposed block", "block", proposal.Hash().Hex(), "txs", len(proposal.Body.Transactions))
 
-	engine.pm.ProposeProof(proposal.Height(), hash, proof, engine.pubKey)
+	proofProposal := &types.ProofProposal{
+		Proof: proof,
+		Round: proposal.Height(),
+		Hash:  proofHash,
+	}
+
+	hash := crypto.SignatureHash(proofProposal)
+	proofProposal.Signature = engine.secStore.Sign(hash[:])
+
+	engine.pm.ProposeProof(proofProposal)
 	engine.pm.ProposeBlock(proposal)
 
 	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC(), nil)
-	engine.proposals.AddProposeProof(proof, hash, engine.pubKey, proposal.Height())
+	engine.proposals.AddProposeProof(proofProposal)
 
 	return proposal.Block
 }

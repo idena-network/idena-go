@@ -170,7 +170,7 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 	case ProposeBlock:
 		return payload.(*types.BlockProposal).ToBytes()
 	case ProposeProof:
-		return proto.Marshal(payload.(*models.ProtoProposeProof))
+		return payload.(*types.ProofProposal).ToBytes()
 	case Vote:
 		return payload.(*types.Vote).ToBytes()
 	case NewTx:
