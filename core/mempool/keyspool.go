@@ -8,8 +8,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/entry"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
@@ -20,6 +20,7 @@ import (
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"sync"
+	"time"
 )
 
 var (
@@ -54,7 +55,7 @@ type KeysPool struct {
 	packagesLoadingCtx        context.Context
 	cancelLoadingCtx          context.CancelFunc
 	self                      common.Address
-	pushTracker               entry.PendingPushTracker
+	pushTracker               pushpull.PendingPushTracker
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
@@ -71,7 +72,7 @@ func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secSt
 		secStore:                  secStore,
 		packagesLoadingCtx:        ctx,
 		cancelLoadingCtx:          cancel,
-		pushTracker:               entry.NewDefaultPushTracker(0),
+		pushTracker:               pushpull.NewDefaultPushTracker(time.Second * 5),
 	}
 	pool.pushTracker.SetHolder(pool)
 	return pool
@@ -93,7 +94,7 @@ func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
 	//ignore it, entries are adding via AddPrivateKeysPackage
 }
 
-func (p *KeysPool) PushTracker() entry.PendingPushTracker {
+func (p *KeysPool) PushTracker() pushpull.PendingPushTracker {
 	return p.pushTracker
 }
 
@@ -112,7 +113,7 @@ func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
 }
 
 func (p *KeysPool) MaxParallelPulls() uint32 {
-	return 3
+	return 1
 }
 
 func (p *KeysPool) SupportPendingRequests() bool {
