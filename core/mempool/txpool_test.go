@@ -137,7 +137,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		require.Equal(t, cnt, len(pool.all.txs))
 	}
 	assertTxs()
-	for height := 2; height <= 5; height++ {
+	for height := 2; height <= 13; height++ {
 
 		builtTxs := pool.BuildBlockTransactions()
 		require.True(t, len(builtTxs) > 0)
@@ -160,9 +160,9 @@ func TestTxPool_ResetTo(t *testing.T) {
 		assertTxs()
 	}
 
-	require.Len(t, pool.all.txs, 0)
-	require.Len(t, pool.executableTxs, 0)
-	require.Len(t, pool.pendingTxs, 0)
+	require.Equal(t, 0, len(pool.all.txs))
+	require.Equal(t, 0, len(pool.executableTxs))
+	require.Equal(t, 0, len(pool.pendingTxs))
 }
 
 func getPool() *TxPool {

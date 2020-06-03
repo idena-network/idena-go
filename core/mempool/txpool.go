@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	BlockBodySize  = 1024 * 1024
+	BlockBodySize  = 300 * 1024
 	MaxDeferredTxs = 100
 )
 
