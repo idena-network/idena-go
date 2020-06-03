@@ -13,7 +13,8 @@ const (
 	SignatureAdditionalSize = 67
 
 	// Approximate size to calculate delete flip tx fee
-	submitFlipTxSize = 116
+	submitFlipTxSize           = 116
+	deleteFlipTxAdditionalSize = 1024 * 120
 )
 
 var (
@@ -71,7 +72,7 @@ func getTxSizeForFee(tx *types.Transaction) int {
 		size += SignatureAdditionalSize
 	}
 	if tx.Type == types.DeleteFlipTx {
-		size += common.MaxFlipSize + submitFlipTxSize
+		size += deleteFlipTxAdditionalSize + submitFlipTxSize
 	}
 	return size
 }
