@@ -172,6 +172,48 @@ type BlockBundle struct {
 type BlockProposal struct {
 	*Block
 	Signature []byte
+	Proof     []byte
+
+	pubKey atomic.Value
+}
+
+func BlockProposalPubKey(proposal *BlockProposal) ([]byte, error) {
+	if pubKey := proposal.pubKey.Load(); pubKey != nil {
+		return pubKey.([]byte), nil
+	}
+
+	hash := crypto.SignatureHash(proposal)
+	pub, err := crypto.Ecrecover(hash[:], proposal.Signature)
+	if err != nil {
+		return nil, err
+	}
+	proposal.pubKey.Store(pub)
+	return pub, nil
+}
+
+type ProofProposal struct {
+	Proof []byte
+	Round uint64
+	Hash  common.Hash
+
+	Signature []byte
+
+	pubKey  atomic.Value
+	hash128 atomic.Value
+}
+
+func ProofProposalPubKey(proposal *ProofProposal) ([]byte, error) {
+	if pubKey := proposal.pubKey.Load(); pubKey != nil {
+		return pubKey.([]byte), nil
+	}
+
+	hash := crypto.SignatureHash(proposal)
+	pub, err := crypto.Ecrecover(hash[:], proposal.Signature)
+	if err != nil {
+		return nil, err
+	}
+	proposal.pubKey.Store(pub)
+	return pub, nil
 }
 
 // Transactions is a Transaction slice type for basic sorting.
@@ -353,6 +395,11 @@ func (b *Block) Hash128() common.Hash128 {
 
 func (b *Block) IsEmpty() bool {
 	return b.Header.EmptyBlockHeader != nil
+}
+
+func (b *Block) IsValid() bool {
+	return b.Header.EmptyBlockHeader != nil && b.Header.ProposedHeader == nil ||
+		b.Header.EmptyBlockHeader == nil && b.Header.ProposedHeader != nil
 }
 
 func (b *Block) Seed() Seed {
@@ -940,10 +987,71 @@ func (b Body) IsEmpty() bool {
 	return len(b.Transactions) == 0
 }
 
+func (p *ProofProposal) ToSignatureBytes() ([]byte, error) {
+	protoObj := &models.ProtoProposeProof_Data{
+		Proof: p.Proof,
+		Round: p.Round,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (p *ProofProposal) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoProposeProof{
+		Data: &models.ProtoProposeProof_Data{
+			Proof: p.Proof,
+			Round: p.Round,
+			Hash:  p.Hash[:],
+		},
+		Signature: p.Signature,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (p *ProofProposal) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoProposeProof)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	p.Signature = protoObj.Signature
+	if protoObj.Data != nil {
+		p.Round = protoObj.Data.Round
+		p.Proof = protoObj.Data.Proof
+		p.Hash = common.BytesToHash(protoObj.Data.Hash)
+	}
+	return nil
+}
+
+func (p *ProofProposal) Hash128() common.Hash128 {
+	if hash := p.hash128.Load(); hash != nil {
+		return hash.(common.Hash128)
+	}
+
+	data, _ := p.ToBytes()
+	h := common.Hash128(crypto.Hash128(data))
+
+	p.hash128.Store(h)
+	return h
+}
+
+func (p *BlockProposal) ToSignatureBytes() ([]byte, error) {
+	protoObj := new(models.ProtoBlockProposal_Data)
+	if p.Block != nil {
+		if p.Block.Header != nil {
+			protoObj.Header = p.Header.ToProto()
+		}
+		if p.Block.Body != nil {
+			protoObj.Body = p.Body.ToProto()
+		}
+	}
+	protoObj.Proof = p.Proof
+	return proto.Marshal(protoObj)
+}
+
 func (p *BlockProposal) ToBytes() ([]byte, error) {
 	protoObj := new(models.ProtoBlockProposal)
 	protoObj.Signature = p.Signature
 	protoObj.Data = &models.ProtoBlockProposal_Data{}
+	protoObj.Data.Proof = p.Proof
 
 	if p.Block != nil {
 		if p.Block.Header != nil {
@@ -964,6 +1072,7 @@ func (p *BlockProposal) FromBytes(data []byte) error {
 	}
 	p.Signature = protoObj.Signature
 	if protoObj.Data != nil {
+		p.Proof = protoObj.Data.Proof
 		p.Block = &Block{}
 		if protoObj.Data.Header != nil {
 			p.Block.Header = new(Header).FromProto(protoObj.Data.Header)
@@ -976,10 +1085,10 @@ func (p *BlockProposal) FromBytes(data []byte) error {
 }
 
 func (p *BlockProposal) IsValid() bool {
-	if p.Block == nil || len(p.Signature) == 0 || p.Block.IsEmpty() {
+	if p.Block == nil || len(p.Signature) == 0 || !p.Block.IsValid() || p.Block.IsEmpty() {
 		return false
 	}
-	pubKey, err := crypto.Ecrecover(p.Block.Hash().Bytes(), p.Signature)
+	pubKey, err := BlockProposalPubKey(p)
 	if err != nil {
 		return false
 	}

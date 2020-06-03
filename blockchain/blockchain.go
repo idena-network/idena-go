@@ -982,7 +982,7 @@ func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
 	return false, common.Hash{}, nil
 }
 
-func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
+func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
@@ -1034,8 +1034,9 @@ func (chain *Blockchain) ProposeBlock() *types.BlockProposal {
 
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, nil)
 
-	proposal := &types.BlockProposal{Block: block, Signature: chain.secStore.Sign(block.Hash().Bytes())}
-
+	proposal := &types.BlockProposal{Block: block, Proof: proof}
+	hash := crypto.SignatureHash(proposal)
+	proposal.Signature = chain.secStore.Sign(hash[:])
 	return proposal
 }
 
@@ -1332,7 +1333,7 @@ func validateBlockTimestamp(block *types.Header, prevBlock *types.Header) error 
 	return nil
 }
 
-func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, pubKeyData []byte) error {
+func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte, hash *common.Hash) error {
 	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
 	if err != nil {
 		return err
@@ -1344,11 +1345,14 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, hash common.Hash, p
 
 	h, err := verifier.ProofToHash(chain.getProposerData(), proof)
 
-	if h != hash {
-		return errors.New("Hashes are not equal")
+	// validate only if hash exists
+	if hash != nil {
+		if h != *hash {
+			return errors.New("Hashes are not equal")
+		}
 	}
 
-	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
 
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
 
