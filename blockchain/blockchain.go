@@ -933,7 +933,7 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 
 	emptyBlocks := appState.State.EmptyBlocksCount()
 
-	minVrf := math2.Max(chain.config.Consensus.MinProposerThreshold, 1.0-10.0/online)
+	minVrf := math2.Max(chain.config.Consensus.MinProposerThreshold, 1.0-5.0/online)
 	maxVrf := math2.Max(chain.config.Consensus.MinProposerThreshold, 1.0-1.0/online)
 
 	step := (maxVrf - minVrf) / 60
