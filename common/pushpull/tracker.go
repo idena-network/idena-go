@@ -1,9 +1,8 @@
-package entry
+package pushpull
 
 import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/patrickmn/go-cache"
 	"sort"
 	"sync"
 	"time"
@@ -33,64 +32,8 @@ type PendingPushTracker interface {
 	RemovePull(hash common.Hash128)
 }
 
-type Holder interface {
-	Add(hash common.Hash128, entry interface{})
-	Has(hash common.Hash128) bool
-	Get(hash common.Hash128) (interface{}, bool)
-	MaxParallelPulls() uint32
-	SupportPendingRequests() bool
-	PushTracker() PendingPushTracker
-}
-
-type DefaultHolder struct {
-	entryCache  *cache.Cache
-	maxPulls    int
-	pushTracker PendingPushTracker
-}
-
-func (d *DefaultHolder) PushTracker() PendingPushTracker {
-	return d.pushTracker
-}
-
-func (d *DefaultHolder) SupportPendingRequests() bool {
-	return d.pushTracker != nil
-}
-
-func NewDefaultHolder(maxPulls int, pushTracker PendingPushTracker) Holder {
-	holder := &DefaultHolder{
-		entryCache:  cache.New(time.Minute*3, time.Minute*5),
-		maxPulls:    maxPulls,
-		pushTracker: pushTracker,
-	}
-	if pushTracker != nil {
-		pushTracker.SetHolder(holder)
-		pushTracker.Run()
-	}
-	return holder
-}
-
-func (d *DefaultHolder) Add(hash common.Hash128, entry interface{}) {
-	d.entryCache.SetDefault(hash.String(), entry)
-	if d.pushTracker != nil {
-		d.pushTracker.RemovePull(hash)
-	}
-}
-
-func (d *DefaultHolder) Has(hash common.Hash128) bool {
-	_, ok := d.entryCache.Get(hash.String())
-	return ok
-}
-
-func (d *DefaultHolder) Get(hash common.Hash128) (interface{}, bool) {
-	return d.entryCache.Get(hash.String())
-}
-
-func (d *DefaultHolder) MaxParallelPulls() uint32 {
-	return 3
-}
-
 type DefaultPushTracker struct {
-	// After that delay a node will try to pull entry if it hasn't been downloaded previously
+	// After that delay a node will try to pull pushpull if it hasn't been downloaded previously
 	pullDelay time.Duration
 	ppMutex   sync.Mutex
 
@@ -98,7 +41,7 @@ type DefaultPushTracker struct {
 	requests chan PendingPulls
 
 	//the map contains a time of sending the last pull request
-	activePulls map[common.Hash128]time.Time
+	activePulls *sync.Map
 
 	//pending pushes
 	pendingPushes *sortedPendingPushes
@@ -111,7 +54,7 @@ func NewDefaultPushTracker(pullDelay time.Duration) *DefaultPushTracker {
 		pullDelay = defaultPullDelay
 	}
 	return &DefaultPushTracker{
-		activePulls:   make(map[common.Hash128]time.Time),
+		activePulls:   &sync.Map{},
 		pendingPushes: newSortedPendingPushes(),
 		requests:      make(chan PendingPulls, 1000),
 		pullDelay:     pullDelay,
@@ -119,9 +62,7 @@ func NewDefaultPushTracker(pullDelay time.Duration) *DefaultPushTracker {
 }
 
 func (d *DefaultPushTracker) RemovePull(hash common.Hash128) {
-	d.ppMutex.Lock()
-	delete(d.activePulls, hash)
-	d.ppMutex.Unlock()
+	d.activePulls.Delete(hash)
 }
 
 func (d *DefaultPushTracker) SetHolder(holder Holder) {
@@ -129,9 +70,7 @@ func (d *DefaultPushTracker) SetHolder(holder Holder) {
 }
 
 func (d *DefaultPushTracker) RegisterPull(hash common.Hash128) {
-	d.ppMutex.Lock()
-	defer d.ppMutex.Unlock()
-	d.activePulls[hash] = time.Now()
+	d.activePulls.Store(hash, time.Now())
 }
 
 func (d *DefaultPushTracker) AddPendingPush(id peer.ID, hash common.Hash128) {
@@ -140,8 +79,8 @@ func (d *DefaultPushTracker) AddPendingPush(id peer.ID, hash common.Hash128) {
 	}
 	d.ppMutex.Lock()
 	defer d.ppMutex.Unlock()
-	if timestamp, ok := d.activePulls[hash]; ok {
-		newReq := pendingRequestTime{PendingPulls{Id: id, Hash: hash}, timestamp}
+	if timestamp, ok := d.activePulls.Load(hash); ok {
+		newReq := pendingRequestTime{PendingPulls{Id: id, Hash: hash}, timestamp.(time.Time)}
 		d.pendingPushes.Add(newReq)
 	}
 }
@@ -152,6 +91,7 @@ func (d *DefaultPushTracker) Requests() chan PendingPulls {
 
 func (d *DefaultPushTracker) Run() {
 	go d.loop()
+	go d.gc()
 }
 
 // infinity loop for processing pending pushes
@@ -173,13 +113,14 @@ func (d *DefaultPushTracker) loop() {
 			continue
 		}
 		d.ppMutex.Lock()
-		if activePullTime, ok := d.activePulls[obj.req.Hash]; !ok {
+		if activePullTime, ok := d.activePulls.Load(obj.req.Hash); !ok {
 			d.pendingPushes.Remove(0)
 			d.ppMutex.Unlock()
 			continue
 		} else {
-			if activePullTime.After(obj.time) {
-				d.pendingPushes.MoveWithNewTime(0, activePullTime)
+			t := activePullTime.(time.Time)
+			if t.After(obj.time) {
+				d.pendingPushes.MoveWithNewTime(0, t)
 				d.ppMutex.Unlock()
 				continue
 			}
@@ -189,6 +130,18 @@ func (d *DefaultPushTracker) loop() {
 
 		d.requests <- obj.req
 		d.RegisterPull(obj.req.Hash)
+	}
+}
+
+func (d *DefaultPushTracker) gc() {
+	for {
+		time.Sleep(time.Minute)
+		d.activePulls.Range(func(key, value interface{}) bool {
+			if time.Since(value.(time.Time)) > time.Minute*5 {
+				d.activePulls.Delete(key)
+			}
+			return true
+		})
 	}
 }
 

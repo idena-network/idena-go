@@ -8,9 +8,9 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/entry"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/maputil"
+	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/flip"
 	"github.com/idena-network/idena-go/core/mempool"
@@ -96,12 +96,12 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		metrics:             new(metricCollector),
 		connManager:         NewConnManager(host, cfg),
 	}
-	handler.pushPullManager.AddEntryHolder(pushVote, entry.NewDefaultHolder(3, nil))
-	handler.pushPullManager.AddEntryHolder(pushBlock, entry.NewDefaultHolder(3, nil))
-	handler.pushPullManager.AddEntryHolder(pushProof, entry.NewDefaultHolder(3, nil))
-	handler.pushPullManager.AddEntryHolder(pushFlip, entry.NewDefaultHolder(1, nil))
+	handler.pushPullManager.AddEntryHolder(pushVote, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Millisecond*300)))
+	handler.pushPullManager.AddEntryHolder(pushBlock, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*3)))
+	handler.pushPullManager.AddEntryHolder(pushProof, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*1)))
+	handler.pushPullManager.AddEntryHolder(pushFlip, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*5)))
 	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
-	handler.pushPullManager.AddEntryHolder(pushTx, entry.NewDefaultHolder(2, nil))
+	handler.pushPullManager.AddEntryHolder(pushTx, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Millisecond*300)))
 	handler.pushPullManager.Run()
 	handler.registerMetrics()
 	return handler
