@@ -309,13 +309,13 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	appState, _ := chain.appState.ForCheck(1)
 
-	block := generateBlock(4, 10000) // block size 770008
+	block := generateBlock(4, 4000) // block size 284000
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(104427719116210937), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(110611979166666667), appState.State.FeePerByte())
 
-	block = generateBlock(5, 5000) // block size 385008
+	block = generateBlock(5, 1500) // block size 106000
 	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(100212869712413522), appState.State.FeePerByte())
+	require.Equal(t, big.NewInt(106372213363647461), appState.State.FeePerByte())
 
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, block)
