@@ -1,7 +1,7 @@
 package protocol
 
 import (
-	"github.com/idena-network/idena-go/common/entry"
+	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"sync"
@@ -23,18 +23,18 @@ type PushPullManager struct {
 	pendingPushes *cache.Cache
 	mutex         sync.Mutex
 	requests      chan pullRequest
-	entryHolders  map[pushType]entry.Holder
+	entryHolders  map[pushType]pushpull.Holder
 }
 
 func NewPushPullManager() *PushPullManager {
 	return &PushPullManager{
 		pendingPushes: cache.New(time.Minute*3, time.Minute*5),
 		requests:      make(chan pullRequest, 2000),
-		entryHolders:  make(map[pushType]entry.Holder),
+		entryHolders:  make(map[pushType]pushpull.Holder),
 	}
 }
 
-func (m *PushPullManager) AddEntryHolder(pushId pushType, holder entry.Holder) {
+func (m *PushPullManager) AddEntryHolder(pushId pushType, holder pushpull.Holder) {
 	m.entryHolders[pushId] = holder
 }
 
@@ -44,7 +44,7 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 
 	holder := m.entryHolders[hash.Type]
 	if holder == nil {
-		panic("entry holder is not found")
+		panic("pushpull holder is not found")
 	}
 	if holder.Has(hash.Hash) {
 		return
@@ -118,7 +118,7 @@ func (m *PushPullManager) Run() {
 	}
 }
 
-func (m *PushPullManager) loop(entryType pushType, holder entry.Holder) {
+func (m *PushPullManager) loop(entryType pushType, holder pushpull.Holder) {
 	for {
 		req := <-holder.PushTracker().Requests()
 		m.makeRequest(req.Id, pushPullHash{
