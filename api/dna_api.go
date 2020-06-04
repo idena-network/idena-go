@@ -402,7 +402,6 @@ type CeremonyIntervals struct {
 	FlipLotteryDuration      float64
 	ShortSessionDuration     float64
 	LongSessionDuration      float64
-	AfterLongSessionDuration float64
 }
 
 func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
