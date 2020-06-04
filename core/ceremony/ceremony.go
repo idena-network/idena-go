@@ -627,14 +627,14 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 		case types.SubmitShortAnswersTx:
 			attachment := attachments.ParseShortAnswerAttachment(tx)
 			if attachment == nil {
-				log.Error("short answer attachment is invalid", "tx", tx.Hash())
+				log.Error("short answer attachment is invalid", "tx", tx.Hash().Hex())
 				continue
 			}
 			vc.qualification.addAnswers(true, sender, tx.Payload)
 		case types.SubmitLongAnswersTx:
 			attachment := attachments.ParseLongAnswerAttachment(tx)
 			if attachment == nil {
-				log.Error("long answer attachment is invalid", "tx", tx.Hash())
+				log.Error("long answer attachment is invalid", "tx", tx.Hash().Hex())
 				continue
 			}
 			vc.qualification.addAnswers(false, sender, tx.Payload)
@@ -1323,14 +1323,12 @@ func (vc *ValidationCeremony) addNewTx(tx *types.Transaction) {
 
 func (vc *ValidationCeremony) newTxLoop() {
 	for {
-		select {
-		case tx := <-vc.newTxQueue:
-			if tx.Type == types.SubmitShortAnswersTx {
-				sender, _ := types.Sender(tx)
-				attachment := attachments.ParseShortAnswerAttachment(tx)
-				if attachment != nil {
-					vc.flipWordsInfo.pool.Store(sender, attachment.Rnd)
-				}
+		tx := <-vc.newTxQueue
+		if tx.Type == types.SubmitShortAnswersTx {
+			sender, _ := types.Sender(tx)
+			attachment := attachments.ParseShortAnswerAttachment(tx)
+			if attachment != nil {
+				vc.flipWordsInfo.pool.Store(sender, attachment.Rnd)
 			}
 		}
 	}
