@@ -14,7 +14,7 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/snappy v0.0.1
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
-	github.com/ipfs/fs-repo-migrations v1.5.1
+	github.com/ipfs/fs-repo-migrations v1.6.0
 	github.com/ipfs/go-blockservice v0.1.3
 	github.com/ipfs/go-cid v0.0.6
 	github.com/ipfs/go-ipfs v0.5.1-0.20200506014919-3339ce3b0e95
