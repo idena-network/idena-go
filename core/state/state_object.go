@@ -29,6 +29,9 @@ const (
 
 	AdditionalVerifiedFlips = 1
 	AdditionalHumanFlips    = 2
+
+	// Minimal number of blocks in after long period which should be without ceremonial txs
+	AfterLongRequiredBlocks = 5
 )
 
 func (s IdentityState) NewbieOrBetter() bool {
@@ -116,32 +119,34 @@ func (s *IdentityStatusSwitch) FromBytes(data []byte) error {
 }
 
 type Global struct {
-	Epoch                uint16
-	NextValidationTime   int64
-	ValidationPeriod     ValidationPeriod
-	GodAddress           common.Address
-	WordsSeed            types.Seed `rlp:"nil"`
-	LastSnapshot         uint64
-	EpochBlock           uint64
-	FeePerByte           *big.Int
-	VrfProposerThreshold uint64
-	EmptyBlocksBits      *big.Int
-	GodAddressInvites    uint16
+	Epoch                         uint16
+	NextValidationTime            int64
+	ValidationPeriod              ValidationPeriod
+	GodAddress                    common.Address
+	WordsSeed                     types.Seed `rlp:"nil"`
+	LastSnapshot                  uint64
+	EpochBlock                    uint64
+	FeePerByte                    *big.Int
+	VrfProposerThreshold          uint64
+	EmptyBlocksBits               *big.Int
+	GodAddressInvites             uint16
+	BlocksCntWithoutCeremonialTxs byte
 }
 
 func (s *Global) ToBytes() ([]byte, error) {
 	protoAnswer := &models.ProtoStateGlobal{
-		Epoch:                uint32(s.Epoch),
-		NextValidationTime:   s.NextValidationTime,
-		ValidationPeriod:     uint32(s.ValidationPeriod),
-		GodAddress:           s.GodAddress[:],
-		WordsSeed:            s.WordsSeed[:],
-		LastSnapshot:         s.LastSnapshot,
-		EpochBlock:           s.EpochBlock,
-		FeePerByte:           common.BigIntBytesOrNil(s.FeePerByte),
-		VrfProposerThreshold: s.VrfProposerThreshold,
-		EmptyBlocksBits:      common.BigIntBytesOrNil(s.EmptyBlocksBits),
-		GodAddressInvites:    uint32(s.GodAddressInvites),
+		Epoch:                         uint32(s.Epoch),
+		NextValidationTime:            s.NextValidationTime,
+		ValidationPeriod:              uint32(s.ValidationPeriod),
+		GodAddress:                    s.GodAddress[:],
+		WordsSeed:                     s.WordsSeed[:],
+		LastSnapshot:                  s.LastSnapshot,
+		EpochBlock:                    s.EpochBlock,
+		FeePerByte:                    common.BigIntBytesOrNil(s.FeePerByte),
+		VrfProposerThreshold:          s.VrfProposerThreshold,
+		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
+		GodAddressInvites:             uint32(s.GodAddressInvites),
+		BlocksCntWithoutCeremonialTxs: uint32(s.BlocksCntWithoutCeremonialTxs),
 	}
 	return proto.Marshal(protoAnswer)
 }
@@ -163,7 +168,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
-
+	s.BlocksCntWithoutCeremonialTxs = byte(protoGlobal.BlocksCntWithoutCeremonialTxs)
 	return nil
 }
 
@@ -904,6 +909,20 @@ func (s *stateGlobal) GodAddressInvites() uint16 {
 
 func (s *stateGlobal) SetGodAddressInvites(count uint16) {
 	s.data.GodAddressInvites = count
+	s.touch()
+}
+
+func (s *stateGlobal) BlocksCntWithoutCeremonialTxs() byte {
+	return s.data.BlocksCntWithoutCeremonialTxs
+}
+
+func (s *stateGlobal) IncBlocksCntWithoutCeremonialTxs() {
+	s.data.BlocksCntWithoutCeremonialTxs++
+	s.touch()
+}
+
+func (s *stateGlobal) ResetBlocksCntWithoutCeremonialTxs() {
+	s.data.BlocksCntWithoutCeremonialTxs = 0
 	s.touch()
 }
 

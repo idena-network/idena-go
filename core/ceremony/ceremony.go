@@ -416,7 +416,11 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 }
 
 func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
+	if block.Header.Flags().HasFlag(types.AfterLongSessionStarted) {
+		vc.logInfoWithInteraction("After long session started")
+	}
 	vc.processCeremonyTxs(block)
+	vc.log.Info("After long blocks without ceremonial txs", "cnt", vc.appState.State.BlocksCntWithoutCeremonialTxs())
 }
 
 func (vc *ValidationCeremony) calculateCeremonyCandidates() {
@@ -469,8 +473,7 @@ func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
 	ceremonyDuration := conf.GetFlipLotteryDuration() +
 		conf.GetShortSessionDuration() +
 		conf.GetLongSessionDuration(vc.appState.ValidatorsCache.NetworkSize()) +
-		conf.GetAfterLongSessionDuration() +
-		time.Minute*5 // added extra minutes to prevent time lags
+		time.Minute*15 // added extra minutes to prevent time lags
 	headTime := time.Unix(vc.chain.Head.Time(), 0)
 
 	// if head's timestamp is close to now() we should interact with network

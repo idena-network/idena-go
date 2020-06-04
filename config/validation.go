@@ -20,8 +20,6 @@ type ValidationConfig struct {
 	ShortSessionDuration time.Duration
 	// Do not use directly
 	LongSessionDuration time.Duration
-	// Do not use directly
-	AfterLongSessionDuration time.Duration
 }
 
 func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, networkSize int) time.Time {
@@ -50,11 +48,4 @@ func (cfg *ValidationConfig) GetLongSessionDuration(networkSize int) time.Durati
 		return cfg.LongSessionDuration
 	}
 	return time.Minute * time.Duration(common.LongSessionFlipsCount(networkSize))
-}
-
-func (cfg *ValidationConfig) GetAfterLongSessionDuration() time.Duration {
-	if cfg.AfterLongSessionDuration > 0 {
-		return cfg.AfterLongSessionDuration
-	}
-	return AfterLongSession
 }
