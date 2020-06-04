@@ -3,6 +3,7 @@ package tests
 import (
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
@@ -85,7 +86,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 	pool.ResetTo(block)
 
 	for _, key := range keys {
-		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, (common.Hash{}).Bytes())))
+		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 	}
 
 	result := pool.BuildBlockTransactions()
@@ -343,7 +344,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 2)
 	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx)))
 	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetFullTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.Add(GetTypedTx(8, 1, keys[addressIndex], types.SendTx)))
 
@@ -352,12 +353,12 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 1)
 	require.NoError(pool.Add(GetTypedTx(2, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetFullTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	require.NoError(pool.Add(GetTypedTx(1, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 
 	// when
 	result := pool.BuildBlockTransactions()

@@ -17,6 +17,8 @@ package vrf
 
 import (
 	"crypto"
+	"crypto/sha256"
+	"errors"
 )
 
 // A VRF is a pseudorandom function f_k from a secret key k, such that that
@@ -37,4 +39,13 @@ type PrivateKey interface {
 type PublicKey interface {
 	// ProofToHash verifies the NP-proof supplied by Proof and outputs Index.
 	ProofToHash(m, proof []byte) (index [32]byte, err error)
+}
+
+func HashFromProof(proof []byte) (index [32]byte, err error) {
+	nilIndex := [32]byte{}
+	if got, want := len(proof), 64+65; got != want {
+		return nilIndex, errors.New("invalid vrf proof")
+	}
+	vrf := proof[64 : 64+65]
+	return sha256.Sum256(vrf), nil
 }

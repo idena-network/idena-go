@@ -19,6 +19,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/idena-network/idena-go/crypto/vrf"
+	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
 	"time"
@@ -356,3 +358,13 @@ func h2b(h string) []byte {
 //		t.Errorf("verification failed")
 //	}
 //}
+
+func Test_HashFromProof(t *testing.T) {
+	k, _ := GenerateKey()
+	m1 := []byte("da30b4ed14affb62b3719fb5e6952d3733e84e53fe6e955f8e46da503300c985")
+	index, proof := k.Evaluate(m1)
+
+	res, _ := vrf.HashFromProof(proof)
+
+	require.Equal(t, index, res)
+}
