@@ -205,7 +205,6 @@ func BlockProposalPubKey(proposal *BlockProposal) ([]byte, error) {
 type ProofProposal struct {
 	Proof []byte
 	Round uint64
-	Hash  common.Hash
 
 	Signature []byte
 
@@ -1011,7 +1010,6 @@ func (p *ProofProposal) ToBytes() ([]byte, error) {
 		Data: &models.ProtoProposeProof_Data{
 			Proof: p.Proof,
 			Round: p.Round,
-			Hash:  p.Hash[:],
 		},
 		Signature: p.Signature,
 	}
@@ -1027,7 +1025,6 @@ func (p *ProofProposal) FromBytes(data []byte) error {
 	if protoObj.Data != nil {
 		p.Round = protoObj.Data.Round
 		p.Proof = protoObj.Data.Proof
-		p.Hash = common.BytesToHash(protoObj.Data.Hash)
 	}
 	return nil
 }

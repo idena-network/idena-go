@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
@@ -74,14 +75,19 @@ func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, det
 func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (added bool, pending bool) {
 	currentRound := proposals.chain.Round()
 
+	h, err := vrf.HashFromProof(proposal.Proof)
+	if err != nil {
+		return false, false
+	}
+	hash := common.Hash(h)
 	if proposal.Round == currentRound {
-		if proposals.proposeCache.Add(proposal.Hash.Hex(), nil, cache.DefaultExpiration) != nil {
+		if proposals.proposeCache.Add(hash.Hex(), nil, cache.DefaultExpiration) != nil {
 			return false, false
 		}
 
 		m, _ := proposals.proofsByRound.LoadOrStore(proposal.Round, &sync.Map{})
 		byRound := m.(*sync.Map)
-		if _, ok := byRound.Load(proposal.Hash); ok {
+		if _, ok := byRound.Load(hash); ok {
 			return false, false
 		}
 
@@ -90,14 +96,14 @@ func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (adde
 			return false, false
 		}
 
-		if err := proposals.chain.ValidateProposerProof(proposal.Proof, pubKey, &proposal.Hash); err != nil {
+		if err := proposals.chain.ValidateProposerProof(proposal.Proof, pubKey); err != nil {
 			log.Warn("Failed proposed proof validation", "err", err)
 			return false, false
 		}
-		byRound.Store(proposal.Hash, proposal)
+		byRound.Store(hash, proposal)
 		return true, false
 	} else if currentRound < proposal.Round && proposal.Round-currentRound < DeferFutureProposalsPeriod {
-		proposals.pendingProofs.LoadOrStore(proposal.Hash, proposal)
+		proposals.pendingProofs.LoadOrStore(hash, proposal)
 		return false, true
 	}
 	return false, false
@@ -198,7 +204,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 			return false, false
 		}
 
-		if err := proposals.chain.ValidateProposerProof(proposal.Proof, block.Header.ProposedHeader.ProposerPubKey, nil); err != nil {
+		if err := proposals.chain.ValidateProposerProof(proposal.Proof, block.Header.ProposedHeader.ProposerPubKey); err != nil {
 			log.Warn("Failed proposed block proof validation", "err", err)
 			return false, false
 		}
