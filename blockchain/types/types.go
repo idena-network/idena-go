@@ -49,6 +49,17 @@ const (
 	OfflineCommit
 )
 
+var CeremonialTxs map[uint16]struct{}
+
+func init() {
+	CeremonialTxs = map[uint16]struct{}{
+		SubmitAnswersHashTx:  {},
+		SubmitShortAnswersTx: {},
+		SubmitLongAnswersTx:  {},
+		EvidenceTx:           {},
+	}
+}
+
 type Network = uint32
 
 type Seed [32]byte
@@ -398,8 +409,8 @@ func (b *Block) IsEmpty() bool {
 }
 
 func (b *Block) IsValid() bool {
-	return b.Header.EmptyBlockHeader != nil && b.Header.ProposedHeader == nil ||
-		b.Header.EmptyBlockHeader == nil && b.Header.ProposedHeader != nil
+	return (b.Header.EmptyBlockHeader != nil && b.Header.ProposedHeader == nil ||
+		b.Header.EmptyBlockHeader == nil && b.Header.ProposedHeader != nil) && b.Body != nil
 }
 
 func (b *Block) Seed() Seed {

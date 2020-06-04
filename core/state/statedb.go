@@ -493,6 +493,18 @@ func (s *StateDB) SetGodAddressInvites(count uint16) {
 	s.GetOrNewGlobalObject().SetGodAddressInvites(count)
 }
 
+func (s *StateDB) BlocksCntWithoutCeremonialTxs() byte {
+	return s.GetOrNewGlobalObject().BlocksCntWithoutCeremonialTxs()
+}
+
+func (s *StateDB) IncBlocksCntWithoutCeremonialTxs() {
+	s.GetOrNewGlobalObject().IncBlocksCntWithoutCeremonialTxs()
+}
+
+func (s *StateDB) ResetBlocksCntWithoutCeremonialTxs() {
+	s.GetOrNewGlobalObject().ResetBlocksCntWithoutCeremonialTxs()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -1170,6 +1182,7 @@ func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
 	stateObject.data.GodAddressInvites = uint16(state.Global.GodAddressInvites)
+	stateObject.data.BlocksCntWithoutCeremonialTxs = byte(state.Global.BlocksCntWithoutCeremonialTxs)
 }
 
 func (s *StateDB) SetPredefinedStatusSwitch(state *models.ProtoPredefinedState) {

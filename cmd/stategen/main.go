@@ -66,17 +66,18 @@ func main() {
 		globalObject := appState.State.GetOrNewGlobalObject()
 
 		snapshot.Global = &models.ProtoPredefinedState_Global{
-			LastSnapshot:         globalObject.LastSnapshot(),
-			NextValidationTime:   globalObject.NextValidationTime(),
-			GodAddress:           globalObject.GodAddress().Bytes(),
-			WordsSeed:            globalObject.FlipWordsSeed().Bytes(),
-			ValidationPeriod:     uint32(globalObject.ValidationPeriod()),
-			Epoch:                uint32(globalObject.Epoch()),
-			EpochBlock:           globalObject.EpochBlock(),
-			FeePerByte:           common.BigIntBytesOrNil(globalObject.FeePerByte()),
-			VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
-			EmptyBlocksBits:      common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
-			GodAddressInvites:    uint32(globalObject.GodAddressInvites()),
+			LastSnapshot:                  globalObject.LastSnapshot(),
+			NextValidationTime:            globalObject.NextValidationTime(),
+			GodAddress:                    globalObject.GodAddress().Bytes(),
+			WordsSeed:                     globalObject.FlipWordsSeed().Bytes(),
+			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
+			Epoch:                         uint32(globalObject.Epoch()),
+			EpochBlock:                    globalObject.EpochBlock(),
+			FeePerByte:                    common.BigIntBytesOrNil(globalObject.FeePerByte()),
+			VrfProposerThreshold:          globalObject.VrfProposerThresholdRaw(),
+			EmptyBlocksBits:               common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
+			GodAddressInvites:             uint32(globalObject.GodAddressInvites()),
+			BlocksCntWithoutCeremonialTxs: uint32(globalObject.BlocksCntWithoutCeremonialTxs()),
 		}
 
 		snapshot.StatusSwitch = &models.ProtoPredefinedState_StatusSwitch{

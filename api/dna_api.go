@@ -410,10 +410,9 @@ func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	networkSize := api.baseApi.getAppState().ValidatorsCache.NetworkSize()
 
 	return CeremonyIntervals{
-		FlipLotteryDuration:      cfg.Validation.GetFlipLotteryDuration().Seconds(),
-		ShortSessionDuration:     cfg.Validation.GetShortSessionDuration().Seconds(),
-		LongSessionDuration:      cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
-		AfterLongSessionDuration: cfg.Validation.GetAfterLongSessionDuration().Seconds(),
+		FlipLotteryDuration:  cfg.Validation.GetFlipLotteryDuration().Seconds(),
+		ShortSessionDuration: cfg.Validation.GetShortSessionDuration().Seconds(),
+		LongSessionDuration:  cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
 	}
 }
 
