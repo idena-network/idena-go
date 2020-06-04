@@ -358,6 +358,7 @@ message ProtoStateGlobal {
     uint64 vrfProposerThreshold = 9;
     bytes emptyBlocksBits = 10;
     uint32 godAddressInvites = 11;
+    uint32 blocksCntWithoutCeremonialTxs = 12;
 }
 
 message ProtoStateApprovedIdentity {
@@ -383,6 +384,7 @@ message ProtoPredefinedState {
         uint64 vrfProposerThreshold = 9;
         bytes emptyBlocksBits = 10;
         uint32 godAddressInvites = 11;
+        uint32 blocksCntWithoutCeremonialTxs = 12;
     }
 
     message StatusSwitch {

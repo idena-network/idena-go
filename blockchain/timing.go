@@ -39,11 +39,3 @@ func (t *timing) isAfterLongSessionStarted(nextValidation time.Time, timestamp i
 	}
 	return false
 }
-
-func (t *timing) isValidationFinished(nextValidation time.Time, timestamp int64, networkSize int) bool {
-	if current := time.Unix(timestamp, 0); current.Sub(nextValidation) >
-		t.conf.GetShortSessionDuration()+t.conf.GetLongSessionDuration(networkSize)+t.conf.GetAfterLongSessionDuration() {
-		return true
-	}
-	return false
-}

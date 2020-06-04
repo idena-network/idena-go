@@ -453,6 +453,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	clearDustAccounts(appState, networkSize, statsCollector)
 
 	appState.State.IncEpoch()
+	appState.State.ResetBlocksCntWithoutCeremonialTxs()
 
 	validationTime := appState.State.NextValidationTime()
 	nextValidationTime := chain.config.Validation.GetNextValidationTime(validationTime, networkSize)
@@ -619,6 +620,19 @@ func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) 
 
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block,
 	statsCollector collector.StatsCollector) {
+
+	if appState.State.ValidationPeriod() == state.AfterLongSessionPeriod && !block.IsEmpty() {
+		has := false
+		for _, tx := range block.Body.Transactions {
+			if _, ok := types.CeremonialTxs[tx.Type]; ok {
+				has = true
+				break
+			}
+		}
+		if !has {
+			appState.State.IncBlocksCntWithoutCeremonialTxs()
+		}
+	}
 
 	flags := block.Header.Flags()
 	if flags.HasFlag(types.FlipLotteryStarted) {
@@ -1095,8 +1109,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.AfterLongSessionStarted
 	}
 
-	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod &&
-		chain.timing.isValidationFinished(stateDb.NextValidationTime(), block.Header.Time(), appState.ValidatorsCache.NetworkSize()) {
+	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.BlocksCntWithoutCeremonialTxs() >= state.AfterLongRequiredBlocks {
 		flags |= types.ValidationFinished
 		flags |= types.IdentityUpdate
 	}

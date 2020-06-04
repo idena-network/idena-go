@@ -402,7 +402,6 @@ type CeremonyIntervals struct {
 	FlipLotteryDuration      float64
 	ShortSessionDuration     float64
 	LongSessionDuration      float64
-	AfterLongSessionDuration float64
 }
 
 func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
@@ -410,10 +409,9 @@ func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	networkSize := api.baseApi.getAppState().ValidatorsCache.NetworkSize()
 
 	return CeremonyIntervals{
-		FlipLotteryDuration:      cfg.Validation.GetFlipLotteryDuration().Seconds(),
-		ShortSessionDuration:     cfg.Validation.GetShortSessionDuration().Seconds(),
-		LongSessionDuration:      cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
-		AfterLongSessionDuration: cfg.Validation.GetAfterLongSessionDuration().Seconds(),
+		FlipLotteryDuration:  cfg.Validation.GetFlipLotteryDuration().Seconds(),
+		ShortSessionDuration: cfg.Validation.GetShortSessionDuration().Seconds(),
+		LongSessionDuration:  cfg.Validation.GetLongSessionDuration(networkSize).Seconds(),
 	}
 }
 
