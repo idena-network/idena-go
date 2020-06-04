@@ -276,6 +276,11 @@ message ProtoActivityMonitor {
 
 message ProtoShortAnswerAttachment {
     bytes answers = 1;
+    uint64 rnd = 2;
+}
+
+message ProtoLongAnswerAttachment {
+    bytes answers = 1;
     bytes proof = 2;
     bytes key = 3;
     bytes salt = 4;

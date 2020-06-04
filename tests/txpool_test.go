@@ -343,7 +343,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 2)
 	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx)))
 	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx)))
 	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.Add(GetTypedTx(8, 1, keys[addressIndex], types.SendTx)))
 
@@ -352,12 +352,12 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 1)
 	require.NoError(pool.Add(GetTypedTx(2, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx)))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	require.NoError(pool.Add(GetTypedTx(1, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SubmitLongAnswersTx)))
+	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx)))
 
 	// when
 	result := pool.BuildBlockTransactions()

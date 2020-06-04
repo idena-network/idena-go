@@ -10,17 +10,13 @@ import (
 
 type ShortAnswerAttachment struct {
 	Answers []byte
-	Proof   []byte
-	Key     []byte
-	Salt    []byte
+	Rnd     uint64
 }
 
 func (s *ShortAnswerAttachment) ToBytes() ([]byte, error) {
 	protoAttachment := &models.ProtoShortAnswerAttachment{
 		Answers: s.Answers,
-		Proof:   s.Proof,
-		Key:     s.Key,
-		Salt:    s.Salt,
+		Rnd:     s.Rnd,
 	}
 	return proto.Marshal(protoAttachment)
 }
@@ -31,18 +27,14 @@ func (s *ShortAnswerAttachment) FromBytes(data []byte) error {
 		return err
 	}
 	s.Answers = protoAttachment.Answers
-	s.Proof = protoAttachment.Proof
-	s.Key = protoAttachment.Key
-	s.Salt = protoAttachment.Salt
+	s.Rnd = protoAttachment.Rnd
 	return nil
 }
 
-func CreateShortAnswerAttachment(answers []byte, proof []byte, salt []byte, key *ecies.PrivateKey) []byte {
+func CreateShortAnswerAttachment(answers []byte, rnd uint64) []byte {
 	attachment := &ShortAnswerAttachment{
 		Answers: answers,
-		Proof:   proof,
-		Key:     crypto.FromECDSA(key.ExportECDSA()),
-		Salt:    salt,
+		Rnd:     rnd,
 	}
 
 	payload, _ := attachment.ToBytes()
@@ -56,6 +48,60 @@ func ParseShortAnswerAttachment(tx *types.Transaction) *ShortAnswerAttachment {
 
 func ParseShortAnswerBytesAttachment(payload []byte) *ShortAnswerAttachment {
 	attachment := new(ShortAnswerAttachment)
+	if err := attachment.FromBytes(payload); err != nil {
+		return nil
+	}
+	return attachment
+}
+
+type LongAnswerAttachment struct {
+	Answers []byte
+	Proof   []byte
+	Key     []byte
+	Salt    []byte
+}
+
+func (s *LongAnswerAttachment) ToBytes() ([]byte, error) {
+	protoAttachment := &models.ProtoLongAnswerAttachment{
+		Answers: s.Answers,
+		Proof:   s.Proof,
+		Key:     s.Key,
+		Salt:    s.Salt,
+	}
+	return proto.Marshal(protoAttachment)
+}
+
+func (s *LongAnswerAttachment) FromBytes(data []byte) error {
+	protoAttachment := new(models.ProtoLongAnswerAttachment)
+	if err := proto.Unmarshal(data, protoAttachment); err != nil {
+		return err
+	}
+	s.Answers = protoAttachment.Answers
+	s.Proof = protoAttachment.Proof
+	s.Key = protoAttachment.Key
+	s.Salt = protoAttachment.Salt
+	return nil
+}
+
+func CreateLongAnswerAttachment(answers []byte, proof []byte, salt []byte, key *ecies.PrivateKey) []byte {
+	attachment := &LongAnswerAttachment{
+		Answers: answers,
+		Proof:   proof,
+		Key:     crypto.FromECDSA(key.ExportECDSA()),
+		Salt:    salt,
+	}
+
+	payload, _ := attachment.ToBytes()
+
+	return payload
+}
+
+func ParseLongAnswerAttachment(tx *types.Transaction) *LongAnswerAttachment {
+	return ParseLongAnswerBytesAttachment(tx.Payload)
+}
+
+func ParseLongAnswerBytesAttachment(payload []byte) *LongAnswerAttachment {
+	attachment := new(LongAnswerAttachment)
 	if err := attachment.FromBytes(payload); err != nil {
 		return nil
 	}
