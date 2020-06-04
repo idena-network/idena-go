@@ -37,6 +37,7 @@ import (
 const (
 	LotterySeedLag                      = 100
 	MaxFlipKeysPackageBroadcastDelaySec = 120
+	MaxShortAnswersBroadcastDelaySec    = 60
 )
 
 const (
@@ -391,9 +392,7 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 		return
 	}
 
-	if vc.shouldInteractWithNetwork() {
-		vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
-	}
+	vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	vc.broadcastPublicFipKey(appState)
 	vc.shortSessionStarted = true
 }
@@ -401,10 +400,18 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
 		vc.logInfoWithInteraction("Long session started")
+		go vc.delayedShortAnswersTxBroadcast()
 	}
-	vc.broadcastShortAnswersTx()
-	vc.broadcastPublicFipKey(vc.appState)
+
 	vc.processCeremonyTxs(block)
+	vc.broadcastPublicFipKey(vc.appState)
+
+	// attempt to broadcast short answers since MaxShortAnswersBroadcastDelaySec seconds after long session has started
+	shortAnswersBroadcastTime := vc.appState.State.NextValidationTime().Add(vc.config.Validation.GetShortSessionDuration()).Add(MaxShortAnswersBroadcastDelaySec * time.Second)
+
+	if shortAnswersBroadcastTime.Before(time.Now().UTC()) {
+		vc.broadcastShortAnswersTx()
+	}
 	vc.broadcastEvidenceMap()
 }
 
@@ -633,6 +640,13 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 				vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
 			}
 		}
+	}
+}
+
+func (vc *ValidationCeremony) delayedShortAnswersTxBroadcast() {
+	if vc.shouldInteractWithNetwork() {
+		time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
+		vc.broadcastShortAnswersTx()
 	}
 }
 
