@@ -399,6 +399,12 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 		return err
 	}
 
+	attachment := attachments.ParseShortAnswerAttachment(tx)
+
+	if attachment == nil {
+		return InvalidPayload
+	}
+
 	return nil
 }
 
@@ -434,6 +440,11 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 	}
 
 	attachment := attachments.ParseLongAnswerAttachment(tx)
+
+	if attachment == nil || len(attachment.Proof) == 0 || len(attachment.Salt) == 0 {
+		return InvalidPayload
+	}
+
 	seed := appState.State.FlipWordsSeed()
 	rawPubKey, _ := types.SenderPubKey(tx)
 	pubKey, err := crypto.UnmarshalPubkey(rawPubKey)

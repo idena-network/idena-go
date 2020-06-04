@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
@@ -150,9 +151,9 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 
 	if shortSession {
 		attachment := attachments.ParseShortAnswerBytesAttachment(answerBytes)
-		flipsCount := uint32(len(flipsToSolve))
+		flipsCount := uint32(math.MinInt(int(common.ShortSessionFlipsCount()), len(flipsToSolve)))
 		// can't parse
-		if attachment == nil || len(attachment.Answers) == 0 {
+		if attachment == nil {
 			return 0, flipsCount, nil, false, false
 		}
 		answerBytes = attachment.Answers
@@ -160,13 +161,13 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		attachment := attachments.ParseLongAnswerBytesAttachment(answerBytes)
 		flipsCount := uint32(len(flipsToSolve))
 		// can't parse
-		if attachment == nil || len(attachment.Answers) == 0 {
+		if attachment == nil {
 			return 0, flipsCount, nil, false, false
 		}
 		answerBytes = attachment.Answers
 		hash := q.epochDb.GetAnswerHash(candidate)
 		shortAttachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
-		if shortAttachment == nil || len(shortAttachment.Answers) == 0 || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) {
+		if shortAttachment == nil || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) {
 			return 0, flipsCount, nil, false, false
 		}
 	}
