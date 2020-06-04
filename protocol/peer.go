@@ -3,13 +3,13 @@ package protocol
 import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
+	s2 "github.com/klauspost/compress/s2"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-msgio"
@@ -21,10 +21,20 @@ import (
 )
 
 const (
-	handshakeTimeout     = 20 * time.Second
-	msgCacheAliveTime    = 3 * time.Minute
-	msgCacheGcTime       = 5 * time.Minute
+	handshakeTimeout  = 20 * time.Second
+	msgCacheAliveTime = 3 * time.Minute
+	msgCacheGcTime    = 5 * time.Minute
+
 	maxTimeoutsBeforeBan = 7
+
+	minCompressionSize = 386 // bytes
+)
+
+type compression = byte
+
+const (
+	noCompression compression = 0
+	s2Compression compression = 1
 )
 
 type protoPeer struct {
@@ -119,7 +129,7 @@ func (p *protoPeer) broadcast() {
 			return err
 		}
 
-		p.metrics.outcomeMessage(&Msg{request.msgcode, msg})
+		p.metrics.outcomeMessage(request.msgcode, len(msg))
 		return nil
 	}
 	for {
@@ -160,7 +170,7 @@ func makeMsg(msgcode uint64, payload interface{}) []byte {
 	if err != nil {
 		panic(err)
 	}
-	return snappy.Encode(nil, msg)
+	return Encode(msgcode, msg)
 }
 
 func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
@@ -236,22 +246,46 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis comm
 	return nil
 }
 
+func Decode(src []byte) ([]byte, error) {
+
+	if len(src) == 0 {
+		return src, errors.New("msg is empty")
+	}
+
+	switch src[0] {
+	case noCompression:
+		return src[1:], nil
+	case s2Compression:
+		return s2.Decode(nil, src[1:])
+	default:
+		return nil, errors.New("unknown compression")
+	}
+}
+
+func Encode(msgcode uint64, src []byte) []byte {
+	if msgcode == FlipKeysPackage || len(src) < minCompressionSize {
+		return append([]byte{noCompression}, src...)
+	}
+	return append([]byte{s2Compression}, s2.Encode(nil, src)...)
+}
+
 func (p *protoPeer) ReadMsg() (*Msg, error) {
-	msg, err := p.rw.ReadMsg()
-	defer p.rw.ReleaseMsg(msg)
+	compressedMsg, err := p.rw.ReadMsg()
+	defer p.rw.ReleaseMsg(compressedMsg)
 	if err != nil {
 		p.transportErr = err
 		return nil, err
 	}
-	msg, err = snappy.Decode(nil, msg)
+	data, err := Decode(compressedMsg)
 	if err != nil {
 		return nil, err
 	}
 	result := new(Msg)
-	if err := result.FromBytes(msg); err != nil {
+	if err := result.FromBytes(data); err != nil {
 		return nil, err
 	}
-	p.metrics.incomeMessage(result)
+	p.metrics.incomeMessage(result.Code, len(compressedMsg))
+	p.metrics.compress(result.Code, len(data)-len(compressedMsg))
 	return result, nil
 }
 

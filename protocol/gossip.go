@@ -67,8 +67,9 @@ type IdenaGossipHandler struct {
 }
 
 type metricCollector struct {
-	incomeMessage  func(msg *Msg)
-	outcomeMessage func(msg *Msg)
+	incomeMessage  func(code uint64, size int)
+	outcomeMessage func(code uint64, size int)
+	compress       func(code uint64, size int)
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {

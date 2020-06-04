@@ -13,7 +13,6 @@ require (
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/protobuf v1.4.2
-	github.com/golang/snappy v0.0.1
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/ipfs/fs-repo-migrations v1.5.1
 	github.com/ipfs/go-blockservice v0.1.3
@@ -25,10 +24,12 @@ require (
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.3.0
+	github.com/klauspost/compress v1.10.7
 	github.com/libp2p/go-libp2p-core v0.5.6
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.7
 	github.com/mholt/archiver v3.1.1+incompatible
+	github.com/mmcloughlin/avo v0.0.0-20200523190732-4439b6b2c061 // indirect
 	github.com/multiformats/go-multiaddr v0.2.2
 	github.com/multiformats/go-multihash v0.0.13
 	github.com/nwaples/rardecode v1.1.0 // indirect

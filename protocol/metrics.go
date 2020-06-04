@@ -11,7 +11,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 
 	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
 	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
-
+	compressTotal := metrics.GetOrRegisterCounter("compress-diff.total", metrics.DefaultRegistry)
 	msgCodeToString := func(code uint64) string {
 		switch code {
 		case Handshake:
@@ -29,7 +29,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		case GetBlocksRange:
 			return "getBlocksRange"
 		case BlocksRange:
-			return "glockRange"
+			return "blockRange"
 		case FlipBody:
 			return "flipBody"
 		case FlipKey:
@@ -51,30 +51,39 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		}
 	}
 
-	h.metrics.incomeMessage = func(msg *Msg) {
+	h.metrics.incomeMessage = func(code uint64, size int) {
 		if !h.cfg.CollectMetrics {
 			return
 		}
-		collector := metrics.GetOrRegisterCounter("bytes_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		collector.Inc(int64(len(msg.Payload)))
+		collector := metrics.GetOrRegisterCounter("bytes_received."+msgCodeToString(code), metrics.DefaultRegistry)
+		collector.Inc(int64(size))
 
-		counter := metrics.GetOrRegisterCounter("msg_received."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		counter := metrics.GetOrRegisterCounter("msg_received."+msgCodeToString(code), metrics.DefaultRegistry)
 		counter.Inc(1)
 
-		totalReceived.Inc(int64(len(msg.Payload)))
+		totalReceived.Inc(int64(size))
 	}
 
-	h.metrics.outcomeMessage = func(msg *Msg) {
+	h.metrics.outcomeMessage = func(code uint64, size int) {
 		if !h.cfg.CollectMetrics {
 			return
 		}
-		collector := metrics.GetOrRegisterCounter("bytes_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
-		collector.Inc(int64(len(msg.Payload)))
+		collector := metrics.GetOrRegisterCounter("bytes_sent."+msgCodeToString(code), metrics.DefaultRegistry)
+		collector.Inc(int64(size))
 
-		counter := metrics.GetOrRegisterCounter("msg_sent."+msgCodeToString(msg.Code), metrics.DefaultRegistry)
+		counter := metrics.GetOrRegisterCounter("msg_sent."+msgCodeToString(code), metrics.DefaultRegistry)
 		counter.Inc(1)
 
-		totalSent.Inc(int64(len(msg.Payload)))
+		totalSent.Inc(int64(size))
+	}
+
+	h.metrics.compress = func(code uint64, size int) {
+		if !h.cfg.CollectMetrics {
+			return
+		}
+		compressCnt := metrics.GetOrRegisterCounter("compress-diff."+msgCodeToString(code), metrics.DefaultRegistry)
+		compressCnt.Inc(int64(size))
+		compressTotal.Inc(int64(size))
 	}
 
 	if h.cfg.CollectMetrics {
