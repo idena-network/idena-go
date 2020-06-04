@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
@@ -167,7 +168,8 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		answerBytes = attachment.Answers
 		hash := q.epochDb.GetAnswerHash(candidate)
 		shortAttachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
-		if shortAttachment == nil || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) {
+		h, _ := vrf.HashFromProof(attachment.Proof)
+		if shortAttachment == nil || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) || getWordsRnd(h) != shortAttachment.Rnd {
 			return 0, flipsCount, nil, false, false
 		}
 	}

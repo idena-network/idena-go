@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
+	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/stretchr/testify/require"
@@ -173,12 +174,15 @@ func Test_qualifyCandidate(t *testing.T) {
 	epochDb.WriteAnswerHash(candidate, crypto.Hash(append(shortAnswer, salt...)), time.Now())
 	epochDb.WriteAnswerHash(maliciousCandidate, crypto.Hash(append(shortAnswer, salt...)), time.Now())
 
-	key, _ := crypto.GenerateKey()
-	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, 100)
-	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, 100)
+	k, _ := p256.GenerateKey()
+	h, proof := k.Evaluate([]byte("aabbcc"))
 
-	longAttachment := attachments.CreateLongAnswerAttachment(longAnswer, nil, salt, ecies.ImportECDSA(key))
-	maliciousLongAttachment := attachments.CreateLongAnswerAttachment(longAnswer, nil, []byte{0x6}, ecies.ImportECDSA(key))
+	key, _ := crypto.GenerateKey()
+	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h))
+	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h))
+
+	longAttachment := attachments.CreateLongAnswerAttachment(longAnswer, proof, salt, ecies.ImportECDSA(key))
+	maliciousLongAttachment := attachments.CreateLongAnswerAttachment(longAnswer, proof, []byte{0x6}, ecies.ImportECDSA(key))
 
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{

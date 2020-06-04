@@ -147,7 +147,7 @@ func CreateFlipSubmitAttachment(cid []byte, pair uint8) []byte {
 }
 
 func ParseFlipSubmitAttachment(tx *types.Transaction) *FlipSubmitAttachment {
-	if tx.Payload == nil {
+	if len(tx.Payload) == 0 {
 		return nil
 	}
 	attachment := new(FlipSubmitAttachment)
@@ -186,9 +186,6 @@ func CreateOnlineStatusAttachment(online bool) []byte {
 }
 
 func ParseOnlineStatusAttachment(tx *types.Transaction) *OnlineStatusAttachment {
-	if tx.Payload == nil {
-		return nil
-	}
 	attachment := new(OnlineStatusAttachment)
 	if err := attachment.FromBytes(tx.Payload); err != nil {
 		return nil
@@ -225,7 +222,7 @@ func CreateBurnAttachment(key string) []byte {
 }
 
 func ParseBurnAttachment(tx *types.Transaction) *BurnAttachment {
-	if tx.Payload == nil {
+	if len(tx.Payload) == 0 {
 		return nil
 	}
 	attachment := new(BurnAttachment)
@@ -264,7 +261,7 @@ func CreateChangeProfileAttachment(hash []byte) []byte {
 }
 
 func ParseChangeProfileAttachment(tx *types.Transaction) *ChangeProfileAttachment {
-	if tx.Payload == nil {
+	if len(tx.Payload) == 0 {
 		return nil
 	}
 	attachment := new(ChangeProfileAttachment)
@@ -303,7 +300,7 @@ func CreateDeleteFlipAttachment(cid []byte) []byte {
 }
 
 func ParseDeleteFlipAttachment(tx *types.Transaction) *DeleteFlipAttachment {
-	if tx.Payload == nil {
+	if len(tx.Payload) == 0 {
 		return nil
 	}
 	attachment := new(DeleteFlipAttachment)
