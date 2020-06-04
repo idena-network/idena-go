@@ -448,10 +448,6 @@ func (s *stateAccount) SetBalance(amount *big.Int) {
 }
 
 func (s *stateAccount) setBalance(amount *big.Int) {
-
-	if s.data.Balance == nil {
-		s.data.Balance = new(big.Int)
-	}
 	s.data.Balance = amount
 	s.touch()
 }
@@ -464,7 +460,7 @@ func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) 
 
 // empty returns whether the account is considered empty.
 func (s *stateAccount) empty() bool {
-	return s.data.Balance.Sign() == 0 && s.data.Nonce == 0
+	return s.Balance().Sign() == 0 && s.data.Nonce == 0
 }
 
 // Returns the address of the contract/account
@@ -583,10 +579,6 @@ func (s *stateIdentity) SubStake(amount *big.Int) {
 }
 
 func (s *stateIdentity) SetStake(amount *big.Int) {
-	if s.data.Stake == nil {
-		s.data.Stake = new(big.Int)
-	}
-
 	s.data.Stake = amount
 	s.touch()
 }
@@ -720,12 +712,12 @@ func (s *stateIdentity) SubPenalty(amount *big.Int) {
 	if amount.Sign() == 0 {
 		return
 	}
-	p := s.data.Penalty
+	p := s.GetPenalty()
 
 	if p.Cmp(amount) <= 0 {
 		s.SetPenalty(nil)
 	} else {
-		s.SetPenalty(new(big.Int).Sub(s.data.Penalty, amount))
+		s.SetPenalty(new(big.Int).Sub(p, amount))
 	}
 }
 
