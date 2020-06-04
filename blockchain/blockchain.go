@@ -587,7 +587,7 @@ func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollec
 	commonTxCost := new(big.Int).Mul(commonTxSize, minFeePerByte)
 
 	appState.State.IterateOverAccounts(func(addr common.Address, account state.Account) {
-		if account.Balance.Cmp(commonTxCost) == -1 {
+		if account.Balance == nil || account.Balance.Cmp(commonTxCost) == -1 {
 			collector.BeginDustClearingBalanceUpdate(statsCollector, addr, appState)
 			appState.State.ClearAccount(addr)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
