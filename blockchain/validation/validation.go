@@ -399,25 +399,10 @@ func validateSubmitShortAnswersTx(appState *appstate.AppState, tx *types.Transac
 		return err
 	}
 
-	// we do not check VRF proof until first validation
-	if appState.State.Epoch() == 0 {
-		return nil
-	}
-
 	attachment := attachments.ParseShortAnswerAttachment(tx)
-	seed := appState.State.FlipWordsSeed()
-	rawPubKey, _ := types.SenderPubKey(tx)
-	pubKey, err := crypto.UnmarshalPubkey(rawPubKey)
-	if err != nil {
-		return err
-	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return err
-	}
-	_, err = verifier.ProofToHash(seed[:], attachment.Proof)
-	if err != nil {
-		return err
+
+	if attachment == nil {
+		return InvalidPayload
 	}
 
 	return nil
@@ -448,6 +433,33 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
 		return err
 	}
+
+	// we do not check VRF proof until first validation
+	if appState.State.Epoch() == 0 {
+		return nil
+	}
+
+	attachment := attachments.ParseLongAnswerAttachment(tx)
+
+	if attachment == nil || len(attachment.Proof) == 0 || len(attachment.Salt) == 0 {
+		return InvalidPayload
+	}
+
+	seed := appState.State.FlipWordsSeed()
+	rawPubKey, _ := types.SenderPubKey(tx)
+	pubKey, err := crypto.UnmarshalPubkey(rawPubKey)
+	if err != nil {
+		return err
+	}
+	verifier, err := p256.NewVRFVerifier(pubKey)
+	if err != nil {
+		return err
+	}
+	_, err = verifier.ProofToHash(seed[:], attachment.Proof)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/sha3"
+	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
@@ -77,8 +78,7 @@ type ValidationCeremony struct {
 	syncer                   protocol.Syncer
 	blockHandlers            map[state.ValidationPeriod]blockHandler
 	validationStats          *statsTypes.ValidationStats
-	flipKeyWordPairs         []int
-	flipKeyWordProof         []byte
+	flipWordsInfo            *flipWordsInfo
 	epoch                    uint16
 	config                   *config.Config
 	applyEpochMutex          sync.Mutex
@@ -89,6 +89,14 @@ type ValidationCeremony struct {
 	validationStartMutex     sync.Mutex
 	candidatesPerAuthor      map[int][]int
 	authorsPerCandidate      map[int][]int
+	newTxQueue               chan *types.Transaction
+}
+
+type flipWordsInfo struct {
+	pairs []int
+	proof []byte
+	rnd   uint64
+	pool  *sync.Map
 }
 
 type epochApplyingCache struct {
@@ -123,6 +131,8 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		chain:              chain,
 		syncer:             syncer,
 		config:             config,
+		newTxQueue:         make(chan *types.Transaction, 10000),
+		flipWordsInfo:      &flipWordsInfo{pool: &sync.Map{}},
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -157,6 +167,12 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 			vc.dropFlip(event.FlipCid)
 		})
 
+	_ = vc.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
+		newTxEvent := e.(*events.NewTxEvent)
+		vc.addNewTx(newTxEvent.Tx)
+	})
+
+	go vc.newTxLoop()
 	vc.restoreState()
 	vc.addBlock(currentBlock)
 }
@@ -218,7 +234,11 @@ func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common
 }
 
 func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.Hash, error) {
-	hash, err := vc.sendTx(types.SubmitLongAnswersTx, answers.Bytes())
+
+	key := vc.flipper.GetFlipPublicEncryptionKey()
+	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
+
+	hash, err := vc.sendTx(types.SubmitLongAnswersTx, attachments.CreateLongAnswerAttachment(answers.Bytes(), vc.flipWordsInfo.proof, salt, key))
 	if err == nil {
 		vc.broadcastEvidenceMap()
 	} else {
@@ -316,12 +336,12 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.evidenceSent = false
 	vc.shortSessionStarted = false
 	vc.validationStats = nil
-	vc.flipKeyWordPairs = nil
 	vc.flipAuthorMap = nil
 	vc.validationStartCtxCancel = nil
 	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
 	vc.candidatesPerAuthor = nil
 	vc.authorsPerCandidate = nil
+	vc.flipWordsInfo = &flipWordsInfo{pool: &sync.Map{}}
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -605,11 +625,6 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 				vc.epochDb.WriteAnswerHash(sender, common.BytesToHash(tx.Payload), time.Now().UTC())
 			}
 		case types.SubmitShortAnswersTx:
-			attachment := attachments.ParseShortAnswerAttachment(tx)
-			if attachment == nil {
-				log.Error("short answer attachment is invalid", "tx", tx.Hash())
-				continue
-			}
 			vc.qualification.addAnswers(true, sender, tx.Payload)
 		case types.SubmitLongAnswersTx:
 			vc.qualification.addAnswers(false, sender, tx.Payload)
@@ -631,10 +646,13 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		return
 	}
 
-	key := vc.flipper.GetFlipPublicEncryptionKey()
-	salt := getShortAnswersSalt(vc.epoch, vc.secStore)
+	h, err := vrf.HashFromProof(vc.flipWordsInfo.proof)
+	if err != nil {
+		vc.log.Error("Cannot get hash from proof during short answers broadcasting")
+		return
+	}
 
-	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, vc.flipKeyWordProof, salt, key)); err == nil {
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h))); err == nil {
 		vc.shortAnswersSent = true
 	} else {
 		vc.log.Error("cannot send short answers tx", "err", err)
@@ -1207,20 +1225,20 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 }
 
 func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
-	return vc.flipKeyWordPairs
+	return vc.flipWordsInfo.pairs
 }
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	vc.flipKeyWordPairs, vc.flipKeyWordProof = vc.GeneratePairs(seed, common.WordDictionarySize,
-		identity.GetTotalWordPairsCount(), vc.appState.State.Epoch())
+	vc.flipWordsInfo.pairs, vc.flipWordsInfo.proof = vc.GeneratePairs(seed, common.WordDictionarySize,
+		identity.GetTotalWordPairsCount())
 }
 
 func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {
 	vc.flipAuthorMapLock.Lock()
-	defer vc.flipAuthorMapLock.Unlock()
-
 	author, ok := vc.flipAuthorMap[string(cid)]
+	vc.flipAuthorMapLock.Unlock()
+
 	if !ok {
 		return 0, 0, errors.New("flip author not found")
 	}
@@ -1233,15 +1251,17 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 			break
 		}
 	}
-	seed := vc.appState.State.FlipWordsSeed().Bytes()
-	proof := vc.qualification.GetProof(author)
+	rnd := vc.qualification.GetWordsRnd(author)
 
-	if len(proof) == 0 {
-		return 0, 0, errors.New("proof not ready")
+	if rnd == 0 {
+		if value, ok := vc.flipWordsInfo.pool.Load(author); !ok {
+			return 0, 0, errors.New("words not ready")
+		} else {
+			rnd = value.(uint64)
+		}
 	}
 
-	return GetWords(seed, proof, identity.PubKey, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId,
-		vc.appState.State.Epoch())
+	return GetWords(rnd, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
 
 func (vc *ValidationCeremony) getOwnCandidateIndex() int {
@@ -1282,4 +1302,24 @@ func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
 		}
 	}
 	vc.keysPool.InitializePrivateKeyIndexes(m)
+}
+
+func (vc *ValidationCeremony) addNewTx(tx *types.Transaction) {
+	select {
+	case vc.newTxQueue <- tx:
+	default:
+	}
+}
+
+func (vc *ValidationCeremony) newTxLoop() {
+	for {
+		tx := <-vc.newTxQueue
+		if tx.Type == types.SubmitShortAnswersTx {
+			sender, _ := types.Sender(tx)
+			attachment := attachments.ParseShortAnswerAttachment(tx)
+			if attachment != nil {
+				vc.flipWordsInfo.pool.Store(sender, attachment.Rnd)
+			}
+		}
+	}
 }

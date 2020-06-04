@@ -4,44 +4,28 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/deckarep/golang-set"
-	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/pkg/errors"
 	"math/rand"
 )
 
-func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int, epoch uint16) (nums []int, proof []byte) {
-	if epoch <= epochToUseOldWords {
-		return vc.generatePairsOld(seed, dictionarySize, pairCount)
-	}
-	hash, proof := vc.secStore.VrfEvaluate(seed)
-	rnd := newRand(hash[:])
+func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
+	hash, p := vc.secStore.VrfEvaluate(seed)
+	rnd := rand.New(rand.NewSource(int64(getWordsRnd(hash))))
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var num1, num2 int
 		num1, num2 = nextPair(rnd, dictionarySize, pairCount, pairs)
 		nums = append(nums, num1, num2)
 	}
-	return nums, proof
+	return nums, p
 }
 
-func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pairCount, pairIndex int, epoch uint16) (word1, word2 int, err error) {
-	if epoch <= epochToUseOldWords {
-		return getWordsOld(seed, proof, pubKeyData, dictionarySize, pairCount, pairIndex)
-	}
-	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
-	if err != nil {
-		return 0, 0, err
-	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return 0, 0, err
-	}
-	hash, err := verifier.ProofToHash(seed, proof)
-	if err != nil {
-		return 0, 0, err
-	}
-	rnd := newRand(hash[:])
+func getWordsRnd(hash [32]byte) uint64 {
+	return binary.LittleEndian.Uint64(hash[:])
+}
+
+func GetWords(authorRnd uint64, dictionarySize, pairCount, pairIndex int) (word1, word2 int, err error) {
+	rnd := rand.New(rand.NewSource(int64(authorRnd)))
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
 		var val1, val2 int
@@ -51,10 +35,6 @@ func GetWords(seed []byte, proof []byte, pubKeyData []byte, dictionarySize, pair
 		}
 	}
 	return 0, 0, errors.New("index is not found")
-}
-
-func newRand(seed []byte) *rand.Rand {
-	return rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed))))
 }
 
 func maxUniquePairs(dictionarySize int) int {

@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
@@ -104,13 +105,14 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		candidate := candidates[i]
 		flips := flipsPerCandidate[i]
 		answerBytes := q.longAnswers[candidate.Address]
+		attachment := attachments.ParseLongAnswerBytesAttachment(answerBytes)
 
 		// candidate didn't send long answers
-		if answerBytes == nil {
+		if attachment == nil || len(attachment.Answers) == 0 {
 			continue
 		}
 
-		answers := types.NewAnswersFromBits(uint(len(flips)), answerBytes)
+		answers := types.NewAnswersFromBits(uint(len(flips)), attachment.Answers)
 
 		for j := uint(0); j < uint(len(flips)); j++ {
 			answer, wrongWords := answers.Answer(j)
@@ -155,9 +157,19 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		if attachment == nil {
 			return 0, flipsCount, nil, false, false
 		}
-		hash := q.epochDb.GetAnswerHash(candidate)
 		answerBytes = attachment.Answers
-		if answerBytes == nil || hash != crypto.Hash(append(answerBytes, attachment.Salt...)) {
+	} else {
+		attachment := attachments.ParseLongAnswerBytesAttachment(answerBytes)
+		flipsCount := uint32(len(flipsToSolve))
+		// can't parse
+		if attachment == nil {
+			return 0, flipsCount, nil, false, false
+		}
+		answerBytes = attachment.Answers
+		hash := q.epochDb.GetAnswerHash(candidate)
+		shortAttachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
+		h, _ := vrf.HashFromProof(attachment.Proof)
+		if shortAttachment == nil || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) || getWordsRnd(h) != shortAttachment.Rnd {
 			return 0, flipsCount, nil, false, false
 		}
 	}
@@ -223,15 +235,15 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0, false
 }
 
-func (q *qualification) GetProof(addr common.Address) []byte {
+func (q *qualification) GetWordsRnd(addr common.Address) uint64 {
 	q.lock.RLock()
 	defer q.lock.RUnlock()
 
 	attachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[addr])
 	if attachment == nil {
-		return nil
+		return 0
 	}
-	return attachment.Proof
+	return attachment.Rnd
 }
 
 func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus FlipStatus, notApprovedFlips mapset.Set,
