@@ -155,7 +155,6 @@ message ProtoProposeProof {
     message Data {
         bytes proof = 1;
         uint64 round = 2;
-        bytes hash = 3;
     }
 
     Data data = 1;

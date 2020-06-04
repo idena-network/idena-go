@@ -198,12 +198,12 @@ func (engine *Engine) loop() {
 
 		engine.process = "Check if I'm proposer"
 
-		isProposer, proofHash, proposerProof := engine.chain.GetProposerSortition()
+		isProposer, proposerProof := engine.chain.GetProposerSortition()
 
 		var block *types.Block
 		if isProposer {
 			engine.process = "Propose block"
-			block = engine.proposeBlock(proposerProof, proofHash)
+			block = engine.proposeBlock(proposerProof)
 			if block != nil {
 				engine.log.Info("Selected as proposer", "block", block.Hash().Hex(), "round", round, "thresholdVrf", engine.appState.State.VrfProposerThreshold())
 			}
@@ -309,7 +309,7 @@ func (engine *Engine) completeRound(round uint64) {
 	engine.votes.CompleteRound(round)
 }
 
-func (engine *Engine) proposeBlock(proof []byte, proofHash common.Hash) *types.Block {
+func (engine *Engine) proposeBlock(proof []byte) *types.Block {
 	proposal := engine.chain.ProposeBlock(proof)
 
 	engine.log.Info("Proposed block", "block", proposal.Hash().Hex(), "txs", len(proposal.Body.Transactions))
@@ -317,7 +317,6 @@ func (engine *Engine) proposeBlock(proof []byte, proofHash common.Hash) *types.B
 	proofProposal := &types.ProofProposal{
 		Proof: proof,
 		Round: proposal.Height(),
-		Hash:  proofHash,
 	}
 
 	hash := crypto.SignatureHash(proofProposal)

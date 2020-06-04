@@ -987,13 +987,13 @@ func getSeedData(prevBlock *types.Header) []byte {
 	return result
 }
 
-func (chain *Blockchain) GetProposerSortition() (bool, common.Hash, []byte) {
+func (chain *Blockchain) GetProposerSortition() (bool, []byte) {
 
 	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
 		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold())
 	}
 
-	return false, common.Hash{}, nil
+	return false, nil
 }
 
 func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
@@ -1187,7 +1187,7 @@ func (chain *Blockchain) getProposerData() []byte {
 	return result
 }
 
-func (chain *Blockchain) getSortition(data []byte, threshold float64) (bool, common.Hash, []byte) {
+func (chain *Blockchain) getSortition(data []byte, threshold float64) (bool, []byte) {
 	hash, proof := chain.secStore.VrfEvaluate(data)
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
@@ -1195,9 +1195,9 @@ func (chain *Blockchain) getSortition(data []byte, threshold float64) (bool, com
 	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
 
 	if f, _ := q.Float64(); f >= threshold {
-		return true, hash, proof
+		return true, proof
 	}
-	return false, common.Hash{}, nil
+	return false, nil
 }
 
 func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header) error {
@@ -1346,7 +1346,7 @@ func validateBlockTimestamp(block *types.Header, prevBlock *types.Header) error 
 	return nil
 }
 
-func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte, hash *common.Hash) error {
+func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) error {
 	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
 	if err != nil {
 		return err
@@ -1357,13 +1357,6 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte, 
 	}
 
 	h, err := verifier.ProofToHash(chain.getProposerData(), proof)
-
-	// validate only if hash exists
-	if hash != nil {
-		if h != *hash {
-			return errors.New("Hashes are not equal")
-		}
-	}
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
 
