@@ -194,9 +194,6 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.BlockProposal {
 }
 
 func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time, checkState *appstate.AppState) (added bool, pending bool) {
-	if !proposal.IsValid() {
-		return false, false
-	}
 	block := proposal.Block
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
