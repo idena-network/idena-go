@@ -73,3 +73,12 @@ func (r *blockRange) FromBytes(data []byte) error {
 	}
 	return nil
 }
+
+func (r *blockRange) IsValid() bool {
+	for _, item := range r.Blocks {
+		if !item.Header.IsValid() {
+			return false
+		}
+	}
+	return true
+}
