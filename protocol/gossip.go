@@ -179,6 +179,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := response.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if !response.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
+		}
 		p.log.Trace("Income blocks range", "batchId", response.BatchId)
 		if ib, ok := h.incomeBatches.Load(p.id); ok {
 			peerBatches := ib.(*sync.Map)
@@ -217,6 +220,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := proposal.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if !proposal.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
+		}
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}
@@ -233,6 +239,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		vote := new(types.Vote)
 		if err := vote.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		if !vote.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
 		}
 		if h.isProcessed(msg.Payload) {
 			return nil
@@ -282,6 +291,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := f.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if !f.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
+		}
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}
@@ -318,9 +330,8 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := pushHash.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-
-		if pushHash.Invalid() {
-			return nil
+		if !pushHash.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
 		}
 
 		p.markPayload(msg.Payload)
@@ -330,9 +341,10 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := pullHash.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
-		if pullHash.Invalid() {
-			return nil
+		if !pullHash.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
 		}
+
 		if entry, ok := h.pushPullManager.GetEntry(*pullHash); ok {
 			h.sendEntry(p, *pullHash, entry)
 		}
@@ -341,6 +353,10 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := block.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		if !block.IsValid() {
+			return errResp(ValidationErr, "%v", msg)
+		}
+
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}

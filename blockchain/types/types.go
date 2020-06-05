@@ -283,6 +283,10 @@ func (f *Flip) Hash128() common.Hash128 {
 	return h
 }
 
+func (f *Flip) IsValid() bool {
+	return f.Tx != nil
+}
+
 type AddrActivity struct {
 	Addr common.Address
 	Time time.Time
@@ -404,12 +408,11 @@ func (b *Block) Hash128() common.Hash128 {
 }
 
 func (b *Block) IsEmpty() bool {
-	return b.Header.EmptyBlockHeader != nil
+	return b.Header != nil && b.Header.EmptyBlockHeader != nil
 }
 
 func (b *Block) IsValid() bool {
-	return (b.Header.EmptyBlockHeader != nil && b.Header.ProposedHeader == nil ||
-		b.Header.EmptyBlockHeader == nil && b.Header.ProposedHeader != nil) && b.Body != nil
+	return b.Header.IsValid() && b.Body.IsValid()
 }
 
 func (b *Block) Seed() Seed {
@@ -617,6 +620,13 @@ func (h *Header) OfflineAddr() *common.Address {
 	}
 }
 
+func (h *Header) IsValid() bool {
+	if h == nil {
+		return false
+	}
+	return (h.EmptyBlockHeader == nil && h.ProposedHeader != nil) || (h.EmptyBlockHeader != nil && h.ProposedHeader == nil)
+}
+
 func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
 	protoProposed := &models.ProtoBlockHeader_Proposed{
 		ParentHash:     h.ParentHash[:],
@@ -751,6 +761,10 @@ func (v *Vote) VoterAddr() common.Address {
 	}
 	v.addr.Store(addr)
 	return addr
+}
+
+func (v *Vote) IsValid() bool {
+	return v.Header != nil
 }
 
 func (tx *Transaction) AmountOrZero() *big.Int {
@@ -993,8 +1007,8 @@ func (b *Body) FromBytes(data []byte) {
 	b.FromProto(protoBody)
 }
 
-func (b Body) IsEmpty() bool {
-	return len(b.Transactions) == 0
+func (b *Body) IsValid() bool {
+	return b != nil
 }
 
 func (p *ProofProposal) ToSignatureBytes() ([]byte, error) {

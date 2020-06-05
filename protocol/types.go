@@ -10,6 +10,7 @@ import (
 
 const (
 	DecodeErr                  = 1
+	ValidationErr              = 2
 	MaxTimestampLagSeconds     = 15
 	MaxBannedPeers             = 500000
 	IdenaProtocolWeight        = 25
@@ -118,6 +119,6 @@ func (h *pushPullHash) String() string {
 	return string(h.Type) + string(h.Hash.Bytes())
 }
 
-func (h *pushPullHash) Invalid() bool {
-	return h.Type < pushVote || h.Type > pushTx
+func (h *pushPullHash) IsValid() bool {
+	return h.Type >= pushVote && h.Type <= pushTx
 }
