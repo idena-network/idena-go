@@ -1,8 +1,10 @@
 package blockchain
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/daragao/merkletree"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -10,10 +12,14 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
+	"github.com/idena-network/idena-go/keystore"
+	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/secstore"
 	dbm "github.com/tendermint/tm-db"
+	"sort"
 	"sync"
 	"time"
 )
@@ -38,11 +44,28 @@ type OfflineDetector struct {
 	startTime               time.Time
 	selfAddress             common.Address
 	offlineCommitteeMaxSize int
+
+	invitingMerkleTree      *merkletree.MerkleTree
 }
 
 type voteList struct {
 	round  uint64
 	voters mapset.Set
+}
+
+//InvitingMerkleTreeContent implements the Content interface provided by merkletree and represents the content stored in the tree.
+type InvitingMerkleTreeContent struct {
+	h []byte
+}
+
+//CalculateHash hashes the values of an InvitingMerkleTreeContent
+func (t InvitingMerkleTreeContent) CalculateHash() ([]byte, error) {
+	return (rlp.Hash(t.h))[:], nil
+}
+
+//Equals tests for equality of two Contents
+func (t InvitingMerkleTreeContent) Equals(other merkletree.Content) (bool, error) {
+	return bytes.Equal(t.h, other.(InvitingMerkleTreeContent).h), nil
 }
 
 func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.AppState, secStore *secstore.SecStore, bus eventbus.Bus) *OfflineDetector {
@@ -61,7 +84,7 @@ func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.App
 	}
 }
 
-func (dt *OfflineDetector) Start(head *types.Header) {
+func (dt *OfflineDetector) Start(head *types.Header, keyStore *keystore.KeyStore) {
 	dt.selfAddress = dt.secStore.GetAddress()
 	dt.lastPersistBlock = head.Height()
 	dt.restore()
@@ -70,6 +93,34 @@ func (dt *OfflineDetector) Start(head *types.Header) {
 		func(e eventbus.Event) {
 			block := e.(*events.NewBlockEvent).Block
 			if block.Header.Flags().HasFlag(types.ValidationFinished) {
+
+				accs := keysore.Accounts()
+				sort.Slice(accs, func(i, j int) bool {
+					return bytes.Compare(accs[i].Address.Bytes() < planets[j].Address.Bytes())
+				})
+
+				var relayableState [][]byte{[]}
+				var invitingMerkleTreeList []merkletree.Content
+
+				for _, acc := range accs {
+
+					relayableState = append(relayableState, acc.Address.Bytes())
+
+					if (dt.appState.State.GetIdentityState(acc.Address) == Newbie) {
+						invitingMerkleTreeList = append(invitingMerkleTreeList, InvitingMerkleTreeContent{h: dt.appState.State.GetInviter(acc.Address).Address.Bytes()})
+						invitingMerkleTreeList = append(invitingMerkleTreeList, InvitingMerkleTreeContent{h: acc.Address.Bytes()})
+					}
+				}
+				invitingMerkleTree, err := merkletree.NewTreeWithHashStrategySorted(invitingMerkleTreeList, sha3.NewKeccak256, true)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				relayableState = append(t.MerkleRoot(), bytes.Join(relayableState, []byte{})...)
+				
+				// This is the signature needed to be relayed to the Idena-Ethereum Relayer
+				fmt.Println(dt.secStore.Sign((rlp.Hash(relayableState))[:]))
+
 				dt.restart()
 			}
 			go dt.processBlock(block)

@@ -219,7 +219,7 @@ func (s *IdentityStateDB) createIdentity(addr common.Address) (newobj, prev *sta
 	return newobj, prev
 }
 
-// Retrieve a state account given my the address. Returns nil if not found.
+// Retrieve a state account given by the address. Returns nil if not found.
 func (s *IdentityStateDB) getStateIdentity(addr common.Address) (stateObject *stateApprovedIdentity) {
 	// Prefer 'live' objects.
 	s.lock.Lock()

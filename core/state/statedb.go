@@ -583,7 +583,7 @@ func (s *StateDB) getStateAccount(addr common.Address) (stateObject *stateAccoun
 	return obj
 }
 
-// Retrieve a state account given my the address. Returns nil if not found.
+// Retrieve a state account given by the address. Returns nil if not found.
 func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdentity) {
 	// Prefer 'live' objects.
 	s.lock.Lock()
@@ -612,7 +612,7 @@ func (s *StateDB) getStateIdentity(addr common.Address) (stateObject *stateIdent
 	return obj
 }
 
-// Retrieve a state account given my the address. Returns nil if not found.
+// Retrieve a state account given by the address. Returns nil if not found.
 func (s *StateDB) getStateGlobal() (stateObject *stateGlobal) {
 	// Prefer 'live' objects.
 	if obj := s.stateGlobal; obj != nil {

@@ -240,7 +240,7 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.fp.Initialize()
 	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
-	node.offlineDetector.Start(node.blockchain.Head)
+	node.offlineDetector.Start(node.blockchain.Head, node.keyStore)
 	node.consensusEngine.Start()
 	node.pm.Start()
 
