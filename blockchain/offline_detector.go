@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/daragao/merkletree"
+	"github.com/uivlis/merkletree"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -60,7 +60,8 @@ type InvitingMerkleTreeContent struct {
 
 //CalculateHash hashes the values of an InvitingMerkleTreeContent
 func (t InvitingMerkleTreeContent) CalculateHash() ([]byte, error) {
-	return (rlp.Hash(t.h))[:], nil
+	h := rlp.Hash(t.h)
+	return h[:], nil
 }
 
 //Equals tests for equality of two Contents
@@ -94,19 +95,19 @@ func (dt *OfflineDetector) Start(head *types.Header, keyStore *keystore.KeyStore
 			block := e.(*events.NewBlockEvent).Block
 			if block.Header.Flags().HasFlag(types.ValidationFinished) {
 
-				accs := keysore.Accounts()
+				accs := keyStore.Accounts()
 				sort.Slice(accs, func(i, j int) bool {
-					return bytes.Compare(accs[i].Address.Bytes() < planets[j].Address.Bytes())
+					return bytes.Compare(accs[i].Address.Bytes(), accs[j].Address.Bytes()) == -1
 				})
 
-				var relayableState [][]byte{[]}
+				var accsToBytes [][]byte
 				var invitingMerkleTreeList []merkletree.Content
 
 				for _, acc := range accs {
 
-					relayableState = append(relayableState, acc.Address.Bytes())
+					accsToBytes = append(accsToBytes, acc.Address.Bytes())
 
-					if (dt.appState.State.GetIdentityState(acc.Address) == Newbie) {
+					if (dt.appState.State.GetIdentityState(acc.Address) == state.Newbie) {
 						invitingMerkleTreeList = append(invitingMerkleTreeList, InvitingMerkleTreeContent{h: dt.appState.State.GetInviter(acc.Address).Address.Bytes()})
 						invitingMerkleTreeList = append(invitingMerkleTreeList, InvitingMerkleTreeContent{h: acc.Address.Bytes()})
 					}
@@ -116,10 +117,10 @@ func (dt *OfflineDetector) Start(head *types.Header, keyStore *keystore.KeyStore
 					fmt.Println(err)
 				}
 
-				relayableState = append(t.MerkleRoot(), bytes.Join(relayableState, []byte{})...)
-				
+				relayableState := append(invitingMerkleTree.MerkleRoot(), bytes.Join(accsToBytes, []byte{})...)
+				h := rlp.Hash(relayableState)
 				// This is the signature needed to be relayed to the Idena-Ethereum Relayer
-				fmt.Println(dt.secStore.Sign((rlp.Hash(relayableState))[:]))
+				fmt.Println(dt.secStore.Sign(h[:]))
 
 				dt.restart()
 			}
