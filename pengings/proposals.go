@@ -40,7 +40,7 @@ type Proposals struct {
 	appState   *appstate.AppState
 
 	// proposals with worse proof can be skipped
-	bestProofs      map[uint64]*bestHash
+	bestProofs      map[uint64]bestHash
 	bestProofsMutex sync.RWMutex
 }
 
@@ -74,7 +74,7 @@ func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, det
 		potentialForkedPeers: mapset.NewSet(),
 		proposeCache:         cache.New(30*time.Second, 1*time.Minute),
 		blockCache:           cache.New(time.Minute, time.Minute),
-		bestProofs:           map[uint64]*bestHash{},
+		bestProofs:           map[uint64]bestHash{},
 	}
 	return p, p.pendingProofs
 }
@@ -350,12 +350,12 @@ func (proposals *Proposals) setBestHash(round uint64, hash common.Hash, proposer
 	defer proposals.bestProofsMutex.Unlock()
 	if stored, ok := proposals.bestProofs[round]; ok {
 		if bytes.Compare(hash[:], stored.Hash[:]) >= 0 {
-			proposals.bestProofs[round] = &bestHash{
+			proposals.bestProofs[round] = bestHash{
 				hash, proposerPubKey,
 			}
 		}
 	} else {
-		proposals.bestProofs[round] = &bestHash{
+		proposals.bestProofs[round] = bestHash{
 			hash, proposerPubKey,
 		}
 	}
