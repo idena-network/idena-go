@@ -848,9 +848,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			stateDB.AddInvite(sender, 1)
 		}
-		invitingMerkleTreePath, _, _ := chain.offlineDetector.invitingMerkleTree.GetMerklePath(InvitingMerkleTreeContent{h: sender.Bytes()})
-		// This needs to be passed to the Ethereum-Idena Relayer
-		fmt.Println(invitingMerkleTreePath)
+		if t := chain.offlineDetector.invitingMerkleTree; t != nil {
+			invitingMerkleTreePath, _, _ := t.GetMerklePath(InvitingMerkleTreeContent{h: sender.Bytes()})
+			// This needs to be passed to the Ethereum-Idena Relayer
+			fmt.Println(invitingMerkleTreePath)
+		}
 	case types.SubmitFlipTx:
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
