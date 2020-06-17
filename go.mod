@@ -18,14 +18,14 @@ require (
 	github.com/ipfs/go-cid v0.0.6
 
 	github.com/ipfs/go-ipfs v0.5.2-0.20200520231924-554a21b64784
-	github.com/ipfs/go-ipfs-config v0.5.3
+	github.com/ipfs/go-ipfs-config v0.8.0
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.3.0
 	github.com/klauspost/compress v1.10.7
-	github.com/libp2p/go-libp2p-core v0.5.3
+	github.com/libp2p/go-libp2p-core v0.5.6
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.7
 	github.com/mholt/archiver v3.1.1+incompatible
