@@ -1402,6 +1402,8 @@ github.com/shurcooL/users v0.0.0-20180125191416-49c67e49c537/go.mod h1:QJTqeLYED
 github.com/shurcooL/webdavfs v0.0.0-20170829043945-18c3829fa133/go.mod h1:hKmq5kWdCj2z2KEozexVbfEZIWiTjhE0+UjmZgPqehw=
 github.com/sidenaio/badger v1.6.2-0.20200611112326-92fce499d15c h1:ndECJDIQ+3pVdJC3aKKMaRdqffkia45td4ERGUiigvc=
 github.com/sidenaio/badger v1.6.2-0.20200611112326-92fce499d15c/go.mod h1:JW2yswe3V058sS0kZ2h/AXeDSqFjxnZcRrVH//y2UQE=
+github.com/sidenaio/badger v1.6.2-0.20200617073129-913e8eabdebb h1:SCuMB/Y+sbcWu0b6El2+E4r9jCMOEWLUQUKnuq4244E=
+github.com/sidenaio/badger v1.6.2-0.20200617073129-913e8eabdebb/go.mod h1:JW2yswe3V058sS0kZ2h/AXeDSqFjxnZcRrVH//y2UQE=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d/go.mod h1:OnSkiWE9lh6wB0YB77sQom3nweQdgAjqCqsofrRNTgc=
