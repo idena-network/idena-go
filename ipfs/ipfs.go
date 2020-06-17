@@ -700,6 +700,7 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 			"mplex":  false,
 		},
 	}
+
 }
 
 func loadPlugins(cfg *config.IpfsConfig) error {

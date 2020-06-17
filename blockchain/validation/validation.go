@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"math/big"
@@ -56,6 +57,7 @@ var (
 	InvalidSender        = errors.New("invalid sender")
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
+	NegativeValue        = errors.New("value must be non-negative")
 	validators           map[types.TxType]validator
 )
 
@@ -86,6 +88,8 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
+		types.DeployContract:       validateDeployContractTx,
+		types.CallContract:         validateCallContractTx,
 	}
 }
 
@@ -94,7 +98,7 @@ func checkIfNonNegative(value *big.Int) error {
 		return nil
 	}
 	if value.Sign() == -1 {
-		return errors.New("value must be non-negative")
+		return NegativeValue
 	}
 	return nil
 }
@@ -670,5 +674,56 @@ func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, tx
 		return FlipIsMissing
 	}
 
+	return nil
+}
+
+func validateCallContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	codeHash := appState.State.GetCodeHash(*tx.To)
+	if codeHash == nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	attachment := attachments.ParseCallContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+
+	return nil
+}
+
+func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	attachment := attachments.ParseDeployContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok {
+		return InvalidPayload
+	}
 	return nil
 }

@@ -3,6 +3,7 @@ package attachments
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
 	models "github.com/idena-network/idena-go/protobuf"
@@ -304,6 +305,89 @@ func ParseDeleteFlipAttachment(tx *types.Transaction) *DeleteFlipAttachment {
 		return nil
 	}
 	attachment := new(DeleteFlipAttachment)
+	if err := attachment.FromBytes(tx.Payload); err != nil {
+		return nil
+	}
+	return attachment
+}
+
+type CallContractAttachment struct {
+	Method string
+	Args   [][]byte
+}
+
+func (c *CallContractAttachment) ToBytes() ([]byte, error) {
+	protoAttachment := &models.ProtoCallContractAttachment{
+		Method: c.Method,
+		Args:   c.Args,
+	}
+	return proto.Marshal(protoAttachment)
+}
+
+func (c *CallContractAttachment) FromBytes(data []byte) error {
+	protoAttachment := new(models.ProtoCallContractAttachment)
+	if err := proto.Unmarshal(data, protoAttachment); err != nil {
+		return err
+	}
+	c.Method = protoAttachment.Method
+	c.Args = protoAttachment.Args
+	return nil
+}
+
+func CreateCallContractAttachment(method string, args ...[]byte) *CallContractAttachment {
+	attach := &CallContractAttachment{
+		Method: method,
+		Args:   args,
+	}
+	return attach
+}
+
+func ParseCallContractAttachment(tx *types.Transaction) *CallContractAttachment {
+	if len(tx.Payload) == 0 {
+		return nil
+	}
+	attachment := new(CallContractAttachment)
+	if err := attachment.FromBytes(tx.Payload); err != nil {
+		return nil
+	}
+	return attachment
+}
+
+type DeployContractAttachment struct {
+	CodeHash common.Hash
+	Args     [][]byte
+}
+
+func CreateDeployContractAttachment(codeHash common.Hash, args ...[]byte) *DeployContractAttachment {
+	attach := &DeployContractAttachment{
+		CodeHash: codeHash,
+		Args:     args,
+	}
+	return attach
+}
+
+func (d *DeployContractAttachment) ToBytes() ([]byte, error) {
+	protoAttachment := &models.ProtoDeployContractAttachment{
+		CodeHash: d.CodeHash.Bytes(),
+		Args:     d.Args,
+	}
+	return proto.Marshal(protoAttachment)
+}
+
+func (d *DeployContractAttachment) FromBytes(data []byte) error {
+	protoAttachment := new(models.ProtoDeployContractAttachment)
+	if err := proto.Unmarshal(data, protoAttachment); err != nil {
+		return err
+	}
+	d.CodeHash.SetBytes(protoAttachment.CodeHash)
+	return nil
+}
+
+func ParseDeployContractAttachment(tx *types.Transaction) *DeployContractAttachment {
+	if len(tx.Payload) == 0 {
+		return nil
+	}
+	attachment := new(DeployContractAttachment)
 	if err := attachment.FromBytes(tx.Payload); err != nil {
 		return nil
 	}

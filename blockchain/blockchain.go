@@ -29,6 +29,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/vm"
 	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -757,12 +758,14 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	totalTips = new(big.Int)
 	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
 
+	vm := vm.NewVmImpl(appState, block.Header)
+
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {
 			return nil, nil, err
 		}
-		if usedFee, err := chain.ApplyTxOnState(appState, tx, statsCollector); err != nil {
+		if usedFee, err := chain.ApplyTxOnState(appState, vm, tx, statsCollector); err != nil {
 			return nil, nil, err
 		} else {
 			totalFee.Add(totalFee, usedFee)
@@ -773,8 +776,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	return totalFee, totalTips, nil
 }
 
-func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.Transaction,
-	statsCollector collector.StatsCollector) (*big.Int, error) {
+func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, statsCollector collector.StatsCollector) (*big.Int, error) {
 
 	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 	defer collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -908,6 +910,16 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		stateDB.DeleteFlip(sender, attachment.Cid)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
 		stateDB.SetValidationTxBit(sender, tx.Type)
+	case types.DeployContract, types.CallContract:
+		receipt := vm.Run(tx)
+		fee = fee.Add(fee, chain.getGasCost(feePerByte, receipt))
+		stateDB.SubBalance(sender, fee)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		amount := tx.AmountOrZero()
+		if receipt.Success && amount.Sign() > 0 {
+			stateDB.SubBalance(sender, amount)
+			stateDB.AddBalance(receipt.ContractAddress, amount)
+		}
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -922,6 +934,12 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 
 func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *big.Int {
 	return fee.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
+}
+func (chain *Blockchain) getGasCost(feePerByte *big.Int, receipt *types.TxReceipt) *big.Int {
+	if common.ZeroOrNil(feePerByte) || common.ZeroOrNil(receipt.GasUsed) {
+		return common.Big0
+	}
+	return new(big.Int).Mul(new(big.Int).Mul(feePerByte, receipt.GasUsed), common.Big3)
 }
 
 func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
@@ -1022,31 +1040,40 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	txs := chain.txpool.BuildBlockTransactions()
 	checkState, _ := chain.appState.ForCheck(chain.Head.Height())
 
-	filteredTxs, totalFee, totalTips := chain.filterTxs(checkState, txs)
-	body := &types.Body{
-		Transactions: filteredTxs,
-	}
-	var cid cid2.Cid
-	cid, _ = chain.ipfs.Cid(body.ToBytes())
-
 	prevBlockTime := time.Unix(chain.Head.Time(), 0)
 	newBlockTime := prevBlockTime.Add(MinBlockDelay).Unix()
 	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
 		newBlockTime = localTime
 	}
 	var cidBytes []byte
-	if cid != ipfs.EmptyCid {
-		cidBytes = cid.Bytes()
-	}
+
 	header := &types.ProposedHeader{
 		Height:         head.Height() + 1,
 		ParentHash:     head.Hash(),
 		Time:           newBlockTime,
 		ProposerPubKey: chain.pubKey,
-		TxHash:         types.DeriveSha(types.Transactions(filteredTxs)),
-		IpfsHash:       cidBytes,
 		FeePerByte:     chain.appState.State.FeePerByte(),
 	}
+
+	header.BlockSeed, header.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
+	addr, flag := chain.offlineDetector.ProposeOffline(head)
+	if addr != nil {
+		header.OfflineAddr = addr
+		header.Flags |= flag
+	}
+
+	filteredTxs, totalFee, totalTips := chain.filterTxs(checkState, txs, header)
+	body := &types.Body{
+		Transactions: filteredTxs,
+	}
+	var cid cid2.Cid
+	cid, _ = chain.ipfs.Cid(body.ToBytes())
+	if cid != ipfs.EmptyCid {
+		cidBytes = cid.Bytes()
+	}
+
+	header.IpfsHash = cidBytes
+	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs))
 
 	block := &types.Block{
 		Header: &types.Header{
@@ -1055,15 +1082,8 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		Body: body,
 	}
 
-	block.Header.ProposedHeader.BlockSeed, block.Header.ProposedHeader.SeedProof = chain.secStore.VrfEvaluate(getSeedData(head))
-
 	block.Header.ProposedHeader.TxBloom = calculateTxBloom(block)
 
-	addr, flag := chain.offlineDetector.ProposeOffline(head)
-	if addr != nil {
-		block.Header.ProposedHeader.OfflineAddr = addr
-		block.Header.ProposedHeader.Flags |= flag
-	}
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, nil)
@@ -1150,18 +1170,20 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	return flags
 }
 
-func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction) ([]*types.Transaction, *big.Int, *big.Int) {
+func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction, header *types.ProposedHeader) ([]*types.Transaction, *big.Int, *big.Int) {
 	var result []*types.Transaction
 
 	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
+	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header})
+
 	for _, tx := range txs {
 		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {
 			continue
 		}
-		if fee, err := chain.ApplyTxOnState(appState, tx, nil); err == nil {
+		if fee, err := chain.ApplyTxOnState(appState, vm, tx, nil); err == nil {
 			totalFee.Add(totalFee, fee)
 			totalTips.Add(totalTips, tx.TipsOrZero())
 			result = append(result, tx)

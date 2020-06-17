@@ -175,9 +175,10 @@ func (s *Global) FromBytes(data []byte) error {
 // Account is the Idena consensus representation of accounts.
 // These objects are stored in the main account trie.
 type Account struct {
-	Nonce   uint32
-	Epoch   uint16
-	Balance *big.Int
+	Nonce    uint32
+	Epoch    uint16
+	Balance  *big.Int
+	CodeHash *common.Hash
 }
 
 func (a *Account) ToBytes() ([]byte, error) {
@@ -185,6 +186,9 @@ func (a *Account) ToBytes() ([]byte, error) {
 		Nonce:   a.Nonce,
 		Epoch:   uint32(a.Epoch),
 		Balance: common.BigIntBytesOrNil(a.Balance),
+	}
+	if a.CodeHash != nil {
+		protoAcc.CodeHash = a.CodeHash.Bytes()
 	}
 	return proto.Marshal(protoAcc)
 }
@@ -197,6 +201,11 @@ func (a *Account) FromBytes(data []byte) error {
 	a.Balance = common.BigIntOrNil(protoAcc.Balance)
 	a.Epoch = uint16(protoAcc.Epoch)
 	a.Nonce = protoAcc.Nonce
+	if protoAcc.CodeHash != nil {
+		hash := common.Hash{}
+		hash.SetBytes(protoAcc.CodeHash)
+		a.CodeHash = &hash
+	}
 	return nil
 }
 
@@ -500,6 +509,11 @@ func (s *stateAccount) Nonce() uint32 {
 
 func (s *stateAccount) Epoch() uint16 {
 	return s.data.Epoch
+}
+
+func (s *stateAccount) SetCodeHash(hash common.Hash) {
+	s.data.CodeHash = &hash
+	s.touch()
 }
 
 // Returns the address of the contract/account

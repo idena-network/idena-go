@@ -27,6 +27,8 @@ const (
 	BurnTx               uint16 = 0xC
 	ChangeProfileTx      uint16 = 0xD
 	DeleteFlipTx         uint16 = 0xE
+	DeployContract       uint16 = 0xF
+	CallContract         uint16 = 0x10
 )
 
 const (
@@ -1379,4 +1381,13 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 	i.BlockHash = common.BytesToHash(protoObj.BlockHash)
 
 	return nil
+}
+
+type TxReceipt struct {
+	ContractAddress common.Address
+	Success         bool
+	GasUsed         *big.Int
+	From            common.Address
+	TxHash          common.Hash
+	Error           error
 }

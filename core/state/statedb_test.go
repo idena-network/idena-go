@@ -429,3 +429,21 @@ func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
 	require.True(t, stateDb.HasValidationTx(addr, types.SubmitLongAnswersTx))
 	require.False(t, stateDb.HasValidationTx(addr, types.SendTx))
 }
+
+func TestStateDB_GetContractValue(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	addr := common.Address{0x1}
+
+	stateDb.SetContractValue(addr, []byte{0x1}, []byte{0x1})
+
+	require.Equal(t, []byte{0x1}, stateDb.GetContractValue(addr, []byte{0x1}))
+
+	stateDb.SetContractValue(addr, []byte{0x1}, []byte{0x2})
+
+	require.Equal(t, []byte{0x2}, stateDb.GetContractValue(addr, []byte{0x1}))
+
+	stateDb.Reset()
+	require.Equal(t, []byte(nil), stateDb.GetContractValue(addr, []byte{0x1}))
+}

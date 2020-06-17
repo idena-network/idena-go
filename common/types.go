@@ -42,8 +42,8 @@ const (
 var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})
-	MinAddr  = Address{}.Bytes()
-	MaxAddr  []byte
+	MinAddr  = Address{}
+	MaxAddr  Address
 	MinHash  = [HashLength]byte{}
 	MaxHash  []byte
 
@@ -56,7 +56,7 @@ func init() {
 	for i := range maxAddr {
 		maxAddr[i] = 0xFF
 	}
-	MaxAddr = maxAddr[:]
+	MaxAddr.SetBytes(maxAddr[:])
 
 	var maxHash [HashLength]byte
 	for i := range maxHash {
