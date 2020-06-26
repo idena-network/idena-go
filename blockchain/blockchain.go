@@ -885,6 +885,9 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, statsCollector collector.StatsCollector) (*big.Int, *types.TxReceipt, error) {
 
+	collector.BeginApplyingTx(statsCollector, tx, appState)
+	defer collector.CompleteApplyingTx(statsCollector, tx, appState)
+
 	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 	defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
@@ -1029,6 +1032,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	if senderAccount.Epoch() != tx.Epoch {
 		stateDB.SetEpoch(sender, tx.Epoch)
 	}
+	collector.AddTxFee(statsCollector, tx, fee)
 	collector.AddFeeBurntCoins(statsCollector, sender, fee, chain.config.Consensus.FeeBurnRate, tx)
 
 	return fee, receipt, nil

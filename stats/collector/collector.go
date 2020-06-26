@@ -63,6 +63,10 @@ type StatsCollector interface {
 	CompleteBalanceUpdate(appState *appstate.AppState)
 
 	SetCommitteeRewardShare(amount *big.Int)
+
+	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
+	CompleteApplyingTx(tx *types.Transaction, appState *appstate.AppState)
+	AddTxFee(tx *types.Transaction, feeAmount *big.Int)
 }
 
 type collectorStub struct {
@@ -535,4 +539,37 @@ func SetCommitteeRewardShare(c StatsCollector, amount *big.Int) {
 		return
 	}
 	c.SetCommitteeRewardShare(amount)
+}
+
+func (c *collectorStub) BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginApplyingTx(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginApplyingTx(tx, appState)
+}
+
+func (c *collectorStub) CompleteApplyingTx(tx *types.Transaction, appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteApplyingTx(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteApplyingTx(tx, appState)
+}
+
+func (c *collectorStub) AddTxFee(tx *types.Transaction, feeAmount *big.Int) {
+	// do nothing
+}
+
+func AddTxFee(c StatsCollector, tx *types.Transaction, feeAmount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddTxFee(tx, feeAmount)
 }
