@@ -33,6 +33,7 @@ var (
 	InvalidSignature     = errors.New("invalid signature")
 	InvalidNonce         = errors.New("invalid nonce")
 	InvalidEpoch         = errors.New("invalid epoch")
+	InvalidAmount        = errors.New("invalid amount")
 	InsufficientFunds    = errors.New("insufficient funds")
 	InsufficientInvites  = errors.New("insufficient invites")
 	RecipientRequired    = errors.New("recipient is required")
@@ -538,24 +539,22 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	var txFee *big.Int
-	if txType != InBlockTx {
-		txFee = tx.MaxFeeOrZero()
-	} else {
-		txFee = fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
-	}
-	if txFee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(txFee) < 0 {
+	if appState.State.GetStakeBalance(sender).Cmp(tx.AmountOrZero()) < 0 {
 		return InsufficientFunds
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-	cost := new(big.Int).Add(tx.AmountOrZero(), tx.TipsOrZero())
-	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+	if appState.State.GetBalance(sender).Cmp(tx.TipsOrZero()) < 0 {
 		return InsufficientFunds
 	}
 	if appState.State.GetIdentityState(sender) == state.Newbie {
 		return InvalidSender
+	}
+	s := new(big.Int).Sub(appState.State.GetStakeBalance(sender), tx.AmountOrZero())
+
+	if s.Cmp(minStakeDiffWhenKill(appState.ValidatorsCache.NetworkSize())) == 1 {
+		return InvalidAmount
 	}
 	return nil
 }
@@ -568,8 +567,15 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
-		return err
+	cost := big.NewInt(0)
+	if txType != InBlockTx {
+		cost.Add(cost, tx.TipsOrZero())
+		cost.Add(cost, tx.MaxFeeOrZero())
+	} else {
+		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	}
+	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+		return InsufficientFunds
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
@@ -577,6 +583,13 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	inviter := appState.State.GetInviter(*tx.To)
 	if inviter == nil || inviter.Address != sender {
 		return InvalidRecipient
+	}
+	if appState.State.GetStakeBalance(*tx.To).Cmp(tx.AmountOrZero()) < 0 {
+		return InsufficientFunds
+	}
+	s := new(big.Int).Sub(appState.State.GetStakeBalance(*tx.To), tx.AmountOrZero())
+	if s.Cmp(minStakeDiffWhenKill(appState.ValidatorsCache.NetworkSize())) == 1 {
+		return InvalidAmount
 	}
 	return nil
 }
@@ -673,4 +686,12 @@ func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, tx
 	}
 
 	return nil
+}
+
+func minStakeDiffWhenKill(network int) *big.Int {
+	a := new(big.Int).Mul(big.NewInt(2500), common.DnaBase)
+	if network == 0 {
+		network = 1
+	}
+	return new(big.Int).Div(a, big.NewInt(int64(network)))
 }

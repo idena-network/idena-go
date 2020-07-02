@@ -139,7 +139,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	receiver := crypto.PubkeyToAddress(key2.PublicKey)
 
 	balance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
-	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
+	stake := new(big.Int).Mul(big.NewInt(10000), common.DnaBase)
 
 	account := appState.State.GetOrNewAccountObject(sender)
 	account.SetBalance(balance)
@@ -148,26 +148,42 @@ func Test_ApplyKillTx(t *testing.T) {
 	id.SetStake(stake)
 	id.SetState(state.Invite)
 
-	amount := new(big.Int).Mul(big.NewInt(1), common.DnaBase)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 
 	tx := &types.Transaction{
 		Type:         types.KillTx,
-		Amount:       amount,
+		Amount:       big.NewInt(1),
 		AccountNonce: 1,
 		To:           &receiver,
 	}
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	require.Equal(big.NewInt(0), fee)
+	require.Error(validation.ValidateTx(chain.appState, signed, fee2.MinFeePerByte, validation.InBlockTx), "should return error if stake reminder is huge")
 
-	chain.ApplyTxOnState(chain.appState, signed, nil)
+	amount := new(big.Int).Sub(stake, big.NewInt(1))
+	tx2 := &types.Transaction{
+		Type:         types.KillTx,
+		Amount:       amount,
+		AccountNonce: 1,
+		To:           &receiver,
+	}
 
+	signed2, _ := types.SignTx(tx2, key)
+
+	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx2)
+
+	require.NoError(validation.ValidateTx(chain.appState, signed2, fee2.MinFeePerByte, validation.InBlockTx))
+	chain.ApplyTxOnState(chain.appState, signed2, nil)
+
+	require.Equal(big.NewInt(0), fee)
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
-	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
+	require.Equal(balance, appState.State.GetBalance(sender))
+	require.Equal(new(big.Int).Sub(stake, amount), appState.State.GetStakeBalance(sender))
 
-	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
+	require.Equal(amount, appState.State.GetBalance(receiver))
 }
 
 func Test_ApplyDoubleKillTx(t *testing.T) {
@@ -189,12 +205,14 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 		Type:         types.KillTx,
 		AccountNonce: 1,
 		To:           &receiver,
+		Amount:       stake,
 		MaxFee:       common.DnaBase,
 	}
 	tx2 := &types.Transaction{
 		Type:         types.KillTx,
 		AccountNonce: 2,
 		To:           &receiver,
+		Amount:       stake,
 		MaxFee:       common.DnaBase,
 	}
 
@@ -235,6 +253,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
 		To:           &invitee,
+		Amount:       new(big.Int).Mul(big.NewInt(9), common.DnaBase),
 	}
 	signedTx, _ := types.SignTx(tx, inviterKey)
 
@@ -246,9 +265,10 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
 	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
-	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
+	newBalance := new(big.Int).Mul(big.NewInt(59), common.DnaBase)
 	newBalance.Sub(newBalance, fee)
 	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
+	require.Equal(t, new(big.Int).Mul(big.NewInt(1), common.DnaBase), appState.State.GetStakeBalance(invitee))
 
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(invitee))
 	require.Nil(t, appState.State.GetInviter(invitee))
