@@ -656,11 +656,11 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		{State: state.Verified, ShortFlipPoints: 85, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 88, QualifiedFlips: 100},
 		{State: state.Human, ShortFlipPoints: 92, QualifiedFlips: 100},
+		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
 		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
 		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
 		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
 	}
@@ -677,40 +677,54 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x2}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x3}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
 	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationResults{}, nil)
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
-	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x2}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
 	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
-
-	s.Reset()
-	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationResults{}, nil)
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
-
-	s.Reset()
-	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x6}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
 	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x6}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xb}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xc}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x6}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xb}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xc}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 11, 100, false, &types.ValidationResults{}, nil)
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x2}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 }
 
 func Test_ClearDustAccounts(t *testing.T) {
