@@ -572,7 +572,8 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 		cost.Add(cost, tx.TipsOrZero())
 		cost.Add(cost, tx.MaxFeeOrZero())
 	} else {
-		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+		cost.Add(cost, tx.TipsOrZero())
+		cost.Add(cost, fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx))
 	}
 	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
