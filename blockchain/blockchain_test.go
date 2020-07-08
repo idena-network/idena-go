@@ -651,22 +651,24 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	_, s := NewCustomTestBlockchain(5, 0, key)
 
 	identities := []state.Identity{
-		{State: state.Human, ShortFlipPoints: 98, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 85, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 88, QualifiedFlips: 100},
-		{State: state.Human, ShortFlipPoints: 92, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
-		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
-		{State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
-		{State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{Code: []byte{0x1}, State: state.Human, ShortFlipPoints: 98, QualifiedFlips: 100},
+		{Code: []byte{0x2}, State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
+		{Code: []byte{0x3}, State: state.Verified, ShortFlipPoints: 85, QualifiedFlips: 100},
+		{Code: []byte{0x4}, State: state.Verified, ShortFlipPoints: 88, QualifiedFlips: 100},
+		{Code: []byte{0x5}, State: state.Human, ShortFlipPoints: 92, QualifiedFlips: 100},
+		{Code: []byte{0x6}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{Code: []byte{0x7}, State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
+		{Code: []byte{0x8}, State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
+		{Code: []byte{0x9}, State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
+		{Code: []byte{0xa}, State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
+		{Code: []byte{0xb}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{Code: []byte{0xc}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
+		{Code: []byte{0xd}, State: state.Verified, ShortFlipPoints: 94, QualifiedFlips: 100},
 	}
 
-	for i, item := range identities {
-		addr := common.Address{byte(i + 1)}
+	for _, item := range identities {
+		var addr common.Address
+		copy(addr[:], item.Code)
 		s.State.SetState(addr, item.State)
 		s.State.AddShortFlipPoints(addr, float32(item.ShortFlipPoints))
 		s.State.AddQualifiedFlipsCount(addr, item.QualifiedFlips)
@@ -679,6 +681,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x2}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x3}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -696,10 +699,11 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0xd}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 14, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 15, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -707,6 +711,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xb}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xc}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
 	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
@@ -717,14 +722,24 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xa}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xb}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xc}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 11, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 2, 100, false, &types.ValidationResults{}, nil)
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0xd}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x5}))
+
+	s.Reset()
+	setNewIdentitiesAttributes(s, 6, 100, false, &types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
-	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x2}))
-	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
+	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
+	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
+	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 }
 
 func Test_ClearDustAccounts(t *testing.T) {

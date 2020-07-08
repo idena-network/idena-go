@@ -488,6 +488,7 @@ func calculateNewIdentityStatusFlags(validationResults *types.ValidationResults)
 type identityWithInvite struct {
 	address common.Address
 	score   float32
+	state   state.IdentityState
 }
 
 func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWithInvite, totalInvitesCount float32,
@@ -495,13 +496,6 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 
 	if len(identitiesWithInvites) == 0 {
 		return
-	}
-
-	distributeToEqualScore := func(lastInviteIdx int) {
-		lastScore := identitiesWithInvites[lastInviteIdx].score
-		for i := lastInviteIdx + 1; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
-			appState.State.AddInvite(identitiesWithInvites[i].address, 1)
-		}
 	}
 
 	currentInvitesCount := int(totalInvitesCount)
@@ -513,6 +507,9 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 		if identity.score < common.MinHumanTotalScore {
 			break
 		}
+		if identity.state != state.Human {
+			continue
+		}
 		appState.State.AddInvite(identity.address, 1)
 		currentInvitesCount -= 1
 
@@ -522,8 +519,13 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	}
 
 	if currentInvitesCount == 0 {
-		distributeToEqualScore(index)
-		collector.SetMinScoreForInvite(statsCollector, identitiesWithInvites[index].score)
+		lastScore := identitiesWithInvites[index].score
+		for i := index + 1; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
+			if identitiesWithInvites[i].state == state.Human {
+				appState.State.AddInvite(identitiesWithInvites[i].address, 1)
+			}
+		}
+		collector.SetMinScoreForInvite(statsCollector, lastScore)
 		return
 	}
 
@@ -536,8 +538,11 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 		}
 	}
 
-	distributeToEqualScore(index)
-	collector.SetMinScoreForInvite(statsCollector, identitiesWithInvites[index].score)
+	lastScore := identitiesWithInvites[index].score
+	for i := index + 1; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
+		appState.State.AddInvite(identitiesWithInvites[i].address, 1)
+	}
+	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
@@ -563,6 +568,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				addIdentityWithInvite(identityWithInvite{
 					address: addr,
 					score:   identity.GetTotalScore(),
+					state:   identity.State,
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
