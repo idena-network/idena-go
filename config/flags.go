@@ -117,4 +117,9 @@ var (
 		Name:  "logcoloring",
 		Usage: "Use log coloring",
 	}
+	PprofPortFlag = cli.IntFlag{
+		Name:  "pprofport",
+		Usage: "Set port for debugging",
+		Value: 8080,
+	}
 )

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"github.com/coreos/go-semver/semver"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
 	"github.com/urfave/cli"
 	"io/ioutil"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,9 +51,13 @@ func main() {
 		config.ApiKeyFlag,
 		config.LogFileSizeFlag,
 		config.LogColoring,
+		config.PprofPortFlag,
 	}
 
 	app.Action = func(context *cli.Context) error {
+
+		go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", context.Int(config.PprofPortFlag.Name)), nil)
+
 		logLvl := log.Lvl(context.Int(config.VerbosityFlag.Name))
 		logFileSize := context.Int(config.LogFileSizeFlag.Name)
 
