@@ -205,15 +205,15 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 }
 
 type FlipAnswer struct {
-	WrongWords bool         `json:"wrongWords"`
+	// Deprecated
+	WrongWords *bool        `json:"wrongWords"`
+	Grade      types.Grade  `json:"grade"`
 	Answer     types.Answer `json:"answer"`
 	Hash       string       `json:"hash"`
 }
 
 type SubmitAnswersArgs struct {
 	Answers []FlipAnswer `json:"answers"`
-	Nonce   uint32       `json:"nonce"`
-	Epoch   uint16       `json:"epoch"`
 }
 
 type SubmitAnswersResponse struct {
@@ -230,7 +230,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 
 	flips := api.ceremony.GetShortFlipsToSolve()
 
-	answers := prepareAnswers(args.Answers, flips)
+	answers := prepareAnswers(args.Answers, flips, true)
 
 	hash, err := api.ceremony.SubmitShortAnswers(answers)
 
@@ -253,7 +253,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 
 	flips := api.ceremony.GetLongFlipsToSolve()
 
-	answers := prepareAnswers(args.Answers, flips)
+	answers := prepareAnswers(args.Answers, flips, false)
 
 	hash, err := api.ceremony.SubmitLongAnswers(answers)
 
@@ -281,7 +281,7 @@ func (api *FlipApi) Words(hash string) (FlipWordsResponse, error) {
 	}, err
 }
 
-func prepareAnswers(answers []FlipAnswer, flips [][]byte) *types.Answers {
+func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.Answers {
 	findAnswer := func(hash []byte) *FlipAnswer {
 		for _, h := range answers {
 			c, err := cid.Parse(h.Hash)
@@ -306,12 +306,19 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte) *types.Answers {
 			result.Left(uint(i))
 		case types.Right:
 			result.Right(uint(i))
-		case types.Inappropriate:
-			result.Inappropriate(uint(i))
 		}
-		if answer.WrongWords {
-			result.WrongWords(uint(i))
+		if isShort {
+			continue
 		}
+		var grade types.Grade
+		if answer.WrongWords != nil {
+			if !*answer.WrongWords {
+				grade = types.GradeD
+			}
+		} else {
+			grade = answer.Grade
+		}
+		result.Grade(uint(i), grade)
 	}
 
 	return result

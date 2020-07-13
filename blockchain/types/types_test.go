@@ -12,23 +12,34 @@ func TestAnswers_Answer(t *testing.T) {
 	answers := NewAnswers(11)
 
 	answers.Right(0)
+	answers.Grade(0, GradeA)
 
-	answers.Inappropriate(3)
+	answers.Grade(1, GradeB)
+	answers.Grade(2, GradeC)
+
+	answers.Left(3)
+	answers.Grade(3, Reported)
 
 	answers.Left(9)
-	answers.WrongWords(9)
+	answers.Grade(9, GradeD)
 
-	answer, wrongWords := answers.Answer(0)
-	require.True(answer == Right && !wrongWords)
+	answer, grade := answers.Answer(0)
+	require.True(answer == Right && grade == GradeA)
 
-	answer, wrongWords = answers.Answer(3)
-	require.True(answer == Inappropriate && !wrongWords)
+	answer, grade = answers.Answer(1)
+	require.True(answer == None && grade == GradeB)
 
-	answer, wrongWords = answers.Answer(9)
-	require.True(answer == Left && wrongWords)
+	answer, grade = answers.Answer(2)
+	require.True(answer == None && grade == GradeC)
 
-	answer, wrongWords = answers.Answer(10)
-	require.True(answer == None && !wrongWords)
+	answer, grade = answers.Answer(3)
+	require.True(answer == Left && grade == Reported)
+
+	answer, grade = answers.Answer(9)
+	require.True(answer == Left && grade == GradeD)
+
+	answer, grade = answers.Answer(10)
+	require.True(answer == None && grade == Reported)
 }
 
 func TestBlockFlag_HasFlag(t *testing.T) {
