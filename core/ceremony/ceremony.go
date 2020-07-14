@@ -170,7 +170,9 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 
 	_ = vc.bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
-		vc.addNewTx(newTxEvent.Tx)
+		if !newTxEvent.Deferred {
+			vc.addNewTx(newTxEvent.Tx)
+		}
 	})
 
 	go vc.newTxLoop()
