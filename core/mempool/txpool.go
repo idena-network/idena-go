@@ -189,6 +189,15 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 
 		if pool.isSyncing && sender != pool.coinbase {
 			pool.addDeferredTx(tx)
+
+			if _, ok := priorityTypes[tx.Type]; ok {
+				pool.bus.Publish(&events.NewTxEvent{
+					Tx:       tx,
+					Own:      sender == pool.coinbase,
+					Deferred: true,
+				})
+			}
+
 			continue
 		}
 
@@ -202,6 +211,14 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 
 	if pool.isSyncing && sender != pool.coinbase {
 		pool.addDeferredTx(tx)
+
+		if _, ok := priorityTypes[tx.Type]; ok {
+			pool.bus.Publish(&events.NewTxEvent{
+				Tx:       tx,
+				Own:      sender == pool.coinbase,
+				Deferred: true,
+			})
+		}
 		return nil
 	}
 

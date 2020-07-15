@@ -594,6 +594,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
 		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
 
+		ipfsConfig.Swarm.EnableRelayHop = false
 		if cfg.Profile != "" {
 			transformer, ok := config2.Profiles[cfg.Profile]
 			if !ok {
@@ -617,15 +618,15 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 			return nil, err
 		}
 		ipfsConfig.Swarm.EnableAutoRelay = true
-		ipfsConfig.Swarm.EnableRelayHop = true
+		ipfsConfig.Swarm.EnableRelayHop = false
 		ipfsConfig.Experimental.FilestoreEnabled = true
 
-		transformer, _ := config2.Profiles["badgerds"]
+		/*transformer, _ := config2.Profiles["badgerds"]
 
 		if err := transformer.Transform(ipfsConfig); err != nil {
 			return nil, err
 		}
-
+*/
 		err = updateIpfsConfig(ipfsConfig)
 		if err != nil {
 			return nil, err

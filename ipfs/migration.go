@@ -5,6 +5,7 @@ import (
 	gomigrate "github.com/ipfs/fs-repo-migrations/go-migrate"
 	mg7 "github.com/ipfs/fs-repo-migrations/ipfs-7-to-8/migration"
 	mg8 "github.com/ipfs/fs-repo-migrations/ipfs-8-to-9/migration"
+	mg9 "github.com/ipfs/fs-repo-migrations/ipfs-9-to-10/migration"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	mfsr "github.com/ipfs/go-ipfs/repo/fsrepo/migrations"
 	"os"
@@ -13,6 +14,7 @@ import (
 var migrations = map[int]gomigrate.Migration{
 	7: &mg7.Migration{},
 	8: &mg8.Migration{},
+	9: &mg9.Migration{},
 }
 
 func GetVersion(ipfsdir string) (int, error) {
