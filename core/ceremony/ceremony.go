@@ -91,6 +91,7 @@ type ValidationCeremony struct {
 	candidatesPerAuthor      map[int][]int
 	authorsPerCandidate      map[int][]int
 	newTxQueue               chan *types.Transaction
+	lottery                  *lottery
 }
 
 type flipWordsInfo struct {
@@ -114,6 +115,11 @@ type cacheValue struct {
 	birthday                 uint16
 }
 
+type lottery struct {
+	finished bool
+	wg       sync.WaitGroup
+}
+
 type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
@@ -134,6 +140,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		config:             config,
 		newTxQueue:         make(chan *types.Transaction, 10000),
 		flipWordsInfo:      &flipWordsInfo{pool: &sync.Map{}},
+		lottery:            &lottery{},
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -343,6 +350,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.candidatesPerAuthor = nil
 	vc.authorsPerCandidate = nil
 	vc.flipWordsInfo = &flipWordsInfo{pool: &sync.Map{}}
+	vc.lottery = &lottery{}
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -351,6 +359,8 @@ func (vc *ValidationCeremony) handleBlock(block *types.Block) {
 
 func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
+		vc.logInfoWithInteraction("Flip lottery started")
+
 		genesisBlock := vc.chain.GetBlock(vc.chain.Genesis())
 
 		seedHeight := uint64(0)
@@ -362,12 +372,16 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
-		vc.calculateCeremonyCandidates()
-		vc.calculatePrivateFlipKeysIndexes()
-		vc.logInfoWithInteraction("Flip lottery started")
-
-		go vc.delayedFlipPackageBroadcast()
+		vc.lottery.wg.Add(1)
+		go vc.asyncFlipLotteryCalculations()
 	}
+
+	if vc.lottery.finished {
+		vc.tryToBroadcastFlipKeysPackage()
+	}
+}
+
+func (vc *ValidationCeremony) tryToBroadcastFlipKeysPackage() {
 	// attempt to broadcast own flip key package since MaxFlipKeysPackageBroadcastDelaySec seconds after flip lottery has started
 	shift := vc.config.Validation.GetFlipLotteryDuration() - MaxFlipKeysPackageBroadcastDelaySec*time.Second
 	if shift < 0 || vc.appState.State.NextValidationTime().Sub(time.Now().UTC()) < shift {
@@ -375,7 +389,21 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	}
 }
 
+func (vc *ValidationCeremony) asyncFlipLotteryCalculations() {
+	vc.logInfoWithInteraction("Flip lottery calculations started")
+	vc.calculateCeremonyCandidates()
+	vc.calculatePrivateFlipKeysIndexes()
+	vc.logInfoWithInteraction("Flip lottery calculations finished")
+	vc.lottery.finished = true
+	vc.lottery.wg.Done()
+
+	go vc.delayedFlipPackageBroadcast()
+	vc.tryToBroadcastFlipKeysPackage()
+}
+
 func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
+	vc.lottery.wg.Wait()
+
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		vc.startShortSession(vc.appState)
 	}
