@@ -18,8 +18,9 @@ const (
 )
 
 type NewTxEvent struct {
-	Tx  *types.Transaction
-	Own bool
+	Tx       *types.Transaction
+	Own      bool
+	Deferred bool
 }
 
 func (e *NewTxEvent) EventID() eventbus.EventID {
