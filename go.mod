@@ -18,7 +18,7 @@ require (
 	github.com/ipfs/go-cid v0.0.6
 
 	github.com/ipfs/go-ipfs v0.6.0
-	github.com/ipfs/go-ipfs-config v0.8.0
+	github.com/ipfs/go-ipfs-config v0.9.0
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
