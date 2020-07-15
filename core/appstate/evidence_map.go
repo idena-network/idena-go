@@ -31,7 +31,9 @@ func NewEvidenceMap(bus eventbus.Bus) *EvidenceMap {
 	}
 	bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
-		m.newTx(newTxEvent.Tx)
+		if !newTxEvent.Deferred {
+			m.newTx(newTxEvent.Tx)
+		}
 	})
 	return m
 }
@@ -41,7 +43,6 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 		return
 	}
 
-	//TODO : m.shortSessionTime == nil ?
 	if time.Now().UTC().Sub(m.shortSessionTime) < m.shortSessionDuration {
 		sender, _ := types.Sender(tx)
 		m.answersSet.Add(sender)

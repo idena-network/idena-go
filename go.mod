@@ -24,14 +24,14 @@ require (
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.3.0
-	github.com/klauspost/compress v1.10.7
+	github.com/klauspost/compress v1.10.10
 	github.com/libp2p/go-libp2p-core v0.5.7
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.8
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mmcloughlin/avo v0.0.0-20200523190732-4439b6b2c061 // indirect
 	github.com/multiformats/go-multiaddr v0.2.2
-	github.com/multiformats/go-multihash v0.0.13
+	github.com/multiformats/go-multihash v0.0.14
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.0
@@ -52,7 +52,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
 	golang.org/x/sys v0.0.0-20200523222454-059865788121
-	google.golang.org/protobuf v1.23.0
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
