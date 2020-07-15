@@ -1029,11 +1029,11 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 		if _, ok := authorResults[author]; !ok {
 			authorResults[author] = new(types.AuthorResults)
 		}
-		if item.grade == types.Reported || item.status == QualifiedByNone {
+		if item.grade == types.GradeReported || item.status == QualifiedByNone {
 			if item.status == QualifiedByNone {
 				badAuthorsWithoutReport[author] = struct{}{}
 			}
-			if item.grade == types.Reported {
+			if item.grade == types.GradeReported {
 				badAuthors[author] = types.WrongWordsBadAuthor
 				if item.status != Qualified && item.status != WeaklyQualified {
 					reportersToReward.deleteFlip(flipIdx)

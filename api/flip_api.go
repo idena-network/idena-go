@@ -310,13 +310,9 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 		if isShort {
 			continue
 		}
-		var grade types.Grade
-		if answer.WrongWords != nil {
-			if !*answer.WrongWords {
-				grade = types.GradeD
-			}
-		} else {
-			grade = answer.Grade
+		grade := answer.Grade
+		if grade == types.GradeNone && answer.WrongWords != nil && *answer.WrongWords {
+			grade = types.GradeReported
 		}
 		result.Grade(uint(i), grade)
 	}

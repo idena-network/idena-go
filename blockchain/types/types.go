@@ -1226,11 +1226,12 @@ const (
 type Grade byte
 
 const (
-	Reported Grade = 0
-	GradeD   Grade = 1
-	GradeC   Grade = 2
-	GradeB   Grade = 3
-	GradeA   Grade = 4
+	GradeNone     Grade = 0
+	GradeReported Grade = 1
+	GradeD        Grade = 2
+	GradeC        Grade = 3
+	GradeB        Grade = 4
+	GradeA        Grade = 5
 )
 
 type Answers struct {
@@ -1296,9 +1297,12 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, grade Grade) {
 	}
 	t := new(big.Int)
 	t.SetBit(t, 0, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2)))
-	t.SetBit(t, 1, a.Bits.Bit(int(flipIndex*3+1+a.FlipsCount*2)))
-	t.SetBit(t, 2, a.Bits.Bit(int(flipIndex*3+2+a.FlipsCount*2)))
+	t.SetBit(t, 1, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+1)))
+	t.SetBit(t, 2, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+2)))
 	grade = Grade(t.Uint64())
+	if grade > GradeA {
+		grade = GradeNone
+	}
 	return
 }
 

@@ -436,7 +436,7 @@ func Test_analyzeAuthors(t *testing.T) {
 		{status: QualifiedByNone, grade: types.GradeD},
 		{status: Qualified, grade: types.GradeD},
 
-		{status: WeaklyQualified, grade: types.Reported},
+		{status: WeaklyQualified, grade: types.GradeReported},
 		{status: Qualified, grade: types.GradeD},
 
 		{status: NotQualified, grade: types.GradeD},
@@ -448,19 +448,19 @@ func Test_analyzeAuthors(t *testing.T) {
 		{status: WeaklyQualified, grade: types.GradeD},
 		{status: Qualified, grade: types.GradeD},
 
-		{status: NotQualified, grade: types.Reported},
+		{status: NotQualified, grade: types.GradeReported},
 		{status: Qualified, grade: types.GradeA},
 
-		{status: Qualified, grade: types.Reported},
+		{status: Qualified, grade: types.GradeReported},
 		{status: NotQualified, grade: types.GradeA},
 
-		{status: QualifiedByNone, grade: types.Reported},
+		{status: QualifiedByNone, grade: types.GradeReported},
 		{status: Qualified, grade: types.GradeA},
 
-		{status: NotQualified, grade: types.Reported},
+		{status: NotQualified, grade: types.GradeReported},
 		{status: NotQualified, grade: types.GradeC},
 
-		{status: WeaklyQualified, grade: types.Reported},
+		{status: WeaklyQualified, grade: types.GradeReported},
 		{status: QualifiedByNone, grade: types.GradeA},
 	}
 	reporters := newReportersToReward()

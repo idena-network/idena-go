@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/stretchr/testify/require"
+	"math/big"
 	"testing"
 )
 
@@ -15,10 +16,16 @@ func TestAnswers_Answer(t *testing.T) {
 	answers.Grade(0, GradeA)
 
 	answers.Grade(1, GradeB)
+
 	answers.Grade(2, GradeC)
 
 	answers.Left(3)
-	answers.Grade(3, Reported)
+	answers.Grade(3, GradeReported)
+
+	answers.Right(4)
+	invalidGrade := 6
+	invalidGradeBig := big.NewInt(int64(invalidGrade))
+	answers.Bits.Or(answers.Bits, invalidGradeBig.Lsh(invalidGradeBig, 4*3+answers.FlipsCount*2))
 
 	answers.Left(9)
 	answers.Grade(9, GradeD)
@@ -33,13 +40,16 @@ func TestAnswers_Answer(t *testing.T) {
 	require.True(answer == None && grade == GradeC)
 
 	answer, grade = answers.Answer(3)
-	require.True(answer == Left && grade == Reported)
+	require.True(answer == Left && grade == GradeReported)
+
+	answer, grade = answers.Answer(4)
+	require.True(answer == Right && grade == GradeNone)
 
 	answer, grade = answers.Answer(9)
 	require.True(answer == Left && grade == GradeD)
 
 	answer, grade = answers.Answer(10)
-	require.True(answer == None && grade == Reported)
+	require.True(answer == None && grade == GradeNone)
 }
 
 func TestBlockFlag_HasFlag(t *testing.T) {

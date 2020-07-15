@@ -154,8 +154,6 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, reward)
 			collector.AddMintedCoins(statsCollector, stake)
-			// todo collect new reward type for indexer
-			//collector.AddReportReward(statsCollector, addr, reward, stake, author.FlipsToReward)
 			collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
 		}
 	}

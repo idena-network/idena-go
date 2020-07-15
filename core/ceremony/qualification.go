@@ -123,9 +123,9 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 			flipIdx := flips[j]
 
 			data[flipIdx].answers = append(data[flipIdx].answers, answer)
-			if grade == types.Reported {
+			if grade == types.GradeReported {
 				reportersToReward.addReport(flipIdx, candidate.Address)
-			} else {
+			} else if grade != types.GradeNone {
 				data[flipIdx].totalGrade += int(grade)
 				data[flipIdx].gradesCount++
 			}
@@ -142,7 +142,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 	for flipIdx := 0; flipIdx < len(data); flipIdx++ {
 		result[flipIdx] = qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount)
-		if result[flipIdx].grade != types.Reported {
+		if result[flipIdx].grade != types.GradeReported {
 			reportersToReward.deleteFlip(flipIdx)
 		}
 	}
@@ -219,7 +219,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 
 		var answerPoint float32
-		if !shortSession || qual.grade != types.Reported {
+		if !shortSession || qual.grade != types.GradeReported {
 			switch status {
 			case Qualified:
 				if qual.answer == answer {
@@ -297,10 +297,15 @@ func qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gr
 	totalAnswersCount := float32(len(answers))
 	reported := float32(reportsCount)/float32(len(answers)) > 0.5
 	var grade types.Grade
-	if reported {
-		grade = types.Reported
-	} else if gradesCount > 0 {
+	switch {
+	case reported:
+		grade = types.GradeReported
+		break
+	case gradesCount > 0:
 		grade = types.Grade(math2.Round(float64(totalGrade) / float64(gradesCount)))
+		break
+	default:
+		grade = types.GradeD
 	}
 
 	if float32(left)/totalAnswersCount >= 0.75 {

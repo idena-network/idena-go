@@ -33,70 +33,70 @@ func Test_qualifyOneFlip(t *testing.T) {
 	require := require.New(t)
 
 	ans := fillArray(6, 1, 1)
-	q := qualifyOneFlip(ans, 4, 14, 4)
+	q := qualifyOneFlip(ans, 4, 18, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeA, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 10, 3)
+	q = qualifyOneFlip(ans, 4, 13, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeB, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 8, 4)
+	q = qualifyOneFlip(ans, 4, 12, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeC, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 4, 4)
+	q = qualifyOneFlip(ans, 4, 8, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 5, 3, 3)
+	q = qualifyOneFlip(ans, 5, 6, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.Reported, q.grade)
+	require.Equal(types.GradeReported, q.grade)
 
 	ans = fillArray(25, 75, 0)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(0, 10, 0)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(15, 3, 4)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(30, 66, 4)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(4, 4, 4)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(NotQualified, q.status)
 	require.Equal(types.None, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(1, 2, 10)
 	q = qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(QualifiedByNone, q.status)
 	require.Equal(types.None, q.answer)
-	require.Zero(q.grade)
+	require.Equal(types.GradeD, q.grade)
 }
 
 func Test_getFlipStatusForCandidate(t *testing.T) {
@@ -135,7 +135,7 @@ func Test_qualifyCandidate(t *testing.T) {
 	flipQualificationMap[10] = FlipQualification{
 		status: Qualified,
 		answer: types.Left,
-		grade:  types.Reported,
+		grade:  types.GradeReported,
 	}
 	flipQualificationMap[11] = FlipQualification{
 		status: NotQualified,
@@ -349,11 +349,11 @@ func TestQualification_qualifyFlips(t *testing.T) {
 
 	long0 := types.NewAnswers(uint(len(flipsPerCandidate[0])))
 	long0.Left(0)
-	long0.Grade(0, types.Reported)
+	long0.Grade(0, types.GradeReported)
 	long0.Left(1)
 	long0.Grade(1, types.GradeD)
 	long0.Right(2)
-	long0.Grade(2, types.Reported)
+	long0.Grade(2, types.GradeReported)
 	longAttachment0 := attachments.CreateLongAnswerAttachment(long0.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	long1 := types.NewAnswers(uint(len(flipsPerCandidate[1])))
@@ -367,29 +367,29 @@ func TestQualification_qualifyFlips(t *testing.T) {
 
 	long2 := types.NewAnswers(uint(len(flipsPerCandidate[2])))
 	long2.Left(0)
-	long2.Grade(0, types.Reported)
+	long2.Grade(0, types.GradeReported)
 	long2.Left(1)
 	long2.Grade(1, types.GradeA)
 	long2.Right(2)
-	long2.Grade(2, types.Reported)
+	long2.Grade(2, types.GradeReported)
 	long2.Right(3)
 	long2.Grade(3, types.GradeA)
 	longAttachment2 := attachments.CreateLongAnswerAttachment(long2.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	long3 := types.NewAnswers(uint(len(flipsPerCandidate[3])))
 	long3.Left(0)
-	long3.Grade(0, types.Reported)
+	long3.Grade(0, types.GradeReported)
 	long3.Left(1)
 	long3.Grade(1, types.GradeA)
 	long3.Right(2)
-	long3.Grade(2, types.Reported)
+	long3.Grade(2, types.GradeReported)
 	long3.Right(3)
 	long3.Grade(3, types.GradeA)
 	longAttachment3 := attachments.CreateLongAnswerAttachment(long3.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	long4 := types.NewAnswers(uint(len(flipsPerCandidate[4])))
 	long4.Left(0)
-	long4.Grade(0, types.Reported)
+	long4.Grade(0, types.GradeReported)
 	long4.Left(1)
 	long4.Grade(1, types.GradeA)
 	long4.Right(2)
@@ -411,7 +411,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	require.Equal(t, 9, len(flipQualifications))
 	require.NotNil(t, reportersToReward)
 
-	require.Equal(t, types.Reported, flipQualifications[reportedFlipIdx].grade)
+	require.Equal(t, types.GradeReported, flipQualifications[reportedFlipIdx].grade)
 	require.Equal(t, types.Left, flipQualifications[reportedFlipIdx].answer)
 	require.Equal(t, Qualified, flipQualifications[reportedFlipIdx].status)
 
