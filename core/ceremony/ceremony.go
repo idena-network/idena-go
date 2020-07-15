@@ -277,6 +277,7 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.calculateCeremonyCandidates()
 	vc.calculatePrivateFlipKeysIndexes()
 	vc.startValidationShortSessionTimer()
+	vc.lottery.finished = true
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
