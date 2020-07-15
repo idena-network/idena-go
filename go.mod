@@ -24,7 +24,7 @@ require (
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.3.0
-	github.com/klauspost/compress v1.10.7
+	github.com/klauspost/compress v1.10.10
 	github.com/libp2p/go-libp2p-core v0.5.7
 	github.com/libp2p/go-msgio v0.0.4
 	github.com/libp2p/go-yamux v1.3.7
