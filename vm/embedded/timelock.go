@@ -40,6 +40,10 @@ func (t *TimeLock) Call(method string, args ...[]byte) (err error) {
 	}
 }
 
+func (t *TimeLock) Read(method string, args ...[]byte) ([]byte, error) {
+	panic("implement me")
+}
+
 func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	if !t.IsOwner() {
 		return errors.New("sender is not an owner")
@@ -58,7 +62,26 @@ func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	}
 
 	if err := t.env.Send(t.ctx, dest, amount); err != nil {
-		return errors.New("sender is not a owner")
+		return err
 	}
+	return nil
+}
+
+func (t *TimeLock) Terminate(args ...[]byte) error {
+	if !t.IsOwner() {
+		return errors.New("sender is not an owner")
+	}
+	if uint64(t.env.BlockTimeStamp()) < t.GetUint64("timestamp") {
+		return errors.New("terminate is locked")
+	}
+	balance := t.env.Balance(t.ctx.ContractAddr())
+	if balance.Sign() > 0 {
+		return errors.New("contract has dna")
+	}
+	dest, err := helpers.ExtractAddr(0, args...)
+	if err != nil {
+		return err
+	}
+	t.env.Terminate(t.ctx, dest)
 	return nil
 }

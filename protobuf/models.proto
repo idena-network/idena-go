@@ -308,11 +308,16 @@ message ProtoDeleteFlipAttachment {
 
 // State
 
+message ProtoContractData {
+    bytes codeHash = 1;
+    bytes stake = 2;
+}
+
 message ProtoStateAccount {
     uint32 nonce = 1;
     uint32 epoch = 2;
     bytes balance = 3;
-    bytes codeHash = 4;
+    ProtoContractData contractData = 4;
 }
 
 message ProtoStateIdentity {
@@ -392,12 +397,17 @@ message ProtoPredefinedState {
         repeated bytes addresses = 1;
     }
 
+    message ContractData {
+        bytes codeHash = 1;
+        bytes stake = 2;
+    }
+
     message Account {
         bytes address = 1;
         uint32 nonce = 2;
         uint32 epoch = 3;
         bytes balance = 4;
-        bytes codeHash = 5;
+        ContractData contractData = 5;
     }
 
     message Identity {
@@ -455,4 +465,8 @@ message ProtoCallContractAttachment {
 message ProtoDeployContractAttachment {
     bytes CodeHash = 1;
     repeated bytes args = 2;
+}
+
+message ProtoTerminateContractAttachment {
+    repeated bytes args = 1;
 }

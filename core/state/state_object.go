@@ -178,7 +178,12 @@ type Account struct {
 	Nonce    uint32
 	Epoch    uint16
 	Balance  *big.Int
-	CodeHash *common.Hash
+	Contract *ContractData
+}
+
+type ContractData struct {
+	CodeHash common.Hash
+	Stake    *big.Int
 }
 
 func (a *Account) ToBytes() ([]byte, error) {
@@ -187,8 +192,11 @@ func (a *Account) ToBytes() ([]byte, error) {
 		Epoch:   uint32(a.Epoch),
 		Balance: common.BigIntBytesOrNil(a.Balance),
 	}
-	if a.CodeHash != nil {
-		protoAcc.CodeHash = a.CodeHash.Bytes()
+	if a.Contract != nil {
+		protoAcc.ContractData = &models.ProtoContractData{
+			CodeHash: a.Contract.CodeHash.Bytes(),
+			Stake:    common.BigIntBytesOrNil(a.Contract.Stake),
+		}
 	}
 	return proto.Marshal(protoAcc)
 }
@@ -201,10 +209,13 @@ func (a *Account) FromBytes(data []byte) error {
 	a.Balance = common.BigIntOrNil(protoAcc.Balance)
 	a.Epoch = uint16(protoAcc.Epoch)
 	a.Nonce = protoAcc.Nonce
-	if protoAcc.CodeHash != nil {
+	if protoAcc.ContractData != nil {
 		hash := common.Hash{}
-		hash.SetBytes(protoAcc.CodeHash)
-		a.CodeHash = &hash
+		hash.SetBytes(protoAcc.ContractData.CodeHash)
+		a.Contract = &ContractData{
+			CodeHash: hash,
+			Stake:    common.BigIntOrNil(protoAcc.ContractData.Stake),
+		}
 	}
 	return nil
 }
@@ -470,7 +481,7 @@ func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) 
 
 // empty returns whether the account is considered empty.
 func (s *stateAccount) empty() bool {
-	return s.Balance().Sign() == 0 && s.data.Nonce == 0
+	return s.Balance().Sign() == 0 && s.data.Nonce == 0 && s.data.Contract == nil
 }
 
 // Returns the address of the contract/account
@@ -512,7 +523,18 @@ func (s *stateAccount) Epoch() uint16 {
 }
 
 func (s *stateAccount) SetCodeHash(hash common.Hash) {
-	s.data.CodeHash = &hash
+	if s.data.Contract == nil {
+		s.data.Contract = &ContractData{}
+	}
+	s.data.Contract.CodeHash = hash
+	s.touch()
+}
+
+func (s *stateAccount) SetContractStake(stake *big.Int) {
+	if s.data.Contract == nil {
+		s.data.Contract = &ContractData{}
+	}
+	s.data.Contract.Stake = stake
 	s.touch()
 }
 

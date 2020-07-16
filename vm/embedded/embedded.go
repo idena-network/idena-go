@@ -15,22 +15,30 @@ const (
 )
 
 var (
-	TimeLockContract     = EmbeddedContractType{0x1}
-	FactCheckingContract = EmbeddedContractType{0x2}
+	TimeLockContract     EmbeddedContractType
+	FactEvidenceContract EmbeddedContractType
+	EvidenceLockContract EmbeddedContractType
 
 	AvailableContracts map[EmbeddedContractType]struct{}
 )
 
 func init() {
+	TimeLockContract.SetBytes([]byte{0x1})
+	FactEvidenceContract.SetBytes([]byte{0x2})
+	EvidenceLockContract.SetBytes([]byte{0x3})
+
 	AvailableContracts = map[EmbeddedContractType]struct{}{
 		TimeLockContract:     {},
-		FactCheckingContract: {},
+		FactEvidenceContract: {},
+		EvidenceLockContract: {},
 	}
 }
 
 type Contract interface {
 	Deploy(args ...[]byte) error
 	Call(method string, args ...[]byte) error
+	Read(method string, args ...[]byte) ([]byte, error)
+	Terminate(args ...[]byte) error
 }
 
 // base contract with useful common methods
@@ -52,7 +60,7 @@ func (b *BaseContract) Owner() common.Address {
 }
 
 func (b *BaseContract) Deploy(contractType EmbeddedContractType) {
-	b.env.Deploy(b.ctx.ContractAddr(), contractType)
+	b.env.Deploy(b.ctx, contractType)
 }
 
 func (b *BaseContract) SetUint64(s string, value uint64) {
@@ -79,9 +87,24 @@ func (b *BaseContract) SetBigInt(s string, value *big.Int) {
 
 func (b *BaseContract) GetBigInt(s string) *big.Int {
 	data := b.env.GetValue(b.ctx, []byte(s))
+	if data == nil {
+		return nil
+	}
 	ret := new(big.Int)
 	ret.SetBytes(data)
 	return ret
+}
+
+func (b *BaseContract) SetByte(s string, value byte) {
+	b.env.SetValue(b.ctx, []byte(s), []byte{value})
+}
+
+func (b *BaseContract) GetByte(s string) byte {
+	data := b.env.GetValue(b.ctx, []byte(s))
+	if len(data) == 0 {
+		return 0
+	}
+	return data[0]
 }
 
 func (b *BaseContract) IsOwner() bool {

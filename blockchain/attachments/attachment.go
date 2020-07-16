@@ -380,6 +380,7 @@ func (d *DeployContractAttachment) FromBytes(data []byte) error {
 		return err
 	}
 	d.CodeHash.SetBytes(protoAttachment.CodeHash)
+	d.Args = protoAttachment.Args
 	return nil
 }
 
@@ -388,6 +389,44 @@ func ParseDeployContractAttachment(tx *types.Transaction) *DeployContractAttachm
 		return nil
 	}
 	attachment := new(DeployContractAttachment)
+	if err := attachment.FromBytes(tx.Payload); err != nil {
+		return nil
+	}
+	return attachment
+}
+
+type TerminateContractAttachment struct {
+	Args [][]byte
+}
+
+func CreateTerminateContractAttachment(args ...[]byte) *TerminateContractAttachment {
+	attach := &TerminateContractAttachment{
+		Args: args,
+	}
+	return attach
+}
+
+func (t *TerminateContractAttachment) ToBytes() ([]byte, error) {
+	protoAttachment := &models.ProtoTerminateContractAttachment{
+		Args: t.Args,
+	}
+	return proto.Marshal(protoAttachment)
+}
+
+func (t *TerminateContractAttachment) FromBytes(data []byte) error {
+	protoAttachment := new(models.ProtoTerminateContractAttachment)
+	if err := proto.Unmarshal(data, protoAttachment); err != nil {
+		return err
+	}
+	t.Args = protoAttachment.Args
+	return nil
+}
+
+func ParseTerminateContractAttachment(tx *types.Transaction) *TerminateContractAttachment {
+	if len(tx.Payload) == 0 {
+		return nil
+	}
+	attachment := new(TerminateContractAttachment)
 	if err := attachment.FromBytes(tx.Payload); err != nil {
 		return nil
 	}

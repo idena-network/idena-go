@@ -758,7 +758,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	totalTips = new(big.Int)
 	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, block.Header)
+	vm := vm.NewVmImpl(appState, block.Header, chain.secStore)
 
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
@@ -910,13 +910,13 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		stateDB.DeleteFlip(sender, attachment.Cid)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
 		stateDB.SetValidationTxBit(sender, tx.Type)
-	case types.DeployContract, types.CallContract:
-		receipt := vm.Run(tx)
-		fee = fee.Add(fee, chain.getGasCost(feePerByte, receipt))
+	case types.DeployContract, types.CallContract, types.TerminateContract:
+		receipt := vm.Run(tx, chain.getGasLimit(appState, tx))
+		fee = fee.Add(fee, chain.GetGasCost(appState, receipt.GasUsed))
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
 		amount := tx.AmountOrZero()
-		if receipt.Success && amount.Sign() > 0 {
+		if receipt.Success && amount.Sign() > 0 && tx.Type == types.CallContract {
 			stateDB.SubBalance(sender, amount)
 			stateDB.AddBalance(receipt.ContractAddress, amount)
 		}
@@ -935,11 +935,24 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 func (chain *Blockchain) getTxFee(feePerByte *big.Int, tx *types.Transaction) *big.Int {
 	return fee.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), feePerByte, tx)
 }
-func (chain *Blockchain) getGasCost(feePerByte *big.Int, receipt *types.TxReceipt) *big.Int {
-	if common.ZeroOrNil(feePerByte) || common.ZeroOrNil(receipt.GasUsed) {
+func (chain *Blockchain) GetGasCost(appState *appstate.AppState, gasUsed uint64) *big.Int {
+	feePerByte := appState.State.FeePerByte()
+	if common.ZeroOrNil(feePerByte) {
 		return common.Big0
 	}
-	return new(big.Int).Mul(new(big.Int).Mul(feePerByte, receipt.GasUsed), common.Big3)
+	return new(big.Int).Mul(new(big.Int).Mul(feePerByte, big.NewInt(int64(gasUsed))), common.Big3)
+}
+
+func (chain *Blockchain) getGasLimit(appState *appstate.AppState, tx *types.Transaction) int64 {
+	feePerByte := appState.State.FeePerByte()
+	txFee := chain.getTxFee(feePerByte, tx)
+	diff := new(big.Int).Sub(tx.MaxFeeOrZero(), txFee)
+
+	oneGasCost := chain.GetGasCost(appState, 1)
+	if oneGasCost.Sign() == 0 {
+		return 0
+	}
+	return math.ToInt(decimal.NewFromBigInt(diff, 0).Div(decimal.NewFromBigInt(oneGasCost, 0))).Int64()
 }
 
 func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block) {
@@ -1177,7 +1190,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
-	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header})
+	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore)
 
 	for _, tx := range txs {
 		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {

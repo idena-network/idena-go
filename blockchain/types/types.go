@@ -29,6 +29,7 @@ const (
 	DeleteFlipTx         uint16 = 0xE
 	DeployContract       uint16 = 0xF
 	CallContract         uint16 = 0x10
+	TerminateContract    uint16 = 0x11
 )
 
 const (
@@ -1386,7 +1387,7 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 type TxReceipt struct {
 	ContractAddress common.Address
 	Success         bool
-	GasUsed         *big.Int
+	GasUsed         uint64
 	From            common.Address
 	TxHash          common.Hash
 	Error           error

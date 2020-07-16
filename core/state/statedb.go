@@ -1171,6 +1171,11 @@ func (s *StateDB) SetPredefinedAccounts(state *models.ProtoPredefinedState) {
 		stateObject.SetBalance(common.BigIntOrNil(acc.Balance))
 		stateObject.SetEpoch(uint16(acc.Epoch))
 		stateObject.setNonce(acc.Nonce)
+		if acc.ContractData != nil {
+			stateObject.data.Contract = &ContractData{}
+			stateObject.data.Contract.CodeHash.SetBytes(acc.ContractData.CodeHash)
+			stateObject.data.Contract.Stake = big.NewInt(0).SetBytes(acc.ContractData.Stake)
+		}
 	}
 }
 
@@ -1275,17 +1280,32 @@ func (s *StateDB) IterateContractStore(addr common.Address, minKey []byte, maxKe
 		})
 }
 
-func (s *StateDB) DeployContract(addr common.Address, codeHash common.Hash) {
+func (s *StateDB) DeployContract(addr common.Address, codeHash common.Hash, stake *big.Int) {
 	contract := s.GetOrNewAccountObject(addr)
 	contract.SetCodeHash(codeHash)
+	contract.SetContractStake(stake)
 }
 
 func (s *StateDB) GetCodeHash(addr common.Address) *common.Hash {
 	stateObject := s.getStateAccount(addr)
-	if stateObject != nil {
-		return stateObject.data.CodeHash
+	if stateObject != nil && stateObject.data.Contract != nil {
+		return &stateObject.data.Contract.CodeHash
 	}
 	return nil
+}
+
+func (s *StateDB) GetContractStake(addr common.Address) *big.Int {
+	stateObject := s.getStateAccount(addr)
+	if stateObject != nil && stateObject.data.Contract != nil {
+		return stateObject.data.Contract.Stake
+	}
+	return nil
+}
+
+func (s *StateDB) DropContract(addr common.Address) {
+	stateObject := s.getStateAccount(addr)
+	stateObject.data.Contract = nil
+	stateObject.touch()
 }
 
 type readCloser struct {

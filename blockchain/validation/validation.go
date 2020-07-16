@@ -58,6 +58,7 @@ var (
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
 	NegativeValue        = errors.New("value must be non-negative")
+	InvalidAmount        = errors.New("invalid amount")
 	validators           map[types.TxType]validator
 )
 
@@ -90,6 +91,7 @@ func init() {
 		types.DeleteFlipTx:         validateDeleteFlipTx,
 		types.DeployContract:       validateDeployContractTx,
 		types.CallContract:         validateCallContractTx,
+		types.TerminateContract:    validateTerminateContractTx,
 	}
 }
 
@@ -718,6 +720,12 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 		return err
 	}
 
+	minStake := common.DnaBase
+
+	if tx.AmountOrZero().Cmp(minStake) < 0 {
+		return InvalidAmount
+	}
+
 	attachment := attachments.ParseDeployContractAttachment(tx)
 	if attachment == nil {
 		return InvalidPayload
@@ -725,5 +733,32 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok {
 		return InvalidPayload
 	}
+	return nil
+}
+
+func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	codeHash := appState.State.GetCodeHash(*tx.To)
+	if codeHash == nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	attachment := attachments.ParseTerminateContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+
 	return nil
 }

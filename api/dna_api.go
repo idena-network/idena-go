@@ -8,6 +8,7 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
@@ -16,9 +17,13 @@ import (
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"math/big"
+	"strconv"
 	"time"
 )
 
@@ -70,7 +75,7 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	}
 }
 
-// SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
+// SendTxArgs represents the arguments to submit a new transaction into the transaction pool.
 type SendTxArgs struct {
 	Type     types.TxType    `json:"type"`
 	From     common.Address  `json:"from"`
@@ -594,4 +599,278 @@ func (api *DnaApi) ActivateInviteToRandAddr(ctx context.Context, args ActivateIn
 		Address: to,
 		Key:     hex.EncodeToString(crypto.FromECDSA(toKey)),
 	}, nil
+}
+
+type DeployContractArgs struct {
+	From     common.Address  `json:"from"`
+	CodeHash hexutil.Bytes   `json:"codeHash"`
+	Amount   decimal.Decimal `json:"amount"`
+	Args     DynamicArgs     `json:"args"`
+	MaxFee   decimal.Decimal `json:"maxFee"`
+}
+
+type CallContractArgs struct {
+	From     common.Address  `json:"from"`
+	Contract common.Address  `json:"contract"`
+	Method   string          `json:"method"`
+	Amount   decimal.Decimal `json:"amount"`
+	Args     DynamicArgs     `json:"args"`
+	MaxFee   decimal.Decimal `json:"maxFee"`
+}
+
+type TerminateContractArgs struct {
+	From     common.Address  `json:"from"`
+	Contract common.Address  `json:"contract"`
+	Args     DynamicArgs     `json:"args"`
+	MaxFee   decimal.Decimal `json:"maxFee"`
+}
+
+type DynamicArgs []*DynamicArg
+
+type DynamicArg struct {
+	Index int    `json:"index"`
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type ReadonlyCallContractArgs struct {
+	Contract  common.Address `json:"contract"`
+	Method    string         `json:"method"`
+	ConvertTo string         `json:"convertTo"`
+	Args      DynamicArgs    `json:"args"`
+}
+
+func (a DynamicArg) ToBytes() []byte {
+	switch a.Type {
+	case "byte":
+		i, err := strconv.ParseInt(a.Value, 10, 8)
+		if err != nil {
+			return nil
+		}
+		return []byte{byte(i)}
+	case "uint64":
+		i, err := strconv.ParseInt(a.Value, 10, 64)
+		if err != nil {
+			return nil
+		}
+		return common.ToBytes(uint64(i))
+	case "string":
+		return []byte(a.Value)
+	case "bigint":
+		v := new(big.Int)
+		v.SetString(a.Value, 10)
+		return v.Bytes()
+	case "hex":
+		data, err := hexutil.Decode(a.Value)
+		if err != nil {
+			return nil
+		}
+		return data
+	case "dna":
+		d, err := decimal.NewFromString(a.Value)
+		if err != nil {
+			return nil
+		}
+		return blockchain.ConvertToInt(d).Bytes()
+	default:
+		return nil
+	}
+}
+
+func (d DynamicArgs) ToSlice() [][]byte {
+
+	m := make(map[int]*DynamicArg)
+	maxIndex := -1
+	for _, a := range d {
+		m[a.Index] = a
+		if a.Index > maxIndex {
+			maxIndex = a.Index
+		}
+	}
+	var data [][]byte
+
+	for i := 0; i <= maxIndex; i++ {
+		if a, ok := m[i]; ok {
+			data = append(data, a.ToBytes())
+		} else {
+			data = append(data, nil)
+		}
+	}
+	return data
+}
+
+type TxReceipt struct {
+	Contract common.Address  `json:"contract"`
+	Success  bool            `json:"success"`
+	GasUsed  uint64          `json:"gasUsed"`
+	TxHash   common.Hash     `json:"txHash"`
+	Error    string          `json:"error"`
+	GasCost  decimal.Decimal `json:"gasCost"`
+	TxFee    decimal.Decimal `json:"txFee"`
+}
+
+func (api *DnaApi) buildDeployContractTx(args DeployContractArgs) (*types.Transaction, error) {
+	var codeHash common.Hash
+	codeHash.SetBytes(args.CodeHash)
+
+	from := args.From
+	if from == (common.Address{}) {
+		from = api.GetCoinbaseAddr()
+	}
+
+	payload, _ := attachments.CreateDeployContractAttachment(codeHash, args.Args.ToSlice()...).ToBytes()
+	return api.baseApi.getSignedTx(from, nil, types.DeployContract, args.Amount,
+		args.MaxFee, decimal.Zero,
+		0, 0,
+		payload, nil)
+}
+
+func (api *DnaApi) buildCallContractTx(args CallContractArgs) (*types.Transaction, error) {
+
+	from := args.From
+	if from == (common.Address{}) {
+		from = api.GetCoinbaseAddr()
+	}
+
+	payload, _ := attachments.CreateCallContractAttachment(args.Method, args.Args.ToSlice()...).ToBytes()
+	return api.baseApi.getSignedTx(from, &args.Contract, types.CallContract, args.Amount,
+		args.MaxFee, decimal.Zero,
+		0, 0,
+		payload, nil)
+}
+
+func (api *DnaApi) buildTerminateContractTx(args TerminateContractArgs) (*types.Transaction, error) {
+
+	from := args.From
+	if from == (common.Address{}) {
+		from = api.GetCoinbaseAddr()
+	}
+
+	payload, _ := attachments.CreateTerminateContractAttachment(args.Args.ToSlice()...).ToBytes()
+	return api.baseApi.getSignedTx(from, &args.Contract, types.TerminateContract, decimal.Zero,
+		args.MaxFee, decimal.Zero,
+		0, 0,
+		payload, nil)
+}
+
+func (api *DnaApi) EstimateDeployContract(args DeployContractArgs) (*TxReceipt, error) {
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	tx, err := api.buildDeployContractTx(args)
+	if err != nil {
+		return nil, err
+	}
+	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+}
+
+func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, error) {
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	tx, err := api.buildCallContractTx(args)
+	if err != nil {
+		return nil, err
+	}
+	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+}
+
+func (api *DnaApi) EstimateTerminateContract(args TerminateContractArgs) (*TxReceipt, error) {
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	tx, err := api.buildTerminateContractTx(args)
+	if err != nil {
+		return nil, err
+	}
+	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+}
+
+func (api *DnaApi) convertReceipt(tx *types.Transaction, receipt *types.TxReceipt) *TxReceipt {
+	s := api.baseApi.getAppState()
+	fee := fee.CalculateFee(s.ValidatorsCache.NetworkSize(), s.State.FeePerByte(), tx)
+	var err string
+	if receipt.Error != nil {
+		err = receipt.Error.Error()
+	}
+	return &TxReceipt{
+		Success:  receipt.Success,
+		Error:    err,
+		Contract: receipt.ContractAddress,
+		TxHash:   receipt.TxHash,
+		GasUsed:  receipt.GasUsed,
+		GasCost:  blockchain.ConvertToFloat(api.bc.GetGasCost(api.baseApi.getAppState(), receipt.GasUsed)),
+		TxFee:    blockchain.ConvertToFloat(fee),
+	}
+}
+
+func (api *DnaApi) DeployContract(ctx context.Context, args DeployContractArgs) (common.Hash, error) {
+	tx, err := api.buildDeployContractTx(args)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return api.baseApi.sendInternalTx(ctx, tx)
+}
+
+func (api *DnaApi) CallContract(ctx context.Context, args CallContractArgs) (common.Hash, error) {
+	tx, err := api.buildCallContractTx(args)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return api.baseApi.sendInternalTx(ctx, tx)
+}
+func (api *DnaApi) TerminateContract(ctx context.Context, args TerminateContractArgs) (common.Hash, error) {
+	tx, err := api.buildTerminateContractTx(args)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return api.baseApi.sendInternalTx(ctx, tx)
+}
+
+func (api *DnaApi) ReadContractData(contract common.Address, key string, convertTo string) (interface{}, error) {
+	data := api.baseApi.getAppState().State.GetContractValue(contract, []byte(key))
+	if data == nil {
+		return nil, errors.New("data is nil")
+	}
+	return conversion(convertTo, data)
+}
+
+func (api *DnaApi) ReadonlyCallContract(args ReadonlyCallContractArgs) (interface{}, error) {
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	data, err := vm.Read(args.Contract, args.Method, args.Args.ToSlice()...)
+	if err != nil {
+		return nil, err
+	}
+	return conversion(args.ConvertTo, data)
+}
+
+func (api *DnaApi) GetContractData(contract common.Address) interface{}{
+	hash := api.baseApi.getAppState().State.GetCodeHash(contract)
+	stake := api.baseApi.getAppState().State.GetContractStake(contract)
+	return struct {
+		Hash *common.Hash
+		Stake decimal.Decimal
+	}{
+		hash,
+		blockchain.ConvertToFloat(stake),
+	}
+}
+
+func conversion(convertTo string, data []byte) (interface{}, error) {
+	switch convertTo {
+	case "byte":
+		return helpers.ExtractByte(0, data)
+	case "uint64":
+		return helpers.ExtractUInt64(0, data)
+	case "string":
+		return string(data), nil
+	case "bigint":
+		v := new(big.Int)
+		v.SetBytes(data)
+		return v.String(), nil
+	case "array":
+		return fmt.Sprintf("%v", data), nil
+	case "hex":
+		return hexutil.Encode(data), nil
+	case "dna":
+		v := new(big.Int)
+		v.SetBytes(data)
+		return blockchain.ConvertToFloat(v), nil
+	default:
+		return data, nil
+	}
 }
