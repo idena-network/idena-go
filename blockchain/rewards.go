@@ -141,7 +141,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		collector.AddFlipsReward(statsCollector, addr, reward, stake, author.FlipsToReward)
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
-	for _, reporters := range validationResults.ReportersToRewardByFlip {
+	for flipIdx, reporters := range validationResults.ReportersToRewardByFlip {
 		if len(reporters) == 0 {
 			continue
 		}
@@ -154,6 +154,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, reward)
 			collector.AddMintedCoins(statsCollector, stake)
+			collector.AddReportedFlipsReward(statsCollector, reporter.Address, flipIdx, reward, stake)
 			collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
 		}
 	}
