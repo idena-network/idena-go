@@ -127,9 +127,9 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 
 	votingDuration := uint64(4320)
 	publicVotingDuration := uint64(4320)
-	winnerThreshold := uint64(0)
+	winnerThreshold := uint64(50)
 	quorum := uint64(20)
-	committeeSize := uint64(100)
+	committeeSize := math.Min(100, uint64(f.env.NetworkSize()))
 	maxOptions := uint64(2)
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
