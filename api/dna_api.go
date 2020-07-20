@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -754,27 +755,39 @@ func (api *DnaApi) buildTerminateContractTx(args TerminateContractArgs) (*types.
 }
 
 func (api *DnaApi) EstimateDeployContract(args DeployContractArgs) (*TxReceipt, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppState()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
 	tx, err := api.buildDeployContractTx(args)
 	if err != nil {
+		return nil, err
+	}
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
 	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
 }
 
 func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppState()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
+		return nil, err
+	}
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
 	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
 }
 
 func (api *DnaApi) EstimateTerminateContract(args TerminateContractArgs) (*TxReceipt, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppState()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
 	tx, err := api.buildTerminateContractTx(args)
 	if err != nil {
+		return nil, err
+	}
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
 	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
@@ -838,11 +851,11 @@ func (api *DnaApi) ReadonlyCallContract(args ReadonlyCallContractArgs) (interfac
 	return conversion(args.ConvertTo, data)
 }
 
-func (api *DnaApi) GetContractData(contract common.Address) interface{}{
+func (api *DnaApi) GetContractData(contract common.Address) interface{} {
 	hash := api.baseApi.getAppState().State.GetCodeHash(contract)
 	stake := api.baseApi.getAppState().State.GetContractStake(contract)
 	return struct {
-		Hash *common.Hash
+		Hash  *common.Hash
 		Stake decimal.Decimal
 	}{
 		hash,

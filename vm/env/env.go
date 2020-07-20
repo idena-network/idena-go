@@ -2,6 +2,7 @@ package env
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -10,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/pkg/errors"
 	"math/big"
+	"sort"
 )
 
 type Env interface {
@@ -241,12 +243,32 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 }
 
 func (e *EnvImp) Commit() {
-	for contract, cache := range e.contractStoreCache {
-		for k, v := range cache {
+
+	var contracts []common.Address
+	for contract := range e.contractStoreCache {
+		contracts = append(contracts, contract)
+	}
+	sort.SliceStable(contracts, func(i, j int) bool {
+		return bytes.Compare(contracts[i].Bytes(), contracts[j].Bytes()) == 1
+	})
+
+	for _, contract := range contracts {
+		cache := e.contractStoreCache[contract]
+
+		var keys []string
+		for k := range cache {
+			keys = append(keys, k)
+		}
+		sort.SliceStable(keys, func(i, j int) bool {
+			return keys[i] > keys[j]
+		})
+		for _, k := range keys {
+			v := cache[k]
 			if v.removed {
 				e.state.State.RemoveContractValue(contract, []byte(k))
 			} else {
 				e.state.State.SetContractValue(contract, []byte(k), v.value)
+				fmt.Printf("set %v-%v\n", k, v.value)
 			}
 		}
 	}
@@ -255,10 +277,12 @@ func (e *EnvImp) Commit() {
 	}
 	for contract, data := range e.deployedContractCache {
 		e.state.State.DeployContract(contract, data.CodeHash, data.Stake)
+		fmt.Printf("deploy %v-%v\n", data.CodeHash, data.Stake.Int64())
 	}
 	for contract := range e.droppedContracts {
 		e.state.State.DropContract(contract)
 	}
+	fmt.Printf("------\n")
 }
 
 func (e *EnvImp) Reset() {

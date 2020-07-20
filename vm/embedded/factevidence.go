@@ -67,33 +67,50 @@ func (f *FactEvidence) Call(method string, args ...[]byte) error {
 
 func (f *FactEvidence) Read(method string, args ...[]byte) ([]byte, error) {
 
-	if f.GetUint64("state") != 1 {
-		return nil, errors.New("contract is not in running state")
+	switch method {
+	case "proof":
+		if f.GetUint64("state") != 1 {
+			return nil, errors.New("contract is not in running state")
+		}
+
+		duration := f.GetUint64("votingDuration")
+
+		if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
+			return nil, errors.New("wrong block number")
+		}
+
+		seed := f.GetArray("vrfSeed")
+
+		h, proof := f.env.Vrf(seed)
+
+		v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
+
+		q := new(big.Float).Quo(v, maxHash).SetPrec(10)
+
+		committeeSize := f.GetUint64("committeeSize")
+		networkSize := float64(f.env.NetworkSize())
+		if networkSize == 0 {
+			networkSize = 1
+		}
+		if v, _ := q.Float64(); v < 1-float64(committeeSize)/networkSize {
+			return nil, errors.New("invalid proof")
+		}
+		return proof, nil
+	case "voteHash":
+		vote, err := helpers.ExtractByte(0, args...)
+		if err != nil {
+			return nil, err
+		}
+		salt, err := helpers.ExtractArray(1, args...)
+		if err != nil {
+			return nil, err
+		}
+		hash := crypto.Hash(append(common.ToBytes(vote), salt...))
+		return hash[:], nil
+	default:
+		return nil, errors.New("unknown method")
 	}
 
-	duration := f.GetUint64("votingDuration")
-
-	if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
-		return nil, errors.New("wrong block number")
-	}
-
-	seed := f.GetArray("vrfSeed")
-
-	h, _ := f.env.Vrf(seed)
-
-	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
-
-	q := new(big.Float).Quo(v, maxHash).SetPrec(10)
-
-	committeeSize := f.GetUint64("committeeSize")
-	networkSize := float64(f.env.NetworkSize())
-	if networkSize == 0 {
-		networkSize = 1
-	}
-	if v, _ := q.Float64(); v < 1-float64(committeeSize)/networkSize {
-		return nil, errors.New("invalid proof")
-	}
-	return h[:], nil
 }
 
 func (f *FactEvidence) Deploy(args ...[]byte) error {

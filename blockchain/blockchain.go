@@ -912,6 +912,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	case types.DeployContract, types.CallContract, types.TerminateContract:
 		receipt := vm.Run(tx, chain.getGasLimit(appState, tx))
+		if receipt.Error != nil {
+			chain.log.Error("contract err", "err", receipt.Error)
+		}
 		fee = fee.Add(fee, chain.GetGasCost(appState, receipt.GasUsed))
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
