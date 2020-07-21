@@ -33,6 +33,7 @@ var (
 	InvalidSignature     = errors.New("invalid signature")
 	InvalidNonce         = errors.New("invalid nonce")
 	InvalidEpoch         = errors.New("invalid epoch")
+	InvalidAmount        = errors.New("invalid amount")
 	InsufficientFunds    = errors.New("insufficient funds")
 	InsufficientInvites  = errors.New("insufficient invites")
 	RecipientRequired    = errors.New("recipient is required")
@@ -532,29 +533,23 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
-	if tx.To == nil || *tx.To == (common.Address{}) {
-		return RecipientRequired
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
 	}
 	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err
 	}
-	var txFee *big.Int
-	if txType != InBlockTx {
-		txFee = tx.MaxFeeOrZero()
-	} else {
-		txFee = fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
-	}
-	if txFee.Sign() > 0 && appState.State.GetStakeBalance(sender).Cmp(txFee) < 0 {
-		return InsufficientFunds
-	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-	cost := new(big.Int).Add(tx.AmountOrZero(), tx.TipsOrZero())
-	if appState.State.GetBalance(sender).Cmp(cost) < 0 {
+	if appState.State.GetBalance(sender).Cmp(tx.TipsOrZero()) < 0 {
 		return InsufficientFunds
 	}
-	if appState.State.GetIdentityState(sender) == state.Newbie {
+	identityState := appState.State.GetIdentityState(sender)
+	if identityState == state.Candidate || identityState == state.Newbie || identityState == state.Killed {
 		return InvalidSender
 	}
 	return nil
@@ -564,6 +559,9 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	sender, _ := types.Sender(tx)
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
+	}
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
 	}
 	if err := ValidateFee(appState, tx, txType); err != nil {
 		return err

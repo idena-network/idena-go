@@ -51,7 +51,7 @@ func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transact
 	}
 	if tx.Type == types.SubmitFlipTx || tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitShortAnswersTx ||
 		tx.Type == types.SubmitLongAnswersTx || tx.Type == types.EvidenceTx || tx.Type == types.ActivationTx ||
-		tx.Type == types.InviteTx {
+		tx.Type == types.InviteTx || tx.Type == types.KillTx {
 		return big.NewInt(0)
 	}
 	if tx.Type == types.OnlineStatusTx {
