@@ -139,10 +139,10 @@ func (edb *EpochDb) WriteAnswers(short []DbAnswer, long []DbAnswer) {
 
 	toBytes := func(a []DbAnswer) ([]byte, error) {
 		protoAnswers := new(models.ProtoAnswersDb)
-		for _, item := range a {
+		for idx := range a {
 			protoAnswers.Answers = append(protoAnswers.Answers, &models.ProtoAnswersDb_Answer{
-				Address: item.Addr[:],
-				Answers: item.Ans,
+				Address: a[idx].Addr[:],
+				Answers: a[idx].Ans,
 			})
 		}
 		return proto.Marshal(protoAnswers)
