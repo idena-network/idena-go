@@ -86,11 +86,11 @@ func getFlipRewardCoef(grade types.Grade) float32 {
 	case types.GradeD:
 		return 1
 	case types.GradeC:
-		return 1.5
-	case types.GradeB:
 		return 2
-	case types.GradeA:
+	case types.GradeB:
 		return 4
+	case types.GradeA:
+		return 8
 	default:
 		return 0
 	}
