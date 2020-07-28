@@ -296,12 +296,13 @@ func qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gr
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
 	reported := float32(reportsCount)/float32(len(answers)) > 0.5
+	graded := float32(gradesCount)/float32(len(answers)) > 0.33
 	var grade types.Grade
 	switch {
 	case reported:
 		grade = types.GradeReported
 		break
-	case gradesCount > 0:
+	case graded:
 		grade = types.Grade(math2.Round(float64(totalGrade) / float64(gradesCount)))
 		break
 	default:

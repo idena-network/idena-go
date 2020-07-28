@@ -38,6 +38,24 @@ func Test_qualifyOneFlip(t *testing.T) {
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeA, q.grade)
 
+	ans = fillArray(6, 0, 0)
+	q = qualifyOneFlip(ans, 2, 6, 2)
+	require.Equal(Qualified, q.status)
+	require.Equal(types.Left, q.answer)
+	require.Equal(types.GradeC, q.grade)
+
+	ans = fillArray(7, 0, 0)
+	q = qualifyOneFlip(ans, 2, 8, 2)
+	require.Equal(Qualified, q.status)
+	require.Equal(types.Left, q.answer)
+	require.Equal(types.GradeD, q.grade)
+
+	ans = fillArray(7, 0, 0)
+	q = qualifyOneFlip(ans, 3, 12, 3)
+	require.Equal(Qualified, q.status)
+	require.Equal(types.Left, q.answer)
+	require.Equal(types.GradeB, q.grade)
+
 	ans = fillArray(6, 1, 1)
 	q = qualifyOneFlip(ans, 4, 13, 3)
 	require.Equal(Qualified, q.status)
