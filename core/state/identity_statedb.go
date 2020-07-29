@@ -371,7 +371,7 @@ func (s *IdentityStateDB) SwitchToPreliminary(height uint64) (batch dbm.Batch, d
 
 	batch = s.original.NewBatch()
 	setIdentityPrefix(batch, prefix, false)
-	setIdentityPrefix(batch, nil, true)
+	setIdentityPrefix(batch, []byte{}, true)
 	dropDb = s.db
 
 	s.db = pdb
@@ -383,7 +383,7 @@ func (s *IdentityStateDB) DropPreliminary() {
 	pdb := dbm.NewPrefixDB(s.original, loadIdentityPrefix(s.original, true))
 	common.ClearDb(pdb)
 	b := s.original.NewBatch()
-	setIdentityPrefix(b, nil, true)
+	setIdentityPrefix(b, []byte{}, true)
 	b.WriteSync()
 }
 
