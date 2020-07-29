@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	BlockBodySize  = 300 * 1024
+
 	MaxDeferredTxs = 100
 )
 
@@ -35,6 +35,7 @@ var (
 type TransactionPool interface {
 	Add(tx *types.Transaction) error
 	GetPendingTransaction() []*types.Transaction
+	IsSyncing() bool
 }
 
 type TxPool struct {
@@ -52,6 +53,10 @@ type TxPool struct {
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
+}
+
+func (pool *TxPool) IsSyncing() bool {
+	return pool.isSyncing
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool) *TxPool {
@@ -172,7 +177,7 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 }
 
 func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState, txType validation.TxType) error {
-	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+	minFeePerByte := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 	return validation.ValidateTx(appState, tx, minFeePerByte, txType)
 }
 
@@ -461,7 +466,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	removingTxs := make(map[common.Hash]*types.Transaction)
 
-	minFeePerByte := fee.GetFeePerByteForNetwork(appState.ValidatorsCache.NetworkSize())
+	minFeePerByte := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {

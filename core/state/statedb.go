@@ -459,12 +459,12 @@ func (s *StateDB) SetFlipWordsSeed(seed types.Seed) {
 	s.GetOrNewGlobalObject().SetFlipWordsSeed(seed)
 }
 
-func (s *StateDB) SetFeePerByte(fee *big.Int) {
-	s.GetOrNewGlobalObject().SetFeePerByte(fee)
+func (s *StateDB) SetFeePerGas(fee *big.Int) {
+	s.GetOrNewGlobalObject().SetFeePerGas(fee)
 }
 
-func (s *StateDB) FeePerByte() *big.Int {
-	return s.GetOrNewGlobalObject().FeePerByte()
+func (s *StateDB) FeePerGas() *big.Int {
+	return s.GetOrNewGlobalObject().FeePerGas()
 }
 
 func (s *StateDB) GodAddressInvites() uint16 {
@@ -1150,7 +1150,7 @@ func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
-	stateObject.data.FeePerByte = common.BigIntOrNil(state.Global.FeePerByte)
+	stateObject.data.FeePerGas = common.BigIntOrNil(state.Global.FeePerByte)
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
 	stateObject.data.GodAddressInvites = uint16(state.Global.GodAddressInvites)

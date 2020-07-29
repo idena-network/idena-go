@@ -73,7 +73,7 @@ func main() {
 			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
 			Epoch:                         uint32(globalObject.Epoch()),
 			EpochBlock:                    globalObject.EpochBlock(),
-			FeePerByte:                    common.BigIntBytesOrNil(globalObject.FeePerByte()),
+			FeePerByte:                    common.BigIntBytesOrNil(globalObject.FeePerGas()),
 			VrfProposerThreshold:          globalObject.VrfProposerThresholdRaw(),
 			EmptyBlocksBits:               common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
 			GodAddressInvites:             uint32(globalObject.GodAddressInvites()),

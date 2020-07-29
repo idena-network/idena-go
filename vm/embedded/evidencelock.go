@@ -18,7 +18,7 @@ func NewEvidenceLock(ctx env.CallContext, e env.Env) *EvidenceLock {
 	}}
 }
 
-func (e EvidenceLock) Deploy(args ...[]byte) error {
+func (e *EvidenceLock) Deploy(args ...[]byte) error {
 	if factEvidenceAddr, err := helpers.ExtractAddr(0, args...); err != nil {
 		return err
 	} else {

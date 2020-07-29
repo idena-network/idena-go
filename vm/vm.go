@@ -40,6 +40,10 @@ func (vm *VmImpl) createContract(ctx env2.CallContext, codeHash common.Hash) emb
 		return embedded.NewFactEvidenceContract(ctx, vm.env)
 	case embedded.EvidenceLockContract:
 		return embedded.NewEvidenceLock(ctx, vm.env)
+	case embedded.RefundableEvidenceLockContract:
+		return embedded.NewRefundableEvidenceLock(ctx, vm.env)
+	case embedded.MultisigContract:
+		return embedded.NewMultisig(ctx, vm.env)
 	default:
 		return nil
 	}
@@ -124,8 +128,10 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 	case types.TerminateContract:
 		contractAddr, err = vm.terminate(tx)
 	}
-	if err == nil{
-		vm.env.Commit()
+
+	var events []*types.TxEvent
+	if err == nil {
+		events = vm.env.Commit()
 	}
 
 	sender, _ := types.Sender(tx)
@@ -142,6 +148,7 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 		Success:         err == nil,
 		From:            sender,
 		ContractAddress: contractAddr,
+		Events:          events,
 	}
 }
 

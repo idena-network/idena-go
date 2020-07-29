@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/ipfs/go-cid"
@@ -34,11 +35,12 @@ type DnaApi struct {
 	ceremony       *ceremony.ValidationCeremony
 	appVersion     string
 	profileManager *profile.Manager
+	deferredTxs    *deferredtx.Job
 }
 
 func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony, appVersion string,
-	profileManager *profile.Manager) *DnaApi {
-	return &DnaApi{bc, baseApi, ceremony, appVersion, profileManager}
+	profileManager *profile.Manager, deferredTxs *deferredtx.Job) *DnaApi {
+	return &DnaApi{bc, baseApi, ceremony, appVersion, profileManager, deferredTxs}
 }
 
 type State struct {
@@ -611,12 +613,13 @@ type DeployContractArgs struct {
 }
 
 type CallContractArgs struct {
-	From     common.Address  `json:"from"`
-	Contract common.Address  `json:"contract"`
-	Method   string          `json:"method"`
-	Amount   decimal.Decimal `json:"amount"`
-	Args     DynamicArgs     `json:"args"`
-	MaxFee   decimal.Decimal `json:"maxFee"`
+	From           common.Address  `json:"from"`
+	Contract       common.Address  `json:"contract"`
+	Method         string          `json:"method"`
+	Amount         decimal.Decimal `json:"amount"`
+	Args           DynamicArgs     `json:"args"`
+	MaxFee         decimal.Decimal `json:"maxFee"`
+	BroadcastBlock uint64          `json:"broadcastBlock"`
 }
 
 type TerminateContractArgs struct {
@@ -629,9 +632,9 @@ type TerminateContractArgs struct {
 type DynamicArgs []*DynamicArg
 
 type DynamicArg struct {
-	Index int    `json:"index"`
-	Format  string `json:"format"`
-	Value string `json:"value"`
+	Index  int    `json:"index"`
+	Format string `json:"format"`
+	Value  string `json:"value"`
 }
 
 type ReadonlyCallContractArgs struct {
@@ -765,10 +768,12 @@ func (api *DnaApi) EstimateDeployContract(args DeployContractArgs) (*TxReceipt, 
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
-	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+	r := vm.Run(tx, -1)
+	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
+	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, error) {
@@ -778,10 +783,12 @@ func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
-	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+	r := vm.Run(tx, -1)
+	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
+	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *DnaApi) EstimateTerminateContract(args TerminateContractArgs) (*TxReceipt, error) {
@@ -791,15 +798,16 @@ func (api *DnaApi) EstimateTerminateContract(args TerminateContractArgs) (*TxRec
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerByte(), validation.MempoolTx); err != nil {
+	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
-	return api.convertReceipt(tx, vm.Run(tx, -1)), nil
+	r := vm.Run(tx, -1)
+	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
+	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
-func (api *DnaApi) convertReceipt(tx *types.Transaction, receipt *types.TxReceipt) *TxReceipt {
-	s := api.baseApi.getAppState()
-	fee := fee.CalculateFee(s.ValidatorsCache.NetworkSize(), s.State.FeePerByte(), tx)
+func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerByte *big.Int) *TxReceipt {
+	fee := fee.CalculateFee(1, feePerByte, tx)
 	var err string
 	if receipt.Error != nil {
 		err = receipt.Error.Error()
@@ -810,7 +818,7 @@ func (api *DnaApi) convertReceipt(tx *types.Transaction, receipt *types.TxReceip
 		Contract: receipt.ContractAddress,
 		TxHash:   receipt.TxHash,
 		GasUsed:  receipt.GasUsed,
-		GasCost:  blockchain.ConvertToFloat(api.bc.GetGasCost(api.baseApi.getAppState(), receipt.GasUsed)),
+		GasCost:  blockchain.ConvertToFloat(receipt.GasCost),
 		TxFee:    blockchain.ConvertToFloat(fee),
 	}
 }
@@ -827,6 +835,10 @@ func (api *DnaApi) CallContract(ctx context.Context, args CallContractArgs) (com
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
 		return common.Hash{}, err
+	}
+	if args.BroadcastBlock > 0 {
+		err = api.deferredTxs.AddDeferredTx(args.From, &args.Contract, blockchain.ConvertToInt(args.Amount), tx.Payload, common.Big0, args.BroadcastBlock)
+		return tx.Hash(), err
 	}
 	return api.baseApi.sendInternalTx(ctx, tx)
 }

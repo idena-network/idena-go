@@ -143,6 +143,12 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 			}
 			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
 			fs.chain.Indexer().HandleBlockTransactions(b.Header, txs)
+
+			receipts, err := fs.GetTxReceipts(b.Header.ProposedHeader.TxReceiptsCid)
+			if err != nil {
+				return b.Header.Height(), err
+			}
+			fs.chain.WriteTxReceipts(b.Header.ProposedHeader.TxReceiptsCid, receipts)
 		}
 	}
 	return 0, nil
@@ -158,6 +164,18 @@ func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (typ
 		body := &types.Body{}
 		body.FromBytes(txs)
 		return body.Transactions, nil
+	}
+}
+
+func (fs *fastSync) GetTxReceipts(receiptCid []byte) (types.TxReceipts, error) {
+	if data, err := fs.ipfs.Get(receiptCid, ipfs.TxReceipt); err != nil {
+		return nil, err
+	} else {
+		if len(data) == 0 {
+			return nil, nil
+		}
+		body := types.TxReceipts{}
+		return body.FromBytes(data), nil
 	}
 }
 

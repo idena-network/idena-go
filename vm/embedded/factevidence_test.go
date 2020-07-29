@@ -2,6 +2,7 @@ package embedded
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -20,11 +21,21 @@ import (
 	"testing"
 )
 
+func printDbSize(db *dbm.MemDB) {
+	it, _ := db.Iterator(nil, nil)
+	size := 0
+	for ; it.Valid(); it.Next() {
+		size += len(it.Key()) + len(it.Value())
+	}
+	it.Close()
+	fmt.Printf("size=%v\n", size)
+}
+
 func TestFactChecking_Call(t *testing.T) {
 	db := dbm.NewMemDB()
 	appState := appstate.NewAppState(db, eventbus.New())
 
-	appState.State.SetFeePerByte(big.NewInt(1))
+	appState.State.SetFeePerGas(big.NewInt(1))
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -43,6 +54,8 @@ func TestFactChecking_Call(t *testing.T) {
 	appState.Commit(nil)
 
 	appState.Initialize(1)
+
+	printDbSize(db)
 
 	crypto.PubkeyToAddress(key.PublicKey)
 	attachment := attachments.CreateDeployContractAttachment(FactEvidenceContract, []byte{0x1}, common.ToBytes(uint64(10)))
@@ -81,6 +94,9 @@ func TestFactChecking_Call(t *testing.T) {
 	e.Commit()
 	contractAddr := ctx.ContractAddr()
 
+	appState.Commit(nil)
+	fmt.Printf("tx size = %v", tx.Size())
+	printDbSize(db)
 	// start voting
 
 	callAttach := attachments.CreateCallContractAttachment("startVoting")
@@ -207,8 +223,12 @@ func TestFactChecking_Call(t *testing.T) {
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)
+	gas.Reset(-1)
 	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
 	contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
+
+	appState.Commit(nil)
+	printDbSize(db)
 
 	require.NoError(t, contract.Call(callAttach.Method, callAttach.Args...))
 	e.Commit()
@@ -240,7 +260,7 @@ func TestFactChecking_Call(t *testing.T) {
 	e.Commit()
 	require.Equal(t, 0, appState.State.GetBalance(destAddr).Cmp(common.DnaBase))
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
-	require.Equal(t,0 , appState.State.GetStakeBalance(contractAddr).Sign())
+	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 
 	require.Nil(t, appState.State.GetContractValue(contractAddr, []byte("vrfSeed")))
 }

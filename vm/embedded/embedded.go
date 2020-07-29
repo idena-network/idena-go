@@ -9,28 +9,28 @@ import (
 
 type EmbeddedContractType = common.Hash
 
-const (
-	ContractCallGas   = 100
-	ContractDeployGas = 20
-)
-
 var (
-	TimeLockContract     EmbeddedContractType
-	FactEvidenceContract EmbeddedContractType
-	EvidenceLockContract EmbeddedContractType
-
-	AvailableContracts map[EmbeddedContractType]struct{}
+	TimeLockContract               EmbeddedContractType
+	FactEvidenceContract           EmbeddedContractType
+	EvidenceLockContract           EmbeddedContractType
+	RefundableEvidenceLockContract EmbeddedContractType
+	MultisigContract               EmbeddedContractType
+	AvailableContracts             map[EmbeddedContractType]struct{}
 )
 
 func init() {
 	TimeLockContract.SetBytes([]byte{0x1})
 	FactEvidenceContract.SetBytes([]byte{0x2})
 	EvidenceLockContract.SetBytes([]byte{0x3})
+	RefundableEvidenceLockContract.SetBytes([]byte{0x4})
+	MultisigContract.SetBytes([]byte{0x5})
 
 	AvailableContracts = map[EmbeddedContractType]struct{}{
-		TimeLockContract:     {},
-		FactEvidenceContract: {},
-		EvidenceLockContract: {},
+		TimeLockContract:               {},
+		FactEvidenceContract:           {},
+		EvidenceLockContract:           {},
+		RefundableEvidenceLockContract: {},
+		MultisigContract:               {},
 	}
 }
 
@@ -97,6 +97,10 @@ func (b *BaseContract) GetBigInt(s string) *big.Int {
 
 func (b *BaseContract) SetByte(s string, value byte) {
 	b.env.SetValue(b.ctx, []byte(s), []byte{value})
+}
+
+func (b *BaseContract) RemoveValue(s string){
+	b.env.RemoveValue(b.ctx, []byte(s))
 }
 
 func (b *BaseContract) GetByte(s string) byte {

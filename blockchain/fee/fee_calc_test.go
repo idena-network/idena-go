@@ -53,17 +53,17 @@ func TestCalculateCostForInvitation(t *testing.T) {
 func Test_GetFeePerByteForNetwork(t *testing.T) {
 	require := require.New(t)
 
-	require.Zero(big.NewInt(1e+17).Cmp(GetFeePerByteForNetwork(0)))
+	require.Zero(big.NewInt(1e+17).Cmp(GetFeePerGasForNetwork(0)))
 
-	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerByteForNetwork(10)))
+	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerGasForNetwork(10)))
 
-	require.Zero(big.NewInt(1e+15).Cmp(GetFeePerByteForNetwork(100)))
+	require.Zero(big.NewInt(1e+15).Cmp(GetFeePerGasForNetwork(100)))
 
-	require.Zero(big.NewInt(2e+13).Cmp(GetFeePerByteForNetwork(5000)))
+	require.Zero(big.NewInt(2e+13).Cmp(GetFeePerGasForNetwork(5000)))
 
-	require.Zero(big.NewInt(1e+12).Cmp(GetFeePerByteForNetwork(100000)))
+	require.Zero(big.NewInt(1e+12).Cmp(GetFeePerGasForNetwork(100000)))
 
-	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerByteForNetwork(1e+17)))
+	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerGasForNetwork(1e+17)))
 
-	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerByteForNetwork(1e+18)))
+	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerGasForNetwork(1e+18)))
 }

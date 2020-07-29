@@ -126,7 +126,7 @@ type Global struct {
 	WordsSeed                     types.Seed `rlp:"nil"`
 	LastSnapshot                  uint64
 	EpochBlock                    uint64
-	FeePerByte                    *big.Int
+	FeePerGas                     *big.Int
 	VrfProposerThreshold          uint64
 	EmptyBlocksBits               *big.Int
 	GodAddressInvites             uint16
@@ -142,7 +142,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		WordsSeed:                     s.WordsSeed[:],
 		LastSnapshot:                  s.LastSnapshot,
 		EpochBlock:                    s.EpochBlock,
-		FeePerByte:                    common.BigIntBytesOrNil(s.FeePerByte),
+		FeePerByte:                    common.BigIntBytesOrNil(s.FeePerGas),
 		VrfProposerThreshold:          s.VrfProposerThreshold,
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
 		GodAddressInvites:             uint32(s.GodAddressInvites),
@@ -164,7 +164,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.WordsSeed = types.BytesToSeed(protoGlobal.WordsSeed)
 	s.LastSnapshot = protoGlobal.LastSnapshot
 	s.EpochBlock = protoGlobal.EpochBlock
-	s.FeePerByte = common.BigIntOrNil(protoGlobal.FeePerByte)
+	s.FeePerGas = common.BigIntOrNil(protoGlobal.FeePerByte)
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
@@ -923,16 +923,16 @@ func (s *stateGlobal) EpochBlock() uint64 {
 	return s.data.EpochBlock
 }
 
-func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
-	s.data.FeePerByte = fee
+func (s *stateGlobal) SetFeePerGas(fee *big.Int) {
+	s.data.FeePerGas = fee
 	s.touch()
 }
 
-func (s *stateGlobal) FeePerByte() *big.Int {
-	if s.data.FeePerByte == nil {
+func (s *stateGlobal) FeePerGas() *big.Int {
+	if s.data.FeePerGas == nil {
 		return new(big.Int)
 	}
-	return s.data.FeePerByte
+	return s.data.FeePerGas
 }
 
 func (s *stateGlobal) SubGodAddressInvite() {

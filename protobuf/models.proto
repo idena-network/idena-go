@@ -470,3 +470,36 @@ message ProtoDeployContractAttachment {
 message ProtoTerminateContractAttachment {
     repeated bytes args = 1;
 }
+
+
+message ProtoTxReceipts {
+    message ProtoTxReceipt {
+        bytes contract = 1;
+        bool success = 2;
+        uint64 gasUsed = 3;
+        bytes from = 4;
+        string error = 5;
+        bytes gasCost = 6;
+        bytes txHash = 7;
+    }
+    repeated ProtoTxReceipt receipts = 1;
+}
+
+message ProtoTxReceiptIndex {
+    bytes cid = 1;
+    uint32 index = 2;
+}
+
+
+message ProtoDeferredTxs {
+
+    message ProtoDeferredTx {
+        bytes from = 1;
+        bytes to = 2;
+        bytes amount = 3;
+        bytes payload = 4;
+        bytes tips = 5;
+        uint64 block = 6;
+    }
+    repeated ProtoDeferredTx Txs = 1;
+}

@@ -133,6 +133,37 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 	return convertToTransaction(tx, blockHash, feePerByte, timestamp)
 }
 
+func (api *BlockchainApi) TxReceipt(hash common.Hash) *TxReceipt {
+	tx := api.pool.GetTx(hash)
+	var idx *types.TransactionIndex
+
+	if tx == nil {
+		tx, idx = api.bc.GetTx(hash)
+	}
+
+	if tx == nil {
+		return nil
+	}
+
+	if idx == nil {
+		idx = api.bc.GetTxIndex(hash)
+	}
+
+	var blockHash common.Hash
+	var feePerByte *big.Int
+	if idx != nil {
+		blockHash = idx.BlockHash
+		block := api.bc.GetBlock(blockHash)
+		if block != nil {
+			feePerByte = block.Header.FeePerByte()
+		}
+	}
+
+	receipt := api.bc.GetReceipt(hash)
+
+	return convertReceipt(tx, receipt, feePerByte)
+}
+
 func (api *BlockchainApi) Mempool() []common.Hash {
 	pending := api.pool.GetPendingTransaction()
 
@@ -208,7 +239,7 @@ func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transaction
 }
 
 func (api *BlockchainApi) FeePerByte() *big.Int {
-	return api.baseApi.getAppState().State.FeePerByte()
+	return api.baseApi.getAppState().State.FeePerGas()
 }
 
 func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) (common.Hash, error) {
@@ -279,6 +310,10 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 		})
 	}
 	return res
+}
+
+func (api *BlockchainApi) EventSubscribe(contract common.Address, event string) {
+
 }
 
 func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp int64) *Transaction {

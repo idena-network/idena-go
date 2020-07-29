@@ -2,7 +2,6 @@ package env
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -33,6 +32,7 @@ type Env interface {
 	ReadContractData(contractAddr common.Address, key []byte) []byte
 	Vrf(msg []byte) ([32]byte, []byte)
 	Terminate(ctx CallContext, dest common.Address)
+	Event(name string, args ...[]byte)
 }
 
 type contractValue struct {
@@ -50,6 +50,7 @@ type EnvImp struct {
 	balancesCache         map[common.Address]*big.Int
 	deployedContractCache map[common.Address]*state.ContractData
 	droppedContracts      map[common.Address]struct{}
+	events                []*types.TxEvent
 }
 
 func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore) *EnvImp {
@@ -58,6 +59,7 @@ func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter
 		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]*state.ContractData{},
 		droppedContracts:      map[common.Address]struct{}{},
+		events:                []*types.TxEvent{},
 	}
 }
 
@@ -145,7 +147,7 @@ func (e *EnvImp) RemoveValue(ctx CallContext, key []byte) {
 }
 
 func (e *EnvImp) MinFeePerByte() *big.Int {
-	return e.state.State.FeePerByte()
+	return e.state.State.FeePerGas()
 }
 
 func (e *EnvImp) Balance(address common.Address) *big.Int {
@@ -242,7 +244,7 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	})
 }
 
-func (e *EnvImp) Commit() {
+func (e *EnvImp) Commit() []*types.TxEvent {
 
 	var contracts []common.Address
 	for contract := range e.contractStoreCache {
@@ -268,7 +270,6 @@ func (e *EnvImp) Commit() {
 				e.state.State.RemoveContractValue(contract, []byte(k))
 			} else {
 				e.state.State.SetContractValue(contract, []byte(k), v.value)
-				fmt.Printf("set %v-%v\n", k, v.value)
 			}
 		}
 	}
@@ -277,12 +278,17 @@ func (e *EnvImp) Commit() {
 	}
 	for contract, data := range e.deployedContractCache {
 		e.state.State.DeployContract(contract, data.CodeHash, data.Stake)
-		fmt.Printf("deploy %v-%v\n", data.CodeHash, data.Stake.Int64())
 	}
 	for contract := range e.droppedContracts {
 		e.state.State.DropContract(contract)
 	}
-	fmt.Printf("------\n")
+	return e.events
+}
+
+func (e *EnvImp) Event(name string, args ...[]byte) {
+	e.events = append(e.events, &types.TxEvent{
+		EventName: name, Data: args,
+	})
 }
 
 func (e *EnvImp) Reset() {
@@ -290,6 +296,7 @@ func (e *EnvImp) Reset() {
 	e.balancesCache = map[common.Address]*big.Int{}
 	e.deployedContractCache = map[common.Address]*state.ContractData{}
 	e.droppedContracts = map[common.Address]struct{}{}
+	e.events = []*types.TxEvent{}
 }
 
 type CallContext interface {

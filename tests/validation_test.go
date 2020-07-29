@@ -29,11 +29,11 @@ func Test_BigFeeTx(t *testing.T) {
 	signedTx, _ := types.SignTx(tx, key) // tx size 97
 	minFeePerByte := big.NewInt(1)
 
-	appState.State.SetFeePerByte(big.NewInt(2))
+	appState.State.SetFeePerGas(big.NewInt(2))
 	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
 	require.Equal(t, validation.BigFee, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
 
-	appState.State.SetFeePerByte(big.NewInt(1))
+	appState.State.SetFeePerGas(big.NewInt(1))
 	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
 	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
 }

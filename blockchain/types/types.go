@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
@@ -36,6 +37,8 @@ const (
 	ReductionOne = 253
 	ReductionTwo = 254
 	Final        = 255
+
+	MaxBlockGas = 300 * 1024
 )
 
 type BlockFlag uint32
@@ -108,6 +111,7 @@ type ProposedHeader struct {
 	FeePerByte     *big.Int
 	Upgrade        uint32
 	SeedProof      []byte
+	TxReceiptsCid  []byte
 }
 
 type Header struct {
@@ -1384,11 +1388,124 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 	return nil
 }
 
+type TxEvent struct {
+	EventName string
+	Data      [][]byte
+}
+
 type TxReceipt struct {
 	ContractAddress common.Address
 	Success         bool
 	GasUsed         uint64
+	GasCost         *big.Int
 	From            common.Address
 	TxHash          common.Hash
 	Error           error
+	Events          []*TxEvent
+}
+
+type TxReceipts []*TxReceipt
+
+func (txrs TxReceipts) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoTxReceipts{}
+	for _, r := range txrs {
+		protoObj.Receipts = append(protoObj.Receipts, r.ToProto())
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (txrs TxReceipts) FromBytes(data []byte) TxReceipts {
+	protoObj := new(models.ProtoTxReceipts)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return nil
+	}
+	return txrs.FromProto(protoObj)
+}
+
+func (txrs TxReceipts) FromProto(protoObj *models.ProtoTxReceipts) TxReceipts {
+	var ret TxReceipts
+	for _, r := range protoObj.Receipts {
+		receipt := new(TxReceipt)
+		receipt.FromProto(r)
+		ret = append(ret, receipt)
+	}
+	return ret
+}
+
+func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
+	protoObj := &models.ProtoTxReceipts_ProtoTxReceipt{
+		Success:  r.Success,
+		Contract: r.ContractAddress.Bytes(),
+		From:     r.From.Bytes(),
+		GasUsed:  r.GasUsed,
+		TxHash:   r.TxHash.Bytes(),
+	}
+	if r.Error != nil {
+		protoObj.Error = r.Error.Error()
+	}
+	if r.GasCost != nil {
+		protoObj.GasCost = r.GasCost.Bytes()
+	}
+	return protoObj
+}
+
+func (r *TxReceipt) ToBytes() ([]byte, error) {
+	return proto.Marshal(r.ToProto())
+}
+
+func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
+	var from common.Address
+	from.SetBytes(protoObj.From)
+	r.From = from
+
+	var contract common.Address
+	contract.SetBytes(protoObj.Contract)
+	r.ContractAddress = contract
+
+	gasCost := big.NewInt(0)
+	gasCost.SetBytes(protoObj.GasCost)
+	r.GasCost = gasCost
+
+	if protoObj.Error != "" {
+		r.Error = errors.New(protoObj.Error)
+	}
+	r.Success = protoObj.Success
+	r.GasUsed = protoObj.GasUsed
+
+	var hash common.Hash
+	hash.SetBytes(protoObj.TxHash)
+	r.TxHash = hash
+}
+
+func (r *TxReceipt) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoTxReceipts_ProtoTxReceipt)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	r.FromProto(protoObj)
+	return nil
+}
+
+type TxReceiptIndex struct {
+	ReceiptCid []byte
+	// tx index in receipts
+	Idx uint32
+}
+
+func (i *TxReceiptIndex) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoTxReceiptIndex{
+		Cid:   i.ReceiptCid,
+		Index: i.Idx,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (i *TxReceiptIndex) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoTxReceiptIndex)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	i.Idx = protoObj.Index
+	i.ReceiptCid = protoObj.Cid
+	return nil
 }

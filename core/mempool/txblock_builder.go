@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -14,7 +15,7 @@ type buildingContext struct {
 	sortedTxsPerSender map[common.Address][]*types.Transaction
 	curNoncesPerSender map[common.Address]uint32
 	blockTxs           []*types.Transaction
-	blockSize          int
+	blockGas           int
 }
 
 func newBuildingContext(
@@ -51,7 +52,7 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 	isPriorityTxReached := false
 	i := 0
 	var txsToAdd []*types.Transaction
-	sizeToAdd := 0
+	gasToAdd := 0
 	for !isPriorityTxReached {
 		tx := senderSortedTxs[i]
 		if currentNonce+1 != tx.AccountNonce {
@@ -60,8 +61,8 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 		if !ctx.checkFee(tx) {
 			break
 		}
-		sizeToAdd += tx.Size()
-		if ctx.blockSize+sizeToAdd > BlockBodySize {
+		gasToAdd += fee.CalculateGas(tx)
+		if ctx.blockGas+gasToAdd > types.MaxBlockGas {
 			break
 		}
 		txsToAdd = append(txsToAdd, tx)
@@ -75,7 +76,7 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 	}
 
 	ctx.blockTxs = append(ctx.blockTxs, txsToAdd...)
-	ctx.blockSize += sizeToAdd
+	ctx.blockGas += gasToAdd
 	ctx.curNoncesPerSender[sender] = currentNonce
 	ctx.sortedTxsPerSender[sender] = ctx.sortedTxsPerSender[sender][i:]
 }
@@ -90,11 +91,11 @@ func (ctx *buildingContext) addTxsToBlock() {
 		if ctx.curNoncesPerSender[sender]+1 != tx.AccountNonce {
 			continue
 		}
-		if ctx.blockSize+tx.Size() > BlockBodySize {
+		if ctx.blockGas+fee.CalculateGas(tx) > types.MaxBlockGas {
 			return
 		}
 		ctx.blockTxs = append(ctx.blockTxs, tx)
-		ctx.blockSize += tx.Size()
+		ctx.blockGas += fee.CalculateGas(tx)
 		ctx.curNoncesPerSender[sender] = tx.AccountNonce
 	}
 }

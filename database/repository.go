@@ -60,6 +60,10 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
+func receiptIndexKey(hash common.Hash) [] byte{
+	return append(receiptIndexPrefix, hash.Bytes()...)
+}
+
 func savedTxKey(sender common.Address, timestamp int64, nonce uint32, hash common.Hash) []byte {
 	key := append(ownTransactionIndexPrefix, sender[:]...)
 	key = append(key, encodeUint64Number(uint64(timestamp))...)
@@ -187,6 +191,8 @@ func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 	r.db.Set(txIndexKey(txHash), data)
 }
 
+
+
 func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	key := txIndexKey(hash)
 	data, err := r.db.Get(key)
@@ -197,6 +203,31 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	index := new(types.TransactionIndex)
 	if err := index.FromBytes(data); err != nil {
 		log.Error("invalid transaction index proto", "err", err)
+		return nil
+	}
+	return index
+}
+
+
+func (r *Repo) WriteReceiptIndex(hash common.Hash, idx *types.TxReceiptIndex) {
+	data, err := idx.ToBytes()
+	if err != nil {
+		log.Crit("failed to proto encode receipt index", "err", err)
+		return
+	}
+	r.db.Set(receiptIndexKey(hash), data)
+}
+
+func (r *Repo) ReadReceiptIndex(hash common.Hash) *types.TxReceiptIndex {
+	key := receiptIndexKey(hash)
+	data, err := r.db.Get(key)
+	assertNoError(err)
+	if data == nil {
+		return nil
+	}
+	index := new(types.TxReceiptIndex)
+	if err := index.FromBytes(data); err != nil {
+		log.Error("invalid receipt index proto", "err", err)
 		return nil
 	}
 	return index
@@ -461,3 +492,5 @@ func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
 
 	return res
 }
+
+

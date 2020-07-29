@@ -107,10 +107,12 @@ func (f *FactEvidence) Read(method string, args ...[]byte) ([]byte, error) {
 		}
 		hash := crypto.Hash(append(common.ToBytes(vote), salt...))
 		return hash[:], nil
+	case "voteBlock":
+		block := f.GetUint64("startBlock") + f.GetUint64("votingDuration")
+		return common.ToBytes(block), nil
 	default:
 		return nil, errors.New("unknown method")
 	}
-
 }
 
 func (f *FactEvidence) Deploy(args ...[]byte) error {

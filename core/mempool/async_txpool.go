@@ -9,6 +9,10 @@ type AsyncTxPool struct {
 	queue  chan *types.Transaction
 }
 
+func (pool *AsyncTxPool) IsSyncing() bool {
+	return pool.txPool.IsSyncing()
+}
+
 func NewAsyncTxPool(txPool *TxPool) *AsyncTxPool {
 	pool := &AsyncTxPool{
 		txPool: txPool,

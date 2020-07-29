@@ -58,7 +58,6 @@ var (
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
 	NegativeValue        = errors.New("value must be non-negative")
-	InvalidAmount        = errors.New("invalid amount")
 	validators           map[types.TxType]validator
 )
 
@@ -67,6 +66,12 @@ var (
 		types.SendTx:          true,
 		types.BurnTx:          true,
 		types.ChangeProfileTx: true,
+	}
+
+	contractTxs = map[types.TxType]struct{}{
+		types.CallContract:      {},
+		types.DeployContract:    {},
+		types.TerminateContract: {},
 	}
 )
 
@@ -164,9 +169,12 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	var cost *big.Int
 	if txType != InBlockTx {
-		cost = calculateMaxCost(tx)
+		cost = fee.CalculateMaxCost(tx)
 	} else {
-		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
+		if _, ok := contractTxs[tx.Type]; ok {
+			cost = fee.CalculateMaxCost(tx)
+		}
 	}
 	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
@@ -191,19 +199,11 @@ func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxTy
 	if txType != InBlockTx {
 		return nil
 	}
-	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
 	if feeAmount.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return BigFee
 	}
 	return nil
-}
-
-func calculateMaxCost(tx *types.Transaction) *big.Int {
-	result := big.NewInt(0)
-	result.Add(result, tx.AmountOrZero())
-	result.Add(result, tx.TipsOrZero())
-	result.Add(result, tx.MaxFeeOrZero())
-	return result
 }
 
 // specific validation for sendTx
