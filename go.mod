@@ -15,7 +15,7 @@ require (
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/ipfs/fs-repo-migrations v1.6.3
 	github.com/ipfs/go-blockservice v0.1.3
-	github.com/ipfs/go-cid v0.0.6
+	github.com/ipfs/go-cid v0.0.7
 
 	github.com/ipfs/go-ipfs v0.6.0
 	github.com/ipfs/go-ipfs-config v0.9.0
