@@ -149,6 +149,7 @@ type Syncing struct {
 	CurrentBlock uint64 `json:"currentBlock"`
 	HighestBlock uint64 `json:"highestBlock"`
 	WrongTime    bool   `json:"wrongTime"`
+	GenesisBlock uint64 `json:"genesisBlock"`
 }
 
 func (api *BlockchainApi) Syncing() Syncing {
@@ -156,12 +157,14 @@ func (api *BlockchainApi) Syncing() Syncing {
 	if api.bc.Config().Consensus.Automine {
 		isSyncing = false
 	}
+
 	current, highest := api.d.SyncProgress()
 	if !isSyncing {
 		highest = current
 	}
 	return Syncing{
 		Syncing:      isSyncing,
+		GenesisBlock: api.bc.Genesis().Height(),
 		CurrentBlock: current,
 		HighestBlock: highest,
 		WrongTime:    api.pm.WrongTime(),
