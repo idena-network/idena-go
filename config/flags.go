@@ -24,6 +24,7 @@ const (
 
 var (
 	DefaultIpfsBootstrapNodes = []string{
+		"/ip4/64.227.41.45/tcp/40405/ipfs/QmfJktBd2jf37Jx3eCYyn1fofbW511U5XvYiMp7233mLZM",
 		"/ip4/135.181.40.10/tcp/40405/ipfs/QmNYWtiwM1UfeCmHfWSdefrMuQdg6nycY5yS64HYqWCUhD",
 		"/ip4/165.227.91.202/tcp/40403/ipfs/QmZ9VnVZsokXEttRYiHbHmCUBSdzSQywjj5wM3Me96XoVD",
 		"/ip4/161.35.18.60/tcp/40405/ipfs/QmaBWm6dXsc6Y1MZ1x4ZTqHdjy32PGmyGmNPmHnxGGgrXF",
