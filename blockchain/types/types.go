@@ -1218,10 +1218,20 @@ func (k *PrivateFlipKeysPackage) Hash128() common.Hash128 {
 type Answer byte
 
 const (
-	None          Answer = 0
-	Left          Answer = 1
-	Right         Answer = 2
-	Inappropriate Answer = 3
+	None  Answer = 0
+	Left  Answer = 1
+	Right Answer = 2
+)
+
+type Grade byte
+
+const (
+	GradeNone     Grade = 0
+	GradeReported Grade = 1
+	GradeD        Grade = 2
+	GradeC        Grade = 3
+	GradeB        Grade = 4
+	GradeA        Grade = 5
 )
 
 type Answers struct {
@@ -1263,44 +1273,48 @@ func (a *Answers) Right(flipIndex uint) {
 	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount))
 }
 
-func (a *Answers) Inappropriate(flipIndex uint) {
+func (a *Answers) Grade(flipIndex uint, grade Grade) {
 	if flipIndex >= a.FlipsCount {
 		panic("index is out of range")
 	}
-	t := big.NewInt(1)
-	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*2))
-}
-
-func (a *Answers) WrongWords(flipIndex uint) {
-	if flipIndex >= a.FlipsCount {
-		panic("index is out of range")
+	if grade > GradeA {
+		panic("grade is out of range")
 	}
-	t := big.NewInt(1)
-	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount*3))
+	t := big.NewInt(int64(grade))
+	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex*3+a.FlipsCount*2))
 }
 
 func (a *Answers) Bytes() []byte {
 	return a.Bits.Bytes()
 }
 
-func (a *Answers) Answer(flipIndex uint) (answer Answer, wrongWords bool) {
+func (a *Answers) Answer(flipIndex uint) (answer Answer, grade Grade) {
 	answer = None
 	if a.Bits.Bit(int(flipIndex)) == 1 {
 		answer = Left
 	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount)) == 1 {
 		answer = Right
-	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount*2)) == 1 {
-		answer = Inappropriate
 	}
-	wrongWords = a.Bits.Bit(int(flipIndex+a.FlipsCount*3)) == 1
+	t := new(big.Int)
+	t.SetBit(t, 0, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2)))
+	t.SetBit(t, 1, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+1)))
+	t.SetBit(t, 2, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+2)))
+	grade = Grade(t.Uint64())
+	if grade > GradeA {
+		grade = GradeNone
+	}
 	return
 }
 
 type ValidationResult struct {
-	StrongFlipCids   [][]byte
-	WeakFlipCids     [][]byte
+	FlipsToReward    []*FlipToReward
 	Missed           bool
 	NewIdentityState uint8
+}
+
+type FlipToReward struct {
+	Cid   []byte
+	Grade Grade
 }
 
 type InviterValidationResult struct {
@@ -1322,10 +1336,16 @@ type AuthorResults struct {
 }
 
 type ValidationResults struct {
-	BadAuthors    map[common.Address]BadAuthorReason
-	GoodAuthors   map[common.Address]*ValidationResult
-	AuthorResults map[common.Address]*AuthorResults
-	GoodInviters  map[common.Address]*InviterValidationResult
+	BadAuthors              map[common.Address]BadAuthorReason
+	GoodAuthors             map[common.Address]*ValidationResult
+	AuthorResults           map[common.Address]*AuthorResults
+	GoodInviters            map[common.Address]*InviterValidationResult
+	ReportersToRewardByFlip map[int]map[common.Address]*Candidate
+}
+
+type Candidate struct {
+	Address          common.Address
+	NewIdentityState uint8
 }
 
 type BadAuthorReason = byte

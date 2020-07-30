@@ -28,13 +28,13 @@ type FlipStats struct {
 	LongAnswers  []FlipAnswerStats
 	Status       byte
 	Answer       types.Answer
-	WrongWords   bool
+	Grade        types.Grade
 }
 
 type FlipAnswerStats struct {
 	Respondent common.Address
 	Answer     types.Answer
-	WrongWords bool
+	Grade      types.Grade
 	Point      float32
 }
 

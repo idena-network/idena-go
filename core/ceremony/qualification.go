@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
+	math2 "math"
 	"sync"
 )
 
@@ -91,19 +92,22 @@ func (q *qualification) restore() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) []FlipQualification {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) ([]FlipQualification, *reportersToReward) {
 
 	q.lock.RLock()
 	defer q.lock.RUnlock()
 
 	data := make([]struct {
-		answer     []types.Answer
-		wrongWords []bool
+		answers     []types.Answer
+		totalGrade  int
+		gradesCount int
 	}, totalFlipsCount)
 
-	for i := 0; i < len(flipsPerCandidate); i++ {
-		candidate := candidates[i]
-		flips := flipsPerCandidate[i]
+	reportersToReward := newReportersToReward()
+
+	for candidateIdx := 0; candidateIdx < len(flipsPerCandidate); candidateIdx++ {
+		candidate := candidates[candidateIdx]
+		flips := flipsPerCandidate[candidateIdx]
 		answerBytes := q.longAnswers[candidate.Address]
 		attachment := attachments.ParseLongAnswerBytesAttachment(answerBytes)
 
@@ -112,25 +116,38 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 			continue
 		}
 
-		answers := types.NewAnswersFromBits(uint(len(flips)), attachment.Answers)
-
-		for j := uint(0); j < uint(len(flips)); j++ {
-			answer, wrongWords := answers.Answer(j)
+		flipsCount := len(flips)
+		answers := types.NewAnswersFromBits(uint(flipsCount), attachment.Answers)
+		for j := uint(0); j < uint(flipsCount); j++ {
+			answer, grade := answers.Answer(j)
 			flipIdx := flips[j]
 
-			data[flipIdx].answer = append(data[flipIdx].answer, answer)
-			data[flipIdx].wrongWords = append(data[flipIdx].wrongWords, wrongWords)
+			data[flipIdx].answers = append(data[flipIdx].answers, answer)
+			if grade == types.GradeReported {
+				reportersToReward.addReport(flipIdx, candidate.Address)
+			} else if grade != types.GradeNone {
+				data[flipIdx].totalGrade += int(grade)
+				data[flipIdx].gradesCount++
+			}
+		}
+		if flipsCount > 0 {
+			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) > 0.5
+			if ignoreReports {
+				reportersToReward.deleteReporter(candidate.Address)
+			}
 		}
 	}
 
 	result := make([]FlipQualification, totalFlipsCount)
 
-	for i := 0; i < len(data); i++ {
-		result[i] = qualifyOneFlip(data[i].answer)
-		result[i].wrongWords = qualifyWrongWords(data[i].wrongWords)
+	for flipIdx := 0; flipIdx < len(data); flipIdx++ {
+		result[flipIdx] = qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount)
+		if result[flipIdx].grade != types.GradeReported {
+			reportersToReward.deleteFlip(flipIdx)
+		}
 	}
 
-	return result
+	return result, reportersToReward
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
@@ -190,7 +207,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
 		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, answers, shortSession)
-		answer, wrongWords := answers.Answer(uint(i))
+		answer, grade := answers.Answer(uint(i))
 
 		//extra flip
 		if shortSession && i >= int(common.ShortSessionFlipsCount()) {
@@ -202,7 +219,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		}
 
 		var answerPoint float32
-		if !shortSession || !qual.wrongWords {
+		if !shortSession || qual.grade != types.GradeReported {
 			switch status {
 			case Qualified:
 				if qual.answer == answer {
@@ -218,7 +235,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 				case answer == types.None:
 					qualifiedFlipsCount += 1
 					break
-				case qual.answer != types.Inappropriate:
+				default:
 					answerPoint = 0.5
 					qualifiedFlipsCount += 1
 				}
@@ -229,7 +246,7 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			Respondent: candidate,
 			Answer:     answer,
 			Point:      answerPoint,
-			WrongWords: wrongWords,
+			Grade:      grade,
 		}
 	}
 	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0, false
@@ -259,7 +276,7 @@ func getFlipStatusForCandidate(flipIdx int, flipsToSolveIdx int, baseStatus Flip
 	return baseStatus
 }
 
-func getAnswersCount(a []types.Answer) (left uint, right uint, none uint, inappropriate uint) {
+func getAnswersCount(a []types.Answer) (left uint, right uint, none uint) {
 	for k := 0; k < len(a); k++ {
 		if a[k] == types.Left {
 			left++
@@ -267,25 +284,36 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, none uint, inappr
 		if a[k] == types.Right {
 			right++
 		}
-		if a[k] == types.Inappropriate {
-			inappropriate++
-		}
 		if a[k] == types.None {
 			none++
 		}
 	}
 
-	return left, right, none, inappropriate
+	return left, right, none
 }
 
-func qualifyOneFlip(a []types.Answer) FlipQualification {
-	left, right, none, inapp := getAnswersCount(a)
-	totalAnswersCount := float32(len(a))
+func qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int) FlipQualification {
+	left, right, none := getAnswersCount(answers)
+	totalAnswersCount := float32(len(answers))
+	reported := float32(reportsCount)/float32(len(answers)) > 0.5
+	graded := float32(gradesCount)/float32(len(answers)) > 0.33
+	var grade types.Grade
+	switch {
+	case reported:
+		grade = types.GradeReported
+		break
+	case graded:
+		grade = types.Grade(math2.Round(float64(totalGrade) / float64(gradesCount)))
+		break
+	default:
+		grade = types.GradeD
+	}
 
 	if float32(left)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
 			answer: types.Left,
 			status: Qualified,
+			grade:  grade,
 		}
 	}
 
@@ -293,13 +321,7 @@ func qualifyOneFlip(a []types.Answer) FlipQualification {
 		return FlipQualification{
 			answer: types.Right,
 			status: Qualified,
-		}
-	}
-
-	if float32(inapp)/totalAnswersCount >= 0.75 {
-		return FlipQualification{
-			answer: types.Inappropriate,
-			status: Qualified,
+			grade:  grade,
 		}
 	}
 
@@ -307,6 +329,7 @@ func qualifyOneFlip(a []types.Answer) FlipQualification {
 		return FlipQualification{
 			answer: types.Left,
 			status: WeaklyQualified,
+			grade:  grade,
 		}
 	}
 
@@ -314,34 +337,21 @@ func qualifyOneFlip(a []types.Answer) FlipQualification {
 		return FlipQualification{
 			answer: types.Right,
 			status: WeaklyQualified,
+			grade:  grade,
 		}
 	}
 
-	if float32(inapp)/totalAnswersCount >= 0.5 {
-		return FlipQualification{
-			answer: types.Inappropriate,
-			status: WeaklyQualified,
-		}
-	}
 	if float32(none)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
 			answer: types.None,
 			status: QualifiedByNone,
+			grade:  grade,
 		}
 	}
 
 	return FlipQualification{
 		answer: types.None,
 		status: NotQualified,
+		grade:  grade,
 	}
-}
-
-func qualifyWrongWords(data []bool) bool {
-	wrongCount := 0
-	for _, item := range data {
-		if item {
-			wrongCount += 1
-		}
-	}
-	return float32(wrongCount)/float32(len(data)) > 0.5
 }

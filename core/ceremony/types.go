@@ -23,7 +23,7 @@ const (
 )
 
 type FlipQualification struct {
-	status     FlipStatus
-	answer     types.Answer
-	wrongWords bool
+	status FlipStatus
+	answer types.Answer
+	grade  types.Grade
 }
