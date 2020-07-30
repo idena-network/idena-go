@@ -188,6 +188,11 @@ func (api *DnaApi) SendTransaction(ctx context.Context, args SendTxArgs) (common
 		payload = *args.Payload
 	}
 
+	//TODO: remove after UI update
+	if args.Type == types.KillTx {
+		args.To = nil
+	}
+
 	return api.baseApi.sendTx(ctx, args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload, nil)
 }
 
@@ -399,9 +404,9 @@ func (api *DnaApi) Epoch() Epoch {
 }
 
 type CeremonyIntervals struct {
-	FlipLotteryDuration      float64
-	ShortSessionDuration     float64
-	LongSessionDuration      float64
+	FlipLotteryDuration  float64
+	ShortSessionDuration float64
+	LongSessionDuration  float64
 }
 
 func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
