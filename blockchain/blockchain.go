@@ -838,15 +838,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
-		amount := tx.AmountOrZero()
-		stateDB.SubBalance(sender, amount)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
-		stakeToTransfer := new(big.Int).Sub(stake, fee)
-		stateDB.AddBalance(*tx.To, stakeToTransfer)
-		stateDB.AddBalance(*tx.To, amount)
-		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToTransfer)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		stateDB.AddBalance(sender, stake)
+		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
@@ -857,6 +853,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		if inviteePrevState == state.Newbie {
 			stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
 			stateDB.AddBalance(sender, stakeToTransfer)
+			stateDB.SubStake(*tx.To, stakeToTransfer)
 			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&

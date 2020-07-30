@@ -133,13 +133,10 @@ func Test_ApplyKillTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
-	key2, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
 
-	receiver := crypto.PubkeyToAddress(key2.PublicKey)
-
 	balance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
-	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
+	stake := new(big.Int).Mul(big.NewInt(10000), common.DnaBase)
 
 	account := appState.State.GetOrNewAccountObject(sender)
 	account.SetBalance(balance)
@@ -148,26 +145,49 @@ func Test_ApplyKillTx(t *testing.T) {
 	id.SetStake(stake)
 	id.SetState(state.Invite)
 
-	amount := new(big.Int).Mul(big.NewInt(1), common.DnaBase)
+	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 
 	tx := &types.Transaction{
 		Type:         types.KillTx,
-		Amount:       amount,
+		Amount:       big.NewInt(1),
 		AccountNonce: 1,
-		To:           &receiver,
 	}
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	require.Equal(big.NewInt(0), fee)
+	require.Error(validation.ValidateTx(chain.appState, signed, fee2.MinFeePerByte, validation.InBlockTx), "should return error if amount is not zero")
 
-	chain.ApplyTxOnState(chain.appState, signed, nil)
+	tx2 := &types.Transaction{
+		Type:         types.KillTx,
+		Amount:       big.NewInt(1),
+		AccountNonce: 1,
+		To:           &common.Address{0x1},
+	}
 
+	signed2, _ := types.SignTx(tx, key)
+
+	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx2)
+	require.Equal(big.NewInt(0), fee)
+	require.Error(validation.ValidateTx(chain.appState, signed2, fee2.MinFeePerByte, validation.InBlockTx), "should return error if *to is filled")
+
+	tx3 := &types.Transaction{
+		Type:         types.KillTx,
+		AccountNonce: 1,
+	}
+
+	signed3, _ := types.SignTx(tx3, key)
+
+	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx3)
+
+	require.NoError(validation.ValidateTx(chain.appState, signed3, fee2.MinFeePerByte, validation.InBlockTx))
+	chain.ApplyTxOnState(chain.appState, signed3, nil)
+
+	require.Equal(big.NewInt(0), fee)
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
-	require.Equal(new(big.Int).Sub(balance, amount), appState.State.GetBalance(sender))
-
-	require.Equal(new(big.Int).Add(new(big.Int).Sub(stake, fee), amount), appState.State.GetBalance(receiver))
+	require.Equal(new(big.Int).Add(balance, stake), appState.State.GetBalance(sender))
+	require.True(common.ZeroOrNil(appState.State.GetStakeBalance(sender)))
 }
 
 func Test_ApplyDoubleKillTx(t *testing.T) {
@@ -175,9 +195,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
 
 	key, _ := crypto.GenerateKey()
-	key2, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
-	receiver := crypto.PubkeyToAddress(key2.PublicKey)
 
 	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
 
@@ -188,13 +206,11 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	tx1 := &types.Transaction{
 		Type:         types.KillTx,
 		AccountNonce: 1,
-		To:           &receiver,
 		MaxFee:       common.DnaBase,
 	}
 	tx2 := &types.Transaction{
 		Type:         types.KillTx,
 		AccountNonce: 2,
-		To:           &receiver,
 		MaxFee:       common.DnaBase,
 	}
 
@@ -208,7 +224,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
 
 	require.Nil(err)
-	require.Equal(validation.InsufficientFunds, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
+	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
@@ -234,14 +250,32 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	tx := &types.Transaction{
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
-		To:           &invitee,
 	}
 	signedTx, _ := types.SignTx(tx, inviterKey)
+	require.Error(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerByte, validation.InBlockTx), "should return error if *to is not filled")
+
+	tx2 := &types.Transaction{
+		Type:         types.KillInviteeTx,
+		AccountNonce: 1,
+		Amount:       new(big.Int).Mul(big.NewInt(9), common.DnaBase),
+		To:           &invitee,
+	}
+	signedTx2, _ := types.SignTx(tx2, inviterKey)
+	require.Error(t, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx), "should return error if amount is not zero")
+
+	tx3 := &types.Transaction{
+		Type:         types.KillInviteeTx,
+		AccountNonce: 1,
+		To:           &invitee,
+		MaxFee:       new(big.Int).Mul(big.NewInt(2), common.DnaBase),
+	}
+	signedTx3, _ := types.SignTx(tx3, inviterKey)
+	require.NoError(t, validation.ValidateTx(chain.appState, signedTx3, fee2.MinFeePerByte, validation.InBlockTx))
 
 	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx3)
 
-	chain.ApplyTxOnState(chain.appState, signedTx, nil)
+	chain.ApplyTxOnState(chain.appState, signedTx3, nil)
 
 	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
@@ -249,6 +283,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
 	newBalance.Sub(newBalance, fee)
 	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
+	require.True(t, common.ZeroOrNil(appState.State.GetStakeBalance(invitee)))
 
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(invitee))
 	require.Nil(t, appState.State.GetInviter(invitee))
