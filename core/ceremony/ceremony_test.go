@@ -108,32 +108,32 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Candidate,
-			MinShortScore, MinLongScore, MinTotalScore, 11, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 11, false,
 			state.Newbie, false, false,
 		},
 		{
 			state.Candidate,
-			MinShortScore, MinLongScore, MinTotalScore, 11, true,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 11, true,
 			state.Killed, false, false,
 		},
 		{
 			state.Newbie,
-			MinShortScore, MinLongScore, MinTotalScore, 11, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 11, false,
 			state.Newbie, false, false,
 		},
 		{
 			state.Newbie,
-			MinShortScore, MinLongScore, MinTotalScore, 13, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 13, false,
 			state.Verified, false, false,
 		},
 		{
 			state.Newbie,
-			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 10, false,
 			state.Newbie, false, false,
 		},
 		{
 			state.Newbie,
-			MinShortScore, MinLongScore, MinTotalScore, 11, true,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 11, true,
 			state.Killed, false, false,
 		},
 		{
@@ -143,12 +143,12 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Newbie,
-			MinShortScore, MinLongScore, MinTotalScore, 8, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 8, false,
 			state.Newbie, false, false,
 		},
 		{
 			state.Verified,
-			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 10, false,
 			state.Killed, false, false,
 		},
 		{
@@ -163,7 +163,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Suspended,
-			MinShortScore, MinLongScore, MinTotalScore, 10, false,
+			common.MinShortScore, common.MinLongScore, common.MinTotalScore, 10, false,
 			state.Verified, false, false,
 		},
 		{
@@ -173,7 +173,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Zombie,
-			MinShortScore, 0, MinTotalScore, 10, false,
+			common.MinShortScore, 0, common.MinTotalScore, 10, false,
 			state.Verified, false, false,
 		},
 		{
@@ -183,117 +183,117 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Candidate,
-			MinShortScore, 0, 0, 5, false,
+			common.MinShortScore, 0, 0, 5, false,
 			state.Candidate, true, false,
 		},
 		{
 			state.Candidate,
-			MinShortScore - 0.1, 0, 0, 5, false,
+			common.MinShortScore - 0.1, 0, 0, 5, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Newbie,
-			MinShortScore, 0, 0.1, 5, false,
+			common.MinShortScore, 0, 0.1, 5, false,
 			state.Newbie, true, false,
 		},
 		{
 			state.Newbie,
-			MinShortScore, 0, 0.1, 5, false,
+			common.MinShortScore, 0, 0.1, 5, false,
 			state.Newbie, false, true,
 		},
 		{
 			state.Newbie,
-			MinShortScore, 0, 0.1, 13, false,
+			common.MinShortScore, 0, 0.1, 13, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Newbie,
-			MinShortScore - 0.1, 0, 0.1, 9, false,
+			common.MinShortScore - 0.1, 0, 0.1, 9, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Verified,
-			MinShortScore - 0.1, 0, 0.1, 10, false,
+			common.MinShortScore - 0.1, 0, 0.1, 10, false,
 			state.Verified, true, false,
 		},
 		{
 			state.Verified,
-			MinShortScore - 0.1, 0, 1.1, 10, false,
+			common.MinShortScore - 0.1, 0, 1.1, 10, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Suspended,
-			MinShortScore - 0.1, 0, 0.1, 10, false,
+			common.MinShortScore - 0.1, 0, 0.1, 10, false,
 			state.Suspended, true, false,
 		},
 		{
 			state.Suspended,
-			MinShortScore - 0.1, 0, 1.1, 10, false,
+			common.MinShortScore - 0.1, 0, 1.1, 10, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Zombie,
-			MinShortScore - 0.1, 0, 0.1, 10, false,
+			common.MinShortScore - 0.1, 0, 0.1, 10, false,
 			state.Zombie, true, false,
 		},
 		{
 			state.Zombie,
-			MinShortScore, 0, 0.1, 10, false,
+			common.MinShortScore, 0, 0.1, 10, false,
 			state.Killed, false, true,
 		},
 		{
 			state.Suspended,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, false, false,
 		},
 		{
 			state.Suspended,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 23, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 23, false,
 			state.Verified, false, false,
 		},
 		{
 			state.Zombie,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, false, false,
 		},
 		{
 			state.Zombie,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 23, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 23, false,
 			state.Verified, false, false,
 		},
 		{
 			state.Human,
-			0.1, MinLongScore, MinHumanTotalScore, 24, false,
+			0.1, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Suspended, false, false,
 		},
 		{
 			state.Human,
-			MinShortScore, 0.1, MinHumanTotalScore, 24, false,
+			common.MinShortScore, 0.1, common.MinHumanTotalScore, 24, false,
 			state.Killed, false, false,
 		},
 		{
 			state.Human,
-			0.1, 0.1, MinHumanTotalScore, 24, false,
+			0.1, 0.1, common.MinHumanTotalScore, 24, false,
 			state.Suspended, false, true,
 		},
 		{
 			state.Human,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, false, true,
 		},
 		{
 			state.Human,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, true,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, true,
 			state.Suspended, false, false,
 		},
 		{
 			state.Human,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, true, true,
 		},
 		{
 			state.Verified,
-			MinShortScore, MinLongScore, MinHumanTotalScore, 24, false,
+			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, false, false,
 		},
 	}

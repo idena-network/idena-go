@@ -486,41 +486,61 @@ func calculateNewIdentityStatusFlags(validationResults *types.ValidationResults)
 }
 
 type identityWithInvite struct {
-	state   state.IdentityState
 	address common.Address
 	score   float32
+	state   state.IdentityState
 }
 
 func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWithInvite, totalInvitesCount float32,
 	statsCollector collector.StatsCollector) {
 
-	getInvitesCount := func(s state.IdentityState) uint8 {
-		if s == state.Human {
-			return 2
-		}
-		if s == state.Verified {
-			return 1
-		}
-		return 0
+	if len(identitiesWithInvites) == 0 {
+		return
 	}
 
 	currentInvitesCount := int(totalInvitesCount)
+
 	var index int
 	var identity identityWithInvite
+	// first step, give 1 invite to humans
 	for index, identity = range identitiesWithInvites {
+		if identity.score < common.MinHumanTotalScore {
+			break
+		}
+		if identity.state != state.Human {
+			continue
+		}
+		appState.State.AddInvite(identity.address, 1)
+		currentInvitesCount -= 1
+
 		if currentInvitesCount <= 0 {
 			break
 		}
-		invitesForIdentity := getInvitesCount(identity.state)
-		appState.State.SetInvites(identity.address, invitesForIdentity)
-		currentInvitesCount -= int(invitesForIdentity)
 	}
-	if index == 0 {
+
+	if currentInvitesCount == 0 {
+		lastScore := identitiesWithInvites[index].score
+		for i := index + 1; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
+			if identitiesWithInvites[i].state == state.Human {
+				appState.State.AddInvite(identitiesWithInvites[i].address, 1)
+			}
+		}
+		collector.SetMinScoreForInvite(statsCollector, lastScore)
 		return
 	}
-	lastScore := identitiesWithInvites[index-1].score
-	for i := index; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
-		appState.State.SetInvites(identitiesWithInvites[i].address, getInvitesCount(identitiesWithInvites[i].state))
+
+	//  second step, distribute remained invites
+	for index, identity = range identitiesWithInvites {
+		appState.State.AddInvite(identity.address, 1)
+		currentInvitesCount -= 1
+		if currentInvitesCount <= 0 {
+			break
+		}
+	}
+
+	lastScore := identitiesWithInvites[index].score
+	for i := index + 1; i < len(identitiesWithInvites) && identitiesWithInvites[i].score == lastScore; i++ {
+		appState.State.AddInvite(identitiesWithInvites[i].address, 1)
 	}
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
@@ -547,8 +567,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				removeLinkWithInviter(appState.State, addr)
 				addIdentityWithInvite(identityWithInvite{
 					address: addr,
-					state:   identity.State,
 					score:   identity.GetTotalScore(),
+					state:   identity.State,
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
@@ -579,7 +599,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 		}
 	})
 
-	setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
+	if !validationFailed {
+		setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
+	}
 }
 
 func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollector collector.StatsCollector) {
@@ -838,15 +860,11 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
-		amount := tx.AmountOrZero()
-		stateDB.SubBalance(sender, amount)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
-		stakeToTransfer := new(big.Int).Sub(stake, fee)
-		stateDB.AddBalance(*tx.To, stakeToTransfer)
-		stateDB.AddBalance(*tx.To, amount)
-		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToTransfer)
+		stateDB.SubBalance(sender, tx.TipsOrZero())
+		stateDB.AddBalance(sender, stake)
+		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
@@ -857,6 +875,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, tx *types.T
 		if inviteePrevState == state.Newbie {
 			stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
 			stateDB.AddBalance(sender, stakeToTransfer)
+			stateDB.SubStake(*tx.To, stakeToTransfer)
 			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
 		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&

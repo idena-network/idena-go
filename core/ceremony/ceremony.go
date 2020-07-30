@@ -40,16 +40,6 @@ const (
 	MaxShortAnswersBroadcastDelaySec    = 60
 )
 
-const (
-	MinTotalScore       = 0.75
-	MinShortScore       = 0.6
-	MinLongScore        = 0.75
-	MinHumanTotalScore  = 0.92
-	MinFlipsForVerified = 13
-	MinFlipsForHuman    = 24
-	StakeToBalanceCoef  = 0.75
-)
-
 type ValidationCeremony struct {
 	bus                      eventbus.Bus
 	db                       dbm.DB
@@ -773,7 +763,7 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
-		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(StakeToBalanceCoef)))
+		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
 		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 		appState.State.AddBalance(addr, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
@@ -1172,10 +1162,10 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Killed
 		}
-		if noQualShort || nonQualLong && shortScore >= MinShortScore {
+		if noQualShort || nonQualLong && shortScore >= common.MinShortScore {
 			return state.Candidate
 		}
-		if shortScore < MinShortScore || longScore < MinLongScore {
+		if shortScore < common.MinShortScore || longScore < common.MinLongScore {
 			return state.Killed
 		}
 		return state.Newbie
@@ -1184,14 +1174,14 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			return state.Killed
 		}
 		if noQualShort ||
-			nonQualLong && totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore ||
-			nonQualLong && totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore {
+			nonQualLong && totalQualifiedFlips >= common.MinFlipsForVerified && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore ||
+			nonQualLong && totalQualifiedFlips < common.MinFlipsForVerified && shortScore >= common.MinShortScore {
 			return state.Newbie
 		}
-		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForVerified && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips < MinFlipsForVerified && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips < common.MinFlipsForVerified && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Newbie
 		}
 		return state.Killed
@@ -1199,13 +1189,13 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Suspended
 		}
-		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+		if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
 			return state.Verified
 		}
-		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Human
 		}
-		if totalQualifiedFlips >= MinFlipsForVerified && totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForVerified && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
@@ -1213,13 +1203,13 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Zombie
 		}
-		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+		if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
 			return state.Suspended
 		}
-		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Human
 		}
-		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
 		return state.Killed
@@ -1227,13 +1217,13 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Killed
 		}
-		if noQualShort || nonQualLong && totalScore >= MinTotalScore && shortScore >= MinShortScore {
+		if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
 			return state.Zombie
 		}
-		if totalQualifiedFlips >= MinFlipsForHuman && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Human
 		}
-		if totalScore >= MinTotalScore && shortScore >= MinShortScore {
+		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
 			return state.Verified
 		}
 		return state.Killed
@@ -1241,19 +1231,19 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Suspended
 		}
-		if noQualShort || nonQualLong && totalScore >= MinHumanTotalScore && shortScore >= MinShortScore {
+		if noQualShort || nonQualLong && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore {
 			return state.Human
 		}
 		if nonQualLong {
 			return state.Suspended
 		}
-		if totalScore >= MinHumanTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Human
 		}
-		if totalScore >= MinTotalScore && shortScore >= MinShortScore && longScore >= MinLongScore {
+		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
-		if totalScore >= MinTotalScore && longScore >= MinLongScore {
+		if totalScore >= common.MinTotalScore && longScore >= common.MinLongScore {
 			return state.Suspended
 		}
 		return state.Killed
