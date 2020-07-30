@@ -1510,8 +1510,8 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 	return int(math2.Round(float64(size) * chain.config.Consensus.AgreementThreshold))
 }
 
-func (chain *Blockchain) Genesis() common.Hash {
-	return chain.genesis.Hash()
+func (chain *Blockchain) Genesis() *types.Header {
+	return chain.genesis
 }
 
 func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.BlockBundle) error {
