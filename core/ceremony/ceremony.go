@@ -364,14 +364,12 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.FlipLotteryStarted) {
 		vc.logInfoWithInteraction("Flip lottery started")
 
-		genesisBlock := vc.chain.GetBlock(vc.chain.Genesis())
-
 		seedHeight := uint64(0)
 		if block.Height() > LotterySeedLag {
 			seedHeight = block.Height() - LotterySeedLag
 		}
 
-		seedHeight = math.Max(genesisBlock.Height()+1, seedHeight)
+		seedHeight = math.Max(vc.chain.Genesis().Height()+1, seedHeight)
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
