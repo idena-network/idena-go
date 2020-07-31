@@ -427,6 +427,7 @@ message ProtoPredefinedState {
         uint32 validationBits = 16;
         uint32 validationStatus = 17;
         bytes profileHash = 18;
+        bytes scores = 19;
     }
 
     message ApprovedIdentity {

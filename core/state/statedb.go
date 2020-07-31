@@ -1241,6 +1241,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Penalty = common.BigIntOrNil(identity.Penalty)
 		stateObject.data.ValidationTxsBits = byte(identity.ValidationBits)
 		stateObject.data.LastValidationStatus = ValidationStatusFlag(identity.ValidationStatus)
+		stateObject.data.Scores = identity.Scores
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &TxAddr{
