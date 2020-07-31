@@ -346,6 +346,8 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		age = currentEpoch - data.Birthday
 	}
 
+	totalPoints, totalFlips := common.CalculateIdentityScores(data.Scores, data.GetShortFlipPoints(), data.QualifiedFlips)
+
 	return Identity{
 		Address:             address,
 		State:               s,
@@ -358,8 +360,8 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		AvailableFlips:      data.GetMaximumAvailableFlips(),
 		FlipKeyWordPairs:    convertedFlipKeyWordPairs,
 		MadeFlips:           uint8(len(data.Flips)),
-		QualifiedFlips:      data.QualifiedFlips,
-		ShortFlipPoints:     data.GetShortFlipPoints(),
+		QualifiedFlips:      totalFlips,
+		ShortFlipPoints:     totalPoints,
 		Flips:               result,
 		Generation:          data.Generation,
 		Code:                data.Code,

@@ -365,6 +365,10 @@ func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints flo
 	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
 }
 
+func (s *StateDB) AddNewScore(address common.Address, score byte) {
+	s.GetOrNewIdentityObject(address).AddNewScore(score)
+}
+
 func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash) {
 	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress, txHash)
 }
@@ -939,6 +943,14 @@ func (s *StateDB) GetShortFlipPoints(addr common.Address) float32 {
 		return stateObject.ShortFlipPoints()
 	}
 	return 0
+}
+
+func (s *StateDB) GetScores(addr common.Address) []byte {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.Scores()
+	}
+	return []byte{}
 }
 
 func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {

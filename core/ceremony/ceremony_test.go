@@ -649,6 +649,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.SetState(addr1, state.Newbie)
 	appstate.State.AddStake(addr1, big.NewInt(100))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
+	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
 
 	identities := applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
@@ -661,8 +662,87 @@ func Test_applyOnState(t *testing.T) {
 	require.Equal(t, 1, identities)
 	require.Equal(t, state.Verified, identity.State)
 	require.Equal(t, uint16(3), identity.Birthday)
-	require.Equal(t, float32(1), identity.GetShortFlipPoints())
-	require.Equal(t, uint32(2), identity.QualifiedFlips)
+	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
 	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) == 0)
 	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) == 0)
+
+	applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{
+		shortFlipPoint:           0,
+		shortQualifiedFlipsCount: 0,
+		missed:                   true,
+	})
+	identity = appstate.State.GetIdentity(addr1)
+	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
+}
+
+func Test_calculateNewTotalScore(t *testing.T) {
+	var a float32
+	var b uint32
+
+	a, b = calculateNewTotalScore([]byte{}, 4, 6, 0, 0)
+	require.Equal(t, float32(4)/6, a)
+	require.Equal(t, uint32(6), b)
+
+	a, b = calculateNewTotalScore([]byte{}, 4, 6, 140, 145)
+	require.Equal(t, float32(130)/137, a)
+	require.Equal(t, uint32(137), b)
+
+	a, b = calculateNewTotalScore([]byte{common.EncodeScore(3, 5)}, 5, 6, 150, 163)
+	require.Equal(t, float32(128)/141, a)
+	require.Equal(t, uint32(141), b)
+
+	a, b = calculateNewTotalScore([]byte{common.EncodeScore(4, 6)}, 3.5, 6, 237.5, 255)
+	require.Equal(t, float32(197.5)/216, a)
+	require.Equal(t, uint32(216), b)
+
+	a, b = calculateNewTotalScore([]byte{
+		common.EncodeScore(4, 6),
+		common.EncodeScore(3.5, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(6, 6),
+	}, 4, 5, 237.5, 255)
+	require.Equal(t, float32(141.25)/157, a)
+	require.Equal(t, uint32(157), b)
+
+	a, b = calculateNewTotalScore([]byte{
+		common.EncodeScore(4, 6),
+		common.EncodeScore(3.5, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(4, 5),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(4, 5),
+	}, 4, 6, 237.5, 255)
+	require.Equal(t, float32(65.25)/78, a)
+	require.Equal(t, uint32(78), b)
+
+	a, b = calculateNewTotalScore([]byte{
+		common.EncodeScore(4, 6),
+		common.EncodeScore(3.5, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(4, 5),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(4, 5),
+		common.EncodeScore(4, 6),
+	}, 6, 6, 237.5, 255)
+	require.Equal(t, float32(47.5)/58, a)
+	require.Equal(t, uint32(58), b)
+
+	a, b = calculateNewTotalScore([]byte{
+		common.EncodeScore(4, 6),
+		common.EncodeScore(3.5, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(4, 5),
+		common.EncodeScore(6, 6),
+		common.EncodeScore(5, 6),
+		common.EncodeScore(4, 5),
+		common.EncodeScore(4, 6),
+		common.EncodeScore(6, 6),
+	}, 5, 5, 237.5, 255)
+	require.Equal(t, float32(48.5)/57, a)
+	require.Equal(t, uint32(57), b)
 }
