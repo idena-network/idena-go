@@ -346,6 +346,7 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 	}
 
 	result := types.NewAnswers(uint(len(flips)))
+	reportsCount := 0
 
 	for i, flip := range flips {
 		answer := findAnswer(flip)
@@ -367,6 +368,15 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 		if grade == types.GradeNone && answer.WrongWords != nil && *answer.WrongWords {
 			grade = types.GradeReported
 		}
+
+		// TODO temporary code to support old UI versions: ignore excess reports
+		if grade == types.GradeReported {
+			reportsCount++
+			if float32(reportsCount)/float32(len(flips)) >= 0.34 {
+				grade = types.GradeNone
+			}
+		}
+
 		result.Grade(uint(i), grade)
 	}
 

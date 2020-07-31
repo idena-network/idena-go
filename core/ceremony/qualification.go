@@ -131,7 +131,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 			}
 		}
 		if flipsCount > 0 {
-			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) > 0.5
+			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) >= 0.34
 			if ignoreReports {
 				reportersToReward.deleteReporter(candidate.Address)
 			}
