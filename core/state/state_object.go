@@ -590,6 +590,7 @@ func (s *stateIdentity) AddInvite(i uint8) {
 	}
 	s.SetInvites(s.Invites() + i)
 }
+
 func (s *stateIdentity) SubInvite(i uint8) {
 	s.SetInvites(s.Invites() - i)
 }
@@ -599,18 +600,8 @@ func (s *stateIdentity) SetPubKey(pubKey []byte) {
 	s.touch()
 }
 
-func (s *stateIdentity) AddQualifiedFlipsCount(qualifiedFlips uint32) {
-	s.data.QualifiedFlips += qualifiedFlips
-	s.touch()
-}
-
 func (s *stateIdentity) QualifiedFlipsCount() uint32 {
 	return s.data.QualifiedFlips
-}
-
-func (s *stateIdentity) AddShortFlipPoints(flipPoints float32) {
-	s.data.ShortFlipPoints += uint32(flipPoints * 2)
-	s.touch()
 }
 
 func (s *stateIdentity) AddNewScore(score byte) {

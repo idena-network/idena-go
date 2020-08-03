@@ -357,14 +357,6 @@ func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
-func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {
-	s.GetOrNewIdentityObject(address).AddQualifiedFlipsCount(qualifiedFlips)
-}
-
-func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints float32) {
-	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
-}
-
 func (s *StateDB) AddNewScore(address common.Address, score byte) {
 	s.GetOrNewIdentityObject(address).AddNewScore(score)
 }
