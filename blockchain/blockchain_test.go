@@ -686,27 +686,41 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	_, s := NewCustomTestBlockchain(5, 0, key)
 
 	identities := []state.Identity{
-		{Code: []byte{0x1}, State: state.Human, ShortFlipPoints: 98, QualifiedFlips: 100},
-		{Code: []byte{0x2}, State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
-		{Code: []byte{0x3}, State: state.Verified, ShortFlipPoints: 85, QualifiedFlips: 100},
-		{Code: []byte{0x4}, State: state.Verified, ShortFlipPoints: 88, QualifiedFlips: 100},
-		{Code: []byte{0x5}, State: state.Human, ShortFlipPoints: 92, QualifiedFlips: 100},
-		{Code: []byte{0x6}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
-		{Code: []byte{0x7}, State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
-		{Code: []byte{0x8}, State: state.Human, ShortFlipPoints: 94, QualifiedFlips: 100},
-		{Code: []byte{0x9}, State: state.Verified, ShortFlipPoints: 83, QualifiedFlips: 100},
-		{Code: []byte{0xa}, State: state.Verified, ShortFlipPoints: 82, QualifiedFlips: 100},
-		{Code: []byte{0xb}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
-		{Code: []byte{0xc}, State: state.Verified, ShortFlipPoints: 81, QualifiedFlips: 100},
-		{Code: []byte{0xd}, State: state.Verified, ShortFlipPoints: 94, QualifiedFlips: 100},
+		// 98%
+		{Code: []byte{0x1}, State: state.Human, Scores: []byte{common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(5.5, 6)}},
+		// 83%
+		{Code: []byte{0x2}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6)}},
+		// 85%
+		{Code: []byte{0x3}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4, 5)}},
+		// 89%
+		{Code: []byte{0x4}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5, 6), common.EncodeScore(6, 6)}},
+		// 92%
+		{Code: []byte{0x5}, State: state.Human, Scores: []byte{common.EncodeScore(5, 5), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4.5, 5)}},
+		// 81%
+		{Code: []byte{0x6}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		// 94%
+		{Code: []byte{0x7}, State: state.Human, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
+		// 94%
+		{Code: []byte{0x8}, State: state.Human, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
+		// 83%
+		{Code: []byte{0x9}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6)}},
+		// 82%
+		{Code: []byte{0xa}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5)}},
+		// 81%
+		{Code: []byte{0xb}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		// 81%
+		{Code: []byte{0xc}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		// 94%
+		{Code: []byte{0xd}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
 	}
 
 	for _, item := range identities {
 		var addr common.Address
 		copy(addr[:], item.Code)
 		s.State.SetState(addr, item.State)
-		s.State.AddShortFlipPoints(addr, float32(item.ShortFlipPoints))
-		s.State.AddQualifiedFlipsCount(addr, item.QualifiedFlips)
+		for _, score := range item.Scores {
+			s.State.AddNewScore(addr, score)
+		}
 	}
 	s.Commit(nil)
 
