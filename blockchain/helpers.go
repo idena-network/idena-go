@@ -55,7 +55,7 @@ func ConvertToFloat(amount *big.Int) decimal.Decimal {
 	}
 	decimalAmount := decimal.NewFromBigInt(amount, 0)
 
-	return decimalAmount.Div(decimal.NewFromBigInt(common.DnaBase, 0))
+	return decimalAmount.DivRound(decimal.NewFromBigInt(common.DnaBase, 0), 18)
 }
 
 func splitReward(totalReward *big.Int, isNewbie bool, conf *config.ConsensusConf) (reward, stake *big.Int) {
