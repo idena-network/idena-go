@@ -214,7 +214,7 @@ const (
 )
 
 type Identity struct {
-	ProfileHash    []byte `rlp:"nil"`
+	ProfileHash    []byte
 	Stake          *big.Int
 	Invites        uint8
 	Birthday       uint16
@@ -222,16 +222,17 @@ type Identity struct {
 	QualifiedFlips uint32
 	// should use GetShortFlipPoints instead of reading directly
 	ShortFlipPoints      uint32
-	PubKey               []byte `rlp:"nil"`
+	PubKey               []byte
 	RequiredFlips        uint8
-	Flips                []IdentityFlip `rlp:"nil"`
+	Flips                []IdentityFlip
 	Generation           uint32
-	Code                 []byte   `rlp:"nil"`
-	Invitees             []TxAddr `rlp:"nil"`
-	Inviter              *TxAddr  `rlp:"nil"`
+	Code                 []byte
+	Invitees             []TxAddr
+	Inviter              *TxAddr
 	Penalty              *big.Int
 	ValidationTxsBits    byte
 	LastValidationStatus ValidationStatusFlag
+	Scores               []byte
 }
 
 type TxAddr struct {
@@ -255,6 +256,7 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		ValidationBits:   uint32(i.ValidationTxsBits),
 		ValidationStatus: uint32(i.LastValidationStatus),
 		ProfileHash:      i.ProfileHash,
+		Scores:           i.Scores,
 	}
 	for idx := range i.Flips {
 		protoIdentity.Flips = append(protoIdentity.Flips, &models.ProtoStateIdentity_Flip{
@@ -296,6 +298,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.ValidationTxsBits = byte(protoIdentity.ValidationBits)
 	i.LastValidationStatus = ValidationStatusFlag(protoIdentity.ValidationStatus)
 	i.ProfileHash = protoIdentity.ProfileHash
+	i.Scores = protoIdentity.Scores
 
 	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
@@ -323,13 +326,6 @@ func (i *Identity) FromBytes(data []byte) error {
 
 func (i *Identity) GetShortFlipPoints() float32 {
 	return float32(i.ShortFlipPoints) / 2
-}
-
-func (i *Identity) GetTotalScore() float32 {
-	if i.QualifiedFlips == 0 {
-		return 0
-	}
-	return i.GetShortFlipPoints() / float32(i.QualifiedFlips)
 }
 
 func (i *Identity) HasDoneAllRequiredFlips() bool {
@@ -594,6 +590,7 @@ func (s *stateIdentity) AddInvite(i uint8) {
 	}
 	s.SetInvites(s.Invites() + i)
 }
+
 func (s *stateIdentity) SubInvite(i uint8) {
 	s.SetInvites(s.Invites() - i)
 }
@@ -603,18 +600,22 @@ func (s *stateIdentity) SetPubKey(pubKey []byte) {
 	s.touch()
 }
 
-func (s *stateIdentity) AddQualifiedFlipsCount(qualifiedFlips uint32) {
-	s.data.QualifiedFlips += qualifiedFlips
-	s.touch()
-}
-
 func (s *stateIdentity) QualifiedFlipsCount() uint32 {
 	return s.data.QualifiedFlips
 }
 
-func (s *stateIdentity) AddShortFlipPoints(flipPoints float32) {
-	s.data.ShortFlipPoints += uint32(flipPoints * 2)
+func (s *stateIdentity) AddNewScore(score byte) {
+	if len(s.data.Scores) == common.LastScoresCount {
+		s.data.Scores = append(s.data.Scores[1:], score)
+	} else {
+		s.data.Scores = append(s.data.Scores, score)
+	}
+
 	s.touch()
+}
+
+func (s *stateIdentity) Scores() []byte {
+	return s.data.Scores
 }
 
 func (s *stateIdentity) ShortFlipPoints() float32 {

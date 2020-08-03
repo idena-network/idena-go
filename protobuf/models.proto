@@ -343,6 +343,7 @@ message ProtoStateIdentity {
     uint32 validationBits = 15;
     uint32 validationStatus = 16;
     bytes profileHash = 17;
+    bytes scores = 18;
 }
 
 message ProtoStateGlobal {
@@ -426,6 +427,7 @@ message ProtoPredefinedState {
         uint32 validationBits = 16;
         uint32 validationStatus = 17;
         bytes profileHash = 18;
+        bytes scores = 19;
     }
 
     message ApprovedIdentity {

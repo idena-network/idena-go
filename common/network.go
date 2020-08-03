@@ -2,6 +2,7 @@ package common
 
 import (
 	math2 "github.com/idena-network/idena-go/common/math"
+	"github.com/shopspring/decimal"
 	"math"
 	"time"
 )
@@ -26,6 +27,7 @@ const (
 	MinFlipsForVerified = 13
 	MinFlipsForHuman    = 24
 	StakeToBalanceCoef  = 0.75
+	LastScoresCount     = 10
 )
 
 func ShortSessionExtraFlipsCount() uint {
@@ -65,4 +67,39 @@ func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Dur
 
 func GodAddressInvitesCount(networkSize int) uint16 {
 	return uint16(math2.MinInt(500, math2.MaxInt(50, networkSize/3)))
+}
+
+func EncodeScore(shortPoints float32, shortFlipsCount uint32) byte {
+	p := byte(shortPoints*2) << 4
+	q := byte(shortFlipsCount) & 0x0f
+
+	return p | q
+}
+
+func DecodeScore(score byte) (shortPoints float32, shortFlipsCount uint32) {
+	p := score >> 4
+	q := score & 0x0f
+
+	return float32(p) / 2, uint32(q)
+}
+
+func CalculateIdentityScores(scores []byte, totalShortPoints float32, totalShortFlipsCount uint32) (totalPoints float32, totalFlips uint32) {
+	var sumPoints float32
+	var sumFlips uint32
+
+	for _, item := range scores {
+		a, b := DecodeScore(item)
+		sumPoints += a
+		sumFlips += b
+	}
+
+	// consider old points
+	multiplier := decimal.NewFromInt32(1).Sub(decimal.NewFromFloat32(0.1).Mul(decimal.NewFromInt32(int32(len(scores)))))
+	addPoints, _ := decimal.NewFromFloat32(totalShortPoints).Mul(multiplier).Float64()
+	addFlips := decimal.NewFromInt32(int32(totalShortFlipsCount)).Mul(multiplier).Round(0).IntPart()
+
+	sumPoints += float32(addPoints)
+	sumFlips += uint32(addFlips)
+
+	return sumPoints, sumFlips
 }

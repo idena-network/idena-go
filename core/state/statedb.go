@@ -357,12 +357,8 @@ func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
-func (s *StateDB) AddQualifiedFlipsCount(address common.Address, qualifiedFlips uint32) {
-	s.GetOrNewIdentityObject(address).AddQualifiedFlipsCount(qualifiedFlips)
-}
-
-func (s *StateDB) AddShortFlipPoints(address common.Address, shortFlipPoints float32) {
-	s.GetOrNewIdentityObject(address).AddShortFlipPoints(shortFlipPoints)
+func (s *StateDB) AddNewScore(address common.Address, score byte) {
+	s.GetOrNewIdentityObject(address).AddNewScore(score)
 }
 
 func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash) {
@@ -941,6 +937,14 @@ func (s *StateDB) GetShortFlipPoints(addr common.Address) float32 {
 	return 0
 }
 
+func (s *StateDB) GetScores(addr common.Address) []byte {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.Scores()
+	}
+	return []byte{}
+}
+
 func (s *StateDB) GetIdentityState(addr common.Address) IdentityState {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
@@ -1229,6 +1233,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Penalty = common.BigIntOrNil(identity.Penalty)
 		stateObject.data.ValidationTxsBits = byte(identity.ValidationBits)
 		stateObject.data.LastValidationStatus = ValidationStatusFlag(identity.ValidationStatus)
+		stateObject.data.Scores = identity.Scores
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &TxAddr{
