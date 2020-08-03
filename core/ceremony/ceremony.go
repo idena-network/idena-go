@@ -103,6 +103,7 @@ type cacheValue struct {
 	shortQualifiedFlipsCount uint32
 	shortFlipPoint           float32
 	birthday                 uint16
+	missed                   bool
 }
 
 type lottery struct {
@@ -788,8 +789,9 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	appState.State.SetState(addr, value.state)
 	collector.CompleteBalanceUpdate(statsCollector, appState)
-	appState.State.AddQualifiedFlipsCount(addr, value.shortQualifiedFlipsCount)
-	appState.State.AddShortFlipPoints(addr, value.shortFlipPoint)
+	if !value.missed {
+		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount))
+	}
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
@@ -869,6 +871,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	for idx, candidate := range vc.candidates {
 		addr := candidate.Address
+		var totalFlips uint32
 		var shortScore, longScore, totalScore float32
 		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
 		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort, noAnswersShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
@@ -892,14 +895,12 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		if longQualifiedFlipsCount > 0 {
 			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
 		}
-		newTotalQualifiedFlipsCount := shortQualifiedFlipsCount + totalQualifiedFlipsCount
-		if newTotalQualifiedFlipsCount > 0 {
-			totalScore = (shortFlipPoint + totalFlipPoints) / float32(newTotalQualifiedFlipsCount)
-		}
+
+		totalScore, totalFlips = calculateNewTotalScore(appState.State.GetScores(addr), shortFlipPoint, shortQualifiedFlipsCount, totalFlipPoints, totalQualifiedFlipsCount)
 
 		identity := appState.State.GetIdentity(addr)
 		newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-			newTotalQualifiedFlipsCount, missed, noQualShort, noQualLong)
+			totalFlips, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		incSuccessfulInvites(validationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
@@ -913,6 +914,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			shortQualifiedFlipsCount: shortQualifiedFlipsCount,
 			shortFlipPoint:           shortFlipPoint,
 			birthday:                 identityBirthday,
+			missed:                   missed,
 		}
 
 		epochApplyingValues[addr] = value
@@ -977,6 +979,20 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	}
 
 	return identitiesCount, validationResults, false
+}
+
+func calculateNewTotalScore(scores []byte, shortPoints float32, shortFlipsCount uint32, totalShortPoints float32, totalShortFlipsCount uint32) (totalScore float32, totalFlips uint32) {
+	newScores := make([]byte, len(scores))
+	copy(newScores, scores)
+	newScores = append(newScores, common.EncodeScore(shortPoints, shortFlipsCount))
+
+	if len(newScores) > common.LastScoresCount {
+		newScores = newScores[len(newScores)-common.LastScoresCount:]
+	}
+
+	resPoints, resFlips := common.CalculateIdentityScores(newScores, totalShortPoints, totalShortFlipsCount)
+
+	return resPoints / float32(resFlips), resFlips
 }
 
 func setValidationResultToGoodAuthor(address common.Address, newState state.IdentityState, missed bool, validationResults *types.ValidationResults) {

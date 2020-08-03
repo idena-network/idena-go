@@ -96,3 +96,22 @@ func TestNormalizedEpochDuration(t *testing.T) {
 	require.Equal(t, day*20, NormalizedEpochDuration(notSaturday, 1000000))
 	require.Equal(t, day*20, NormalizedEpochDuration(notSaturday, 100000000))
 }
+
+func Test_Scores(t *testing.T) {
+	cases := [][]interface{}{
+		{float32(0), uint32(4)},
+		{float32(1.5), uint32(5)},
+		{float32(3.5), uint32(6)},
+		{float32(4), uint32(4)},
+		{float32(5.5), uint32(6)},
+		{float32(6), uint32(6)},
+	}
+
+	for _, item := range cases {
+		a, b := item[0].(float32), item[1].(uint32)
+		res := EncodeScore(a, b)
+		x, y := DecodeScore(res)
+		require.Equal(t, a, x)
+		require.Equal(t, b, y)
+	}
+}

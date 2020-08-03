@@ -565,9 +565,10 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			switch identity.State {
 			case state.Verified, state.Human:
 				removeLinkWithInviter(appState.State, addr)
+				totalPoints, totalFlips := common.CalculateIdentityScores(identity.Scores, identity.GetShortFlipPoints(), identity.QualifiedFlips)
 				addIdentityWithInvite(identityWithInvite{
 					address: addr,
-					score:   identity.GetTotalScore(),
+					score:   totalPoints / float32(totalFlips),
 					state:   identity.State,
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
