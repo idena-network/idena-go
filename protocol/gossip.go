@@ -148,7 +148,7 @@ func (h *IdenaGossipHandler) Start() {
 
 func (h *IdenaGossipHandler) background() {
 	dialTicker := time.NewTicker(time.Second * 15)
-	renewTicker := time.NewTimer(time.Minute * 5)
+	renewTicker := time.NewTicker(time.Minute * 5)
 
 	for {
 		select {
