@@ -345,8 +345,8 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(ValidationErr, "%v", msg)
 		}
 
-		if entry, ok := h.pushPullManager.GetEntry(*pullHash); ok {
-			h.sendEntry(p, *pullHash, entry)
+		if entry, highPriority, ok := h.pushPullManager.GetEntry(*pullHash); ok {
+			h.sendEntry(p, *pullHash, entry, highPriority)
 		}
 	case Block:
 		block := new(types.Block)
@@ -646,7 +646,7 @@ func (h *IdenaGossipHandler) ProposeProof(proposal *types.ProofProposal) {
 		Type: pushProof,
 		Hash: proposal.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, proposal)
+	h.pushPullManager.AddEntry(hash, proposal, false)
 	h.sendPush(hash)
 }
 
@@ -655,7 +655,7 @@ func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
 		Type: pushBlock,
 		Hash: block.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, block)
+	h.pushPullManager.AddEntry(hash, block, false)
 	h.sendPush(hash)
 }
 
@@ -664,7 +664,7 @@ func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
 		Type: pushVote,
 		Hash: vote.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, vote)
+	h.pushPullManager.AddEntry(hash, vote, false)
 	h.sendPush(hash)
 }
 
@@ -673,20 +673,20 @@ func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
 	h.peers.SendWithFilter(Push, msgKey(data), hash, false)
 }
 
-func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}) {
+func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}, highPriority bool) {
 	switch hash.Type {
 	case pushVote:
-		p.sendMsg(Vote, entry, false)
+		p.sendMsg(Vote, entry, highPriority)
 	case pushBlock:
-		p.sendMsg(ProposeBlock, entry, false)
+		p.sendMsg(ProposeBlock, entry, highPriority)
 	case pushProof:
-		p.sendMsg(ProposeProof, entry, false)
+		p.sendMsg(ProposeProof, entry, highPriority)
 	case pushFlip:
-		p.sendMsg(FlipBody, entry, false)
+		p.sendMsg(FlipBody, entry, highPriority)
 	case pushKeyPackage:
-		p.sendMsg(FlipKeysPackage, entry, false)
+		p.sendMsg(FlipKeysPackage, entry, highPriority)
 	case pushTx:
-		p.sendMsg(NewTx, entry, false)
+		p.sendMsg(NewTx, entry, highPriority)
 	default:
 	}
 }
@@ -700,7 +700,7 @@ func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 		Type: pushTx,
 		Hash: tx.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, tx)
+	h.pushPullManager.AddEntry(hash, tx, own)
 	data, _ := hash.ToBytes()
 	h.peers.SendWithFilter(Push, msgKey(data), hash, own)
 }
@@ -710,7 +710,7 @@ func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
 		Type: pushFlip,
 		Hash: flip.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, flip)
+	h.pushPullManager.AddEntry(hash, flip, false)
 	h.sendPush(hash)
 }
 
@@ -747,7 +747,7 @@ func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 			Type: pushTx,
 			Hash: tx.Hash128(),
 		}
-		h.pushPullManager.AddEntry(payload, tx)
+		h.pushPullManager.AddEntry(payload, tx, false)
 		p.sendMsg(Push, payload, false)
 		bytes, _ := payload.ToBytes()
 		p.markPayload(bytes)

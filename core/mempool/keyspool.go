@@ -90,7 +90,7 @@ func (p *KeysPool) Initialize(head *types.Header) {
 	p.pushTracker.Run()
 }
 
-func (p *KeysPool) Add(hash common.Hash128, entry interface{}) {
+func (p *KeysPool) Add(hash common.Hash128, entry interface{}, highPriority bool) {
 	//ignore it, entries are adding via AddPrivateKeysPackage
 }
 
@@ -105,11 +105,11 @@ func (p *KeysPool) Has(hash common.Hash128) bool {
 	return ok
 }
 
-func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool) {
+func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool, bool) {
 	p.privateKeysMutex.RLock()
 	value, ok := p.flipKeyPackagesByHash[hash]
 	p.privateKeysMutex.RUnlock()
-	return value, ok
+	return value, false, ok
 }
 
 func (p *KeysPool) MaxParallelPulls() uint32 {
