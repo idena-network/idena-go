@@ -4,5 +4,5 @@ type P2P struct {
 	MaxInboundPeers  int
 	MaxOutboundPeers int
 	MaxDelay         int
-	CollectMetrics   bool
+	DisableMetrics   bool
 }

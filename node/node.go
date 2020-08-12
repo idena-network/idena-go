@@ -152,7 +152,9 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore)
 	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
-	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion)
+	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, func() bool {
+		return appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore,
