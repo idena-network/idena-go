@@ -686,7 +686,15 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 	case pushKeyPackage:
 		p.sendMsg(FlipKeysPackage, entry, highPriority)
 	case pushTx:
+		if highPriority {
+			tx := entry.(*types.Transaction)
+			p.log.Info("Sending high priority tx", "type", tx.Type, "hash", tx.Hash().Hex(), "nonce", tx.AccountNonce, "epoch", tx.Epoch)
+		}
 		p.sendMsg(NewTx, entry, highPriority)
+		if highPriority {
+			tx := entry.(*types.Transaction)
+			p.log.Info("Sent high priority tx", "hash", tx.Hash().Hex())
+		}
 	default:
 	}
 }
