@@ -359,7 +359,6 @@ func (p *protoPeer) resetTimeouts() {
 
 func (p *protoPeer) disconnect() {
 	p.stream.Reset()
-	p.rw.Close()
 }
 
 func (p *protoPeer) ID() string {
