@@ -261,7 +261,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 	}
 
 	if !h.cfg.DisableMetrics {
-		go metrics.Log(metrics.DefaultRegistry, time.Second*20, metricsLog{h.log})
+		go metrics.Log(metrics.DefaultRegistry, time.Minute, metricsLog{h.log})
 		go rate.loopLog(h.log)
 		go loopCleanup()
 	}
