@@ -109,7 +109,7 @@ var (
 	LogFileSizeFlag = cli.IntFlag{
 		Name:  "logfilesize",
 		Usage: "Set log file size in KB",
-		Value: 1024 * 10,
+		Value: 1024 * 100,
 	}
 	LogColoring = cli.BoolFlag{
 		Name:  "logcoloring",
