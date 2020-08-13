@@ -98,11 +98,11 @@ func (m *PushPullManager) makeRequest(peer peer.ID, hash pushPullHash) {
 	}
 }
 
-func (m *PushPullManager) AddEntry(key pushPullHash, entry interface{}) {
-	m.entryHolders[key.Type].Add(key.Hash, entry)
+func (m *PushPullManager) AddEntry(key pushPullHash, entry interface{}, highPriority bool) {
+	m.entryHolders[key.Type].Add(key.Hash, entry, highPriority)
 }
 
-func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, bool) {
+func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, bool, bool) {
 	return m.entryHolders[hash.Type].Get(hash.Hash)
 }
 
