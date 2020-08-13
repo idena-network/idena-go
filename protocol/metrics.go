@@ -37,64 +37,107 @@ func (rm *rateMetric) getAndReset() (size int, duration time.Duration) {
 }
 
 type rateMetrics struct {
-	enabled func() bool
-	in      *rateMetric
-	out     *rateMetric
-}
-
-func newRateMetrics(enabled func() bool) *rateMetrics {
-	return &rateMetrics{
-		enabled: enabled,
-		in:      &rateMetric{},
-		out:     &rateMetric{},
-	}
+	in  *rateMetric
+	out *rateMetric
 }
 
 func (rm *rateMetrics) addIn(size int, duration time.Duration) {
-	if !rm.enabled() {
-		return
-	}
 	rm.in.add(size, duration)
 }
 
 func (rm *rateMetrics) addOut(size int, duration time.Duration) {
-	if !rm.enabled() {
-		return
-	}
 	rm.out.add(size, duration)
 }
 
-func (rm *rateMetrics) loopLog(logger log.Logger) {
+type peersRateMetrics struct {
+	rmsByPeer map[string]*rateMetrics
+	enabled   func() bool
+	mutex     sync.RWMutex
+}
+
+func newPeersRateMetrics(enabled func() bool) *peersRateMetrics {
+	return &peersRateMetrics{
+		enabled:   enabled,
+		rmsByPeer: make(map[string]*rateMetrics),
+	}
+}
+
+func (rm *peersRateMetrics) getPeerRateMetrics(peerId string) *rateMetrics {
+	rm.mutex.RLock()
+	prm, ok := rm.rmsByPeer[peerId]
+	rm.mutex.RUnlock()
+	if ok {
+		return prm
+	}
+	rm.mutex.Lock()
+	defer rm.mutex.Unlock()
+	prm, ok = rm.rmsByPeer[peerId]
+	if ok {
+		return prm
+	}
+	prm = &rateMetrics{
+		in:  &rateMetric{},
+		out: &rateMetric{},
+	}
+	rm.rmsByPeer[peerId] = prm
+	return prm
+}
+
+func (rm *peersRateMetrics) addIn(peerId string, size int, duration time.Duration) {
+	if !rm.enabled() {
+		return
+	}
+	peersRateMetrics := rm.getPeerRateMetrics(peerId)
+	peersRateMetrics.addIn(size, duration)
+}
+
+func (rm *peersRateMetrics) addOut(peerId string, size int, duration time.Duration) {
+	if !rm.enabled() {
+		return
+	}
+	peersRateMetrics := rm.getPeerRateMetrics(peerId)
+	peersRateMetrics.addOut(size, duration)
+}
+
+func (rm *peersRateMetrics) loopLog(logger log.Logger) {
 	for {
 		time.Sleep(time.Second * 5)
 
-		if !rm.enabled() {
-			continue
-		}
-
-		sizeIn, durationIn := rm.in.getAndReset()
-		sizeOut, durationOut := rm.out.getAndReset()
-
-		if durationIn == 0 && durationOut == 0 {
-			continue
-		}
+		rm.mutex.Lock()
+		rmsByPeer := rm.rmsByPeer
+		rm.rmsByPeer = make(map[string]*rateMetrics)
+		rm.mutex.Unlock()
 
 		getMsg := func(size int, duration time.Duration) string {
 			if duration == 0 {
 				return ""
 			}
 			rate := float32(size) / float32(1024) / float32(duration) * float32(time.Second)
-			return fmt.Sprintf("bytes: %v, duration: %v, rate(kb/s): %v", size, duration, strconv.FormatFloat(float64(rate), 'f', 3, 64))
+			return fmt.Sprintf("b: %v, d: %v, r(kb/s): %v", size, duration, strconv.FormatFloat(float64(rate), 'f', 3, 64))
 		}
+		var msgItems []string
+		for peerId, prm := range rmsByPeer {
+			sizeIn, durationIn := prm.in.getAndReset()
+			sizeOut, durationOut := prm.out.getAndReset()
 
-		var msgs []string
-		if msg := getMsg(sizeIn, durationIn); len(msg) > 0 {
-			msgs = append(msgs, "in: "+msg)
+			if durationIn == 0 && durationOut == 0 {
+				continue
+			}
+
+			var peerMsgItems []string
+			if msg := getMsg(sizeIn, durationIn); len(msg) > 0 {
+				peerMsgItems = append(peerMsgItems, "in: "+msg)
+			}
+			if msg := getMsg(sizeOut, durationOut); len(msg) > 0 {
+				peerMsgItems = append(peerMsgItems, "out: "+msg)
+			}
+			if len(peerMsgItems) > 0 {
+				msgItems = append(msgItems, fmt.Sprintf("%v: %v", peerId, strings.Join(peerMsgItems, ", ")))
+			}
 		}
-		if msg := getMsg(sizeOut, durationOut); len(msg) > 0 {
-			msgs = append(msgs, "out: "+msg)
+		if len(msgItems) > 0 {
+			logger.Info(strings.Join(msgItems, ", "))
 		}
-		logger.Info(strings.Join(msgs, ", "))
 	}
 }
 
@@ -103,7 +146,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
 	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
 	compressTotal := metrics.GetOrRegisterCounter("compress-diff.total", metrics.DefaultRegistry)
-	rate := newRateMetrics(h.isCeremony)
+	rate := newPeersRateMetrics(h.isCeremony)
 
 	msgCodeToString := func(code uint64) string {
 		switch code {
@@ -178,7 +221,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		}
 	}
 
-	h.metrics.incomeMessage = func(code uint64, size int, duration time.Duration) {
+	h.metrics.incomeMessage = func(code uint64, size int, duration time.Duration, peerId string) {
 		if h.cfg.DisableMetrics {
 			return
 		}
@@ -190,10 +233,10 @@ func (h *IdenaGossipHandler) registerMetrics() {
 
 		totalReceived.Inc(int64(size))
 
-		rate.addIn(size, duration)
+		rate.addIn(peerId, size, duration)
 	}
 
-	h.metrics.outcomeMessage = func(code uint64, size int, duration time.Duration) {
+	h.metrics.outcomeMessage = func(code uint64, size int, duration time.Duration, peerId string) {
 		if h.cfg.DisableMetrics {
 			return
 		}
@@ -205,7 +248,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 
 		totalSent.Inc(int64(size))
 
-		rate.addOut(size, duration)
+		rate.addOut(peerId, size, duration)
 	}
 
 	h.metrics.compress = func(code uint64, size int) {
@@ -219,7 +262,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 
 	if !h.cfg.DisableMetrics {
 		go metrics.Log(metrics.DefaultRegistry, time.Second*20, metricsLog{h.log})
-		go rate.loopLog(h.log.New("component", "rate metric"))
+		go rate.loopLog(h.log)
 		go loopCleanup()
 	}
 }

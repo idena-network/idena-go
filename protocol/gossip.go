@@ -68,8 +68,8 @@ type IdenaGossipHandler struct {
 }
 
 type metricCollector struct {
-	incomeMessage  func(code uint64, size int, duration time.Duration)
-	outcomeMessage func(code uint64, size int, duration time.Duration)
+	incomeMessage  func(code uint64, size int, duration time.Duration, peerId string)
+	outcomeMessage func(code uint64, size int, duration time.Duration, peerId string)
 	compress       func(code uint64, size int)
 }
 
