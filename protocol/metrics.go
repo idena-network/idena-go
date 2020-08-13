@@ -87,16 +87,16 @@ func (rm *peersRateMetrics) addIn(peerId string, size int, duration time.Duratio
 	if !rm.enabled() {
 		return
 	}
-	peersRateMetrics := rm.getPeerRateMetrics(peerId)
-	peersRateMetrics.addIn(size, duration)
+	peerRateMetrics := rm.getPeerRateMetrics(peerId)
+	peerRateMetrics.addIn(size, duration)
 }
 
 func (rm *peersRateMetrics) addOut(peerId string, size int, duration time.Duration) {
 	if !rm.enabled() {
 		return
 	}
-	peersRateMetrics := rm.getPeerRateMetrics(peerId)
-	peersRateMetrics.addOut(size, duration)
+	peerRateMetrics := rm.getPeerRateMetrics(peerId)
+	peerRateMetrics.addOut(size, duration)
 }
 
 func (rm *peersRateMetrics) loopLog(logger log.Logger) {
