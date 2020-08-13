@@ -105,7 +105,7 @@ func (p *KeysPool) Has(hash common.Hash128) bool {
 	return ok
 }
 
-func (p *KeysPool) Get(hash common.Hash128) (interface{}, bool, bool) {
+func (p *KeysPool) Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool) {
 	p.privateKeysMutex.RLock()
 	value, ok := p.flipKeyPackagesByHash[hash]
 	p.privateKeysMutex.RUnlock()

@@ -9,7 +9,7 @@ import (
 type Holder interface {
 	Add(hash common.Hash128, entry interface{}, highPriority bool)
 	Has(hash common.Hash128) bool
-	Get(hash common.Hash128) (interface{}, bool, bool)
+	Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool)
 	MaxParallelPulls() uint32
 	SupportPendingRequests() bool
 	PushTracker() PendingPushTracker
@@ -62,7 +62,7 @@ func (d *DefaultHolder) Has(hash common.Hash128) bool {
 	return ok
 }
 
-func (d *DefaultHolder) Get(hash common.Hash128) (interface{}, bool, bool) {
+func (d *DefaultHolder) Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool) {
 	wrapper, ok := d.entryCache.Get(hash.String())
 	if !ok {
 		return nil, false, false
