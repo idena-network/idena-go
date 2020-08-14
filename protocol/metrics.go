@@ -1,12 +1,14 @@
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/idena-network/idena-go/log"
 	"github.com/rcrowley/go-metrics"
 	"strconv"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 )
 
@@ -113,7 +115,7 @@ func (rm *peersRateMetrics) loopLog(logger log.Logger) {
 				return ""
 			}
 			rate := float32(size) / float32(1024) / float32(duration) * float32(time.Second)
-			return fmt.Sprintf("b: %v, d: %v, r(kb/s): %v", size, duration, strconv.FormatFloat(float64(rate), 'f', 3, 64))
+			return fmt.Sprintf("b %v, d %v, r(kb/s) %v", size, duration, strconv.FormatFloat(float64(rate), 'f', 3, 64))
 		}
 		var msgItems []string
 		for peerId, prm := range rmsByPeer {
@@ -143,9 +145,9 @@ func (rm *peersRateMetrics) loopLog(logger log.Logger) {
 
 func (h *IdenaGossipHandler) registerMetrics() {
 
-	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
-	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
-	compressTotal := metrics.GetOrRegisterCounter("compress-diff.total", metrics.DefaultRegistry)
+	totalSent := metrics.GetOrRegisterCounter("bs.total", metrics.DefaultRegistry)
+	totalReceived := metrics.GetOrRegisterCounter("br.total", metrics.DefaultRegistry)
+	compressTotal := metrics.GetOrRegisterCounter("cd.total", metrics.DefaultRegistry)
 	rate := newPeersRateMetrics(h.ceremonyChecker.IsRunning)
 
 	msgCodeToString := func(code uint64) string {
@@ -187,36 +189,95 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		}
 	}
 
+	metricCodes := []uint64{
+		Handshake,
+		ProposeBlock,
+		ProposeProof,
+		Vote,
+		NewTx,
+		GetBlockByHash,
+		GetBlocksRange,
+		BlocksRange,
+		FlipBody,
+		FlipKey,
+		SnapshotManifest,
+		GetForkBlockRange,
+		FlipKeysPackage,
+		Push,
+		Pull,
+		Block,
+	}
+
 	loopCleanup := func() {
-		codes := []uint64{
-			Handshake,
-			ProposeBlock,
-			ProposeProof,
-			Vote,
-			NewTx,
-			GetBlockByHash,
-			GetBlocksRange,
-			BlocksRange,
-			FlipBody,
-			FlipKey,
-			SnapshotManifest,
-			GetForkBlockRange,
-			FlipKeysPackage,
-			Push,
-			Pull,
-			Block,
-		}
 		for {
 			time.Sleep(time.Hour)
 			totalSent.Clear()
 			totalReceived.Clear()
 			compressTotal.Clear()
-			for _, code := range codes {
-				metrics.Unregister("bytes_received." + msgCodeToString(code))
-				metrics.Unregister("msg_received." + msgCodeToString(code))
-				metrics.Unregister("bytes_sent." + msgCodeToString(code))
-				metrics.Unregister("msg_sent." + msgCodeToString(code))
-				metrics.Unregister("compress-diff." + msgCodeToString(code))
+			for _, code := range metricCodes {
+				metrics.Unregister("br." + msgCodeToString(code))
+				metrics.Unregister("mr." + msgCodeToString(code))
+				metrics.Unregister("bs." + msgCodeToString(code))
+				metrics.Unregister("ms." + msgCodeToString(code))
+				metrics.Unregister("cd." + msgCodeToString(code))
+			}
+		}
+	}
+
+	loopLog := func() {
+		metricCodesMap := make(map[string]struct{})
+		for _, metricCode := range metricCodes {
+			metricCodesMap[msgCodeToString(metricCode)] = struct{}{}
+		}
+		metricCodesMap["total"] = struct{}{}
+		type metricData struct {
+			bytesSent        int64
+			bytesReceived    int64
+			messagesSent     int64
+			messagesReceived int64
+		}
+		for {
+			time.Sleep(time.Minute * 5)
+			metricsData := make(map[string]*metricData)
+			metrics.DefaultRegistry.Each(func(name string, i interface{}) {
+				switch metric := i.(type) {
+				case metrics.Counter:
+					nameParts := strings.Split(name, ".")
+					if len(nameParts) != 2 {
+						return
+					}
+					code := nameParts[1]
+					if _, ok := metricCodesMap[code]; !ok {
+						return
+					}
+					data, ok := metricsData[code]
+					if !ok {
+						data = &metricData{}
+						metricsData[code] = data
+					}
+					metricType := nameParts[0]
+					switch metricType {
+					case "bs":
+						data.bytesSent = metric.Count()
+					case "br":
+						data.bytesReceived = metric.Count()
+					case "ms":
+						data.messagesSent = metric.Count()
+					case "mr":
+						data.messagesReceived = metric.Count()
+					}
+				}
+			})
+			if len(metricsData) > 0 {
+				writer := new(tabwriter.Writer)
+				buffer := new(bytes.Buffer)
+				writer.Init(buffer, 8, 8, 1, ' ', 0)
+				fmt.Fprintf(writer, "\n %s\t%s\t%s\t%s\t%s\t", "name", "bytesSent", "bytesReceived", "msgSent", "msgReceived")
+				for code, data := range metricsData {
+					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", code, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
+				}
+				writer.Flush()
+				log.Info("metric" + buffer.String())
 			}
 		}
 	}
@@ -225,10 +286,10 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		if h.cfg.DisableMetrics {
 			return
 		}
-		collector := metrics.GetOrRegisterCounter("bytes_received."+msgCodeToString(code), metrics.DefaultRegistry)
+		collector := metrics.GetOrRegisterCounter("br."+msgCodeToString(code), metrics.DefaultRegistry)
 		collector.Inc(int64(size))
 
-		counter := metrics.GetOrRegisterCounter("msg_received."+msgCodeToString(code), metrics.DefaultRegistry)
+		counter := metrics.GetOrRegisterCounter("mr."+msgCodeToString(code), metrics.DefaultRegistry)
 		counter.Inc(1)
 
 		totalReceived.Inc(int64(size))
@@ -240,10 +301,10 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		if h.cfg.DisableMetrics {
 			return
 		}
-		collector := metrics.GetOrRegisterCounter("bytes_sent."+msgCodeToString(code), metrics.DefaultRegistry)
+		collector := metrics.GetOrRegisterCounter("bs."+msgCodeToString(code), metrics.DefaultRegistry)
 		collector.Inc(int64(size))
 
-		counter := metrics.GetOrRegisterCounter("msg_sent."+msgCodeToString(code), metrics.DefaultRegistry)
+		counter := metrics.GetOrRegisterCounter("ms."+msgCodeToString(code), metrics.DefaultRegistry)
 		counter.Inc(1)
 
 		totalSent.Inc(int64(size))
@@ -252,26 +313,17 @@ func (h *IdenaGossipHandler) registerMetrics() {
 	}
 
 	h.metrics.compress = func(code uint64, size int) {
-		if h.cfg.DisableMetrics {
-			return
-		}
-		compressCnt := metrics.GetOrRegisterCounter("compress-diff."+msgCodeToString(code), metrics.DefaultRegistry)
-		compressCnt.Inc(int64(size))
-		compressTotal.Inc(int64(size))
+		//if h.cfg.DisableMetrics {
+		//	return
+		//}
+		//compressCnt := metrics.GetOrRegisterCounter("cd."+msgCodeToString(code), metrics.DefaultRegistry)
+		//compressCnt.Inc(int64(size))
+		//compressTotal.Inc(int64(size))
 	}
 
 	if !h.cfg.DisableMetrics {
-		go metrics.Log(metrics.DefaultRegistry, time.Minute, metricsLog{h.log})
+		go loopLog()
 		go rate.loopLog(h.log)
 		go loopCleanup()
 	}
-}
-
-type metricsLog struct {
-	log log.Logger
-}
-
-func (m metricsLog) Printf(format string, v ...interface{}) {
-	format = strings.TrimSuffix(format, "\n")
-	log.Info(fmt.Sprintf(format, v...))
 }
