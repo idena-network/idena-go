@@ -59,20 +59,21 @@ type IdenaGossipHandler struct {
 	wrongTime           bool
 	appVersion          string
 
-	log          log.Logger
-	mutex        sync.Mutex
-	pendingPeers map[peer.ID]struct{}
-	metrics      *metricCollector
-	connManager  *ConnManager
+	log             log.Logger
+	mutex           sync.Mutex
+	pendingPeers    map[peer.ID]struct{}
+	metrics         *metricCollector
+	ceremonyChecker CeremonyChecker
+	connManager     *ConnManager
 }
 
 type metricCollector struct {
-	incomeMessage  func(code uint64, size int)
-	outcomeMessage func(code uint64, size int)
+	incomeMessage  func(code uint64, size int, duration time.Duration, peerId string)
+	outcomeMessage func(code uint64, size int, duration time.Duration, peerId string)
 	compress       func(code uint64, size int)
 }
 
-func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string) *IdenaGossipHandler {
+func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string, ceremonyChecker CeremonyChecker) *IdenaGossipHandler {
 	handler := &IdenaGossipHandler{
 		host:                host,
 		cfg:                 cfg,
@@ -94,6 +95,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		log:                 log.New(),
 		pendingPeers:        make(map[peer.ID]struct{}),
 		metrics:             new(metricCollector),
+		ceremonyChecker:     ceremonyChecker,
 		connManager:         NewConnManager(host, cfg),
 	}
 	handler.pushPullManager.AddEntryHolder(pushVote, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Millisecond*300)))

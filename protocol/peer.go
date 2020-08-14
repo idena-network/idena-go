@@ -39,6 +39,7 @@ const (
 
 type protoPeer struct {
 	id                   peer.ID
+	prettyId             string
 	stream               network.Stream
 	rw                   msgio.ReadWriteCloser
 	maxDelayMs           int
@@ -63,8 +64,11 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 	stream.Conn().RemotePeer()
 	rw := msgio.NewReadWriter(stream)
 
+	id := stream.Conn().RemotePeer()
+	prettyId := id.Pretty()
 	p := &protoPeer{
-		id:                   stream.Conn().RemotePeer(),
+		id:                   id,
+		prettyId:             prettyId,
 		stream:               stream,
 		rw:                   rw,
 		queuedRequests:       make(chan *request, 10000),
@@ -73,7 +77,7 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		finished:             make(chan struct{}),
 		maxDelayMs:           maxDelayMs,
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
-		log:                  log.New("id", stream.Conn().RemotePeer().Pretty()),
+		log:                  log.New("id", prettyId),
 		createdAt:            time.Now().UTC(),
 		metrics:              metrics,
 	}
@@ -113,6 +117,7 @@ func (p *protoPeer) broadcast() {
 		ch := make(chan error, 1)
 		timer := time.NewTimer(time.Minute)
 		defer timer.Stop()
+		startTime := time.Now()
 		go func() {
 			ch <- p.rw.WriteMsg(msg)
 		}()
@@ -128,8 +133,8 @@ func (p *protoPeer) broadcast() {
 			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String())
 			return err
 		}
-
-		p.metrics.outcomeMessage(request.msgcode, len(msg))
+		duration := time.Since(startTime)
+		p.metrics.outcomeMessage(request.msgcode, len(msg), duration, string(p.prettyId))
 		return nil
 	}
 	for {
@@ -270,12 +275,14 @@ func Encode(msgcode uint64, src []byte) []byte {
 }
 
 func (p *protoPeer) ReadMsg() (*Msg, error) {
+	startTime := time.Now()
 	compressedMsg, err := p.rw.ReadMsg()
 	defer p.rw.ReleaseMsg(compressedMsg)
 	if err != nil {
 		p.transportErr = err
 		return nil, err
 	}
+	duration := time.Since(startTime)
 	data, err := Decode(compressedMsg)
 	if err != nil {
 		return nil, err
@@ -284,7 +291,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	if err := result.FromBytes(data); err != nil {
 		return nil, err
 	}
-	p.metrics.incomeMessage(result.Code, len(compressedMsg))
+	p.metrics.incomeMessage(result.Code, len(compressedMsg), duration, string(p.prettyId))
 	p.metrics.compress(result.Code, len(data)-len(compressedMsg))
 	return result, nil
 }
