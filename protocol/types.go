@@ -18,6 +18,10 @@ const (
 	ReconnectAfterResetTimeout = time.Minute * 3
 )
 
+type CeremonyChecker interface {
+	IsRunning() bool
+}
+
 type request struct {
 	msgcode uint64
 	data    interface{}

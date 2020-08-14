@@ -146,7 +146,7 @@ func (h *IdenaGossipHandler) registerMetrics() {
 	totalSent := metrics.GetOrRegisterCounter("bytes_sent.total", metrics.DefaultRegistry)
 	totalReceived := metrics.GetOrRegisterCounter("bytes_received.total", metrics.DefaultRegistry)
 	compressTotal := metrics.GetOrRegisterCounter("compress-diff.total", metrics.DefaultRegistry)
-	rate := newPeersRateMetrics(h.isCeremony)
+	rate := newPeersRateMetrics(h.ceremonyChecker.IsRunning)
 
 	msgCodeToString := func(code uint64) string {
 		switch code {

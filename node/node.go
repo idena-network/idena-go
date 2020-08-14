@@ -74,6 +74,14 @@ type NodeCtx struct {
 	ProposerByRound pengings.ProposerByRound
 }
 
+type ceremonyChecker struct {
+	appState *appstate.AppState
+}
+
+func (checker *ceremonyChecker) IsRunning() bool {
+	return checker.appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+}
+
 func StartMobileNode(path string, cfg string) string {
 	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
@@ -152,8 +160,8 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore)
 	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
-	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, func() bool {
-		return appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, &ceremonyChecker{
+		appState: appState,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector)
