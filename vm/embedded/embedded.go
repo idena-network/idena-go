@@ -2,6 +2,7 @@ package embedded
 
 import (
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	env2 "github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"math/big"
@@ -44,8 +45,9 @@ type Contract interface {
 // base contract with useful common methods
 
 type BaseContract struct {
-	ctx env2.CallContext
-	env env2.Env
+	ctx            env2.CallContext
+	env            env2.Env
+	statsCollector collector.StatsCollector
 }
 
 func (b *BaseContract) SetOwner(address common.Address) {
@@ -109,7 +111,7 @@ func (b *BaseContract) SetByte(s string, value byte) {
 	b.env.SetValue(b.ctx, []byte(s), []byte{value})
 }
 
-func (b *BaseContract) RemoveValue(s string){
+func (b *BaseContract) RemoveValue(s string) {
 	b.env.RemoveValue(b.ctx, []byte(s))
 }
 

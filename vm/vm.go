@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/embedded"
 	env2 "github.com/idena-network/idena-go/vm/env"
 	"github.com/pkg/errors"
@@ -22,24 +23,26 @@ type VM interface {
 }
 
 type VmImpl struct {
-	env        *env2.EnvImp
-	appState   *appstate.AppState
-	gasCounter *env2.GasCounter
+	env            *env2.EnvImp
+	appState       *appstate.AppState
+	gasCounter     *env2.GasCounter
+	statsCollector collector.StatsCollector
 }
 
-func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore) *VmImpl {
+func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector) *VmImpl {
 	gasCounter := new(env2.GasCounter)
-	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store), appState: appState, gasCounter: gasCounter}
+	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store), appState: appState, gasCounter: gasCounter,
+		statsCollector: statsCollector}
 }
 
 func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	switch ctx.CodeHash() {
 	case embedded.TimeLockContract:
-		return embedded.NewTimeLock(ctx, vm.env)
+		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
-		return embedded.NewOracleVotingContract(ctx, vm.env)
+		return embedded.NewOracleVotingContract(ctx, vm.env, vm.statsCollector)
 	case embedded.EvidenceLockContract:
-		return embedded.NewOracleLock(ctx, vm.env)
+		return embedded.NewOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableEvidenceLockContract:
 		return embedded.NewRefundableEvidenceLock(ctx, vm.env)
 	case embedded.MultisigContract:

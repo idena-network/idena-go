@@ -65,8 +65,11 @@ type StatsCollector interface {
 	SetCommitteeRewardShare(amount *big.Int)
 
 	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
-	CompleteApplyingTx(tx *types.Transaction, appState *appstate.AppState)
-	AddTxFee(tx *types.Transaction, feeAmount *big.Int)
+	CompleteApplyingTx(appState *appstate.AppState)
+	AddTxFee(feeAmount *big.Int)
+
+	AddFactEvidenceContractDeploy(contractAddress common.Address)
+	AddTxReceipt(txReceipt *types.TxReceipt)
 }
 
 type collectorStub struct {
@@ -552,24 +555,46 @@ func BeginApplyingTx(c StatsCollector, tx *types.Transaction, appState *appstate
 	c.BeginApplyingTx(tx, appState)
 }
 
-func (c *collectorStub) CompleteApplyingTx(tx *types.Transaction, appState *appstate.AppState) {
+func (c *collectorStub) CompleteApplyingTx(appState *appstate.AppState) {
 	// do nothing
 }
 
-func CompleteApplyingTx(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+func CompleteApplyingTx(c StatsCollector, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.CompleteApplyingTx(tx, appState)
+	c.CompleteApplyingTx(appState)
 }
 
-func (c *collectorStub) AddTxFee(tx *types.Transaction, feeAmount *big.Int) {
+func (c *collectorStub) AddTxFee(feeAmount *big.Int) {
 	// do nothing
 }
 
-func AddTxFee(c StatsCollector, tx *types.Transaction, feeAmount *big.Int) {
+func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddTxFee(tx, feeAmount)
+	c.AddTxFee(feeAmount)
+}
+
+func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address) {
+	// do nothing
+}
+
+func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceContractDeploy(contractAddress)
+}
+
+func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt) {
+	// do nothing
+}
+
+func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt) {
+	if c == nil {
+		return
+	}
+	c.AddTxReceipt(txReceipt)
 }

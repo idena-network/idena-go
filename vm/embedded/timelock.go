@@ -1,6 +1,7 @@
 package embedded
 
 import (
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -10,11 +11,12 @@ type TimeLock struct {
 	*BaseContract
 }
 
-func NewTimeLock(ctx env.CallContext, env env.Env) *TimeLock {
+func NewTimeLock(ctx env.CallContext, env env.Env, statsCollector collector.StatsCollector) *TimeLock {
 	return &TimeLock{
 		&BaseContract{
-			ctx: ctx,
-			env: env,
+			ctx:            ctx,
+			env:            env,
+			statsCollector: statsCollector,
 		},
 	}
 }
