@@ -68,7 +68,9 @@ type StatsCollector interface {
 	CompleteApplyingTx(appState *appstate.AppState)
 	AddTxFee(feeAmount *big.Int)
 
-	AddFactEvidenceContractDeploy(contractAddress common.Address)
+	AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64)
+	AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64)
+
 	AddTxReceipt(txReceipt *types.TxReceipt)
 }
 
@@ -577,15 +579,26 @@ func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 	c.AddTxFee(feeAmount)
 }
 
-func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address) {
+func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64) {
 	// do nothing
 }
 
-func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address) {
+func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address, startTime uint64) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceContractDeploy(contractAddress)
+	c.AddFactEvidenceContractDeploy(contractAddress, startTime)
+}
+
+func (c *collectorStub) AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64) {
+	// do nothing
+}
+
+func AddFactEvidenceContractCallStart(c StatsCollector, contractAddress common.Address, startBlock uint64) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceContractCallStart(contractAddress, startBlock)
 }
 
 func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt) {
