@@ -166,7 +166,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 		return err
 	}
 
-	vm := vm.NewVmImpl(readonlyAppState, j.head, j.secStore)
+	vm := vm.NewVmImpl(readonlyAppState, j.head, j.secStore, nil)
 	r := vm.Run(tx, -1)
 	if r.Error != nil {
 		return r.Error
