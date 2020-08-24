@@ -36,6 +36,7 @@ message ProtoBlockHeader {
         bytes feePerByte = 13;
         uint32 upgrade = 14;
         bytes seedProof = 15;
+        bytes receiptsCid = 16;
     }
 
     message Empty {
