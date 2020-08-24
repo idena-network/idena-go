@@ -103,7 +103,7 @@ func (rm *peersRateMetrics) addOut(peerId string, size int, duration time.Durati
 
 func (rm *peersRateMetrics) loopLog(logger log.Logger) {
 	for {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 30)
 
 		rm.mutex.Lock()
 		rmsByPeer := rm.rmsByPeer
@@ -189,24 +189,26 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		}
 	}
 
-	metricCodes := []uint64{
-		Handshake,
-		ProposeBlock,
-		ProposeProof,
-		Vote,
-		NewTx,
-		GetBlockByHash,
-		GetBlocksRange,
+	sortedMetricCodes := []uint64{
+		Block,
 		BlocksRange,
 		FlipBody,
 		FlipKey,
-		SnapshotManifest,
-		GetForkBlockRange,
 		FlipKeysPackage,
-		Push,
+		GetBlockByHash,
+		GetBlocksRange,
+		GetForkBlockRange,
+		Handshake,
+		NewTx,
+		ProposeBlock,
+		ProposeProof,
 		Pull,
-		Block,
+		Push,
+		SnapshotManifest,
+		Vote,
 	}
+
+	startTime := time.Now()
 
 	loopCleanup := func() {
 		for {
@@ -214,22 +216,24 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			totalSent.Clear()
 			totalReceived.Clear()
 			compressTotal.Clear()
-			for _, code := range metricCodes {
+			for _, code := range sortedMetricCodes {
 				metrics.Unregister("br." + msgCodeToString(code))
 				metrics.Unregister("mr." + msgCodeToString(code))
 				metrics.Unregister("bs." + msgCodeToString(code))
 				metrics.Unregister("ms." + msgCodeToString(code))
 				metrics.Unregister("cd." + msgCodeToString(code))
 			}
+			startTime = time.Now()
 		}
 	}
 
 	loopLog := func() {
+		const codeTotal = "total"
 		metricCodesMap := make(map[string]struct{})
-		for _, metricCode := range metricCodes {
+		for _, metricCode := range sortedMetricCodes {
 			metricCodesMap[msgCodeToString(metricCode)] = struct{}{}
 		}
-		metricCodesMap["total"] = struct{}{}
+		metricCodesMap[codeTotal] = struct{}{}
 		type metricData struct {
 			bytesSent        int64
 			bytesReceived    int64
@@ -273,11 +277,19 @@ func (h *IdenaGossipHandler) registerMetrics() {
 				buffer := new(bytes.Buffer)
 				writer.Init(buffer, 8, 8, 1, ' ', 0)
 				fmt.Fprintf(writer, "\n %s\t%s\t%s\t%s\t%s\t", "name", "bytesSent", "bytesReceived", "msgSent", "msgReceived")
-				for code, data := range metricsData {
-					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", code, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
+				for _, metricCode := range sortedMetricCodes {
+					strCode := msgCodeToString(metricCode)
+					data, ok := metricsData[strCode]
+					if !ok {
+						continue
+					}
+					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", strCode, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
+				}
+				if data, ok := metricsData[codeTotal]; ok {
+					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", codeTotal, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
 				}
 				writer.Flush()
-				log.Info("metric" + buffer.String())
+				log.Info(fmt.Sprintf("metric since %v", startTime.UTC().String()) + buffer.String())
 			}
 		}
 	}
