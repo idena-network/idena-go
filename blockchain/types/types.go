@@ -513,6 +513,7 @@ func (h *Header) FromProto(protoHeader *models.ProtoBlockHeader) *Header {
 			FeePerByte:     common.BigIntOrNil(protoHeader.ProposedHeader.FeePerByte),
 			Upgrade:        protoHeader.ProposedHeader.Upgrade,
 			SeedProof:      protoHeader.ProposedHeader.SeedProof,
+			TxReceiptsCid:  protoHeader.ProposedHeader.ReceiptsCid,
 		}
 		if len(protoHeader.ProposedHeader.OfflineAddr) > 0 {
 			addr := common.BytesToAddress(protoHeader.ProposedHeader.OfflineAddr)
@@ -650,6 +651,7 @@ func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
 		FeePerByte:     common.BigIntBytesOrNil(h.FeePerByte),
 		Upgrade:        h.Upgrade,
 		SeedProof:      h.SeedProof,
+		ReceiptsCid:    h.TxReceiptsCid,
 	}
 	if h.OfflineAddr != nil {
 		protoProposed.OfflineAddr = (*h.OfflineAddr)[:]
