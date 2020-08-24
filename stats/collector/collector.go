@@ -68,7 +68,9 @@ type StatsCollector interface {
 	CompleteApplyingTx(appState *appstate.AppState)
 	AddTxFee(feeAmount *big.Int)
 
-	AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64)
+	AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
+		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
+		maxOptions uint64)
 	AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64)
 
 	AddTxReceipt(txReceipt *types.TxReceipt)
@@ -579,15 +581,20 @@ func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 	c.AddTxFee(feeAmount)
 }
 
-func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64) {
+func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	committeeSize, maxOptions uint64) {
 	// do nothing
 }
 
-func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address, startTime uint64) {
+func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	committeeSize, maxOptions uint64) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceContractDeploy(contractAddress, startTime)
+	c.AddFactEvidenceContractDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
+		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 }
 
 func (c *collectorStub) AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64) {

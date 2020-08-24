@@ -143,6 +143,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	committeeSize := math.Min(100, networkSize)
 	maxOptions := uint64(2)
 	ownerFee := byte(0)
+	var votingMinPayment *big.Int
+	state := uint64(0)
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
 		votingDuration = value
@@ -166,7 +168,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	}
 
 	if value, err := helpers.ExtractBigInt(8, args...); err == nil {
-		f.SetBigInt("votingMinPayment", value)
+		votingMinPayment = value
 	}
 
 	if value, err := helpers.ExtractByte(9, args...); err == nil {
@@ -176,7 +178,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
 	f.SetArray("fact", fact)
-	f.SetUint64("state", 0)
+	f.SetUint64("state", state)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
 	f.SetUint64("winnerThreshold", winnerThreshold)
@@ -184,9 +186,13 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
 	f.SetByte("ownerFee", ownerFee)
+	if votingMinPayment != nil {
+		f.SetBigInt("votingMinPayment", votingMinPayment)
+	}
 
 	// todo indexer ownerFee
-	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime)
+	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, cid,
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 	return nil
 }
 
