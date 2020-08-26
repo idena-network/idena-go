@@ -103,42 +103,38 @@ func (rm *peersRateMetrics) addOut(peerId string, size int, duration time.Durati
 
 func (rm *peersRateMetrics) loopLog(logger log.Logger) {
 	for {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 30)
 
 		rm.mutex.Lock()
 		rmsByPeer := rm.rmsByPeer
 		rm.rmsByPeer = make(map[string]*rateMetrics)
 		rm.mutex.Unlock()
 
-		getMsg := func(size int, duration time.Duration) string {
-			if duration == 0 {
-				return ""
-			}
-			rate := float32(size) / float32(1024) / float32(duration) * float32(time.Second)
-			return fmt.Sprintf("b %v, d %v, r(kb/s) %v", size, duration, strconv.FormatFloat(float64(rate), 'f', 3, 64))
-		}
-		var msgItems []string
+		writer := new(tabwriter.Writer)
+		buffer := new(bytes.Buffer)
+		writer.Init(buffer, 8, 8, 1, ' ', 0)
+		fmt.Fprintf(writer, "\n %s\t%s\t%s\t%s\t%s\t%s\t%s\t", "peer", "bytesSent", "duration", "rate(kb/s)",
+			"bytesReceived", "duration", "rate(kb/s)")
+
+		empty := true
 		for peerId, prm := range rmsByPeer {
 			sizeIn, durationIn := prm.in.getAndReset()
 			sizeOut, durationOut := prm.out.getAndReset()
-
-			if durationIn == 0 && durationOut == 0 {
-				continue
+			var rateIn, rateOut float64
+			if durationIn > 0 {
+				rateIn = float64(sizeIn) / float64(1024) / float64(durationIn) * float64(time.Second)
 			}
-
-			var peerMsgItems []string
-			if msg := getMsg(sizeIn, durationIn); len(msg) > 0 {
-				peerMsgItems = append(peerMsgItems, "in: "+msg)
+			if durationOut > 0 {
+				rateOut = float64(sizeOut) / float64(1024) / float64(durationOut) * float64(time.Second)
 			}
-			if msg := getMsg(sizeOut, durationOut); len(msg) > 0 {
-				peerMsgItems = append(peerMsgItems, "out: "+msg)
-			}
-			if len(peerMsgItems) > 0 {
-				msgItems = append(msgItems, fmt.Sprintf("%v: %v", peerId, strings.Join(peerMsgItems, ", ")))
-			}
+			fmt.Fprintf(writer, "\n %s\t%d\t%v\t%s\t%d\t%v\t%s\t", peerId, sizeOut, durationOut,
+				strconv.FormatFloat(rateOut, 'f', 3, 64), sizeIn, durationIn,
+				strconv.FormatFloat(rateIn, 'f', 3, 64))
+			empty = false
 		}
-		if len(msgItems) > 0 {
-			logger.Info(strings.Join(msgItems, ", "))
+		writer.Flush()
+		if !empty {
+			logger.Info("rate metric" + buffer.String())
 		}
 	}
 }
@@ -189,55 +185,56 @@ func (h *IdenaGossipHandler) registerMetrics() {
 		}
 	}
 
-	metricCodes := []uint64{
-		Handshake,
-		ProposeBlock,
-		ProposeProof,
-		Vote,
-		NewTx,
-		GetBlockByHash,
-		GetBlocksRange,
+	sortedMetricCodes := []uint64{
+		Block,
 		BlocksRange,
 		FlipBody,
 		FlipKey,
-		SnapshotManifest,
-		GetForkBlockRange,
 		FlipKeysPackage,
-		Push,
+		GetBlockByHash,
+		GetBlocksRange,
+		GetForkBlockRange,
+		Handshake,
+		NewTx,
+		ProposeBlock,
+		ProposeProof,
 		Pull,
-		Block,
+		Push,
+		SnapshotManifest,
+		Vote,
 	}
 
-	loopCleanup := func() {
-		for {
-			time.Sleep(time.Hour)
+	loopLog := func() {
+		startTime := time.Now()
+
+		cleanUp := func() {
 			totalSent.Clear()
 			totalReceived.Clear()
 			compressTotal.Clear()
-			for _, code := range metricCodes {
+			for _, code := range sortedMetricCodes {
 				metrics.Unregister("br." + msgCodeToString(code))
 				metrics.Unregister("mr." + msgCodeToString(code))
 				metrics.Unregister("bs." + msgCodeToString(code))
 				metrics.Unregister("ms." + msgCodeToString(code))
 				metrics.Unregister("cd." + msgCodeToString(code))
 			}
+			startTime = time.Now()
 		}
-	}
 
-	loopLog := func() {
-		metricCodesMap := make(map[string]struct{})
-		for _, metricCode := range metricCodes {
-			metricCodesMap[msgCodeToString(metricCode)] = struct{}{}
-		}
-		metricCodesMap["total"] = struct{}{}
+		const codeTotal = "total"
 		type metricData struct {
 			bytesSent        int64
 			bytesReceived    int64
 			messagesSent     int64
 			messagesReceived int64
 		}
-		for {
-			time.Sleep(time.Minute * 5)
+		metricCodesMap := make(map[string]struct{})
+		for _, metricCode := range sortedMetricCodes {
+			metricCodesMap[msgCodeToString(metricCode)] = struct{}{}
+		}
+		metricCodesMap[codeTotal] = struct{}{}
+
+		logMetrics := func() {
 			metricsData := make(map[string]*metricData)
 			metrics.DefaultRegistry.Each(func(name string, i interface{}) {
 				switch metric := i.(type) {
@@ -273,11 +270,26 @@ func (h *IdenaGossipHandler) registerMetrics() {
 				buffer := new(bytes.Buffer)
 				writer.Init(buffer, 8, 8, 1, ' ', 0)
 				fmt.Fprintf(writer, "\n %s\t%s\t%s\t%s\t%s\t", "name", "bytesSent", "bytesReceived", "msgSent", "msgReceived")
-				for code, data := range metricsData {
-					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", code, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
+				for _, metricCode := range sortedMetricCodes {
+					strCode := msgCodeToString(metricCode)
+					data, ok := metricsData[strCode]
+					if !ok {
+						continue
+					}
+					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", strCode, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
+				}
+				if data, ok := metricsData[codeTotal]; ok {
+					fmt.Fprintf(writer, "\n %s\t%d\t%d\t%d\t%d\t", codeTotal, data.bytesSent, data.bytesReceived, data.messagesSent, data.messagesReceived)
 				}
 				writer.Flush()
-				log.Info("metric" + buffer.String())
+				log.Info(fmt.Sprintf("metric since %v", startTime.UTC().String()) + buffer.String())
+			}
+		}
+		for {
+			time.Sleep(time.Minute * 5)
+			logMetrics()
+			if time.Now().Sub(startTime) > time.Hour {
+				cleanUp()
 			}
 		}
 	}
@@ -324,6 +336,5 @@ func (h *IdenaGossipHandler) registerMetrics() {
 	if !h.cfg.DisableMetrics {
 		go loopLog()
 		go rate.loopLog(h.log)
-		go loopCleanup()
 	}
 }
