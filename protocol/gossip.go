@@ -709,6 +709,9 @@ func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
 	h.pushPullManager.AddEntry(hash, tx, own)
 	data, _ := hash.ToBytes()
 	h.peers.SendWithFilter(Push, msgKey(data), hash, own)
+	if own {
+		h.log.Info("Sent own tx push", "hash", tx.Hash().Hex())
+	}
 }
 
 func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {

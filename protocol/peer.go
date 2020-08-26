@@ -134,8 +134,13 @@ func (p *protoPeer) broadcast() {
 			return err
 		}
 		duration := time.Since(startTime)
-		p.metrics.outcomeMessage(request.msgcode, len(msg), duration, string(p.prettyId))
+		p.metrics.outcomeMessage(request.msgcode, len(msg), duration, p.prettyId)
 		return nil
+	}
+	logIfNeeded := func(r *request) {
+		if r.msgcode == Push || r.msgcode == NewTx || r.msgcode == FlipKey {
+			p.log.Info(fmt.Sprintf("Sent high priority msg, code %v", r.msgcode))
+		}
 	}
 	for {
 		if p.maxDelayMs > 0 {
@@ -147,6 +152,7 @@ func (p *protoPeer) broadcast() {
 			if send(request) != nil {
 				return
 			}
+			logIfNeeded(request)
 			continue
 		default:
 		}
@@ -156,6 +162,7 @@ func (p *protoPeer) broadcast() {
 			if send(request) != nil {
 				return
 			}
+			logIfNeeded(request)
 		case request := <-p.queuedRequests:
 			if send(request) != nil {
 				return
@@ -291,7 +298,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	if err := result.FromBytes(data); err != nil {
 		return nil, err
 	}
-	p.metrics.incomeMessage(result.Code, len(compressedMsg), duration, string(p.prettyId))
+	p.metrics.incomeMessage(result.Code, len(compressedMsg), duration, p.prettyId)
 	p.metrics.compress(result.Code, len(data)-len(compressedMsg))
 	return result, nil
 }
