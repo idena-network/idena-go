@@ -27,7 +27,7 @@ require (
 	github.com/klauspost/compress v1.10.11
 	github.com/libp2p/go-libp2p-core v0.5.7
 	github.com/libp2p/go-msgio v0.0.6
-	github.com/libp2p/go-yamux v1.3.8
+	github.com/libp2p/go-yamux v1.3.9
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mmcloughlin/avo v0.0.0-20200523190732-4439b6b2c061 // indirect
 	github.com/multiformats/go-multiaddr v0.2.2
