@@ -1212,9 +1212,10 @@ func (chain *Blockchain) getSortition(data []byte, threshold float64) (bool, []b
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
-	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
+	q := new(big.Float).Quo(v, MaxHash)
+	vrfThreshold := new(big.Float).SetFloat64(threshold)
 
-	if f, _ := q.Float64(); f >= threshold {
+	if q.Cmp(vrfThreshold) >= 0 {
 		return true, proof
 	}
 	return false, nil
@@ -1380,9 +1381,10 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 
 	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
 
-	q := new(big.Float).Quo(v, MaxHash).SetPrec(10)
+	vrfThreshold := new(big.Float).SetFloat64(chain.appState.State.VrfProposerThreshold())
+	q := new(big.Float).Quo(v, MaxHash)
 
-	if f, _ := q.Float64(); f < chain.appState.State.VrfProposerThreshold() {
+	if q.Cmp(vrfThreshold) == -1 {
 		return errors.New("Proposer is invalid")
 	}
 
