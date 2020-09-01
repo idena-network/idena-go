@@ -38,7 +38,7 @@ const (
 	ReductionTwo = 254
 	Final        = 255
 
-	MaxBlockGas = 300 * 1024
+	MaxBlockGas = 3000 * 1024
 )
 
 type BlockFlag uint32
@@ -1509,5 +1509,31 @@ func (i *TxReceiptIndex) FromBytes(data []byte) error {
 	}
 	i.Idx = protoObj.Index
 	i.ReceiptCid = protoObj.Cid
+	return nil
+}
+
+type SavedEvent struct {
+	Contract common.Address
+	Event    string
+	Args     [][]byte
+}
+
+func (i *SavedEvent) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoSavedEvent{
+		Contract: i.Contract.Bytes(),
+		Event:    i.Event,
+		Args:     i.Args,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (i *SavedEvent) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoSavedEvent)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	i.Contract.SetBytes(protoObj.Contract)
+	i.Event = protoObj.Event
+	i.Args = protoObj.Args
 	return nil
 }

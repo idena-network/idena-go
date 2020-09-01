@@ -589,7 +589,7 @@ func (s *stateIdentity) GeneticCode() (generation uint32, code []byte) {
 
 func (s *stateIdentity) Stake() *big.Int {
 	if s.data.Stake == nil {
-		return big.NewInt(0)
+		return common.Big0
 	}
 	return s.data.Stake
 }

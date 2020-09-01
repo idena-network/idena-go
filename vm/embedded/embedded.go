@@ -11,7 +11,7 @@ type EmbeddedContractType = common.Hash
 
 var (
 	TimeLockContract               EmbeddedContractType
-	FactEvidenceContract           EmbeddedContractType
+	OracleVotingContract           EmbeddedContractType
 	EvidenceLockContract           EmbeddedContractType
 	RefundableEvidenceLockContract EmbeddedContractType
 	MultisigContract               EmbeddedContractType
@@ -20,14 +20,14 @@ var (
 
 func init() {
 	TimeLockContract.SetBytes([]byte{0x1})
-	FactEvidenceContract.SetBytes([]byte{0x2})
+	OracleVotingContract.SetBytes([]byte{0x2})
 	EvidenceLockContract.SetBytes([]byte{0x3})
 	RefundableEvidenceLockContract.SetBytes([]byte{0x4})
 	MultisigContract.SetBytes([]byte{0x5})
 
 	AvailableContracts = map[EmbeddedContractType]struct{}{
 		TimeLockContract:               {},
-		FactEvidenceContract:           {},
+		OracleVotingContract:           {},
 		EvidenceLockContract:           {},
 		RefundableEvidenceLockContract: {},
 		MultisigContract:               {},
@@ -67,9 +67,19 @@ func (b *BaseContract) SetUint64(s string, value uint64) {
 	b.env.SetValue(b.ctx, []byte(s), common.ToBytes(value))
 }
 
+func (b *BaseContract) SetUint16(s string, value uint16) {
+	b.env.SetValue(b.ctx, []byte(s), common.ToBytes(value))
+}
+
 func (b *BaseContract) GetUint64(s string) uint64 {
 	data := b.env.GetValue(b.ctx, []byte(s))
 	ret, _ := helpers.ExtractUInt64(0, data)
+	return ret
+}
+
+func (b *BaseContract) GetUint16(s string) uint16 {
+	data := b.env.GetValue(b.ctx, []byte(s))
+	ret, _ := helpers.ExtractUInt16(0, data)
 	return ret
 }
 

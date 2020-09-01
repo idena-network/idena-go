@@ -19,6 +19,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/deferredtx"
+	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/ipfs/go-cid"
@@ -36,11 +37,12 @@ type DnaApi struct {
 	appVersion     string
 	profileManager *profile.Manager
 	deferredTxs    *deferredtx.Job
+	subManager     *subscriptions.Manager
 }
 
 func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony, appVersion string,
-	profileManager *profile.Manager, deferredTxs *deferredtx.Job) *DnaApi {
-	return &DnaApi{bc, baseApi, ceremony, appVersion, profileManager, deferredTxs}
+	profileManager *profile.Manager, deferredTxs *deferredtx.Job, subManager *subscriptions.Manager) *DnaApi {
+	return &DnaApi{bc, baseApi, ceremony, appVersion, profileManager, deferredTxs, subManager}
 }
 
 type State struct {
@@ -644,6 +646,11 @@ type ReadonlyCallContractArgs struct {
 	Args     DynamicArgs    `json:"args"`
 }
 
+type EventsArgs struct {
+	Token hexutil.Bytes `json:"token"`
+	Count int           `json:"count"`
+}
+
 func (a DynamicArg) ToBytes() []byte {
 	switch a.Format {
 	case "byte":
@@ -715,6 +722,17 @@ type TxReceipt struct {
 	Error    string          `json:"error"`
 	GasCost  decimal.Decimal `json:"gasCost"`
 	TxFee    decimal.Decimal `json:"txFee"`
+}
+
+type Event struct {
+	Contract common.Address  `json:"contract"`
+	Event    string          `json:"event"`
+	Args     []hexutil.Bytes `json:"args"`
+}
+
+type Events struct {
+	Events []*Event      `json:"events"`
+	Token  hexutil.Bytes `json:"token"`
 }
 
 func (api *DnaApi) buildDeployContractTx(args DeployContractArgs) (*types.Transaction, error) {
@@ -876,6 +894,35 @@ func (api *DnaApi) GetContractData(contract common.Address) interface{} {
 	}{
 		hash,
 		blockchain.ConvertToFloat(stake),
+	}
+}
+
+func (api *DnaApi) SubscribeToEvent(contract common.Address, event string) error {
+	return api.subManager.Subscribe(contract, event)
+}
+
+func (api *DnaApi) UnsubscribeFromEvent(contract common.Address, event string) error {
+	return api.subManager.Unsubscribe(contract, event)
+}
+
+func (api *DnaApi) Events(args EventsArgs) Events {
+
+	events, nextToken := api.bc.ReadEvents(args.Token, args.Count)
+
+	var list []*Event
+	for _, item := range events {
+		e := &Event{
+			Contract: item.Contract,
+			Event:    item.Event,
+		}
+		list = append(list, e)
+		for _, arg := range item.Args {
+			e.Args = append(e.Args, arg)
+		}
+	}
+	return Events{
+		Events: list,
+		Token:  nextToken,
 	}
 }
 

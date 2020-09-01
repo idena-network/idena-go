@@ -45,6 +45,21 @@ func ExtractUInt64(index int, args ...[]byte) (uint64, error) {
 	return ret, nil
 }
 
+func ExtractUInt16(index int, args ...[]byte) (uint16, error) {
+	if err := assertLen(index, args...); err != nil {
+		return 0, err
+	}
+	if args[index] == nil {
+		return 0, noValue
+	}
+	var ret uint16
+	buf := bytes.NewBuffer(args[index])
+	if err := binary.Read(buf, binary.LittleEndian, &ret); err != nil {
+		return 0, err
+	}
+	return ret, nil
+}
+
 func ExtractByte(index int, args ...[]byte) (byte, error) {
 	if err := assertLen(index, args...); err != nil {
 		return 0, err

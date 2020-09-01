@@ -14,6 +14,7 @@ import (
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/tendermint/tm-db"
 )
 
@@ -57,8 +58,9 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	txPool := mempool.NewTxPool(appState, bus, cfg.Mempool)
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
+	subManager, _ := subscriptions.NewManager("./testdata2")
 
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
@@ -108,8 +110,8 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig())
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
-
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore)
+	subManager, _ := subscriptions.NewManager("./testdata2")
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager)
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 
@@ -151,8 +153,8 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig())
 	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
-
-	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore)
+	subManager, _ := subscriptions.NewManager("./testdata2")
+	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore, subManager)
 	copy.InitializeChain()
 	appState.Initialize(copy.Head.Height())
 	return &TestBlockchain{db, copy}, appState

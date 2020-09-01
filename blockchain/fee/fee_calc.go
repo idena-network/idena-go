@@ -16,14 +16,14 @@ const (
 )
 
 var (
-	MinFeePerByte = big.NewInt(1e+2)
+	MinFeePerByte = big.NewInt(10)
 )
 
 func GetFeePerGasForNetwork(networkSize int) *big.Int {
 	if networkSize == 0 {
 		networkSize = 1
 	}
-	minFeePerGasD := decimal.NewFromFloat(0.1).
+	minFeePerGasD := decimal.NewFromFloat(0.01).
 		Div(decimal.NewFromInt(int64(networkSize))).
 		Mul(decimal.NewFromBigInt(common.DnaBase, 0))
 
@@ -37,7 +37,7 @@ func GetFeePerGasForNetwork(networkSize int) *big.Int {
 }
 
 func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	txFeePerByte := getFeePerByteForTx(networkSize, feePerByte, tx)
+	txFeePerByte := getFeePerGasForTx(networkSize, feePerByte, tx)
 	if txFeePerByte.Sign() == 0 {
 		return big.NewInt(0)
 	}
@@ -46,11 +46,11 @@ func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *
 }
 
 func CalculateGas(tx *types.Transaction) int {
-	return getTxSizeForFee(tx)
+	return getTxSizeForFee(tx) * 10
 }
 
-func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	if networkSize == 0 || common.ZeroOrNil(feePerByte) {
+func getFeePerGasForTx(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
+	if networkSize == 0 || common.ZeroOrNil(feePerGas) {
 		return big.NewInt(0)
 	}
 	if tx.Type == types.SubmitFlipTx || tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitShortAnswersTx ||
@@ -61,11 +61,11 @@ func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transact
 	if tx.Type == types.OnlineStatusTx {
 		attachment := attachments.ParseOnlineStatusAttachment(tx)
 		if attachment != nil && attachment.Online {
-			return new(big.Int).Mul(big.NewInt(2), feePerByte)
+			return new(big.Int).Mul(big.NewInt(2), feePerGas)
 		}
 		return big.NewInt(0)
 	}
-	return feePerByte
+	return feePerGas
 }
 
 func getTxSizeForFee(tx *types.Transaction) int {

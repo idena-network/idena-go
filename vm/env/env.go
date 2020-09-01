@@ -10,8 +10,22 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/pkg/errors"
 	"math/big"
+	"regexp"
 	"sort"
 )
+
+const (
+	maxEnvKeyLength = 32
+)
+
+var (
+	eventRegexp *regexp.Regexp
+)
+
+func init() {
+	// any ASCII character
+	eventRegexp, _ = regexp.Compile("^[\x00-\x7F]{1,32}$")
+}
 
 type Env interface {
 	BlockNumber() uint64
@@ -33,6 +47,8 @@ type Env interface {
 	Vrf(msg []byte) ([32]byte, []byte)
 	Terminate(ctx CallContext, dest common.Address)
 	Event(name string, args ...[]byte)
+	Epoch() uint16
+	ContractStake(common.Address) *big.Int
 }
 
 type contractValue struct {
@@ -61,6 +77,11 @@ func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter
 		droppedContracts:      map[common.Address]struct{}{},
 		events:                []*types.TxEvent{},
 	}
+}
+
+func (e *EnvImp) Epoch() uint16 {
+	e.gasCounter.AddGas(10)
+	return e.state.State.Epoch()
 }
 
 func (e *EnvImp) getBalance(address common.Address) *big.Int {
@@ -95,7 +116,7 @@ func (e *EnvImp) Send(ctx CallContext, dest common.Address, amount *big.Int) err
 	e.subBalance(ctx.ContractAddr(), amount)
 	e.addBalance(dest, amount)
 
-	e.gasCounter.AddGas(1)
+	e.gasCounter.AddGas(30)
 	return nil
 }
 
@@ -104,19 +125,23 @@ func (e *EnvImp) Deploy(ctx CallContext, codeHash common.Hash) {
 		Stake:    ctx.PayAmount(),
 		CodeHash: codeHash,
 	}
-	e.gasCounter.AddGas(10)
+	e.gasCounter.AddGas(200)
 }
 
 func (e *EnvImp) BlockTimeStamp() int64 {
+	e.gasCounter.AddGas(5)
 	return e.block.Time()
 }
 
 func (e *EnvImp) BlockNumber() uint64 {
+	e.gasCounter.AddGas(5)
 	return e.block.Height()
 }
 
 func (e *EnvImp) SetValue(ctx CallContext, key []byte, value []byte) {
-
+	if len(key) > maxEnvKeyLength {
+		panic("key is too big")
+	}
 	addr := ctx.ContractAddr()
 	var cache map[string]*contractValue
 	var ok bool
@@ -128,7 +153,7 @@ func (e *EnvImp) SetValue(ctx CallContext, key []byte, value []byte) {
 		value:   value,
 		removed: false,
 	}
-	e.gasCounter.AddWrittenBytesAsGas(len(key) + len(value))
+	e.gasCounter.AddWrittenBytesAsGas(10 * (len(key) + len(value)))
 }
 
 func (e *EnvImp) GetValue(ctx CallContext, key []byte) []byte {
@@ -144,22 +169,26 @@ func (e *EnvImp) RemoveValue(ctx CallContext, key []byte) {
 		e.contractStoreCache[addr] = cache
 	}
 	cache[string(key)] = &contractValue{removed: true}
+	e.gasCounter.AddGas(5)
 }
 
 func (e *EnvImp) MinFeePerByte() *big.Int {
+	e.gasCounter.AddGas(5)
 	return e.state.State.FeePerGas()
 }
 
 func (e *EnvImp) Balance(address common.Address) *big.Int {
-	e.gasCounter.AddReadBytesAsGas(1)
+	e.gasCounter.AddReadBytesAsGas(5)
 	return e.getBalance(address)
 }
 
 func (e *EnvImp) BlockSeed() []byte {
+	e.gasCounter.AddReadBytesAsGas(5)
 	return e.block.Seed().Bytes()
 }
 
 func (e *EnvImp) NetworkSize() int {
+	e.gasCounter.AddReadBytesAsGas(5)
 	return e.state.ValidatorsCache.NetworkSize()
 }
 
@@ -169,7 +198,7 @@ func (e *EnvImp) State(sender common.Address) state.IdentityState {
 }
 
 func (e *EnvImp) PubKey(addr common.Address) []byte {
-	e.gasCounter.AddReadBytesAsGas(1)
+	e.gasCounter.AddReadBytesAsGas(10)
 	return e.state.State.GetIdentity(addr).PubKey
 }
 
@@ -183,6 +212,7 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 			keyBytes := []byte(key)
 			if bytes.Compare(keyBytes, minKey) >= 0 && bytes.Compare(keyBytes, maxKey) <= 0 {
 				iteratedKeys[key] = struct{}{}
+				e.gasCounter.AddReadBytesAsGas(10 * len(value.value))
 				if !value.removed && f(keyBytes, value.value) {
 					return
 				}
@@ -194,13 +224,13 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 		if _, ok := iteratedKeys[string(key)]; ok {
 			return false
 		}
-		e.gasCounter.AddReadBytesAsGas(len(value))
+		e.gasCounter.AddReadBytesAsGas(10 * len(value))
 		return f(key, value)
 	})
 }
 
 func (e *EnvImp) BurnAll(ctx CallContext) {
-	e.gasCounter.AddReadBytesAsGas(1)
+	e.gasCounter.AddReadBytesAsGas(10)
 	e.setBalance(ctx.ContractAddr(), common.Big0)
 }
 
@@ -210,16 +240,17 @@ func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byt
 			if value.removed {
 				return nil
 			}
-			e.gasCounter.AddReadBytesAsGas(len(value.value))
+			e.gasCounter.AddReadBytesAsGas(10 * len(value.value))
 			return value.value
 		}
 	}
 	value := e.state.State.GetContractValue(contractAddr, key)
-	e.gasCounter.AddReadBytesAsGas(len(value))
+	e.gasCounter.AddReadBytesAsGas(10 * len(value))
 	return value
 }
 
 func (e *EnvImp) Vrf(msg []byte) (hash [32]byte, proof []byte) {
+	e.gasCounter.AddGas(30)
 	return e.secStore.VrfEvaluate(msg)
 }
 
@@ -286,9 +317,22 @@ func (e *EnvImp) Commit() []*types.TxEvent {
 }
 
 func (e *EnvImp) Event(name string, args ...[]byte) {
+	if !eventRegexp.MatchString(name) {
+		panic("event name should contain only ASCII characters. Length should be 1-32")
+	}
+	size := 0
+	for _, a := range args {
+		size += len(a)
+	}
+	e.gasCounter.AddGas(100 + 10*size)
 	e.events = append(e.events, &types.TxEvent{
 		EventName: name, Data: args,
 	})
+}
+
+func (e *EnvImp) ContractStake(contract common.Address) *big.Int {
+	e.gasCounter.AddGas(10)
+	return e.state.State.GetContractStake(contract)
 }
 
 func (e *EnvImp) Reset() {

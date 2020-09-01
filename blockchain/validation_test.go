@@ -19,7 +19,7 @@ func Test_ValidateDeleteFlipTx(t *testing.T) {
 			AccountNonce: 1,
 			Type:         types.DeleteFlipTx,
 			Payload:      attachments.CreateDeleteFlipAttachment(cid),
-			MaxFee:       big.NewInt(700_000),
+			MaxFee:       big.NewInt(700_000_0),
 		}
 		signedTx, _ := types.SignTx(&tx, key)
 		return signedTx

@@ -13,9 +13,11 @@ func TestCalculateFee(t *testing.T) {
 	tx := &types.Transaction{
 		Type: types.SendTx,
 	}
-	fee1 := big.NewInt(69e+15)
-	fee2 := big.NewInt(345e+15)
+	fee1 := big.NewInt(69e+16)
+	fee2 := big.NewInt(345e+16)
 
+	fee := CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), tx).String()
+	t.Logf(fee)
 	// not signed
 	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), tx)))
 	require.Equal(t, 0, fee2.Cmp(CalculateFee(200, new(big.Int).Div(common.DnaBase, big.NewInt(200)), tx)))
@@ -34,7 +36,7 @@ func TestCalculateCost(t *testing.T) {
 		Amount: big.NewInt(1e+18),
 		Tips:   big.NewInt(1e+18),
 	}
-	cost := new(big.Int).Add(big.NewInt(89e+16), tx.AmountOrZero())
+	cost := new(big.Int).Add(big.NewInt(0).Mul(big.NewInt(89e+17), big.NewInt(1)), tx.AmountOrZero())
 	cost.Add(cost, tx.TipsOrZero())
 	require.Equal(t, 0, cost.Cmp(CalculateCost(100, new(big.Int).Div(common.DnaBase, big.NewInt(100)), tx)))
 }
@@ -53,17 +55,20 @@ func TestCalculateCostForInvitation(t *testing.T) {
 func Test_GetFeePerByteForNetwork(t *testing.T) {
 	require := require.New(t)
 
-	require.Zero(big.NewInt(1e+17).Cmp(GetFeePerGasForNetwork(0)))
+	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerGasForNetwork(0)))
 
-	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerGasForNetwork(10)))
+	require.Zero(big.NewInt(1e+15).Cmp(GetFeePerGasForNetwork(10)))
 
-	require.Zero(big.NewInt(1e+15).Cmp(GetFeePerGasForNetwork(100)))
+	require.Zero(big.NewInt(1e+14).Cmp(GetFeePerGasForNetwork(100)))
 
-	require.Zero(big.NewInt(2e+13).Cmp(GetFeePerGasForNetwork(5000)))
+	require.Zero(big.NewInt(2e+12).Cmp(GetFeePerGasForNetwork(5000)))
 
-	require.Zero(big.NewInt(1e+12).Cmp(GetFeePerGasForNetwork(100000)))
+	require.Zero(big.NewInt(1e+11).Cmp(GetFeePerGasForNetwork(100000)))
 
-	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerGasForNetwork(1e+17)))
+	t.Logf("%v", GetFeePerGasForNetwork(1e+17).String())
 
-	require.Zero(big.NewInt(1e+2).Cmp(GetFeePerGasForNetwork(1e+18)))
+
+	require.Zero(big.NewInt(10).Cmp(GetFeePerGasForNetwork(1e+17)))
+
+	require.Zero(big.NewInt(10).Cmp(GetFeePerGasForNetwork(1e+18)))
 }

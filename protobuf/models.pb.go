@@ -3173,6 +3173,69 @@ func (x *ProtoDeferredTxs) GetTxs() []*ProtoDeferredTxs_ProtoDeferredTx {
 	return nil
 }
 
+type ProtoSavedEvent struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Contract []byte   `protobuf:"bytes,1,opt,name=contract,proto3" json:"contract,omitempty"`
+	Event    string   `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
+	Args     [][]byte `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
+}
+
+func (x *ProtoSavedEvent) Reset() {
+	*x = ProtoSavedEvent{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_protobuf_models_proto_msgTypes[52]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ProtoSavedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProtoSavedEvent) ProtoMessage() {}
+
+func (x *ProtoSavedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_protobuf_models_proto_msgTypes[52]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProtoSavedEvent.ProtoReflect.Descriptor instead.
+func (*ProtoSavedEvent) Descriptor() ([]byte, []int) {
+	return file_protobuf_models_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ProtoSavedEvent) GetContract() []byte {
+	if x != nil {
+		return x.Contract
+	}
+	return nil
+}
+
+func (x *ProtoSavedEvent) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *ProtoSavedEvent) GetArgs() [][]byte {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
 type ProtoTransaction_Data struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3191,7 +3254,7 @@ type ProtoTransaction_Data struct {
 func (x *ProtoTransaction_Data) Reset() {
 	*x = ProtoTransaction_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[52]
+		mi := &file_protobuf_models_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3204,7 +3267,7 @@ func (x *ProtoTransaction_Data) String() string {
 func (*ProtoTransaction_Data) ProtoMessage() {}
 
 func (x *ProtoTransaction_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[52]
+	mi := &file_protobuf_models_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3302,7 +3365,7 @@ type ProtoBlockHeader_Proposed struct {
 func (x *ProtoBlockHeader_Proposed) Reset() {
 	*x = ProtoBlockHeader_Proposed{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[53]
+		mi := &file_protobuf_models_proto_msgTypes[54]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3315,7 +3378,7 @@ func (x *ProtoBlockHeader_Proposed) String() string {
 func (*ProtoBlockHeader_Proposed) ProtoMessage() {}
 
 func (x *ProtoBlockHeader_Proposed) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[53]
+	mi := &file_protobuf_models_proto_msgTypes[54]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3460,7 +3523,7 @@ type ProtoBlockHeader_Empty struct {
 func (x *ProtoBlockHeader_Empty) Reset() {
 	*x = ProtoBlockHeader_Empty{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[54]
+		mi := &file_protobuf_models_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3473,7 +3536,7 @@ func (x *ProtoBlockHeader_Empty) String() string {
 func (*ProtoBlockHeader_Empty) ProtoMessage() {}
 
 func (x *ProtoBlockHeader_Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[54]
+	mi := &file_protobuf_models_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3551,7 +3614,7 @@ type ProtoBlockProposal_Data struct {
 func (x *ProtoBlockProposal_Data) Reset() {
 	*x = ProtoBlockProposal_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[55]
+		mi := &file_protobuf_models_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3564,7 +3627,7 @@ func (x *ProtoBlockProposal_Data) String() string {
 func (*ProtoBlockProposal_Data) ProtoMessage() {}
 
 func (x *ProtoBlockProposal_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[55]
+	mi := &file_protobuf_models_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3614,7 +3677,7 @@ type ProtoBlockCert_Signature struct {
 func (x *ProtoBlockCert_Signature) Reset() {
 	*x = ProtoBlockCert_Signature{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[56]
+		mi := &file_protobuf_models_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3627,7 +3690,7 @@ func (x *ProtoBlockCert_Signature) String() string {
 func (*ProtoBlockCert_Signature) ProtoMessage() {}
 
 func (x *ProtoBlockCert_Signature) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[56]
+	mi := &file_protobuf_models_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3677,7 +3740,7 @@ type ProtoIdentityStateDiff_IdentityStateDiffValue struct {
 func (x *ProtoIdentityStateDiff_IdentityStateDiffValue) Reset() {
 	*x = ProtoIdentityStateDiff_IdentityStateDiffValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[57]
+		mi := &file_protobuf_models_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3690,7 +3753,7 @@ func (x *ProtoIdentityStateDiff_IdentityStateDiffValue) String() string {
 func (*ProtoIdentityStateDiff_IdentityStateDiffValue) ProtoMessage() {}
 
 func (x *ProtoIdentityStateDiff_IdentityStateDiffValue) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[57]
+	mi := &file_protobuf_models_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3739,7 +3802,7 @@ type ProtoSnapshotBlock_KeyValue struct {
 func (x *ProtoSnapshotBlock_KeyValue) Reset() {
 	*x = ProtoSnapshotBlock_KeyValue{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[58]
+		mi := &file_protobuf_models_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3752,7 +3815,7 @@ func (x *ProtoSnapshotBlock_KeyValue) String() string {
 func (*ProtoSnapshotBlock_KeyValue) ProtoMessage() {}
 
 func (x *ProtoSnapshotBlock_KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[58]
+	mi := &file_protobuf_models_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3795,7 +3858,7 @@ type ProtoGossipBlockRange_Block struct {
 func (x *ProtoGossipBlockRange_Block) Reset() {
 	*x = ProtoGossipBlockRange_Block{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[59]
+		mi := &file_protobuf_models_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3808,7 +3871,7 @@ func (x *ProtoGossipBlockRange_Block) String() string {
 func (*ProtoGossipBlockRange_Block) ProtoMessage() {}
 
 func (x *ProtoGossipBlockRange_Block) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[59]
+	mi := &file_protobuf_models_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3857,7 +3920,7 @@ type ProtoProposeProof_Data struct {
 func (x *ProtoProposeProof_Data) Reset() {
 	*x = ProtoProposeProof_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[60]
+		mi := &file_protobuf_models_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3870,7 +3933,7 @@ func (x *ProtoProposeProof_Data) String() string {
 func (*ProtoProposeProof_Data) ProtoMessage() {}
 
 func (x *ProtoProposeProof_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[60]
+	mi := &file_protobuf_models_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3916,7 +3979,7 @@ type ProtoVote_Data struct {
 func (x *ProtoVote_Data) Reset() {
 	*x = ProtoVote_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[61]
+		mi := &file_protobuf_models_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3929,7 +3992,7 @@ func (x *ProtoVote_Data) String() string {
 func (*ProtoVote_Data) ProtoMessage() {}
 
 func (x *ProtoVote_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[61]
+	mi := &file_protobuf_models_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3999,7 +4062,7 @@ type ProtoFlipKey_Data struct {
 func (x *ProtoFlipKey_Data) Reset() {
 	*x = ProtoFlipKey_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[62]
+		mi := &file_protobuf_models_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4012,7 +4075,7 @@ func (x *ProtoFlipKey_Data) String() string {
 func (*ProtoFlipKey_Data) ProtoMessage() {}
 
 func (x *ProtoFlipKey_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[62]
+	mi := &file_protobuf_models_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4054,7 +4117,7 @@ type ProtoPrivateFlipKeysPackage_Data struct {
 func (x *ProtoPrivateFlipKeysPackage_Data) Reset() {
 	*x = ProtoPrivateFlipKeysPackage_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[63]
+		mi := &file_protobuf_models_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4067,7 +4130,7 @@ func (x *ProtoPrivateFlipKeysPackage_Data) String() string {
 func (*ProtoPrivateFlipKeysPackage_Data) ProtoMessage() {}
 
 func (x *ProtoPrivateFlipKeysPackage_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[63]
+	mi := &file_protobuf_models_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4109,7 +4172,7 @@ type ProtoAnswersDb_Answer struct {
 func (x *ProtoAnswersDb_Answer) Reset() {
 	*x = ProtoAnswersDb_Answer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[64]
+		mi := &file_protobuf_models_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4122,7 +4185,7 @@ func (x *ProtoAnswersDb_Answer) String() string {
 func (*ProtoAnswersDb_Answer) ProtoMessage() {}
 
 func (x *ProtoAnswersDb_Answer) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[64]
+	mi := &file_protobuf_models_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4164,7 +4227,7 @@ type ProtoActivityMonitor_Activity struct {
 func (x *ProtoActivityMonitor_Activity) Reset() {
 	*x = ProtoActivityMonitor_Activity{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[65]
+		mi := &file_protobuf_models_proto_msgTypes[66]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4177,7 +4240,7 @@ func (x *ProtoActivityMonitor_Activity) String() string {
 func (*ProtoActivityMonitor_Activity) ProtoMessage() {}
 
 func (x *ProtoActivityMonitor_Activity) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[65]
+	mi := &file_protobuf_models_proto_msgTypes[66]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4219,7 +4282,7 @@ type ProtoStateIdentity_Flip struct {
 func (x *ProtoStateIdentity_Flip) Reset() {
 	*x = ProtoStateIdentity_Flip{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[66]
+		mi := &file_protobuf_models_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4232,7 +4295,7 @@ func (x *ProtoStateIdentity_Flip) String() string {
 func (*ProtoStateIdentity_Flip) ProtoMessage() {}
 
 func (x *ProtoStateIdentity_Flip) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[66]
+	mi := &file_protobuf_models_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4274,7 +4337,7 @@ type ProtoStateIdentity_TxAddr struct {
 func (x *ProtoStateIdentity_TxAddr) Reset() {
 	*x = ProtoStateIdentity_TxAddr{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[67]
+		mi := &file_protobuf_models_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4287,7 +4350,7 @@ func (x *ProtoStateIdentity_TxAddr) String() string {
 func (*ProtoStateIdentity_TxAddr) ProtoMessage() {}
 
 func (x *ProtoStateIdentity_TxAddr) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[67]
+	mi := &file_protobuf_models_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4339,7 +4402,7 @@ type ProtoPredefinedState_Global struct {
 func (x *ProtoPredefinedState_Global) Reset() {
 	*x = ProtoPredefinedState_Global{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[68]
+		mi := &file_protobuf_models_proto_msgTypes[69]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4352,7 +4415,7 @@ func (x *ProtoPredefinedState_Global) String() string {
 func (*ProtoPredefinedState_Global) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_Global) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[68]
+	mi := &file_protobuf_models_proto_msgTypes[69]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4463,7 +4526,7 @@ type ProtoPredefinedState_StatusSwitch struct {
 func (x *ProtoPredefinedState_StatusSwitch) Reset() {
 	*x = ProtoPredefinedState_StatusSwitch{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[69]
+		mi := &file_protobuf_models_proto_msgTypes[70]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4476,7 +4539,7 @@ func (x *ProtoPredefinedState_StatusSwitch) String() string {
 func (*ProtoPredefinedState_StatusSwitch) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_StatusSwitch) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[69]
+	mi := &file_protobuf_models_proto_msgTypes[70]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4511,7 +4574,7 @@ type ProtoPredefinedState_ContractData struct {
 func (x *ProtoPredefinedState_ContractData) Reset() {
 	*x = ProtoPredefinedState_ContractData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[70]
+		mi := &file_protobuf_models_proto_msgTypes[71]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4524,7 +4587,7 @@ func (x *ProtoPredefinedState_ContractData) String() string {
 func (*ProtoPredefinedState_ContractData) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_ContractData) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[70]
+	mi := &file_protobuf_models_proto_msgTypes[71]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4569,7 +4632,7 @@ type ProtoPredefinedState_Account struct {
 func (x *ProtoPredefinedState_Account) Reset() {
 	*x = ProtoPredefinedState_Account{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[71]
+		mi := &file_protobuf_models_proto_msgTypes[72]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4582,7 +4645,7 @@ func (x *ProtoPredefinedState_Account) String() string {
 func (*ProtoPredefinedState_Account) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_Account) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[71]
+	mi := &file_protobuf_models_proto_msgTypes[72]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4662,7 +4725,7 @@ type ProtoPredefinedState_Identity struct {
 func (x *ProtoPredefinedState_Identity) Reset() {
 	*x = ProtoPredefinedState_Identity{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[72]
+		mi := &file_protobuf_models_proto_msgTypes[73]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4675,7 +4738,7 @@ func (x *ProtoPredefinedState_Identity) String() string {
 func (*ProtoPredefinedState_Identity) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_Identity) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[72]
+	mi := &file_protobuf_models_proto_msgTypes[73]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4837,7 +4900,7 @@ type ProtoPredefinedState_ApprovedIdentity struct {
 func (x *ProtoPredefinedState_ApprovedIdentity) Reset() {
 	*x = ProtoPredefinedState_ApprovedIdentity{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[73]
+		mi := &file_protobuf_models_proto_msgTypes[74]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4850,7 +4913,7 @@ func (x *ProtoPredefinedState_ApprovedIdentity) String() string {
 func (*ProtoPredefinedState_ApprovedIdentity) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_ApprovedIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[73]
+	mi := &file_protobuf_models_proto_msgTypes[74]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4899,7 +4962,7 @@ type ProtoPredefinedState_Identity_Flip struct {
 func (x *ProtoPredefinedState_Identity_Flip) Reset() {
 	*x = ProtoPredefinedState_Identity_Flip{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[74]
+		mi := &file_protobuf_models_proto_msgTypes[75]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4912,7 +4975,7 @@ func (x *ProtoPredefinedState_Identity_Flip) String() string {
 func (*ProtoPredefinedState_Identity_Flip) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_Identity_Flip) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[74]
+	mi := &file_protobuf_models_proto_msgTypes[75]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4954,7 +5017,7 @@ type ProtoPredefinedState_Identity_TxAddr struct {
 func (x *ProtoPredefinedState_Identity_TxAddr) Reset() {
 	*x = ProtoPredefinedState_Identity_TxAddr{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[75]
+		mi := &file_protobuf_models_proto_msgTypes[76]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4967,7 +5030,7 @@ func (x *ProtoPredefinedState_Identity_TxAddr) String() string {
 func (*ProtoPredefinedState_Identity_TxAddr) ProtoMessage() {}
 
 func (x *ProtoPredefinedState_Identity_TxAddr) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[75]
+	mi := &file_protobuf_models_proto_msgTypes[76]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5014,7 +5077,7 @@ type ProtoTxReceipts_ProtoTxReceipt struct {
 func (x *ProtoTxReceipts_ProtoTxReceipt) Reset() {
 	*x = ProtoTxReceipts_ProtoTxReceipt{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[76]
+		mi := &file_protobuf_models_proto_msgTypes[77]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5027,7 +5090,7 @@ func (x *ProtoTxReceipts_ProtoTxReceipt) String() string {
 func (*ProtoTxReceipts_ProtoTxReceipt) ProtoMessage() {}
 
 func (x *ProtoTxReceipts_ProtoTxReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[76]
+	mi := &file_protobuf_models_proto_msgTypes[77]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5108,7 +5171,7 @@ type ProtoDeferredTxs_ProtoDeferredTx struct {
 func (x *ProtoDeferredTxs_ProtoDeferredTx) Reset() {
 	*x = ProtoDeferredTxs_ProtoDeferredTx{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_protobuf_models_proto_msgTypes[77]
+		mi := &file_protobuf_models_proto_msgTypes[78]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5121,7 +5184,7 @@ func (x *ProtoDeferredTxs_ProtoDeferredTx) String() string {
 func (*ProtoDeferredTxs_ProtoDeferredTx) ProtoMessage() {}
 
 func (x *ProtoDeferredTxs_ProtoDeferredTx) ProtoReflect() protoreflect.Message {
-	mi := &file_protobuf_models_proto_msgTypes[77]
+	mi := &file_protobuf_models_proto_msgTypes[78]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5812,7 +5875,13 @@ var file_protobuf_models_proto_rawDesc = []byte{
 	0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x12, 0x0a,
 	0x04, 0x74, 0x69, 0x70, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x74, 0x69, 0x70,
 	0x73, 0x12, 0x14, 0x0a, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x18, 0x06, 0x20, 0x01, 0x28, 0x04,
-	0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x22, 0x57, 0x0a, 0x0f, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x53, 0x61, 0x76, 0x65, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x63, 0x6f,
+	0x6e, 0x74, 0x72, 0x61, 0x63, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x63, 0x6f,
+	0x6e, 0x74, 0x72, 0x61, 0x63, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x12, 0x12, 0x0a, 0x04,
+	0x61, 0x72, 0x67, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x04, 0x61, 0x72, 0x67, 0x73,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -5827,7 +5896,7 @@ func file_protobuf_models_proto_rawDescGZIP() []byte {
 	return file_protobuf_models_proto_rawDescData
 }
 
-var file_protobuf_models_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
+var file_protobuf_models_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
 var file_protobuf_models_proto_goTypes = []interface{}{
 	(*ProtoTransaction)(nil),                              // 0: models.ProtoTransaction
 	(*ProtoBlockHeader)(nil),                              // 1: models.ProtoBlockHeader
@@ -5881,73 +5950,74 @@ var file_protobuf_models_proto_goTypes = []interface{}{
 	(*ProtoTxReceipts)(nil),                               // 49: models.ProtoTxReceipts
 	(*ProtoTxReceiptIndex)(nil),                           // 50: models.ProtoTxReceiptIndex
 	(*ProtoDeferredTxs)(nil),                              // 51: models.ProtoDeferredTxs
-	(*ProtoTransaction_Data)(nil),                         // 52: models.ProtoTransaction.Data
-	(*ProtoBlockHeader_Proposed)(nil),                     // 53: models.ProtoBlockHeader.Proposed
-	(*ProtoBlockHeader_Empty)(nil),                        // 54: models.ProtoBlockHeader.Empty
-	(*ProtoBlockProposal_Data)(nil),                       // 55: models.ProtoBlockProposal.Data
-	(*ProtoBlockCert_Signature)(nil),                      // 56: models.ProtoBlockCert.Signature
-	(*ProtoIdentityStateDiff_IdentityStateDiffValue)(nil), // 57: models.ProtoIdentityStateDiff.IdentityStateDiffValue
-	(*ProtoSnapshotBlock_KeyValue)(nil),                   // 58: models.ProtoSnapshotBlock.KeyValue
-	(*ProtoGossipBlockRange_Block)(nil),                   // 59: models.ProtoGossipBlockRange.Block
-	(*ProtoProposeProof_Data)(nil),                        // 60: models.ProtoProposeProof.Data
-	(*ProtoVote_Data)(nil),                                // 61: models.ProtoVote.Data
-	(*ProtoFlipKey_Data)(nil),                             // 62: models.ProtoFlipKey.Data
-	(*ProtoPrivateFlipKeysPackage_Data)(nil),              // 63: models.ProtoPrivateFlipKeysPackage.Data
-	(*ProtoAnswersDb_Answer)(nil),                         // 64: models.ProtoAnswersDb.Answer
-	(*ProtoActivityMonitor_Activity)(nil),                 // 65: models.ProtoActivityMonitor.Activity
-	(*ProtoStateIdentity_Flip)(nil),                       // 66: models.ProtoStateIdentity.Flip
-	(*ProtoStateIdentity_TxAddr)(nil),                     // 67: models.ProtoStateIdentity.TxAddr
-	(*ProtoPredefinedState_Global)(nil),                   // 68: models.ProtoPredefinedState.Global
-	(*ProtoPredefinedState_StatusSwitch)(nil),             // 69: models.ProtoPredefinedState.StatusSwitch
-	(*ProtoPredefinedState_ContractData)(nil),             // 70: models.ProtoPredefinedState.ContractData
-	(*ProtoPredefinedState_Account)(nil),                  // 71: models.ProtoPredefinedState.Account
-	(*ProtoPredefinedState_Identity)(nil),                 // 72: models.ProtoPredefinedState.Identity
-	(*ProtoPredefinedState_ApprovedIdentity)(nil),         // 73: models.ProtoPredefinedState.ApprovedIdentity
-	(*ProtoPredefinedState_Identity_Flip)(nil),            // 74: models.ProtoPredefinedState.Identity.Flip
-	(*ProtoPredefinedState_Identity_TxAddr)(nil),          // 75: models.ProtoPredefinedState.Identity.TxAddr
-	(*ProtoTxReceipts_ProtoTxReceipt)(nil),                // 76: models.ProtoTxReceipts.ProtoTxReceipt
-	(*ProtoDeferredTxs_ProtoDeferredTx)(nil),              // 77: models.ProtoDeferredTxs.ProtoDeferredTx
+	(*ProtoSavedEvent)(nil),                               // 52: models.ProtoSavedEvent
+	(*ProtoTransaction_Data)(nil),                         // 53: models.ProtoTransaction.Data
+	(*ProtoBlockHeader_Proposed)(nil),                     // 54: models.ProtoBlockHeader.Proposed
+	(*ProtoBlockHeader_Empty)(nil),                        // 55: models.ProtoBlockHeader.Empty
+	(*ProtoBlockProposal_Data)(nil),                       // 56: models.ProtoBlockProposal.Data
+	(*ProtoBlockCert_Signature)(nil),                      // 57: models.ProtoBlockCert.Signature
+	(*ProtoIdentityStateDiff_IdentityStateDiffValue)(nil), // 58: models.ProtoIdentityStateDiff.IdentityStateDiffValue
+	(*ProtoSnapshotBlock_KeyValue)(nil),                   // 59: models.ProtoSnapshotBlock.KeyValue
+	(*ProtoGossipBlockRange_Block)(nil),                   // 60: models.ProtoGossipBlockRange.Block
+	(*ProtoProposeProof_Data)(nil),                        // 61: models.ProtoProposeProof.Data
+	(*ProtoVote_Data)(nil),                                // 62: models.ProtoVote.Data
+	(*ProtoFlipKey_Data)(nil),                             // 63: models.ProtoFlipKey.Data
+	(*ProtoPrivateFlipKeysPackage_Data)(nil),              // 64: models.ProtoPrivateFlipKeysPackage.Data
+	(*ProtoAnswersDb_Answer)(nil),                         // 65: models.ProtoAnswersDb.Answer
+	(*ProtoActivityMonitor_Activity)(nil),                 // 66: models.ProtoActivityMonitor.Activity
+	(*ProtoStateIdentity_Flip)(nil),                       // 67: models.ProtoStateIdentity.Flip
+	(*ProtoStateIdentity_TxAddr)(nil),                     // 68: models.ProtoStateIdentity.TxAddr
+	(*ProtoPredefinedState_Global)(nil),                   // 69: models.ProtoPredefinedState.Global
+	(*ProtoPredefinedState_StatusSwitch)(nil),             // 70: models.ProtoPredefinedState.StatusSwitch
+	(*ProtoPredefinedState_ContractData)(nil),             // 71: models.ProtoPredefinedState.ContractData
+	(*ProtoPredefinedState_Account)(nil),                  // 72: models.ProtoPredefinedState.Account
+	(*ProtoPredefinedState_Identity)(nil),                 // 73: models.ProtoPredefinedState.Identity
+	(*ProtoPredefinedState_ApprovedIdentity)(nil),         // 74: models.ProtoPredefinedState.ApprovedIdentity
+	(*ProtoPredefinedState_Identity_Flip)(nil),            // 75: models.ProtoPredefinedState.Identity.Flip
+	(*ProtoPredefinedState_Identity_TxAddr)(nil),          // 76: models.ProtoPredefinedState.Identity.TxAddr
+	(*ProtoTxReceipts_ProtoTxReceipt)(nil),                // 77: models.ProtoTxReceipts.ProtoTxReceipt
+	(*ProtoDeferredTxs_ProtoDeferredTx)(nil),              // 78: models.ProtoDeferredTxs.ProtoDeferredTx
 }
 var file_protobuf_models_proto_depIdxs = []int32{
-	52, // 0: models.ProtoTransaction.data:type_name -> models.ProtoTransaction.Data
-	53, // 1: models.ProtoBlockHeader.proposedHeader:type_name -> models.ProtoBlockHeader.Proposed
-	54, // 2: models.ProtoBlockHeader.emptyHeader:type_name -> models.ProtoBlockHeader.Empty
+	53, // 0: models.ProtoTransaction.data:type_name -> models.ProtoTransaction.Data
+	54, // 1: models.ProtoBlockHeader.proposedHeader:type_name -> models.ProtoBlockHeader.Proposed
+	55, // 2: models.ProtoBlockHeader.emptyHeader:type_name -> models.ProtoBlockHeader.Empty
 	0,  // 3: models.ProtoBlockBody.transactions:type_name -> models.ProtoTransaction
 	1,  // 4: models.ProtoBlock.header:type_name -> models.ProtoBlockHeader
 	2,  // 5: models.ProtoBlock.body:type_name -> models.ProtoBlockBody
-	55, // 6: models.ProtoBlockProposal.data:type_name -> models.ProtoBlockProposal.Data
-	56, // 7: models.ProtoBlockCert.signatures:type_name -> models.ProtoBlockCert.Signature
-	57, // 8: models.ProtoIdentityStateDiff.values:type_name -> models.ProtoIdentityStateDiff.IdentityStateDiffValue
-	58, // 9: models.ProtoSnapshotBlock.data:type_name -> models.ProtoSnapshotBlock.KeyValue
-	59, // 10: models.ProtoGossipBlockRange.blocks:type_name -> models.ProtoGossipBlockRange.Block
-	60, // 11: models.ProtoProposeProof.data:type_name -> models.ProtoProposeProof.Data
-	61, // 12: models.ProtoVote.data:type_name -> models.ProtoVote.Data
+	56, // 6: models.ProtoBlockProposal.data:type_name -> models.ProtoBlockProposal.Data
+	57, // 7: models.ProtoBlockCert.signatures:type_name -> models.ProtoBlockCert.Signature
+	58, // 8: models.ProtoIdentityStateDiff.values:type_name -> models.ProtoIdentityStateDiff.IdentityStateDiffValue
+	59, // 9: models.ProtoSnapshotBlock.data:type_name -> models.ProtoSnapshotBlock.KeyValue
+	60, // 10: models.ProtoGossipBlockRange.blocks:type_name -> models.ProtoGossipBlockRange.Block
+	61, // 11: models.ProtoProposeProof.data:type_name -> models.ProtoProposeProof.Data
+	62, // 12: models.ProtoVote.data:type_name -> models.ProtoVote.Data
 	0,  // 13: models.ProtoFlip.transaction:type_name -> models.ProtoTransaction
-	62, // 14: models.ProtoFlipKey.data:type_name -> models.ProtoFlipKey.Data
-	63, // 15: models.ProtoPrivateFlipKeysPackage.data:type_name -> models.ProtoPrivateFlipKeysPackage.Data
-	64, // 16: models.ProtoAnswersDb.answers:type_name -> models.ProtoAnswersDb.Answer
+	63, // 14: models.ProtoFlipKey.data:type_name -> models.ProtoFlipKey.Data
+	64, // 15: models.ProtoPrivateFlipKeysPackage.data:type_name -> models.ProtoPrivateFlipKeysPackage.Data
+	65, // 16: models.ProtoAnswersDb.answers:type_name -> models.ProtoAnswersDb.Answer
 	0,  // 17: models.ProtoSavedTransaction.tx:type_name -> models.ProtoTransaction
-	65, // 18: models.ProtoActivityMonitor.activities:type_name -> models.ProtoActivityMonitor.Activity
+	66, // 18: models.ProtoActivityMonitor.activities:type_name -> models.ProtoActivityMonitor.Activity
 	39, // 19: models.ProtoStateAccount.contractData:type_name -> models.ProtoContractData
-	66, // 20: models.ProtoStateIdentity.flips:type_name -> models.ProtoStateIdentity.Flip
-	67, // 21: models.ProtoStateIdentity.invitees:type_name -> models.ProtoStateIdentity.TxAddr
-	67, // 22: models.ProtoStateIdentity.inviter:type_name -> models.ProtoStateIdentity.TxAddr
-	68, // 23: models.ProtoPredefinedState.global:type_name -> models.ProtoPredefinedState.Global
-	69, // 24: models.ProtoPredefinedState.statusSwitch:type_name -> models.ProtoPredefinedState.StatusSwitch
-	71, // 25: models.ProtoPredefinedState.accounts:type_name -> models.ProtoPredefinedState.Account
-	72, // 26: models.ProtoPredefinedState.identities:type_name -> models.ProtoPredefinedState.Identity
-	73, // 27: models.ProtoPredefinedState.approvedIdentities:type_name -> models.ProtoPredefinedState.ApprovedIdentity
-	76, // 28: models.ProtoTxReceipts.receipts:type_name -> models.ProtoTxReceipts.ProtoTxReceipt
-	77, // 29: models.ProtoDeferredTxs.Txs:type_name -> models.ProtoDeferredTxs.ProtoDeferredTx
+	67, // 20: models.ProtoStateIdentity.flips:type_name -> models.ProtoStateIdentity.Flip
+	68, // 21: models.ProtoStateIdentity.invitees:type_name -> models.ProtoStateIdentity.TxAddr
+	68, // 22: models.ProtoStateIdentity.inviter:type_name -> models.ProtoStateIdentity.TxAddr
+	69, // 23: models.ProtoPredefinedState.global:type_name -> models.ProtoPredefinedState.Global
+	70, // 24: models.ProtoPredefinedState.statusSwitch:type_name -> models.ProtoPredefinedState.StatusSwitch
+	72, // 25: models.ProtoPredefinedState.accounts:type_name -> models.ProtoPredefinedState.Account
+	73, // 26: models.ProtoPredefinedState.identities:type_name -> models.ProtoPredefinedState.Identity
+	74, // 27: models.ProtoPredefinedState.approvedIdentities:type_name -> models.ProtoPredefinedState.ApprovedIdentity
+	77, // 28: models.ProtoTxReceipts.receipts:type_name -> models.ProtoTxReceipts.ProtoTxReceipt
+	78, // 29: models.ProtoDeferredTxs.Txs:type_name -> models.ProtoDeferredTxs.ProtoDeferredTx
 	1,  // 30: models.ProtoBlockProposal.Data.header:type_name -> models.ProtoBlockHeader
 	2,  // 31: models.ProtoBlockProposal.Data.body:type_name -> models.ProtoBlockBody
 	1,  // 32: models.ProtoGossipBlockRange.Block.header:type_name -> models.ProtoBlockHeader
 	6,  // 33: models.ProtoGossipBlockRange.Block.cert:type_name -> models.ProtoBlockCert
 	13, // 34: models.ProtoGossipBlockRange.Block.diff:type_name -> models.ProtoIdentityStateDiff
-	70, // 35: models.ProtoPredefinedState.Account.contractData:type_name -> models.ProtoPredefinedState.ContractData
-	74, // 36: models.ProtoPredefinedState.Identity.flips:type_name -> models.ProtoPredefinedState.Identity.Flip
-	75, // 37: models.ProtoPredefinedState.Identity.invitees:type_name -> models.ProtoPredefinedState.Identity.TxAddr
-	75, // 38: models.ProtoPredefinedState.Identity.inviter:type_name -> models.ProtoPredefinedState.Identity.TxAddr
+	71, // 35: models.ProtoPredefinedState.Account.contractData:type_name -> models.ProtoPredefinedState.ContractData
+	75, // 36: models.ProtoPredefinedState.Identity.flips:type_name -> models.ProtoPredefinedState.Identity.Flip
+	76, // 37: models.ProtoPredefinedState.Identity.invitees:type_name -> models.ProtoPredefinedState.Identity.TxAddr
+	76, // 38: models.ProtoPredefinedState.Identity.inviter:type_name -> models.ProtoPredefinedState.Identity.TxAddr
 	39, // [39:39] is the sub-list for method output_type
 	39, // [39:39] is the sub-list for method input_type
 	39, // [39:39] is the sub-list for extension type_name
@@ -6586,7 +6656,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoTransaction_Data); i {
+			switch v := v.(*ProtoSavedEvent); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6598,7 +6668,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoBlockHeader_Proposed); i {
+			switch v := v.(*ProtoTransaction_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6610,7 +6680,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoBlockHeader_Empty); i {
+			switch v := v.(*ProtoBlockHeader_Proposed); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6622,7 +6692,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoBlockProposal_Data); i {
+			switch v := v.(*ProtoBlockHeader_Empty); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6634,7 +6704,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoBlockCert_Signature); i {
+			switch v := v.(*ProtoBlockProposal_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6646,7 +6716,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoIdentityStateDiff_IdentityStateDiffValue); i {
+			switch v := v.(*ProtoBlockCert_Signature); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6658,7 +6728,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoSnapshotBlock_KeyValue); i {
+			switch v := v.(*ProtoIdentityStateDiff_IdentityStateDiffValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6670,7 +6740,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoGossipBlockRange_Block); i {
+			switch v := v.(*ProtoSnapshotBlock_KeyValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6682,7 +6752,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoProposeProof_Data); i {
+			switch v := v.(*ProtoGossipBlockRange_Block); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6694,7 +6764,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoVote_Data); i {
+			switch v := v.(*ProtoProposeProof_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6706,7 +6776,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoFlipKey_Data); i {
+			switch v := v.(*ProtoVote_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6718,7 +6788,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPrivateFlipKeysPackage_Data); i {
+			switch v := v.(*ProtoFlipKey_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6730,7 +6800,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoAnswersDb_Answer); i {
+			switch v := v.(*ProtoPrivateFlipKeysPackage_Data); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6742,7 +6812,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoActivityMonitor_Activity); i {
+			switch v := v.(*ProtoAnswersDb_Answer); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6754,7 +6824,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoStateIdentity_Flip); i {
+			switch v := v.(*ProtoActivityMonitor_Activity); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6766,7 +6836,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoStateIdentity_TxAddr); i {
+			switch v := v.(*ProtoStateIdentity_Flip); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6778,7 +6848,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_Global); i {
+			switch v := v.(*ProtoStateIdentity_TxAddr); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6790,7 +6860,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[69].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_StatusSwitch); i {
+			switch v := v.(*ProtoPredefinedState_Global); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6802,7 +6872,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[70].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_ContractData); i {
+			switch v := v.(*ProtoPredefinedState_StatusSwitch); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6814,7 +6884,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[71].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_Account); i {
+			switch v := v.(*ProtoPredefinedState_ContractData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6826,7 +6896,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[72].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_Identity); i {
+			switch v := v.(*ProtoPredefinedState_Account); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6838,7 +6908,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[73].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_ApprovedIdentity); i {
+			switch v := v.(*ProtoPredefinedState_Identity); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6850,7 +6920,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[74].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_Identity_Flip); i {
+			switch v := v.(*ProtoPredefinedState_ApprovedIdentity); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6862,7 +6932,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[75].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoPredefinedState_Identity_TxAddr); i {
+			switch v := v.(*ProtoPredefinedState_Identity_Flip); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6874,7 +6944,7 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[76].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProtoTxReceipts_ProtoTxReceipt); i {
+			switch v := v.(*ProtoPredefinedState_Identity_TxAddr); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6886,6 +6956,18 @@ func file_protobuf_models_proto_init() {
 			}
 		}
 		file_protobuf_models_proto_msgTypes[77].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ProtoTxReceipts_ProtoTxReceipt); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_protobuf_models_proto_msgTypes[78].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ProtoDeferredTxs_ProtoDeferredTx); i {
 			case 0:
 				return &v.state
@@ -6904,7 +6986,7 @@ func file_protobuf_models_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_protobuf_models_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   78,
+			NumMessages:   79,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

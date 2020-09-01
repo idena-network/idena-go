@@ -48,8 +48,14 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	}
 	e.SetUint64("refundDelay", refundDelay)
 
+	if depositDeadline, err := helpers.ExtractUInt64(5, args...); err == nil {
+		e.SetUint64("depositDeadline", depositDeadline)
+	} else {
+		return errors.Wrap(err, "depositDeadline (5) is required")
+	}
+
 	factEvidenceFee := byte(0)
-	if fee, err := helpers.ExtractByte(5, args...); err != nil {
+	if fee, err := helpers.ExtractByte(6, args...); err != nil {
 		return err
 	} else {
 		factEvidenceFee = byte(math2.MaxInt(1, math2.MinInt(100, int(fee))))
@@ -85,14 +91,13 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	var factEvidenceAddr common.Address
 	factEvidenceAddr.SetBytes(e.GetArray("factEvidenceAddr"))
 
-	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(factEvidenceAddr, []byte("state")))
-	if state != 0 {
-		return errors.New("voting is not in pending state")
+	if uint64(e.env.BlockTimeStamp()) > e.GetUint64("depositDeadline") {
+		return errors.New("deposit is late")
 	}
 
 	minDeposit := big.NewInt(0).Mul(e.env.MinFeePerByte(), big.NewInt(10000))
 	if e.ctx.PayAmount().Cmp(minDeposit) < 0 {
-		return errors.New("amount is low")
+		return errors.New("deposit is low")
 	}
 	balanceBytes := e.deposits.Get(e.ctx.Sender().Bytes())
 	balance := big.NewInt(0)
@@ -137,17 +142,19 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 
 	votedValue, _ := helpers.ExtractByte(0, e.env.ReadContractData(factEvidenceAddr, []byte("result")))
 
-	if expected == votedValue && (successAddr != common.Address{}) {
+	if expected == votedValue && !successAddr.IsEmpty() {
 		e.SetByte("state", 2) // - unlocked success
 		e.env.Send(e.ctx, successAddr, e.env.Balance(e.ctx.ContractAddr()))
 	}
 
-	if expected != votedValue && (failAddr != common.Address{}) {
+	if expected != votedValue && !failAddr.IsEmpty() {
 		e.SetByte("state", 3) // - unlocked fail
 		e.env.Send(e.ctx, failAddr, e.env.Balance(e.ctx.ContractAddr()))
 	}
 
-	if expected == votedValue && (successAddr == common.Address{}) || expected != votedValue && (failAddr == common.Address{}) {
+	if expected == votedValue && successAddr.IsEmpty() ||
+		expected != votedValue && failAddr.IsEmpty() ||
+		e.env.ContractStake(factEvidenceAddr).Sign() == 0 {
 		e.SetByte("state", 4) // - unlocked refund
 		delay := e.GetUint64("refundDelay")
 		e.SetUint64("refundBlock", e.env.BlockNumber()+delay)

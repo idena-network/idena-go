@@ -10,7 +10,6 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
@@ -21,14 +20,18 @@ import (
 	"testing"
 )
 
-func printDbSize(db *dbm.MemDB) {
+func getDbSize(db *dbm.MemDB) int {
 	it, _ := db.Iterator(nil, nil)
 	size := 0
 	for ; it.Valid(); it.Next() {
 		size += len(it.Key()) + len(it.Value())
 	}
 	it.Close()
-	fmt.Printf("size=%v\n", size)
+	return size
+}
+
+func printDbSize(db *dbm.MemDB, descr string) {
+	fmt.Printf("%v: size of memDB=%v (key+value)\n", descr, getDbSize(db))
 }
 
 func TestFactChecking_Call(t *testing.T) {
@@ -38,6 +41,11 @@ func TestFactChecking_Call(t *testing.T) {
 	appState.State.SetFeePerGas(big.NewInt(1))
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	appState.State.SetState(addr, state.Newbie)
+	appState.State.SetBalance(addr, common.DnaBase)
+	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
+	appState.IdentityState.Add(addr)
 
 	secStore := secstore.NewSecStore()
 
@@ -48,6 +56,7 @@ func TestFactChecking_Call(t *testing.T) {
 		identities = append(identities, key)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		appState.State.SetState(addr, state.Newbie)
+		appState.State.SetBalance(addr, common.DnaBase)
 		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
 		appState.IdentityState.Add(addr)
 	}
@@ -55,10 +64,10 @@ func TestFactChecking_Call(t *testing.T) {
 
 	appState.Initialize(1)
 
-	printDbSize(db)
+	printDbSize(db, "Before contract deploy")
 
 	crypto.PubkeyToAddress(key.PublicKey)
-	attachment := attachments.CreateDeployContractAttachment(FactEvidenceContract, []byte{0x1}, common.ToBytes(uint64(10)))
+	attachment := attachments.CreateDeployContractAttachment(OracleVotingContract, []byte{0x1}, common.ToBytes(uint64(10)))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
 
@@ -88,15 +97,16 @@ func TestFactChecking_Call(t *testing.T) {
 
 	// deploy
 	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore)
-	contract := NewFactEvidenceContract(ctx, e)
+	contract := NewOracleVotingContract(ctx, e)
 
 	require.NoError(t, contract.Deploy(attachment.Args...))
 	e.Commit()
 	contractAddr := ctx.ContractAddr()
 
 	appState.Commit(nil)
-	fmt.Printf("tx size = %v", tx.Size())
-	printDbSize(db)
+	printDbSize(db, "After contract deploy")
+	fmt.Printf("Deploy gas: %v\n", gas.UsedGas)
+	gas.Reset(-1)
 	// start voting
 
 	callAttach := attachments.CreateCallContractAttachment("startVoting")
@@ -113,20 +123,27 @@ func TestFactChecking_Call(t *testing.T) {
 	txNotOwner, _ := types.SignTx(tx, identities[0])
 
 	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore)
-	contract = NewFactEvidenceContract(env.NewCallContextImpl(txNotOwner), e)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(txNotOwner), e)
 
 	require.Error(t, contract.Call("startVoting"))
 	e.Reset()
+	gas.Reset(-1)
 	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore)
-	contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx), e)
 
 	require.Error(t, contract.Call("startVoting"))
 	e.Reset()
+	gas.Reset(-1)
 
 	appState.State.SetBalance(contractAddr, big.NewInt(20000000))
 
 	require.NoError(t, contract.Call("startVoting"))
 	e.Commit()
+
+	appState.Commit(nil)
+	printDbSize(db, "After start voting")
+	fmt.Printf("Start voting gas: %v\n", gas.UsedGas)
+	gas.Reset(-1)
 
 	require.Equal(t, common.ToBytes(uint64(1)), appState.State.GetContractValue(contractAddr, []byte("state")))
 	require.Equal(t, big.NewInt(1000000).Bytes(), appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
@@ -140,27 +157,32 @@ func TestFactChecking_Call(t *testing.T) {
 	winnerVote := byte(1)
 	votedIdentities := map[common.Address]struct{}{}
 
+	voted := 0
 	for _, key := range identities {
+
+		pubBytes := crypto.FromECDSAPub(&key.PublicKey)
 
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 
-		signer, _ := p256.NewVRFSigner(key)
-
-		hash, proof := signer.Evaluate(appState.State.GetContractValue(contractAddr, []byte("vrfSeed")))
+		hash := crypto.Hash(append(pubBytes, appState.State.GetContractValue(contractAddr, []byte("vrfSeed"))...))
 
 		v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
-		q := new(big.Float).Quo(v, maxHash).SetPrec(10)
+		q := new(big.Float).Quo(v, maxHash)
 
 		threshold, _ := helpers.ExtractUInt64(0, appState.State.GetContractValue(contractAddr, []byte("committeeSize")))
 		shouldBeError := false
-		if v, _ := q.Float64(); v < 1-float64(threshold)/float64(appState.ValidatorsCache.NetworkSize()) {
+		if q.Cmp(big.NewFloat(1-float64(threshold)/float64(appState.ValidatorsCache.NetworkSize()))) < 0 {
 			shouldBeError = true
 		}
+		_, err = contract.Read("proof", addr.Bytes())
+		require.Equal(t, shouldBeError, err != nil)
 
 		salt := addr.Bytes()
-		voteHash := crypto.Hash(append(common.ToBytes(winnerVote), salt...))
-		callAttach = attachments.CreateCallContractAttachment("sendVoteProof", voteHash[:], proof)
+		voteHash, err := contract.Read("voteHash", common.ToBytes(winnerVote), salt)
+		require.Nil(t, err)
+
+		callAttach = attachments.CreateCallContractAttachment("sendVoteProof", voteHash[:])
 		payload, _ = callAttach.ToBytes()
 		tx = &types.Transaction{
 			Epoch:        0,
@@ -170,19 +192,27 @@ func TestFactChecking_Call(t *testing.T) {
 			Payload:      payload,
 		}
 		tx, _ = types.SignTx(tx, key)
-
+		gas.Reset(-1)
 		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore)
-		contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
-		err := contract.Call(callAttach.Method, callAttach.Args...)
+		contract = NewOracleVotingContract(env.NewCallContextImpl(tx), e)
+		err = contract.Call(callAttach.Method, callAttach.Args...)
 		if shouldBeError {
 			e.Reset()
 			require.Error(t, err)
 		} else {
+			voted++
 			e.Commit()
+			appState.Commit(nil)
 			require.NoError(t, err)
 			votedIdentities[addr] = struct{}{}
 		}
 	}
+
+	fmt.Printf("Voted cnt %v", voted)
+
+	appState.Commit(nil)
+	printDbSize(db, "After send vote proofs")
+	gas.Reset(-1)
 
 	//send votes
 
@@ -199,9 +229,10 @@ func TestFactChecking_Call(t *testing.T) {
 			Type:         types.CallContract,
 			Payload:      payload,
 		}
+		gas.Reset(-1)
 		tx, _ = types.SignTx(tx, key)
 		e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
-		contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
+		contract = NewOracleVotingContract(env.NewCallContextImpl(tx), e)
 
 		err := contract.Call(callAttach.Method, callAttach.Args...)
 		if _, ok := votedIdentities[addr]; !ok {
@@ -209,9 +240,14 @@ func TestFactChecking_Call(t *testing.T) {
 			require.Error(t, err)
 		} else {
 			e.Commit()
+			appState.Commit(nil)
 			require.NoError(t, err)
 		}
 	}
+
+	appState.Commit(nil)
+	printDbSize(db, "After send open votes")
+	gas.Reset(-1)
 
 	callAttach = attachments.CreateCallContractAttachment("finishVoting")
 	payload, _ = callAttach.ToBytes()
@@ -225,15 +261,16 @@ func TestFactChecking_Call(t *testing.T) {
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
 	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
-	contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
-
-	appState.Commit(nil)
-	printDbSize(db)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx), e)
 
 	require.NoError(t, contract.Call(callAttach.Method, callAttach.Args...))
 	e.Commit()
-	t.Logf("finish voting, gas=%v", gas.UsedGas)
+	appState.Commit(nil)
+	printDbSize(db, "After finishVoting")
 
+	fmt.Printf("Finish voting gas: %v\n", gas.UsedGas)
+
+	gas.Reset(-1)
 	require.Equal(t, []byte{winnerVote}, appState.State.GetContractValue(contractAddr, []byte("result")))
 
 	for addr, _ := range votedIdentities {
@@ -254,10 +291,15 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
-	contract = NewFactEvidenceContract(env.NewCallContextImpl(tx), e)
+	e = env.NewEnvImp(appState, createHeader(4320*6, 21), gas, secStore)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx), e)
 	require.NoError(t, contract.Terminate(terminateAttach.Args...))
 	e.Commit()
+
+	appState.Commit(nil)
+	printDbSize(db, "After terminating")
+	fmt.Printf("Terminating gas: %v\n", gas.UsedGas)
+
 	require.Equal(t, 0, appState.State.GetBalance(destAddr).Cmp(common.DnaBase))
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())

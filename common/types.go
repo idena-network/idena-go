@@ -187,6 +187,8 @@ func (h UnprefixedHash) MarshalText() ([]byte, error) {
 // Address represents the 20 byte address of an Ethereum account.
 type Address [AddressLength]byte
 
+var EmptyAddress = Address{}
+
 // BytesToAddress returns Address with value b.
 // If b is larger than len(h), b will be cropped from the left.
 func BytesToAddress(b []byte) Address {
@@ -246,6 +248,10 @@ func (a Address) Hex() string {
 // String implements fmt.Stringer.
 func (a Address) String() string {
 	return a.Hex()
+}
+
+func (a Address) IsEmpty() bool {
+	return a == EmptyAddress
 }
 
 // Format implements fmt.Formatter, forcing the byte slice to be formatted as is,

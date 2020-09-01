@@ -33,4 +33,6 @@ var (
 	preliminaryHeadKey = []byte("preliminary-head")
 
 	activityMonitorKey = []byte("activity")
+
+	eventPrefix = []byte("e")
 )

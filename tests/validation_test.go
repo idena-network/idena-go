@@ -21,7 +21,7 @@ func Test_BigFeeTx(t *testing.T) {
 	tx := &types.Transaction{
 		Type:         types.SendTx,
 		Amount:       big.NewInt(1000),
-		MaxFee:       big.NewInt(190),
+		MaxFee:       big.NewInt(1900),
 		AccountNonce: 1,
 		To:           &receiver,
 	}
@@ -49,7 +49,7 @@ func Test_InvalidMaxFeeTx(t *testing.T) {
 	tx := &types.Transaction{
 		Type:         types.SendTx,
 		Amount:       big.NewInt(1000),
-		MaxFee:       big.NewInt(190),
+		MaxFee:       big.NewInt(1900),
 		AccountNonce: 1,
 		To:           &receiver,
 	}

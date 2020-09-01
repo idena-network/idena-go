@@ -9,12 +9,14 @@ import (
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	dbm "github.com/tendermint/tm-db"
+	math2 "math"
 	"math/big"
 	"sort"
 )
 
 const (
 	MaxWeakCertificatesCount = 100
+	maxEventName             = "\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F\u007F"
 )
 
 type Repo struct {
@@ -60,7 +62,7 @@ func txIndexKey(hash common.Hash) []byte {
 	return append(transactionIndexPrefix, hash.Bytes()...)
 }
 
-func receiptIndexKey(hash common.Hash) [] byte{
+func receiptIndexKey(hash common.Hash) []byte {
 	return append(receiptIndexPrefix, hash.Bytes()...)
 }
 
@@ -69,6 +71,14 @@ func savedTxKey(sender common.Address, timestamp int64, nonce uint32, hash commo
 	key = append(key, encodeUint64Number(uint64(timestamp))...)
 	key = append(key, encodeUint32Number(nonce)...)
 	return append(key, hash[:]...)
+}
+
+func savedEventKey(contact common.Address, txHash []byte, idx uint32, event string) []byte {
+	key := append(eventPrefix, contact.Bytes()...)
+	key = append(key, txHash...)
+	key = append(key, common.ToBytes(idx)...)
+	key = append(key, []byte(event)...)
+	return key
 }
 
 func burntCoinsKey(height uint64, hash common.Hash) []byte {
@@ -191,8 +201,6 @@ func (r *Repo) WriteTxIndex(txHash common.Hash, index *types.TransactionIndex) {
 	r.db.Set(txIndexKey(txHash), data)
 }
 
-
-
 func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	key := txIndexKey(hash)
 	data, err := r.db.Get(key)
@@ -207,7 +215,6 @@ func (r *Repo) ReadTxIndex(hash common.Hash) *types.TransactionIndex {
 	}
 	return index
 }
-
 
 func (r *Repo) WriteReceiptIndex(hash common.Hash, idx *types.TxReceiptIndex) {
 	data, err := idx.ToBytes()
@@ -493,4 +500,44 @@ func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
 	return res
 }
 
+func (r *Repo) WriteEvent(contract common.Address, txHash common.Hash, idx uint32, event *types.TxEvent) {
+	e := types.SavedEvent{
+		Contract: contract,
+		Event:    event.EventName,
+		Args:     event.Data,
+	}
+	data, err := e.ToBytes()
+	if err != nil {
+		log.Crit("failed to proto encode saved event", "err", err)
+		return
+	}
+	r.db.Set(savedEventKey(contract, txHash.Bytes(), idx, event.EventName), data)
+}
 
+func (r *Repo) GetSavedEvents(token []byte, count int) (events []*types.SavedEvent, nextToken []byte) {
+
+	if token == nil {
+		token = savedEventKey(common.MaxAddr, common.MaxHash, math2.MaxUint32, maxEventName)
+	} else {
+		token = append(token, []byte(maxEventName)...)
+	}
+
+	it, err := r.db.ReverseIterator(savedEventKey(common.Address{}, common.MinHash[:], 0, "\x00"), token)
+	assertNoError(err)
+	defer it.Close()
+	for ; it.Valid(); it.Next() {
+		key, value := it.Key(), it.Value()
+		if len(events) == count {
+			continuationToken := make([]byte, 1+20+32+4)
+			copy(continuationToken, key[:len(continuationToken)-1])
+			return events, continuationToken
+		}
+		e := new(types.SavedEvent)
+		if err := e.FromBytes(value); err != nil {
+			log.Error("cannot parse tx", "key", key)
+			continue
+		}
+		events = append(events, e)
+	}
+	return events, nil
+}

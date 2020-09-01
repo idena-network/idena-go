@@ -5,7 +5,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -27,15 +26,15 @@ func init() {
 	maxHash = new(big.Float).SetInt(i)
 }
 
-type FactEvidence struct {
+type OracleVoting struct {
 	*BaseContract
 	voteHashes  *env.Map
 	votes       *env.Map
 	voteOptions *env.Map
 }
 
-func NewFactEvidenceContract(ctx env.CallContext, e env.Env) *FactEvidence {
-	return &FactEvidence{
+func NewOracleVotingContract(ctx env.CallContext, e env.Env) *OracleVoting {
+	return &OracleVoting{
 		&BaseContract{
 			ctx: ctx,
 			env: e,
@@ -46,7 +45,7 @@ func NewFactEvidenceContract(ctx env.CallContext, e env.Env) *FactEvidence {
 	}
 }
 
-func (f *FactEvidence) Call(method string, args ...[]byte) error {
+func (f *OracleVoting) Call(method string, args ...[]byte) error {
 	switch method {
 	case "startVoting":
 		return f.startVoting()
@@ -65,10 +64,16 @@ func (f *FactEvidence) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (f *FactEvidence) Read(method string, args ...[]byte) ([]byte, error) {
+func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {
 
 	switch method {
 	case "proof":
+
+		addr, err := helpers.ExtractAddr(0, args...)
+		if err != nil {
+			return nil, err
+		}
+
 		if f.GetUint64("state") != 1 {
 			return nil, errors.New("contract is not in running state")
 		}
@@ -81,21 +86,23 @@ func (f *FactEvidence) Read(method string, args ...[]byte) ([]byte, error) {
 
 		seed := f.GetArray("vrfSeed")
 
-		h, proof := f.env.Vrf(seed)
+		pubKey := f.env.PubKey(addr)
+
+		h := crypto.Hash(append(pubKey, seed...))
 
 		v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
 
-		q := new(big.Float).Quo(v, maxHash).SetPrec(10)
+		q := new(big.Float).Quo(v, maxHash)
 
 		committeeSize := f.GetUint64("committeeSize")
 		networkSize := float64(f.env.NetworkSize())
 		if networkSize == 0 {
 			networkSize = 1
 		}
-		if v, _ := q.Float64(); v < 1-float64(committeeSize)/networkSize {
+		if q.Cmp(big.NewFloat(1-float64(committeeSize)/networkSize)) < 0 {
 			return nil, errors.New("invalid proof")
 		}
-		return proof, nil
+		return []byte{1}, nil
 	case "voteHash":
 		vote, err := helpers.ExtractByte(0, args...)
 		if err != nil {
@@ -115,8 +122,8 @@ func (f *FactEvidence) Read(method string, args ...[]byte) ([]byte, error) {
 	}
 }
 
-func (f *FactEvidence) Deploy(args ...[]byte) error {
-	cid, err := helpers.ExtractArray(0, args...)
+func (f *OracleVoting) Deploy(args ...[]byte) error {
+	fact, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
 	}
@@ -125,7 +132,7 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 		return err
 	}
 
-	f.BaseContract.Deploy(FactEvidenceContract)
+	f.BaseContract.Deploy(OracleVotingContract)
 
 	votingDuration := uint64(4320)
 	publicVotingDuration := uint64(4320)
@@ -161,7 +168,7 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
-	f.SetArray("fact", cid)
+	f.SetArray("fact", fact)
 	f.SetUint64("state", 0)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
@@ -172,7 +179,7 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func (f *FactEvidence) startVoting() error {
+func (f *OracleVoting) startVoting() error {
 	if !f.IsOwner() {
 		return errors.New("sender is not an owner")
 	}
@@ -197,20 +204,20 @@ func (f *FactEvidence) startVoting() error {
 		f.SetBigInt("votingMinPayment", math.ToInt(payment))
 	}
 	f.SetArray("vrfSeed", f.env.BlockSeed())
+	f.SetUint16("epoch", f.env.Epoch())
 	return nil
 }
 
-func (f *FactEvidence) sendVoteProof(args ...[]byte) error {
+func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	voteHash, err := helpers.ExtractArray(0, args...)
-	if err != nil {
-		return err
-	}
-	proof, err := helpers.ExtractArray(1, args...)
 	if err != nil {
 		return err
 	}
 	if !f.env.State(f.ctx.Sender()).NewbieOrBetter() {
 		return errors.New("sender is now identity")
+	}
+	if f.env.Epoch() != f.GetUint16("epoch") {
+		return errors.New("voting should be prolonged")
 	}
 	if f.GetUint64("state") != 1 {
 		return errors.New("contract is not in running state")
@@ -228,34 +235,25 @@ func (f *FactEvidence) sendVoteProof(args ...[]byte) error {
 
 	pubKeyData := f.env.PubKey(f.ctx.Sender())
 
-	pubKey, err := crypto.UnmarshalPubkey(pubKeyData)
-	if err != nil {
-		return err
-	}
-	verifier, err := p256.NewVRFVerifier(pubKey)
-	if err != nil {
-		return err
-	}
+	selectionHash := crypto.Hash(append(pubKeyData, f.GetArray("vrfSeed")...))
 
-	h, err := verifier.ProofToHash(f.GetArray("vrfSeed"), proof)
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(selectionHash[:]))
 
-	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
-
-	q := new(big.Float).Quo(v, maxHash).SetPrec(10)
+	q := new(big.Float).Quo(v, maxHash)
 
 	committeeSize := f.GetUint64("committeeSize")
 	networkSize := float64(f.env.NetworkSize())
 	if networkSize == 0 {
 		networkSize = 1
 	}
-	if v, _ := q.Float64(); v < 1-float64(committeeSize)/networkSize {
+	if q.Cmp(big.NewFloat(1-float64(committeeSize)/networkSize)) < 0 {
 		return errors.New("invalid proof")
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 	return nil
 }
 
-func (f *FactEvidence) sendVote(args ...[]byte) error {
+func (f *OracleVoting) sendVote(args ...[]byte) error {
 
 	//vote = [0..255]
 	vote, err := helpers.ExtractByte(0, args...)
@@ -297,7 +295,7 @@ func (f *FactEvidence) sendVote(args ...[]byte) error {
 	return nil
 }
 
-func (f *FactEvidence) finishVoting(args ...[]byte) error {
+func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	if f.GetUint64("state") != 1 {
 		return errors.New("contract is not in running state")
 	}
@@ -324,15 +322,13 @@ func (f *FactEvidence) finishVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	gas := big.NewInt(0)
-
 	if winnerVotesCnt >= committeeSize*winnerThreshold/100 ||
 		duration >= votingDuration+publicVotingDuration && votedCount >= committeeSize*quorum/100 {
 
 		f.SetUint64("state", 2)
 		var result *byte
 		var reward *big.Int
-		fund := decimal.NewFromBigInt(new(big.Int).Sub(f.env.Balance(f.ctx.ContractAddr()), gas), 0)
+		fund := decimal.NewFromBigInt(f.env.Balance(f.ctx.ContractAddr()), 0)
 		if winnerVotesCnt >= votedCount*winnerThreshold/100 {
 			result = &winner
 			reward = math.ToInt(fund.Div(decimal.NewFromInt(int64(winnerVotesCnt))))
@@ -347,10 +343,11 @@ func (f *FactEvidence) finishVoting(args ...[]byte) error {
 				dest := common.Address{}
 				dest.SetBytes(key)
 				f.env.Send(f.ctx, dest, reward)
+				f.env.Event("reward", f.ctx.Sender().Bytes(), reward.Bytes())
 			}
 			return false
 		})
-		f.env.Send(f.ctx, f.ctx.Sender(), gas)
+
 		f.env.BurnAll(f.ctx)
 		if result != nil {
 			f.SetByte("result", *result)
@@ -360,7 +357,7 @@ func (f *FactEvidence) finishVoting(args ...[]byte) error {
 	return errors.New("no quorum")
 }
 
-func (f *FactEvidence) prolongVoting(args ...[]byte) error {
+func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	if f.GetUint64("state") != 1 {
 		return errors.New("contract is not in running state")
 	}
@@ -386,7 +383,7 @@ func (f *FactEvidence) prolongVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	if winnerVotesCnt < committeeSize*winnerThreshold/100 &&
+	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < committeeSize*winnerThreshold/100 &&
 		votedCount < committeeSize*quorum/100 &&
 		duration >= votingDuration+publicVotingDuration {
 		f.SetArray("vrfSeed", f.env.BlockSeed())
@@ -396,7 +393,7 @@ func (f *FactEvidence) prolongVoting(args ...[]byte) error {
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *FactEvidence) terminate(args ...[]byte) error {
+func (f *OracleVoting) terminate(args ...[]byte) error {
 	if f.GetUint64("state") != 1 {
 		return errors.New("contract is not in running state")
 	}
@@ -415,7 +412,7 @@ func (f *FactEvidence) terminate(args ...[]byte) error {
 	return errors.New("voting can not be terminated")
 }
 
-func (f *FactEvidence) Terminate(args ...[]byte) error {
+func (f *OracleVoting) Terminate(args ...[]byte) error {
 	if !f.IsOwner() {
 		return errors.New("sender is not an owner")
 	}
@@ -432,7 +429,7 @@ func (f *FactEvidence) Terminate(args ...[]byte) error {
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
 	if duration <= votingDuration*2+publicVotingDuration*3 {
-		errors.New("contract can not be terminated")
+		return errors.New("contract can not be terminated")
 	}
 
 	dest, err := helpers.ExtractAddr(0, args...)

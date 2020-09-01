@@ -362,18 +362,18 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	appState, _ := chain.appState.ForCheck(1)
 
-	block := generateBlock(4, 4000) // block size 284000
-	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(110611979166666667), appState.State.FeePerGas())
+	block := generateBlock(4, 4000)
+	chain.applyNextBlockFee(appState, block, nil)
+	require.Equal(t, big.NewInt(10996093750000000), appState.State.FeePerGas())
 
-	block = generateBlock(5, 1500) // block size 106000
-	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(106372213363647461), appState.State.FeePerGas())
+	block = generateBlock(5, 1500)
+	chain.applyNextBlockFee(appState, block, nil)
+	require.Equal(t, big.NewInt(10547766685485839), appState.State.FeePerGas())
 
 	block = generateBlock(6, 0)
-	chain.applyNextBlockFee(appState, block)
-	// 0.1 / networkSize, where networkSize is 0, feePerByte = 0.1 DNA
-	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(10)), appState.State.FeePerGas())
+	chain.applyNextBlockFee(appState, block, nil)
+	// 0.01 / networkSize, where networkSize is 0, feePerGas = 0.01 DNA
+	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(100)), appState.State.FeePerGas())
 }
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
@@ -815,7 +815,7 @@ func Test_ClearDustAccounts(t *testing.T) {
 	_, s := NewCustomTestBlockchain(1, 0, key)
 
 	s.State.AddBalance(common.Address{0x1}, big.NewInt(1))
-	s.State.AddBalance(common.Address{0x2}, common.DnaBase)
+	s.State.AddBalance(common.Address{0x2},  common.DnaBase)
 	s.State.AddBalance(common.Address{0x3}, new(big.Int).Div(common.DnaBase, big.NewInt(100)))
 	s.State.AddBalance(common.Address{0x4}, new(big.Int).Mul(common.DnaBase, big.NewInt(100)))
 	s.State.AddBalance(common.Address{0x5}, new(big.Int).Mul(common.DnaBase, big.NewInt(5000)))

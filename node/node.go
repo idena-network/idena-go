@@ -24,6 +24,7 @@ import (
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/pkg/errors"
 	"net"
 	"os"
@@ -62,6 +63,7 @@ type Node struct {
 	appVersion      string
 	profileManager  *profile.Manager
 	deferJob        *deferredtx.Job
+	subManager      *subscriptions.Manager
 }
 
 type NodeCtx struct {
@@ -159,14 +161,19 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore)
+	subManager, err := subscriptions.NewManager(config.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore, subManager)
 	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, &ceremonyChecker{
 		appState: appState,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
-	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector)
+	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore,
 		downloader, offlineDetector, statsCollector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
@@ -199,6 +206,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		appVersion:      appVersion,
 		profileManager:  profileManager,
 		deferJob:        deferJob,
+		subManager:      subManager,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -341,7 +349,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion, node.profileManager, node.deferJob),
+			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion, node.profileManager, node.deferJob, node.subManager),
 			Public:    true,
 		},
 		{

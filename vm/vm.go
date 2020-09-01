@@ -36,8 +36,8 @@ func (vm *VmImpl) createContract(ctx env2.CallContext, codeHash common.Hash) emb
 	switch codeHash {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env)
-	case embedded.FactEvidenceContract:
-		return embedded.NewFactEvidenceContract(ctx, vm.env)
+	case embedded.OracleVotingContract:
+		return embedded.NewOracleVotingContract(ctx, vm.env)
 	case embedded.EvidenceLockContract:
 		return embedded.NewEvidenceLock(ctx, vm.env)
 	case embedded.RefundableEvidenceLockContract:

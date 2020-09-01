@@ -504,3 +504,9 @@ message ProtoDeferredTxs {
     }
     repeated ProtoDeferredTx Txs = 1;
 }
+
+message ProtoSavedEvent {
+    bytes contract = 1;
+    string event = 2;
+    repeated bytes args = 3;
+}

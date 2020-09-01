@@ -73,3 +73,59 @@ func TestRepo_WritActivityMonitor(t *testing.T) {
 	require.Equal(monitor.Data[0].Addr, readActivity.Data[0].Addr)
 	require.Equal(monitor.Data[0].Time.Unix(), readActivity.Data[0].Time.Unix())
 }
+
+func TestRepo_GetSavedEvents(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+
+	addr1 := common.Address{1}
+	addr2 := common.Address{2}
+
+	tx1 := common.Hash{0x1}
+	tx2 := common.Hash{0x2}
+
+	repo.WriteEvent(addr1, tx1, 1, &types.TxEvent{
+		EventName: "event2",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr1, tx1, 2, &types.TxEvent{
+		EventName: "event1",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr1, tx1, 3, &types.TxEvent{
+		EventName: "event1",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 1, &types.TxEvent{
+		EventName: "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 2, &types.TxEvent{
+		EventName: "e",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 3, &types.TxEvent{
+		EventName: "ev2",
+		Data:      [][]byte{{0x1}},
+	})
+
+	cnt := 0
+	var token []byte
+	var total, events []*types.SavedEvent
+	for {
+		events, token = repo.GetSavedEvents(token, 2)
+		require.Len(t, events, 2)
+		total = append(total, events...)
+		cnt += len(events)
+		if token == nil {
+			break
+		}
+	}
+	require.Equal(t, cnt, 6)
+	require.Equal(t, "ev2", total[0].Event)
+	require.Equal(t, "e", total[1].Event)
+	require.Equal(t, "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ", total[2].Event)
+	require.Equal(t, "event1", total[3].Event)
+	require.Equal(t, "event1", total[4].Event)
+	require.Equal(t, "event2", total[5].Event)
+}
