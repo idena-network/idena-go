@@ -888,9 +888,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	collector.BeginApplyingTx(statsCollector, tx, appState)
 	defer collector.CompleteApplyingTx(statsCollector, appState)
 
-	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
-	defer collector.CompleteBalanceUpdate(statsCollector, appState)
-
 	stateDB := appState.State
 
 	sender, _ := types.Sender(tx)
@@ -920,6 +917,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	var receipt *types.TxReceipt
 	switch tx.Type {
 	case types.ActivationTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+
 		balance := stateDB.GetBalance(sender)
 		generation, code := stateDB.GeneticCode(sender)
 		balanceToTransfer := new(big.Int).Sub(balance, totalCost)
@@ -949,12 +949,18 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
 		}
 	case types.SendTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 	case types.BurnTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
 	case types.InviteTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		if sender == stateDB.GodAddress() {
 			stateDB.SubGodAddressInvite()
 		} else {
@@ -970,6 +976,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 
 		stateDB.SetInviter(*tx.To, sender, tx.Hash())
 	case types.KillTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
@@ -978,6 +986,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		stateDB.AddBalance(sender, stake)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
@@ -993,16 +1003,26 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.AddInvite(sender, 1)
 		}
 	case types.SubmitFlipTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
 		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
 	case types.OnlineStatusTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.ToggleStatusSwitchAddress(sender)
 	case types.ChangeGodAddressTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.State.SetGodAddress(*tx.To)
 	case types.ChangeProfileTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
 	case types.DeleteFlipTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
@@ -1017,6 +1037,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState, receipt.ContractAddress)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+
 		if !receipt.Success && tx.Type == types.CallContract {
 			stateDB.AddBalance(sender, amount)
 			stateDB.SubBalance(*tx.To, amount)

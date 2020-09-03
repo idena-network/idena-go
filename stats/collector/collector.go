@@ -52,7 +52,7 @@ type StatsCollector interface {
 	AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int)
 
 	BeginVerifiedStakeTransferBalanceUpdate(addr common.Address, appState *appstate.AppState)
-	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
+	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddrs ...common.Address)
 	BeginProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginCommitteeRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginEpochRewardBalanceUpdate(addr common.Address, appState *appstate.AppState)
@@ -68,13 +68,25 @@ type StatsCollector interface {
 	CompleteApplyingTx(appState *appstate.AppState)
 	AddTxFee(feeAmount *big.Int)
 
-	AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
+	AddContractStake(amount *big.Int)
+	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
+	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
+
+	AddFactEvidenceDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
 		maxOptions uint64)
-	AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64)
+	AddFactEvidenceCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte)
+	AddFactEvidenceCallVoteProof(voteHash, proof []byte)
+	AddFactEvidenceCallVote(vote byte, salt []byte)
+	AddFactEvidenceCallFinish(state uint64, result *byte, fund, reward *big.Int)
+	AddFactEvidenceCallProlongation(startBlock uint64, vrfSeed []byte)
+	AddFactEvidenceCallTermination(state uint64, transfer *big.Int)
+	AddFactEvidenceTermination(dest common.Address)
 
 	AddTxReceipt(txReceipt *types.TxReceipt)
 }
+
+type GetBalanceFunc func(address common.Address) *big.Int
 
 type collectorStub struct {
 }
@@ -438,15 +450,15 @@ func BeginVerifiedStakeTransferBalanceUpdate(c StatsCollector, addr common.Addre
 	c.BeginVerifiedStakeTransferBalanceUpdate(addr, appState)
 }
 
-func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState) {
+func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddrs ...common.Address) {
 	// do nothing
 }
 
-func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState, additionalAddrs ...common.Address) {
 	if c == nil {
 		return
 	}
-	c.BeginTxBalanceUpdate(tx, appState)
+	c.BeginTxBalanceUpdate(tx, appState, additionalAddrs...)
 }
 
 func (c *collectorStub) BeginProposerRewardBalanceUpdate(addr common.Address, appState *appstate.AppState) {
@@ -581,31 +593,134 @@ func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 	c.AddTxFee(feeAmount)
 }
 
-func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64,
+func (c *collectorStub) AddContractStake(amount *big.Int) {
+	// do nothing
+}
+
+func AddContractStake(c StatsCollector, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddContractStake(amount)
+}
+
+func (c *collectorStub) AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+	// do nothing
+}
+
+func AddContractBalanceUpdate(c StatsCollector, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.AddContractBalanceUpdate(address, getCurrentBalance, newBalance, appState)
+}
+
+func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc) {
+	// do nothing
+}
+
+func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount GetBalanceFunc) {
+	if c == nil {
+		return
+	}
+	c.AddContractBurntCoins(address, getAmount)
+}
+
+func (c *collectorStub) AddFactEvidenceDeploy(contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
 	committeeSize, maxOptions uint64) {
 	// do nothing
 }
 
-func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
+func AddFactEvidenceDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
 	committeeSize, maxOptions uint64) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceContractDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
+	c.AddFactEvidenceDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
 		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 }
 
-func (c *collectorStub) AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64) {
+func (c *collectorStub) AddFactEvidenceCallStart(state, startBlock uint64,
+	votingMinPayment *big.Int, vrfSeed []byte) {
 	// do nothing
 }
 
-func AddFactEvidenceContractCallStart(c StatsCollector, contractAddress common.Address, startBlock uint64) {
+func AddFactEvidenceCallStart(c StatsCollector, state, startBlock uint64,
+	votingMinPayment *big.Int, vrfSeed []byte) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceContractCallStart(contractAddress, startBlock)
+	c.AddFactEvidenceCallStart(state, startBlock, votingMinPayment, vrfSeed)
+}
+
+func (c *collectorStub) AddFactEvidenceCallVoteProof(voteHash, proof []byte) {
+	// do nothing
+}
+
+func AddFactEvidenceCallVoteProof(c StatsCollector, voteHash, proof []byte) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceCallVoteProof(voteHash, proof)
+}
+
+func (c *collectorStub) AddFactEvidenceCallVote(vote byte, salt []byte) {
+	// do nothing
+}
+
+func AddFactEvidenceCallVote(c StatsCollector, vote byte, salt []byte) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceCallVote(vote, salt)
+}
+
+func (c *collectorStub) AddFactEvidenceCallFinish(state uint64, result *byte, fund,
+	reward *big.Int) {
+	// do nothing
+}
+
+func AddFactEvidenceCallFinish(c StatsCollector, state uint64, result *byte, fund,
+	reward *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceCallFinish(state, result, fund, reward)
+}
+
+func (c *collectorStub) AddFactEvidenceCallProlongation(startBlock uint64, vrfSeed []byte) {
+	// do nothing
+}
+
+func AddFactEvidenceCallProlongation(c StatsCollector, startBlock uint64, vrfSeed []byte) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceCallProlongation(startBlock, vrfSeed)
+}
+
+func (c *collectorStub) AddFactEvidenceCallTermination(state uint64, transfer *big.Int) {
+	// do nothing
+}
+
+func AddFactEvidenceCallTermination(c StatsCollector, state uint64, transfer *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceCallTermination(state, transfer)
+}
+
+func (c *collectorStub) AddFactEvidenceTermination(dest common.Address) {
+	// do nothing
+}
+
+func AddFactEvidenceTermination(c StatsCollector, dest common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceTermination(dest)
 }
 
 func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt) {

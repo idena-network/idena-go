@@ -31,7 +31,7 @@ type VmImpl struct {
 
 func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector) *VmImpl {
 	gasCounter := new(env2.GasCounter)
-	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store), appState: appState, gasCounter: gasCounter,
+	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store, statsCollector), appState: appState, gasCounter: gasCounter,
 		statsCollector: statsCollector}
 }
 
