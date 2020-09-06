@@ -9,6 +9,8 @@ import (
 )
 
 type StatsCollector interface {
+	IsIndexer() bool
+
 	EnableCollecting()
 	CompleteCollecting()
 
@@ -72,18 +74,29 @@ type StatsCollector interface {
 	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
 	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
 
-	AddFactEvidenceDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
+	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
 		maxOptions uint64)
-	AddFactEvidenceCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte)
-	AddFactEvidenceCallVoteProof(voteHash, proof []byte)
-	AddFactEvidenceCallVote(vote byte, salt []byte)
-	AddFactEvidenceCallFinish(state uint64, result *byte, fund, reward *big.Int)
-	AddFactEvidenceCallProlongation(startBlock uint64, vrfSeed []byte)
-	AddFactEvidenceCallTermination(state uint64, transfer *big.Int)
-	AddFactEvidenceTermination(dest common.Address)
+	AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
+	AddOracleVotingCallVoteProof(voteHash []byte)
+	AddOracleVotingCallVote(vote byte, salt []byte)
+	AddOracleVotingCallFinish(state uint64, result *byte, fund, reward *big.Int)
+	AddOracleVotingCallProlongation(startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int)
+	AddOracleVotingCallTermination(state uint64, transfer *big.Int)
+	AddOracleVotingTermination(dest common.Address)
 
-	AddTxReceipt(txReceipt *types.TxReceipt)
+	AddEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
+		failAddress common.Address)
+	AddEvidenceLockCallPush(oracleVotingResult byte, transfer *big.Int)
+	AddEvidenceLockTermination(dest common.Address)
+
+	AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte)
+	AddMultisigCallAdd(address common.Address, newState *byte)
+	AddMultisigCallSend(dest common.Address, amount []byte)
+	AddMultisigCallPush(dest common.Address, amount []byte)
+	AddMultisigTermination(dest common.Address)
+
+	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 }
 
 type GetBalanceFunc func(address common.Address) *big.Int
@@ -93,6 +106,10 @@ type collectorStub struct {
 
 func NewStatsCollector() StatsCollector {
 	return &collectorStub{}
+}
+
+func (c *collectorStub) IsIndexer() bool {
+	return false
 }
 
 func (c *collectorStub) EnableCollecting() {
@@ -626,110 +643,200 @@ func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount G
 	c.AddContractBurntCoins(address, getAmount)
 }
 
-func (c *collectorStub) AddFactEvidenceDeploy(contractAddress common.Address, startTime uint64,
+func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
 	committeeSize, maxOptions uint64) {
 	// do nothing
 }
 
-func AddFactEvidenceDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
+func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
 	committeeSize, maxOptions uint64) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
+	c.AddOracleVotingDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
 		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 }
 
-func (c *collectorStub) AddFactEvidenceCallStart(state, startBlock uint64,
-	votingMinPayment *big.Int, vrfSeed []byte) {
+func (c *collectorStub) AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte,
+	committeeSize uint64, networkSize int) {
 	// do nothing
 }
 
-func AddFactEvidenceCallStart(c StatsCollector, state, startBlock uint64,
-	votingMinPayment *big.Int, vrfSeed []byte) {
+func AddOracleVotingCallStart(c StatsCollector, state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte,
+	committeeSize uint64, networkSize int) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallStart(state, startBlock, votingMinPayment, vrfSeed)
+	c.AddOracleVotingCallStart(state, startBlock, votingMinPayment, vrfSeed, committeeSize, networkSize)
 }
 
-func (c *collectorStub) AddFactEvidenceCallVoteProof(voteHash, proof []byte) {
+func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte) {
 	// do nothing
 }
 
-func AddFactEvidenceCallVoteProof(c StatsCollector, voteHash, proof []byte) {
+func AddOracleVotingCallVoteProof(c StatsCollector, voteHash []byte) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallVoteProof(voteHash, proof)
+	c.AddOracleVotingCallVoteProof(voteHash)
 }
 
-func (c *collectorStub) AddFactEvidenceCallVote(vote byte, salt []byte) {
+func (c *collectorStub) AddOracleVotingCallVote(vote byte, salt []byte) {
 	// do nothing
 }
 
-func AddFactEvidenceCallVote(c StatsCollector, vote byte, salt []byte) {
+func AddOracleVotingCallVote(c StatsCollector, vote byte, salt []byte) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallVote(vote, salt)
+	c.AddOracleVotingCallVote(vote, salt)
 }
 
-func (c *collectorStub) AddFactEvidenceCallFinish(state uint64, result *byte, fund,
+func (c *collectorStub) AddOracleVotingCallFinish(state uint64, result *byte, fund,
 	reward *big.Int) {
 	// do nothing
 }
 
-func AddFactEvidenceCallFinish(c StatsCollector, state uint64, result *byte, fund,
+func AddOracleVotingCallFinish(c StatsCollector, state uint64, result *byte, fund,
 	reward *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallFinish(state, result, fund, reward)
+	c.AddOracleVotingCallFinish(state, result, fund, reward)
 }
 
-func (c *collectorStub) AddFactEvidenceCallProlongation(startBlock uint64, vrfSeed []byte) {
+func (c *collectorStub) AddOracleVotingCallProlongation(startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int) {
 	// do nothing
 }
 
-func AddFactEvidenceCallProlongation(c StatsCollector, startBlock uint64, vrfSeed []byte) {
+func AddOracleVotingCallProlongation(c StatsCollector, startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallProlongation(startBlock, vrfSeed)
+	c.AddOracleVotingCallProlongation(startBlock, vrfSeed, committeeSize, networkSize)
 }
 
-func (c *collectorStub) AddFactEvidenceCallTermination(state uint64, transfer *big.Int) {
+func (c *collectorStub) AddOracleVotingCallTermination(state uint64, transfer *big.Int) {
 	// do nothing
 }
 
-func AddFactEvidenceCallTermination(c StatsCollector, state uint64, transfer *big.Int) {
+func AddOracleVotingCallTermination(c StatsCollector, state uint64, transfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceCallTermination(state, transfer)
+	c.AddOracleVotingCallTermination(state, transfer)
 }
 
-func (c *collectorStub) AddFactEvidenceTermination(dest common.Address) {
+func (c *collectorStub) AddOracleVotingTermination(dest common.Address) {
 	// do nothing
 }
 
-func AddFactEvidenceTermination(c StatsCollector, dest common.Address) {
+func AddOracleVotingTermination(c StatsCollector, dest common.Address) {
 	if c == nil {
 		return
 	}
-	c.AddFactEvidenceTermination(dest)
+	c.AddOracleVotingTermination(dest)
 }
 
-func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt) {
+func (c *collectorStub) AddEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
+	value byte, successAddress common.Address, failAddress common.Address) {
 	// do nothing
 }
 
-func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt) {
+func AddEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
+	value byte, successAddress common.Address, failAddress common.Address) {
 	if c == nil {
 		return
 	}
-	c.AddTxReceipt(txReceipt)
+	c.AddEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress)
+}
+
+func (c *collectorStub) AddEvidenceLockCallPush(oracleVotingResult byte, transfer *big.Int) {
+	// do nothing
+}
+
+func AddEvidenceLockCallPush(c StatsCollector, oracleVotingResult byte, transfer *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddEvidenceLockCallPush(oracleVotingResult, transfer)
+}
+
+func (c *collectorStub) AddEvidenceLockTermination(dest common.Address) {
+	// do nothing
+}
+
+func AddEvidenceLockTermination(c StatsCollector, dest common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddEvidenceLockTermination(dest)
+}
+
+func (c *collectorStub) AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte) {
+	// do nothing
+}
+
+func AddMultisigDeploy(c StatsCollector, contractAddress common.Address, minVotes, maxVotes, state byte) {
+	if c == nil {
+		return
+	}
+	c.AddMultisigDeploy(contractAddress, minVotes, maxVotes, state)
+}
+
+func (c *collectorStub) AddMultisigCallAdd(address common.Address, newState *byte) {
+	// do nothing
+}
+
+func AddMultisigCallAdd(c StatsCollector, address common.Address, newState *byte) {
+	if c == nil {
+		return
+	}
+	c.AddMultisigCallAdd(address, newState)
+}
+
+func (c *collectorStub) AddMultisigCallSend(dest common.Address, amount []byte) {
+	// do nothing
+}
+
+func AddMultisigCallSend(c StatsCollector, dest common.Address, amount []byte) {
+	if c == nil {
+		return
+	}
+	c.AddMultisigCallSend(dest, amount)
+}
+
+func (c *collectorStub) AddMultisigCallPush(dest common.Address, amount []byte) {
+	// do nothing
+}
+
+func AddMultisigCallPush(c StatsCollector, dest common.Address, amount []byte) {
+	if c == nil {
+		return
+	}
+	c.AddMultisigCallPush(dest, amount)
+}
+
+func (c *collectorStub) AddMultisigTermination(dest common.Address) {
+	// do nothing
+}
+
+func AddMultisigTermination(c StatsCollector, dest common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddMultisigTermination(dest)
+}
+
+func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState) {
+	// do nothing
+}
+
+func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.AddTxReceipt(txReceipt, appState)
 }

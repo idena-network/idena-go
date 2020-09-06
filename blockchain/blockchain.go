@@ -1046,7 +1046,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
 		fee = fee.Add(fee, receipt.GasCost)
-		collector.AddTxReceipt(statsCollector, receipt)
+		collector.AddTxReceipt(statsCollector, receipt, appState)
 	}
 
 	stateDB.SubBalance(sender, fee)

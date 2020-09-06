@@ -5,7 +5,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
@@ -191,7 +190,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	}
 
 	// todo indexer ownerFee
-	collector.AddFactEvidenceDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, cid,
+	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
 		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 	return nil
 }
@@ -205,7 +204,8 @@ func (f *OracleVoting) startVoting() error {
 	}
 
 	balance := f.env.Balance(f.ctx.ContractAddr())
-	minBalance := big.NewInt(0).Mul(f.env.MinFeePerGas(), big.NewInt(int64(100*100*f.GetUint64("committeeSize"))))
+	committeeSize := f.GetUint64("committeeSize")
+	minBalance := big.NewInt(0).Mul(f.env.MinFeePerGas(), big.NewInt(int64(100*100*committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("insufficient funds")
 	}
@@ -225,8 +225,9 @@ func (f *OracleVoting) startVoting() error {
 	f.SetArray("vrfSeed", vrfSeed)
 	f.SetUint16("epoch", f.env.Epoch())
 
-	// todo epoch ?
-	collector.AddFactEvidenceCallStart(f.statsCollector, state, startBlock, votingMinPayment, vrfSeed)
+	if f.statsCollector != nil && f.statsCollector.IsIndexer() {
+		collector.AddOracleVotingCallStart(f.statsCollector, state, startBlock, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
+	}
 
 	return nil
 }
@@ -277,7 +278,7 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
-	collector.AddFactEvidenceCallVoteProof(f.statsCollector, voteHash, proof)
+	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash)
 
 	return nil
 }
@@ -321,7 +322,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 	c := f.GetUint64("votedCount") + 1
 	f.SetUint64("votedCount", c)
 
-	collector.AddFactEvidenceCallVote(f.statsCollector, vote, salt)
+	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt)
 
 	return nil
 }
@@ -405,7 +406,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		if result != nil {
 			f.SetByte("result", *result)
 		}
-		collector.AddFactEvidenceCallFinish(f.statsCollector, state, result, fundInt, reward)
+		collector.AddOracleVotingCallFinish(f.statsCollector, state, result, fundInt, reward)
 		return nil
 	}
 	return errors.New("no quorum")
@@ -447,7 +448,9 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		f.SetUint16("epoch", f.env.Epoch())
 
 		// todo indexer add epoch, make start_block nullable
-		collector.AddFactEvidenceCallProlongation(f.statsCollector, startBlock, vrfSeed)
+		if f.statsCollector != nil && f.statsCollector.IsIndexer() {
+			collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, vrfSeed, committeeSize, f.env.NetworkSizeFree())
+		}
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
@@ -470,7 +473,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 			}
 		}
 		f.env.Terminate(f.ctx, f.Owner())
-		collector.AddFactEvidenceTermination(f.statsCollector, dest)
+		collector.AddOracleVotingCallTermination(f.statsCollector, dest)
 		return nil
 	}
 	return errors.New("voting can not be terminated")

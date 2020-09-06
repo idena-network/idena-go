@@ -3,6 +3,7 @@ package embedded
 import (
 	"bytes"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -26,28 +27,28 @@ func (m *Multisig) Deploy(args ...[]byte) error {
 
 	var maxVotes byte
 	var err error
-	if maxVotes, err = helpers.ExtractByte(0, args...); err != nil {
+	maxVotes, err = helpers.ExtractByte(0, args...)
+	if err != nil {
 		return err
-	} else {
-		if maxVotes > 32 || maxVotes < 1 {
-			return errors.New("maxvotes should be in range [1;32]")
-		}
-		m.SetByte("maxVotes", maxVotes)
 	}
-
-	if minVotes, err := helpers.ExtractByte(1, args...); err != nil {
+	if maxVotes > 32 || maxVotes < 1 {
+		return errors.New("maxvotes should be in range [1;32]")
+	}
+	m.SetByte("maxVotes", maxVotes)
+	minVotes, err := helpers.ExtractByte(1, args...)
+	if err != nil {
 		return err
-	} else {
-		if minVotes > maxVotes || minVotes < 1 {
-			return errors.New("minvotes should be in range [1;maxvotes]")
-		}
-		m.SetByte("minVotes", minVotes)
 	}
-
-	m.SetByte("state", 1)
+	if minVotes > maxVotes || minVotes < 1 {
+		return errors.New("minvotes should be in range [1;maxvotes]")
+	}
+	m.SetByte("minVotes", minVotes)
+	state := byte(1)
+	m.SetByte("state", state)
 	m.SetByte("count", 0)
 	m.BaseContract.Deploy(MultisigContract)
 	m.SetOwner(m.ctx.Sender())
+	collector.AddMultisigDeploy(m.statsCollector, m.ctx.ContractAddr(), minVotes, maxVotes, state)
 	return nil
 }
 
@@ -90,8 +91,12 @@ func (m *Multisig) add(args ...[]byte) (err error) {
 	c := m.GetByte("count") + 1
 	m.SetByte("count", c)
 	if c == m.GetByte("maxVotes") {
-		m.SetByte("state", 2)
+		state := byte(2)
+		m.SetByte("state", state)
 		m.RemoveValue("count")
+		collector.AddMultisigCallAdd(m.statsCollector, addr, &state)
+	} else {
+		collector.AddMultisigCallAdd(m.statsCollector, addr, nil)
 	}
 	return nil
 }
@@ -112,6 +117,7 @@ func (m *Multisig) send(args ...[]byte) error {
 
 	m.voteAmount.Set(m.ctx.Sender().Bytes(), amount)
 	m.voteAddress.Set(m.ctx.Sender().Bytes(), dest.Bytes())
+	collector.AddMultisigCallSend(m.statsCollector, dest, amount)
 	return nil
 }
 
@@ -163,6 +169,7 @@ func (m *Multisig) push(args ...[]byte) error {
 		m.voteAmount.Set(key, common.Big0.Bytes())
 		return false
 	})
+	collector.AddMultisigCallPush(m.statsCollector, dest, amount)
 	return nil
 }
 
@@ -179,5 +186,6 @@ func (m *Multisig) Terminate(args ...[]byte) error {
 		return err
 	}
 	m.env.Terminate(m.ctx, dest)
+	collector.AddMultisigTermination(m.statsCollector, dest)
 	return nil
 }
