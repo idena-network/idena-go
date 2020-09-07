@@ -64,6 +64,8 @@ type StateDB struct {
 	stateIdentities      map[common.Address]*stateIdentity
 	stateIdentitiesDirty map[common.Address]struct{}
 
+	contractStoreCache map[string]*contractStoreValue
+
 	stateGlobal            *stateGlobal
 	stateGlobalDirty       bool
 	stateStatusSwitch      *stateStatusSwitch
@@ -83,6 +85,7 @@ func NewLazy(db dbm.DB) *StateDB {
 		stateAccounts:      make(map[common.Address]*stateAccount),
 		stateAccountsDirty: make(map[common.Address]struct{}), stateIdentities: make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		contractStoreCache:   make(map[string]*contractStoreValue),
 		log:                  log.New(),
 	}
 }
@@ -101,6 +104,7 @@ func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 		stateAccountsDirty:   make(map[common.Address]struct{}),
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		contractStoreCache:   make(map[string]*contractStoreValue),
 		log:                  log.New(),
 	}, nil
 }
@@ -118,6 +122,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 		stateAccountsDirty:   make(map[common.Address]struct{}),
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		contractStoreCache:   make(map[string]*contractStoreValue),
 		log:                  log.New(),
 	}, nil
 }
@@ -134,6 +139,7 @@ func (s *StateDB) Readonly(height int64) (*StateDB, error) {
 		stateAccountsDirty:   make(map[common.Address]struct{}),
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		contractStoreCache:   make(map[string]*contractStoreValue),
 		log:                  log.New(),
 	}, nil
 }
@@ -150,6 +156,7 @@ func (s *StateDB) Clear() {
 	s.stateAccountsDirty = make(map[common.Address]struct{})
 	s.stateIdentities = make(map[common.Address]*stateIdentity)
 	s.stateIdentitiesDirty = make(map[common.Address]struct{})
+	s.contractStoreCache = make(map[string]*contractStoreValue)
 	s.stateGlobal = nil
 	s.stateGlobalDirty = false
 	s.stateStatusSwitch = nil
@@ -848,6 +855,15 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
+
+	for k, v := range s.contractStoreCache {
+		if v.removed {
+			s.tree.Remove([]byte(k))
+		} else {
+			s.tree.Set([]byte(k), v.value)
+		}
+	}
+
 	s.lock.Unlock()
 
 	if s.stateGlobalDirty {
@@ -1261,21 +1277,54 @@ func (s *StateDB) ToggleStatusSwitchAddress(sender common.Address) {
 }
 
 func (s *StateDB) SetContractValue(addr common.Address, key []byte, value []byte) {
-	s.tree.Set(StateDbKeys.ContractStoreKey(addr, key), value)
+	s.contractStoreCache[string(StateDbKeys.ContractStoreKey(addr, key))] = &contractStoreValue{
+		value:   value,
+		removed: false,
+	}
 }
 
 func (s *StateDB) GetContractValue(addr common.Address, key []byte) []byte {
-	_, value := s.tree.Get(StateDbKeys.ContractStoreKey(addr, key))
+
+	storeKey := StateDbKeys.ContractStoreKey(addr, key)
+
+	if v, ok := s.contractStoreCache[string(storeKey)]; ok {
+		if v.removed {
+			return nil
+		}
+		return v.value
+	}
+	_, value := s.tree.Get(storeKey)
 	return value
 }
 
 func (s *StateDB) RemoveContractValue(addr common.Address, key []byte) {
-	s.tree.Remove(StateDbKeys.ContractStoreKey(addr, key))
+	s.contractStoreCache[string(StateDbKeys.ContractStoreKey(addr, key))] = &contractStoreValue{
+		value:   nil,
+		removed: true,
+	}
 }
 
 func (s *StateDB) IterateContractStore(addr common.Address, minKey []byte, maxKey []byte, f func(key []byte, value []byte) bool) {
+
+	iteratedKeys := make(map[string]struct{})
+
+	for key, value := range s.contractStoreCache {
+		keyBytes := []byte(key)
+		if (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, minKey)) >= 0 || minKey == nil) && (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, maxKey)) <= 0 || maxKey == nil) {
+			iteratedKeys[key] = struct{}{}
+			if !value.removed && f(keyBytes[21:], value.value) {
+				return
+			}
+		}
+	}
+
 	s.tree.GetImmutable().IterateRange(StateDbKeys.ContractStoreKey(addr, minKey), StateDbKeys.ContractStoreKey(addr, maxKey), true,
 		func(key []byte, value []byte) (stopped bool) {
+
+			if _, ok := iteratedKeys[string(key)]; ok {
+				return false
+			}
+
 			return f(key[21:], value)
 		})
 }

@@ -3,8 +3,8 @@ package helpers
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"github.com/idena-network/idena-go/common"
+	"github.com/pkg/errors"
 	"math/big"
 )
 
@@ -40,7 +40,7 @@ func ExtractUInt64(index int, args ...[]byte) (uint64, error) {
 	var ret uint64
 	buf := bytes.NewBuffer(args[index])
 	if err := binary.Read(buf, binary.LittleEndian, &ret); err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, "index=%v", index)
 	}
 	return ret, nil
 }
@@ -55,7 +55,7 @@ func ExtractUInt16(index int, args ...[]byte) (uint16, error) {
 	var ret uint16
 	buf := bytes.NewBuffer(args[index])
 	if err := binary.Read(buf, binary.LittleEndian, &ret); err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, "index=%v", index)
 	}
 	return ret, nil
 }
@@ -65,7 +65,7 @@ func ExtractByte(index int, args ...[]byte) (byte, error) {
 		return 0, err
 	}
 	if len(args[index]) == 0 {
-		return 0, noValue
+		return 0, errors.Wrapf(noValue, "index=%v", index)
 	}
 	return args[index][0], nil
 }
@@ -75,7 +75,7 @@ func ExtractBigInt(index int, args ...[]byte) (*big.Int, error) {
 		return nil, err
 	}
 	if args[index] == nil {
-		return nil, noValue
+		return nil, errors.Wrapf(noValue, "index=%v", index)
 	}
 	ret := new(big.Int)
 	ret.SetBytes(args[index])
@@ -87,7 +87,7 @@ func ExtractArray(index int, args ...[]byte) ([]byte, error) {
 		return nil, err
 	}
 	if args[index] == nil {
-		return nil, noValue
+		return nil, errors.Wrapf(noValue, "index=%v", index)
 	}
 	return args[index], nil
 }

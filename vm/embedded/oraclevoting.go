@@ -138,7 +138,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	publicVotingDuration := uint64(4320)
 	winnerThreshold := uint64(50)
 	quorum := uint64(20)
-	committeeSize := math.Min(100, uint64(f.env.NetworkSize()))
+	networkSize := uint64(f.env.NetworkSize())
+	committeeSize := math.Min(100, networkSize)
 	maxOptions := uint64(2)
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
@@ -155,7 +156,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	}
 
 	if value, err := helpers.ExtractUInt64(6, args...); err == nil {
-		committeeSize = math.Min(value, uint64(f.env.NetworkSize()))
+		committeeSize = math.Min(value, networkSize)
 	}
 
 	if value, err := helpers.ExtractUInt64(7, args...); err == nil {
@@ -388,6 +389,7 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		duration >= votingDuration+publicVotingDuration {
 		f.SetArray("vrfSeed", f.env.BlockSeed())
 		f.SetUint64("startBlock", f.env.BlockNumber())
+		f.SetUint16("epoch", f.env.Epoch())
 		return nil
 	}
 	return errors.New("voting can not be prolonged")

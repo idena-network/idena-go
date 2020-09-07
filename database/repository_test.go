@@ -109,23 +109,16 @@ func TestRepo_GetSavedEvents(t *testing.T) {
 		Data:      [][]byte{{0x1}},
 	})
 
-	cnt := 0
-	var token []byte
-	var total, events []*types.SavedEvent
-	for {
-		events, token = repo.GetSavedEvents(token, 2)
-		require.Len(t, events, 2)
-		total = append(total, events...)
-		cnt += len(events)
-		if token == nil {
-			break
-		}
-	}
-	require.Equal(t, cnt, 6)
-	require.Equal(t, "ev2", total[0].Event)
-	require.Equal(t, "e", total[1].Event)
-	require.Equal(t, "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ", total[2].Event)
-	require.Equal(t, "event1", total[3].Event)
-	require.Equal(t, "event1", total[4].Event)
-	require.Equal(t, "event2", total[5].Event)
+	events1 := repo.GetSavedEvents(addr1)
+	events2 := repo.GetSavedEvents(addr2)
+	require.Len(t, events1, 3)
+	require.Len(t, events2, 3)
+
+	require.Equal(t, "event1", events1[0].Event)
+	require.Equal(t, "event1", events1[1].Event)
+	require.Equal(t, "event2", events1[2].Event)
+	require.Equal(t, "ev2", events2[0].Event)
+	require.Equal(t, "e", events2[1].Event)
+	require.Equal(t, "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ", events2[2].Event)
+
 }

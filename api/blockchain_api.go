@@ -312,10 +312,6 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 	return res
 }
 
-func (api *BlockchainApi) EventSubscribe(contract common.Address, event string) {
-
-}
-
 func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp int64) *Transaction {
 	sender, _ := types.Sender(tx)
 	return &Transaction{

@@ -647,8 +647,7 @@ type ReadonlyCallContractArgs struct {
 }
 
 type EventsArgs struct {
-	Token hexutil.Bytes `json:"token"`
-	Count int           `json:"count"`
+	Contract common.Address `json:"contract"`
 }
 
 func (a DynamicArg) ToBytes() []byte {
@@ -728,11 +727,6 @@ type Event struct {
 	Contract common.Address  `json:"contract"`
 	Event    string          `json:"event"`
 	Args     []hexutil.Bytes `json:"args"`
-}
-
-type Events struct {
-	Events []*Event      `json:"events"`
-	Token  hexutil.Bytes `json:"token"`
 }
 
 func (api *DnaApi) buildDeployContractTx(args DeployContractArgs) (*types.Transaction, error) {
@@ -905,9 +899,9 @@ func (api *DnaApi) UnsubscribeFromEvent(contract common.Address, event string) e
 	return api.subManager.Unsubscribe(contract, event)
 }
 
-func (api *DnaApi) Events(args EventsArgs) Events {
+func (api *DnaApi) Events(args EventsArgs) interface{} {
 
-	events, nextToken := api.bc.ReadEvents(args.Token, args.Count)
+	events := api.bc.ReadEvents(args.Contract)
 
 	var list []*Event
 	for _, item := range events {
@@ -920,10 +914,7 @@ func (api *DnaApi) Events(args EventsArgs) Events {
 			e.Args = append(e.Args, arg)
 		}
 	}
-	return Events{
-		Events: list,
-		Token:  nextToken,
-	}
+	return list
 }
 
 func conversion(convertTo string, data []byte) (interface{}, error) {

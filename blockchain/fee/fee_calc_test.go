@@ -16,8 +16,6 @@ func TestCalculateFee(t *testing.T) {
 	fee1 := big.NewInt(69e+16)
 	fee2 := big.NewInt(345e+16)
 
-	fee := CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), tx).String()
-	t.Logf(fee)
 	// not signed
 	require.Equal(t, 0, fee1.Cmp(CalculateFee(1, new(big.Int).Div(common.DnaBase, big.NewInt(1000)), tx)))
 	require.Equal(t, 0, fee2.Cmp(CalculateFee(200, new(big.Int).Div(common.DnaBase, big.NewInt(200)), tx)))
@@ -64,9 +62,6 @@ func Test_GetFeePerByteForNetwork(t *testing.T) {
 	require.Zero(big.NewInt(2e+12).Cmp(GetFeePerGasForNetwork(5000)))
 
 	require.Zero(big.NewInt(1e+11).Cmp(GetFeePerGasForNetwork(100000)))
-
-	t.Logf("%v", GetFeePerGasForNetwork(1e+17).String())
-
 
 	require.Zero(big.NewInt(10).Cmp(GetFeePerGasForNetwork(1e+17)))
 

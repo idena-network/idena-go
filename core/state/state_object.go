@@ -1041,3 +1041,8 @@ func (s *stateStatusSwitch) touch() {
 func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {
 	return f&flag != 0
 }
+
+type contractStoreValue struct {
+	value   []byte
+	removed bool
+}

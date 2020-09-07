@@ -514,24 +514,13 @@ func (r *Repo) WriteEvent(contract common.Address, txHash common.Hash, idx uint3
 	r.db.Set(savedEventKey(contract, txHash.Bytes(), idx, event.EventName), data)
 }
 
-func (r *Repo) GetSavedEvents(token []byte, count int) (events []*types.SavedEvent, nextToken []byte) {
+func (r *Repo) GetSavedEvents(contract common.Address) (events []*types.SavedEvent) {
 
-	if token == nil {
-		token = savedEventKey(common.MaxAddr, common.MaxHash, math2.MaxUint32, maxEventName)
-	} else {
-		token = append(token, []byte(maxEventName)...)
-	}
-
-	it, err := r.db.ReverseIterator(savedEventKey(common.Address{}, common.MinHash[:], 0, "\x00"), token)
+	it, err := r.db.ReverseIterator(savedEventKey(contract, common.MinHash[:], 0, "\x00"), savedEventKey(contract, common.MaxHash, math2.MaxUint32, maxEventName))
 	assertNoError(err)
 	defer it.Close()
 	for ; it.Valid(); it.Next() {
 		key, value := it.Key(), it.Value()
-		if len(events) == count {
-			continuationToken := make([]byte, 1+20+32+4)
-			copy(continuationToken, key[:len(continuationToken)-1])
-			return events, continuationToken
-		}
 		e := new(types.SavedEvent)
 		if err := e.FromBytes(value); err != nil {
 			log.Error("cannot parse tx", "key", key)
@@ -539,5 +528,5 @@ func (r *Repo) GetSavedEvents(token []byte, count int) (events []*types.SavedEve
 		}
 		events = append(events, e)
 	}
-	return events, nil
+	return events
 }

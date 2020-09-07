@@ -60,7 +60,7 @@ func (b *BaseContract) Owner() common.Address {
 }
 
 func (b *BaseContract) Deploy(contractType EmbeddedContractType) {
-	b.env.Deploy(b.ctx, contractType)
+	b.env.Deploy(b.ctx)
 }
 
 func (b *BaseContract) SetUint64(s string, value uint64) {

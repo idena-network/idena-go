@@ -32,8 +32,8 @@ func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore
 	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store), appState: appState, gasCounter: gasCounter}
 }
 
-func (vm *VmImpl) createContract(ctx env2.CallContext, codeHash common.Hash) embedded.Contract {
-	switch codeHash {
+func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
+	switch ctx.CodeHash() {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env)
 	case embedded.OracleVotingContract:
@@ -50,13 +50,13 @@ func (vm *VmImpl) createContract(ctx env2.CallContext, codeHash common.Hash) emb
 }
 
 func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error) {
-	ctx := env2.NewDeployContextImpl(tx)
 	attach := attachments.ParseDeployContractAttachment(tx)
+	ctx := env2.NewDeployContextImpl(tx, attach.CodeHash)
 	addr = ctx.ContractAddr()
 	if attach == nil {
 		return addr, errors.New("can't parse attachment")
 	}
-	contract := vm.createContract(ctx, attach.CodeHash)
+	contract := vm.createContract(ctx)
 	if contract == nil {
 		return addr, errors.New("unknown contract")
 	}
@@ -70,12 +70,12 @@ func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error)
 }
 
 func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, err error) {
-	ctx := env2.NewCallContextImpl(tx)
+	ctx := env2.NewCallContextImpl(tx, *vm.appState.State.GetCodeHash(*tx.To))
 	attach := attachments.ParseCallContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), errors.New("can't parse attachment")
 	}
-	contract := vm.createContract(ctx, *vm.appState.State.GetCodeHash(*tx.To))
+	contract := vm.createContract(ctx)
 	addr = ctx.ContractAddr()
 	if contract == nil {
 		return addr, errors.New("unknown contract")
@@ -91,12 +91,12 @@ func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, err error) {
 }
 
 func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err error) {
-	ctx := env2.NewCallContextImpl(tx)
+	ctx := env2.NewCallContextImpl(tx, *vm.appState.State.GetCodeHash(*tx.To))
 	attach := attachments.ParseTerminateContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), errors.New("can't parse attachment")
 	}
-	contract := vm.createContract(ctx, *vm.appState.State.GetCodeHash(*tx.To))
+	contract := vm.createContract(ctx)
 	addr = ctx.ContractAddr()
 	if contract == nil {
 		return addr, errors.New("unknown contract")
@@ -160,7 +160,7 @@ func (vm *VmImpl) Read(contractAddr common.Address, method string, args ...[]byt
 			err = errors.New(fmt.Sprint(r))
 		}
 	}()
-	contract := vm.createContract(&env2.ReadContextImpl{Contract: contractAddr}, *vm.appState.State.GetCodeHash(contractAddr))
+	contract := vm.createContract(&env2.ReadContextImpl{Contract: contractAddr, Hash: *vm.appState.State.GetCodeHash(contractAddr)})
 	if contract == nil {
 		return nil, errors.New("unknown contract")
 	}

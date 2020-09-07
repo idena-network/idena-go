@@ -23,10 +23,10 @@ func NewRefundableEvidenceLock(ctx env.CallContext, e env.Env) *RefundableEviden
 }
 
 func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
-	if factEvidenceAddr, err := helpers.ExtractAddr(0, args...); err != nil {
+	if oracleVoting, err := helpers.ExtractAddr(0, args...); err != nil {
 		return err
 	} else {
-		e.SetArray("factEvidenceAddr", factEvidenceAddr.Bytes())
+		e.SetArray("oracleVoting", oracleVoting.Bytes())
 	}
 	if value, err := helpers.ExtractByte(1, args...); err != nil {
 		return err
@@ -88,8 +88,8 @@ func (e *RefundableEvidenceLock) Read(method string, args ...[]byte) ([]byte, er
 }
 
 func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
-	var factEvidenceAddr common.Address
-	factEvidenceAddr.SetBytes(e.GetArray("factEvidenceAddr"))
+	var oracleVotingAddr common.Address
+	oracleVotingAddr.SetBytes(e.GetArray("oracleVoting"))
 
 	if uint64(e.env.BlockTimeStamp()) > e.GetUint64("depositDeadline") {
 		return errors.New("deposit is late")
@@ -115,9 +115,9 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	feeRate := e.GetByte("factEvidenceFee")
 
 	fee := decimal.NewFromBigInt(e.ctx.PayAmount(), 0)
-	fee.Mul(decimal.NewFromInt(int64(feeRate))).Div(decimal.NewFromInt(100))
+	fee = fee.Mul(decimal.NewFromInt(int64(feeRate))).Div(decimal.NewFromInt(100))
 
-	err := e.env.Send(e.ctx, factEvidenceAddr, math2.ToInt(fee))
+	err := e.env.Send(e.ctx, oracleVotingAddr, math2.ToInt(fee))
 	if err != nil {
 		return err
 	}
@@ -125,11 +125,12 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 }
 
 func (e *RefundableEvidenceLock) push(args ...[]byte) error {
-	var factEvidenceAddr common.Address
-	factEvidenceAddr.SetBytes(e.GetArray("factEvidenceAddr"))
+	var oracleVoting common.Address
+	oracleVoting.SetBytes(e.GetArray("oracleVoting"))
+	oracleVotingExist := e.env.ContractStake(oracleVoting) != nil && e.env.ContractStake(oracleVoting).Sign() > 0
 
-	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(factEvidenceAddr, []byte("state")))
-	if state != 2 {
+	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(oracleVoting, []byte("state")))
+	if state != 2 && oracleVotingExist {
 		return errors.New("voting is not completed")
 	}
 	expected := e.GetByte("value")
@@ -140,7 +141,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 	var successAddr common.Address
 	successAddr.SetBytes(e.GetArray("successAddr"))
 
-	votedValue, _ := helpers.ExtractByte(0, e.env.ReadContractData(factEvidenceAddr, []byte("result")))
+	votedValue, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("result")))
 
 	if expected == votedValue && !successAddr.IsEmpty() {
 		e.SetByte("state", 2) // - unlocked success
@@ -154,7 +155,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 
 	if expected == votedValue && successAddr.IsEmpty() ||
 		expected != votedValue && failAddr.IsEmpty() ||
-		e.env.ContractStake(factEvidenceAddr).Sign() == 0 {
+		!oracleVotingExist {
 		e.SetByte("state", 4) // - unlocked refund
 		delay := e.GetUint64("refundDelay")
 		e.SetUint64("refundBlock", e.env.BlockNumber()+delay)

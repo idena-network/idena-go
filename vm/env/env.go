@@ -33,7 +33,7 @@ type Env interface {
 	SetValue(ctx CallContext, key []byte, value []byte)
 	GetValue(ctx CallContext, key []byte) []byte
 	RemoveValue(ctx CallContext, key []byte)
-	Deploy(ctx CallContext, codeHash common.Hash)
+	Deploy(ctx CallContext)
 	Send(ctx CallContext, dest common.Address, amount *big.Int) error
 	MinFeePerByte() *big.Int
 	Balance(address common.Address) *big.Int
@@ -120,10 +120,10 @@ func (e *EnvImp) Send(ctx CallContext, dest common.Address, amount *big.Int) err
 	return nil
 }
 
-func (e *EnvImp) Deploy(ctx CallContext, codeHash common.Hash) {
+func (e *EnvImp) Deploy(ctx CallContext) {
 	e.deployedContractCache[ctx.ContractAddr()] = &state.ContractData{
 		Stake:    ctx.PayAmount(),
-		CodeHash: codeHash,
+		CodeHash: ctx.CodeHash(),
 	}
 	e.gasCounter.AddGas(200)
 }
@@ -210,7 +210,7 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 	if cache, ok := e.contractStoreCache[addr]; ok {
 		for key, value := range cache {
 			keyBytes := []byte(key)
-			if bytes.Compare(keyBytes, minKey) >= 0 && bytes.Compare(keyBytes, maxKey) <= 0 {
+			if (bytes.Compare(keyBytes, minKey) >= 0 || minKey == nil) && (bytes.Compare(keyBytes, maxKey) <= 0 || maxKey == nil) {
 				iteratedKeys[key] = struct{}{}
 				e.gasCounter.AddReadBytesAsGas(10 * len(value.value))
 				if !value.removed && f(keyBytes, value.value) {
@@ -349,10 +349,16 @@ type CallContext interface {
 	Epoch() uint16
 	Nonce() uint32
 	PayAmount() *big.Int
+	CodeHash() common.Hash
 }
 
 type CallContextImpl struct {
-	tx *types.Transaction
+	tx       *types.Transaction
+	codeHash common.Hash
+}
+
+func NewCallContextImpl(tx *types.Transaction, codeHash common.Hash) *CallContextImpl {
+	return &CallContextImpl{tx: tx, codeHash: codeHash}
 }
 
 func (c *CallContextImpl) PayAmount() *big.Int {
@@ -367,10 +373,6 @@ func (c *CallContextImpl) Nonce() uint32 {
 	return c.tx.AccountNonce
 }
 
-func NewCallContextImpl(tx *types.Transaction) *CallContextImpl {
-	return &CallContextImpl{tx: tx}
-}
-
 func (c *CallContextImpl) ContractAddr() common.Address {
 	return *c.tx.To
 }
@@ -380,16 +382,25 @@ func (c *CallContextImpl) Sender() common.Address {
 	return addr
 }
 
+func (c *CallContextImpl) CodeHash() common.Hash {
+	return c.codeHash
+}
+
 type DeployContextImpl struct {
-	tx *types.Transaction
+	tx       *types.Transaction
+	codeHash common.Hash
 }
 
 func (d *DeployContextImpl) PayAmount() *big.Int {
 	return d.tx.Amount
 }
 
-func NewDeployContextImpl(tx *types.Transaction) *DeployContextImpl {
-	return &DeployContextImpl{tx: tx}
+func NewDeployContextImpl(tx *types.Transaction, codeHash common.Hash) *DeployContextImpl {
+	return &DeployContextImpl{tx: tx, codeHash: codeHash}
+}
+
+func (d *DeployContextImpl) CodeHash() common.Hash {
+	return d.codeHash
 }
 
 func (d *DeployContextImpl) Epoch() uint16 {
@@ -414,6 +425,11 @@ func (d *DeployContextImpl) ContractAddr() common.Address {
 
 type ReadContextImpl struct {
 	Contract common.Address
+	Hash     common.Hash
+}
+
+func (r *ReadContextImpl) CodeHash() common.Hash {
+	return r.Hash
 }
 
 func (r *ReadContextImpl) Sender() common.Address {

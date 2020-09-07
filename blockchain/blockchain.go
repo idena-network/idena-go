@@ -924,21 +924,23 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	case types.DeployContract, types.CallContract, types.TerminateContract:
+		amount := tx.AmountOrZero()
+		if amount.Sign() > 0 && tx.Type == types.CallContract {
+			stateDB.SubBalance(sender, amount)
+			stateDB.AddBalance(*tx.To, amount)
+		}
 		receipt = vm.Run(tx, chain.getGasLimit(appState, tx))
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
+		}
+		if !receipt.Success {
+			stateDB.AddBalance(sender, amount)
+			stateDB.SubBalance(*tx.To, amount)
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
 		fee = fee.Add(fee, receipt.GasCost)
 		stateDB.SubBalance(sender, fee)
 		stateDB.SubBalance(sender, tx.TipsOrZero())
-		amount := tx.AmountOrZero()
-		if receipt.Success && amount.Sign() > 0 {
-			stateDB.SubBalance(sender, amount)
-			if tx.Type == types.CallContract {
-				stateDB.AddBalance(receipt.ContractAddress, amount)
-			}
-		}
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -1137,7 +1139,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
-	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, nil, nil)
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, receipts, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
 	hash := crypto.SignatureHash(proposal)
@@ -1395,7 +1397,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
-	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, nil, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, receipts, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
@@ -1419,7 +1421,6 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	if bytes.Compare(receiptCidBytes, block.Header.ProposedHeader.TxReceiptsCid) != 0 {
 		return errors.New("invalid receipt cid")
 	}
-
 	return nil
 }
 
@@ -2003,6 +2004,6 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	return nil
 }
 
-func (chain *Blockchain) ReadEvents(token []byte, count int) ([]*types.SavedEvent, []byte) {
-	return chain.repo.GetSavedEvents(token, count)
+func (chain *Blockchain) ReadEvents(contract common.Address) []*types.SavedEvent {
+	return chain.repo.GetSavedEvents(contract)
 }
