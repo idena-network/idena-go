@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
+	"github.com/shopspring/decimal"
 	"math/big"
 )
 
@@ -90,11 +91,22 @@ type StatsCollector interface {
 	AddEvidenceLockCallPush(oracleVotingResult byte, transfer *big.Int)
 	AddEvidenceLockTermination(dest common.Address)
 
+	AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
+		failAddress common.Address, refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int)
+	AddRefundableEvidenceLockCallDeposit(sum, fee *big.Int)
+	AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64)
+	AddRefundableEvidenceLockCallRefund(balance *big.Int, coef decimal.Decimal)
+	AddRefundableEvidenceLockTermination(dest common.Address)
+
 	AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte)
 	AddMultisigCallAdd(address common.Address, newState *byte)
 	AddMultisigCallSend(dest common.Address, amount []byte)
 	AddMultisigCallPush(dest common.Address, amount []byte)
 	AddMultisigTermination(dest common.Address)
+
+	AddTimeLockDeploy(contractAddress common.Address, timestamp uint64)
+	AddTimeLockCallTransfer(dest common.Address, amount *big.Int)
+	AddTimeLockTermination(dest common.Address)
 
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 }
@@ -775,6 +787,66 @@ func AddEvidenceLockTermination(c StatsCollector, dest common.Address) {
 	c.AddEvidenceLockTermination(dest)
 }
 
+func (c *collectorStub) AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
+	value byte, successAddress common.Address, failAddress common.Address, refundDelay, depositDeadline uint64,
+	factEvidenceFee byte, state byte, sum *big.Int) {
+	// do nothing
+}
+
+func AddRefundableEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
+	value byte, successAddress common.Address, failAddress common.Address, refundDelay, depositDeadline uint64,
+	factEvidenceFee byte, state byte, sum *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddRefundableEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress, refundDelay,
+		depositDeadline, factEvidenceFee, state, sum)
+}
+
+func (c *collectorStub) AddRefundableEvidenceLockCallDeposit(sum, fee *big.Int) {
+	// do nothing
+}
+
+func AddRefundableEvidenceLockCallDeposit(c StatsCollector, sum, fee *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddRefundableEvidenceLockCallDeposit(sum, fee)
+}
+
+func (c *collectorStub) AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
+	// do nothing
+}
+
+func AddRefundableEvidenceLockCallPush(c StatsCollector, state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
+	if c == nil {
+		return
+	}
+	c.AddRefundableEvidenceLockCallPush(state, oracleVotingResult, transfer, refundBlock)
+}
+
+func (c *collectorStub) AddRefundableEvidenceLockCallRefund(balance *big.Int, coef decimal.Decimal) {
+	// do nothing
+}
+
+func AddRefundableEvidenceLockCallRefund(c StatsCollector, balance *big.Int, coef decimal.Decimal) {
+	if c == nil {
+		return
+	}
+	c.AddRefundableEvidenceLockCallRefund(balance, coef)
+}
+
+func (c *collectorStub) AddRefundableEvidenceLockTermination(dest common.Address) {
+	// do nothing
+}
+
+func AddRefundableEvidenceLockTermination(c StatsCollector, dest common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddRefundableEvidenceLockTermination(dest)
+}
+
 func (c *collectorStub) AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte) {
 	// do nothing
 }
@@ -828,6 +900,39 @@ func AddMultisigTermination(c StatsCollector, dest common.Address) {
 		return
 	}
 	c.AddMultisigTermination(dest)
+}
+
+func (c *collectorStub) AddTimeLockDeploy(contractAddress common.Address, timestamp uint64) {
+	// do nothing
+}
+
+func AddTimeLockDeploy(c StatsCollector, contractAddress common.Address, timestamp uint64) {
+	if c == nil {
+		return
+	}
+	c.AddTimeLockDeploy(contractAddress, timestamp)
+}
+
+func (c *collectorStub) AddTimeLockCallTransfer(dest common.Address, amount *big.Int) {
+	// do nothing
+}
+
+func AddTimeLockCallTransfer(c StatsCollector, dest common.Address, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddTimeLockCallTransfer(dest, amount)
+}
+
+func (c *collectorStub) AddTimeLockTermination(dest common.Address) {
+	// do nothing
+}
+
+func AddTimeLockTermination(c StatsCollector, dest common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddTimeLockTermination(dest)
 }
 
 func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState) {

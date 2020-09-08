@@ -3,6 +3,7 @@ package embedded
 import (
 	"github.com/idena-network/idena-go/common"
 	math2 "github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -23,22 +24,24 @@ func NewRefundableEvidenceLock(ctx env.CallContext, e env.Env) *RefundableEviden
 }
 
 func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
-	if oracleVoting, err := helpers.ExtractAddr(0, args...); err != nil {
+	oracleVoting, err := helpers.ExtractAddr(0, args...)
+	if err != nil {
 		return err
-	} else {
-		e.SetArray("oracleVoting", oracleVoting.Bytes())
 	}
-	if value, err := helpers.ExtractByte(1, args...); err != nil {
+	e.SetArray("oracleVoting", oracleVoting.Bytes())
+	value, err := helpers.ExtractByte(1, args...)
+	if err != nil {
 		return err
-	} else {
-		e.SetByte("value", value)
 	}
+	e.SetByte("value", value)
 
-	if successAddr, err := helpers.ExtractAddr(2, args...); err == nil {
+	successAddr, err := helpers.ExtractAddr(2, args...)
+	if err == nil {
 		e.SetArray("successAddr", successAddr.Bytes())
 	}
 
-	if failAddr, err := helpers.ExtractAddr(3, args...); err == nil {
+	failAddr, err := helpers.ExtractAddr(3, args...)
+	if err == nil {
 		e.SetArray("failAddr", failAddr.Bytes())
 	}
 
@@ -48,7 +51,8 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	}
 	e.SetUint64("refundDelay", refundDelay)
 
-	if depositDeadline, err := helpers.ExtractUInt64(5, args...); err == nil {
+	depositDeadline, err := helpers.ExtractUInt64(5, args...)
+	if err == nil {
 		e.SetUint64("depositDeadline", depositDeadline)
 	} else {
 		return errors.Wrap(err, "depositDeadline (5) is required")
@@ -65,8 +69,13 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	e.BaseContract.Deploy(RefundableEvidenceLockContract)
 	e.SetOwner(e.ctx.Sender())
 
-	e.SetByte("state", 1) // - locked
-	e.SetBigInt("sum", big.NewInt(0))
+	state := byte(1) // - locked
+	e.SetByte("state", state)
+	sum := big.NewInt(0)
+	e.SetBigInt("sum", sum)
+
+	collector.AddRefundableEvidenceLockDeploy(e.statsCollector, e.ctx.ContractAddr(), factEvidenceAddr, value, successAddr,
+		failAddr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
 	return nil
 }
 
@@ -117,10 +126,12 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	fee := decimal.NewFromBigInt(e.ctx.PayAmount(), 0)
 	fee = fee.Mul(decimal.NewFromInt(int64(feeRate))).Div(decimal.NewFromInt(100))
 
-	err := e.env.Send(e.ctx, oracleVotingAddr, math2.ToInt(fee))
+	feeInt := math2.ToInt(fee)
+	err := e.env.Send(e.ctx, oracleVotingAddr, feeInt)
 	if err != nil {
 		return err
 	}
+	collector.AddRefundableEvidenceLockCallDeposit(e.statsCollector, sum, feeInt)
 	return nil
 }
 
@@ -143,23 +154,34 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 
 	votedValue, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("result")))
 
+	var newState byte
+	var amount *big.Int
 	if expected == votedValue && !successAddr.IsEmpty() {
-		e.SetByte("state", 2) // - unlocked success
-		e.env.Send(e.ctx, successAddr, e.env.Balance(e.ctx.ContractAddr()))
+		newState = 2 // - unlocked success
+		e.SetByte("state", newState)
+		amount = e.env.Balance(e.ctx.ContractAddr())
+		e.env.Send(e.ctx, successAddr, amount)
 	}
 
 	if expected != votedValue && !failAddr.IsEmpty() {
-		e.SetByte("state", 3) // - unlocked fail
-		e.env.Send(e.ctx, failAddr, e.env.Balance(e.ctx.ContractAddr()))
+		newState = 3 // - unlocked fail
+		e.SetByte("state", newState)
+		amount = e.env.Balance(e.ctx.ContractAddr())
+		e.env.Send(e.ctx, failAddr, amount)
 	}
 
+	var refundBlock uint64
 	if expected == votedValue && successAddr.IsEmpty() ||
 		expected != votedValue && failAddr.IsEmpty() ||
 		!oracleVotingExist {
-		e.SetByte("state", 4) // - unlocked refund
+		newState = 4 // - unlocked refund
+		e.SetByte("state", newState)
 		delay := e.GetUint64("refundDelay")
-		e.SetUint64("refundBlock", e.env.BlockNumber()+delay)
+		refundBlock = e.env.BlockNumber() + delay
+		e.SetUint64("refundBlock", refundBlock)
 	}
+
+	collector.AddRefundableEvidenceLockCallPush(e.statsCollector, newState, votedValue, amount, refundBlock)
 
 	return nil
 }
@@ -193,6 +215,7 @@ func (e *RefundableEvidenceLock) refund(args ...[]byte) error {
 		err = e.env.Send(e.ctx, dest, math2.ToInt(decimal.NewFromBigInt(deposit, 0).Mul(k)))
 		return err != nil
 	})
+	collector.AddRefundableEvidenceLockCallRefund(e.statsCollector, balance, k)
 	return err
 }
 
@@ -209,5 +232,6 @@ func (e *RefundableEvidenceLock) Terminate(args ...[]byte) error {
 		return err
 	}
 	e.env.Terminate(e.ctx, dest)
+	collector.AddRefundableEvidenceLockTermination(e.statsCollector, dest)
 	return nil
 }

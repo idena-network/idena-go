@@ -22,14 +22,15 @@ func NewTimeLock(ctx env.CallContext, env env.Env, statsCollector collector.Stat
 }
 
 func (t *TimeLock) Deploy(args ...[]byte) error {
-	if time, err := helpers.ExtractUInt64(0, args...); err != nil {
+	time, err := helpers.ExtractUInt64(0, args...)
+	if err != nil {
 		return err
-	} else {
-		t.SetUint64("timestamp", time)
 	}
+	t.SetUint64("timestamp", time)
 
 	t.BaseContract.Deploy(TimeLockContract)
 	t.SetOwner(t.ctx.Sender())
+	collector.AddTimeLockDeploy(t.statsCollector, t.ctx.ContractAddr(), time)
 	return nil
 }
 
@@ -66,6 +67,7 @@ func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	if err := t.env.Send(t.ctx, dest, amount); err != nil {
 		return err
 	}
+	collector.AddTimeLockCallTransfer(t.statsCollector, dest, amount)
 	return nil
 }
 
@@ -85,5 +87,6 @@ func (t *TimeLock) Terminate(args ...[]byte) error {
 		return err
 	}
 	t.env.Terminate(t.ctx, dest)
+	collector.AddTimeLockTermination(t.statsCollector, dest)
 	return nil
 }
