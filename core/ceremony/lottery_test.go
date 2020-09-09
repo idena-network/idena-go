@@ -8,52 +8,6 @@ import (
 	"testing"
 )
 
-func TestHasRelation(t *testing.T) {
-	a := &candidate{
-		Generation: 4,
-		Code:       []byte{0x5, 0x6, 0x7, 0x8, 0x4, 0xf, 0x3},
-	}
-	b := &candidate{
-		Generation: 8,
-		Code:       []byte{0x4, 0xf, 0x3, 0xc, 0xf, 0x3, 0x4},
-	}
-
-	require.True(t, hasRelation(a, b, 3))
-
-	a = &candidate{
-		Generation: 2,
-		Code:       []byte{0x5, 0x6, 0x7, 0x8, 0x4, 0xf, 0x3},
-	}
-	b = &candidate{
-		Generation: 8,
-		Code:       []byte{0x3, 0xf, 0x3, 0xc, 0xf, 0x3, 0x4},
-	}
-
-	require.True(t, hasRelation(a, b, 1))
-
-	a = &candidate{
-		Generation: 0,
-		Code:       []byte{0x5, 0x6, 0x7, 0x8, 0x4, 0xf, 0x3},
-	}
-	b = &candidate{
-		Generation: 8,
-		Code:       []byte{0x3, 0xf, 0x3, 0xc, 0xf, 0x3, 0x4},
-	}
-
-	require.False(t, hasRelation(a, b, 5))
-
-	a = &candidate{
-		Generation: 4,
-		Code:       []byte{0x5, 0x6, 0x7, 0x8, 0x4, 0xf, 0x4},
-	}
-	b = &candidate{
-		Generation: 8,
-		Code:       []byte{0x4, 0xf, 0x3, 0xc, 0xf, 0x3, 0x4},
-	}
-
-	require.False(t, hasRelation(a, b, 5))
-}
-
 func Test_GetFirstAuthorsDistribution(t *testing.T) {
 	seed := make([]byte, 8)
 	binary.LittleEndian.PutUint64(seed, 100)
