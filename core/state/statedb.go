@@ -856,13 +856,22 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		delete(s.stateIdentitiesDirty, addr)
 	}
 
-	for k, v := range s.contractStoreCache {
+	var keys []string
+	for k := range s.contractStoreCache {
+		keys = append(keys, k)
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		return keys[i] > keys[j]
+	})
+	for _, k := range keys {
+		v := s.contractStoreCache[k]
 		if v.removed {
 			s.tree.Remove([]byte(k))
 		} else {
 			s.tree.Set([]byte(k), v.value)
 		}
 	}
+	s.contractStoreCache = make(map[string]*contractStoreValue)
 
 	s.lock.Unlock()
 

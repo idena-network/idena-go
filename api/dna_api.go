@@ -849,7 +849,12 @@ func (api *DnaApi) CallContract(ctx context.Context, args CallContractArgs) (com
 		return common.Hash{}, err
 	}
 	if args.BroadcastBlock > 0 {
-		err = api.deferredTxs.AddDeferredTx(args.From, &args.Contract, blockchain.ConvertToInt(args.Amount), tx.Payload, common.Big0, args.BroadcastBlock)
+		from := args.From
+		if from.IsEmpty() {
+			from = api.GetCoinbaseAddr()
+		}
+
+		err = api.deferredTxs.AddDeferredTx(from, &args.Contract, blockchain.ConvertToInt(args.Amount), tx.Payload, common.Big0, args.BroadcastBlock)
 		return tx.Hash(), err
 	}
 	return api.baseApi.sendInternalTx(ctx, tx)
@@ -904,14 +909,14 @@ func (api *DnaApi) Events(args EventsArgs) interface{} {
 	events := api.bc.ReadEvents(args.Contract)
 
 	var list []*Event
-	for _, item := range events {
+	for idx := range events {
 		e := &Event{
-			Contract: item.Contract,
-			Event:    item.Event,
+			Contract: events[idx].Contract,
+			Event:    events[idx].Event,
 		}
 		list = append(list, e)
-		for _, arg := range item.Args {
-			e.Args = append(e.Args, arg)
+		for i := range events[idx].Args {
+			e.Args = append(e.Args, events[idx].Args[i])
 		}
 	}
 	return list

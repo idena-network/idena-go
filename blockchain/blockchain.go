@@ -933,7 +933,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
-		if !receipt.Success {
+		if !receipt.Success && tx.Type == types.CallContract {
 			stateDB.AddBalance(sender, amount)
 			stateDB.SubBalance(*tx.To, amount)
 		}
@@ -1307,7 +1307,7 @@ func (chain *Blockchain) WriteTxReceipts(cid []byte, receipts types.TxReceipts) 
 	for _, s := range chain.subManager.Subscriptions() {
 		eventMap, ok := m[s.Contract]
 		if !ok {
-			eventMap := make(map[string]struct{})
+			eventMap = make(map[string]struct{})
 			m[s.Contract] = eventMap
 		}
 		eventMap[s.Event] = struct{}{}

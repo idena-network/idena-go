@@ -1448,6 +1448,13 @@ func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
 	if r.GasCost != nil {
 		protoObj.GasCost = r.GasCost.Bytes()
 	}
+	for idx := range r.Events {
+		e := r.Events[idx]
+		protoObj.Events = append(protoObj.Events, &models.ProtoTxReceipts_ProtoEvent{
+			Event: e.EventName,
+			Data:  e.Data,
+		})
+	}
 	return protoObj
 }
 
@@ -1477,6 +1484,14 @@ func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
 	var hash common.Hash
 	hash.SetBytes(protoObj.TxHash)
 	r.TxHash = hash
+
+	for idx := range protoObj.Events {
+		e := protoObj.Events[idx]
+		r.Events = append(r.Events, &TxEvent{
+			EventName: e.Event,
+			Data:      e.Data,
+		})
+	}
 }
 
 func (r *TxReceipt) FromBytes(data []byte) error {

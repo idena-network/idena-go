@@ -181,9 +181,6 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 }
 
 func (f *OracleVoting) startVoting() error {
-	if !f.IsOwner() {
-		return errors.New("sender is not an owner")
-	}
 	if f.GetUint64("state") != 0 {
 		return errors.New("contract is not in pending state")
 	}
@@ -344,7 +341,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 				dest := common.Address{}
 				dest.SetBytes(key)
 				f.env.Send(f.ctx, dest, reward)
-				f.env.Event("reward", f.ctx.Sender().Bytes(), reward.Bytes())
+				f.env.Event("reward", dest.Bytes(), reward.Bytes())
 			}
 			return false
 		})

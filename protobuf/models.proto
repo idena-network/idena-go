@@ -482,7 +482,14 @@ message ProtoTxReceipts {
         string error = 5;
         bytes gasCost = 6;
         bytes txHash = 7;
+        repeated ProtoEvent events = 8;
     }
+
+    message ProtoEvent {
+        string event = 1;
+        repeated bytes data = 2;
+    }
+
     repeated ProtoTxReceipt receipts = 1;
 }
 

@@ -36,7 +36,7 @@ func NewManager(datadir string) (*Manager, error) {
 
 		list := []*Subscription{}
 		if err := json.Unmarshal(data, &list); err != nil {
-			log.Warn("cannot parse subscription.json", "err", err)
+			log.Warn("cannot parse subscriptions.json", "err", err)
 		}
 		m.list = list
 	}
