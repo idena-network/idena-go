@@ -230,6 +230,11 @@ func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
 		if p.Epoch == 53 {
 			continue
 		}
+		//SET HERE STUPID CODE TO CONTIUNE
+		
+		
+		
+		
 		list = append(list, k)
 	}
 	return list
@@ -428,7 +433,7 @@ func getEncryptedKeyFromPackage(publicFlipKey *ecies.PrivateKey, data []byte, in
 	}
 
 	if index > len(keysArray.Pairs)-1 {
-		return nil, errors.New(fmt.Sprintf("ecnrypted private keys package length is invalid, current: %v, need index: %v", len(keysArray.Pairs), index))
+		return nil, errors.New(fmt.Sprintf("ecnrypted private keys package length is invalid, current: %v, need index: %v", len(keysArray.Pairs), index))//funny
 	}
 
 	return keysArray.Pairs[index], nil
