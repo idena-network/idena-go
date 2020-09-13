@@ -35,13 +35,13 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	}
 	e.SetByte("value", value)
 
-	successAddr, err := helpers.ExtractAddr(2, args...)
-	if err == nil {
+	successAddr, successAddrErr := helpers.ExtractAddr(2, args...)
+	if successAddrErr == nil {
 		e.SetArray("successAddr", successAddr.Bytes())
 	}
 
-	failAddr, err := helpers.ExtractAddr(3, args...)
-	if err == nil {
+	failAddr, failAddrErr := helpers.ExtractAddr(3, args...)
+	if failAddrErr == nil {
 		e.SetArray("failAddr", failAddr.Bytes())
 	}
 
@@ -75,7 +75,7 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	e.SetBigInt("sum", sum)
 
 	collector.AddRefundableEvidenceLockDeploy(e.statsCollector, e.ctx.ContractAddr(), factEvidenceAddr, value, successAddr,
-		failAddr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
+		successAddrErr, failAddr, failAddrErr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
-	collector.AddRefundableEvidenceLockCallDeposit(e.statsCollector, sum, feeInt)
+	collector.AddRefundableEvidenceLockCallDeposit(e.statsCollector, balance, sum, feeInt)
 	return nil
 }
 

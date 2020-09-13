@@ -80,12 +80,13 @@ func (e *OracleLock) push(args ...[]byte) error {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("failAddr"))
 		e.env.Send(e.ctx, dest, amount)
+		collector.AddEvidenceLockCallPush(e.statsCollector, false, votedValue, err, amount)
 	} else {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("successAddr"))
 		e.env.Send(e.ctx, dest, amount)
+		collector.AddEvidenceLockCallPush(e.statsCollector, true, votedValue, err, amount)
 	}
-	collector.AddEvidenceLockCallPush(e.statsCollector, votedValue, amount)
 	return nil
 }
 

@@ -88,12 +88,13 @@ type StatsCollector interface {
 
 	AddEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
 		failAddress common.Address)
-	AddEvidenceLockCallPush(oracleVotingResult byte, transfer *big.Int)
+	AddEvidenceLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int)
 	AddEvidenceLockTermination(dest common.Address)
 
-	AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
-		failAddress common.Address, refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int)
-	AddRefundableEvidenceLockCallDeposit(sum, fee *big.Int)
+	AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte,
+		successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
+		refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int)
+	AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee *big.Int)
 	AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64)
 	AddRefundableEvidenceLockCallRefund(balance *big.Int, coef decimal.Decimal)
 	AddRefundableEvidenceLockTermination(dest common.Address)
@@ -765,15 +766,15 @@ func AddEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, ora
 	c.AddEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress)
 }
 
-func (c *collectorStub) AddEvidenceLockCallPush(oracleVotingResult byte, transfer *big.Int) {
+func (c *collectorStub) AddEvidenceLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
 	// do nothing
 }
 
-func AddEvidenceLockCallPush(c StatsCollector, oracleVotingResult byte, transfer *big.Int) {
+func AddEvidenceLockCallPush(c StatsCollector, success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddEvidenceLockCallPush(oracleVotingResult, transfer)
+	c.AddEvidenceLockCallPush(success, oracleVotingResult, oracleVotingResultErr, transfer)
 }
 
 func (c *collectorStub) AddEvidenceLockTermination(dest common.Address) {
@@ -788,30 +789,30 @@ func AddEvidenceLockTermination(c StatsCollector, dest common.Address) {
 }
 
 func (c *collectorStub) AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
-	value byte, successAddress common.Address, failAddress common.Address, refundDelay, depositDeadline uint64,
-	factEvidenceFee byte, state byte, sum *big.Int) {
+	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
+	refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int) {
 	// do nothing
 }
 
 func AddRefundableEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
-	value byte, successAddress common.Address, failAddress common.Address, refundDelay, depositDeadline uint64,
-	factEvidenceFee byte, state byte, sum *big.Int) {
+	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
+	refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress, refundDelay,
-		depositDeadline, factEvidenceFee, state, sum)
+	c.AddRefundableEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, successAddressErr,
+		failAddress, failAddressErr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockCallDeposit(sum, fee *big.Int) {
+func (c *collectorStub) AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee *big.Int) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockCallDeposit(c StatsCollector, sum, fee *big.Int) {
+func AddRefundableEvidenceLockCallDeposit(c StatsCollector, ownSum, sum, fee *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockCallDeposit(sum, fee)
+	c.AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee)
 }
 
 func (c *collectorStub) AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
