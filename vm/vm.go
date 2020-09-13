@@ -39,7 +39,7 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.OracleVotingContract:
 		return embedded.NewOracleVotingContract(ctx, vm.env)
 	case embedded.EvidenceLockContract:
-		return embedded.NewEvidenceLock(ctx, vm.env)
+		return embedded.NewOracleLock(ctx, vm.env)
 	case embedded.RefundableEvidenceLockContract:
 		return embedded.NewRefundableEvidenceLock(ctx, vm.env)
 	case embedded.MultisigContract:

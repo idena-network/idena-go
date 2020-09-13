@@ -7,22 +7,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-type EvidenceLock struct {
+type OracleLock struct {
 	*BaseContract
 }
 
-func NewEvidenceLock(ctx env.CallContext, e env.Env) *EvidenceLock {
-	return &EvidenceLock{&BaseContract{
+func NewOracleLock(ctx env.CallContext, e env.Env) *OracleLock {
+	return &OracleLock{&BaseContract{
 		ctx: ctx,
 		env: e,
 	}}
 }
 
-func (e *EvidenceLock) Deploy(args ...[]byte) error {
-	if factEvidenceAddr, err := helpers.ExtractAddr(0, args...); err != nil {
+func (e *OracleLock) Deploy(args ...[]byte) error {
+	if oracleVotingAddr, err := helpers.ExtractAddr(0, args...); err != nil {
 		return err
 	} else {
-		e.SetArray("factEvidenceAddr", factEvidenceAddr.Bytes())
+		e.SetArray("oracleVotingAddr", oracleVotingAddr.Bytes())
 	}
 	if value, err := helpers.ExtractByte(1, args...); err != nil {
 		return err
@@ -47,7 +47,7 @@ func (e *EvidenceLock) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func (e *EvidenceLock) Call(method string, args ...[]byte) error {
+func (e *OracleLock) Call(method string, args ...[]byte) error {
 	switch method {
 	case "push":
 		return e.push(args...)
@@ -56,21 +56,21 @@ func (e *EvidenceLock) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (e *EvidenceLock) Read(method string, args ...[]byte) ([]byte, error) {
+func (e *OracleLock) Read(method string, args ...[]byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (e *EvidenceLock) push(args ...[]byte) error {
-	var factEvidenceAddr common.Address
-	factEvidenceAddr.SetBytes(e.GetArray("factEvidenceAddr"))
+func (e *OracleLock) push(args ...[]byte) error {
+	var oracleVotingAddr common.Address
+	oracleVotingAddr.SetBytes(e.GetArray("oracleVotingAddr"))
 
-	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(factEvidenceAddr, []byte("state")))
+	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(oracleVotingAddr, []byte("state")))
 	if state != 2 {
 		return errors.New("voting is not completed")
 	}
 	expected := e.GetByte("value")
 
-	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(factEvidenceAddr, []byte("result")))
+	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(oracleVotingAddr, []byte("result")))
 	if err != nil || expected != votedValue {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("failAddr"))
@@ -83,7 +83,7 @@ func (e *EvidenceLock) push(args ...[]byte) error {
 	return nil
 }
 
-func (e *EvidenceLock) Terminate(args ...[]byte) error {
+func (e *OracleLock) Terminate(args ...[]byte) error {
 	if !e.IsOwner() {
 		return errors.New("sender is not an owner")
 	}

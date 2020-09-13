@@ -57,8 +57,6 @@ func (f *OracleVoting) Call(method string, args ...[]byte) error {
 		return f.finishVoting(args...)
 	case "prolongVoting":
 		return f.prolongVoting(args...)
-	case "terminate":
-		return f.terminate(args...)
 	default:
 		return errors.New("unknown method")
 	}
@@ -219,6 +217,9 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	}
 	if f.GetUint64("state") != 1 {
 		return errors.New("contract is not in running state")
+	}
+	if f.votes.Get(f.ctx.Sender().Bytes()) != nil {
+		return errors.New("sender has voted already")
 	}
 
 	duration := f.GetUint64("votingDuration")
@@ -385,15 +386,18 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		votedCount < committeeSize*quorum/100 &&
 		duration >= votingDuration+publicVotingDuration {
 		f.SetArray("vrfSeed", f.env.BlockSeed())
-		f.SetUint64("startBlock", f.env.BlockNumber())
+		if duration >= votingDuration+publicVotingDuration {
+			f.SetUint64("startBlock", f.env.BlockNumber())
+		}
 		f.SetUint16("epoch", f.env.Epoch())
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *OracleVoting) terminate(args ...[]byte) error {
-	if f.GetUint64("state") != 1 {
+func (f *OracleVoting) Terminate(args ...[]byte) error {
+
+	if f.GetUint64("state") < 1 {
 		return errors.New("contract is not in running state")
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
@@ -402,39 +406,13 @@ func (f *OracleVoting) terminate(args ...[]byte) error {
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 	if duration >= votingDuration+publicVotingDuration*2 {
 		balance := f.env.Balance(f.ctx.ContractAddr())
-		if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
-			return err
+		if balance.Sign() > 0 {
+			if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
+				return err
+			}
 		}
-		f.SetUint64("state", 2)
+		f.env.Terminate(f.ctx, f.Owner())
 		return nil
 	}
 	return errors.New("voting can not be terminated")
-}
-
-func (f *OracleVoting) Terminate(args ...[]byte) error {
-	if !f.IsOwner() {
-		return errors.New("sender is not an owner")
-	}
-	if f.GetUint64("state") != 2 {
-		return errors.New("contract is not in completed state")
-	}
-	balance := f.env.Balance(f.ctx.ContractAddr())
-	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
-	}
-
-	votingDuration := f.GetUint64("votingDuration")
-	publicVotingDuration := f.GetUint64("publicVotingDuration")
-	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
-
-	if duration <= votingDuration*2+publicVotingDuration*3 {
-		return errors.New("contract can not be terminated")
-	}
-
-	dest, err := helpers.ExtractAddr(0, args...)
-	if err != nil {
-		return err
-	}
-	f.env.Terminate(f.ctx, dest)
-	return nil
 }

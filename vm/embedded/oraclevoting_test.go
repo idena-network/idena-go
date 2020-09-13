@@ -279,8 +279,7 @@ func TestFactChecking_Call(t *testing.T) {
 	require.True(t, appState.State.GetBalance(contractAddr).Sign() == 0)
 
 	//terminate
-	destAddr := common.Address{0x2}
-	terminateAttach := attachments.CreateTerminateContractAttachment(destAddr.Bytes())
+	terminateAttach := attachments.CreateTerminateContractAttachment()
 	payload, _ = terminateAttach.ToBytes()
 	tx = &types.Transaction{
 		Epoch:        0,
@@ -291,7 +290,7 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	e = env.NewEnvImp(appState, createHeader(4320*6, 21), gas, secStore)
+	e = env.NewEnvImp(appState, createHeader(4320*3 + 4, 21), gas, secStore)
 	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
 	require.NoError(t, contract.Terminate(terminateAttach.Args...))
 	e.Commit()
@@ -300,7 +299,7 @@ func TestFactChecking_Call(t *testing.T) {
 	printDbSize(db, "After terminating")
 	fmt.Printf("Terminating gas: %v\n", gas.UsedGas)
 
-	require.Equal(t, 0, appState.State.GetBalance(destAddr).Cmp(common.DnaBase))
+	require.Equal(t, 0, appState.State.GetBalance(addr).Cmp(big.NewInt(0).Mul(common.DnaBase, big.NewInt(2))))
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 
