@@ -71,7 +71,7 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		prettyId:             prettyId,
 		stream:               stream,
 		rw:                   rw,
-		queuedRequests:       make(chan *request, 10000),
+		queuedRequests:       make(chan *request, 15000),
 		highPriorityRequests: make(chan *request, 500),
 		term:                 make(chan struct{}),
 		finished:             make(chan struct{}),

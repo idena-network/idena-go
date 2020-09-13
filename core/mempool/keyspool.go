@@ -225,7 +225,11 @@ func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
 
 	var list []common.Hash128
 
-	for k := range p.flipKeyPackagesByHash {
+	for k, p := range p.flipKeyPackagesByHash {
+		//TODO: remove
+		if p.Epoch == 53 {
+			continue
+		}
 		list = append(list, k)
 	}
 	return list
