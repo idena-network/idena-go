@@ -231,6 +231,7 @@ func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
 			continue
 		}
 		//SET HERE STUPID CODE TO CONTIUNE
+		//DEVS set here so this is tx problem so set it if epoch 53 contiue down here we need to add code to network goes on not wait
 		
 		
 		
