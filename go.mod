@@ -10,6 +10,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/deckarep/golang-set v1.7.1
+	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/frankban/quicktest v1.11.1 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3
@@ -62,7 +63,5 @@ require (
 replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20201020104506-2c36f3388d7b
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
-
-replace github.com/dgraph-io/badger => github.com/sidenaio/badger v1.6.2-0.20200617073129-913e8eabdebb
 
 go 1.13
