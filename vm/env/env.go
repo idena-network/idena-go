@@ -49,6 +49,7 @@ type Env interface {
 	Event(name string, args ...[]byte)
 	Epoch() uint16
 	ContractStake(common.Address) *big.Int
+	MoveToStake(ctx CallContext, reward *big.Int) error
 }
 
 type contractValue struct {
@@ -67,6 +68,7 @@ type EnvImp struct {
 	deployedContractCache map[common.Address]*state.ContractData
 	droppedContracts      map[common.Address]struct{}
 	events                []*types.TxEvent
+	contractStakeCache    map[common.Address]*big.Int
 }
 
 func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore) *EnvImp {
@@ -76,6 +78,7 @@ func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter
 		deployedContractCache: map[common.Address]*state.ContractData{},
 		droppedContracts:      map[common.Address]struct{}{},
 		events:                []*types.TxEvent{},
+		contractStakeCache:    map[common.Address]*big.Int{},
 	}
 }
 
@@ -313,6 +316,10 @@ func (e *EnvImp) Commit() []*types.TxEvent {
 	for contract := range e.droppedContracts {
 		e.state.State.DropContract(contract)
 	}
+	for contract, stake := range e.contractStakeCache {
+		e.state.State.SetContractStake(contract, stake)
+	}
+
 	return e.events
 }
 
@@ -330,9 +337,39 @@ func (e *EnvImp) Event(name string, args ...[]byte) {
 	})
 }
 
+func (e *EnvImp) contractStake(contract common.Address) *big.Int {
+	if v, ok := e.deployedContractCache[contract]; ok {
+		return v.Stake
+	}
+	if v, ok := e.contractStakeCache[contract]; ok {
+		return v
+	}
+	return e.state.State.GetContractStake(contract)
+}
+
 func (e *EnvImp) ContractStake(contract common.Address) *big.Int {
 	e.gasCounter.AddGas(10)
-	return e.state.State.GetContractStake(contract)
+	return e.contractStake(contract)
+}
+
+func (e *EnvImp) MoveToStake(ctx CallContext, amount *big.Int) error {
+	balance := e.getBalance(ctx.ContractAddr())
+	if balance.Cmp(amount) < 0 {
+		return errors.New("insufficient funds")
+	}
+	if amount.Sign() < 0 {
+		return errors.New("value must be non-negative")
+	}
+	e.subBalance(ctx.ContractAddr(), amount)
+
+	if v, ok := e.deployedContractCache[ctx.ContractAddr()]; ok {
+		v.Stake = big.NewInt(0).Add(v.Stake, amount)
+		return nil
+	}
+	stake := e.contractStake(ctx.ContractAddr())
+	stake = big.NewInt(0).Add(stake, amount)
+	e.contractStakeCache[ctx.ContractAddr()] = stake
+	return nil
 }
 
 func (e *EnvImp) Reset() {
@@ -340,6 +377,7 @@ func (e *EnvImp) Reset() {
 	e.balancesCache = map[common.Address]*big.Int{}
 	e.deployedContractCache = map[common.Address]*state.ContractData{}
 	e.droppedContracts = map[common.Address]struct{}{}
+	e.contractStakeCache = map[common.Address]*big.Int{}
 	e.events = []*types.TxEvent{}
 }
 

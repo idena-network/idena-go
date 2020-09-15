@@ -1366,6 +1366,11 @@ func (s *StateDB) DropContract(addr common.Address) {
 	stateObject.touch()
 }
 
+func (s *StateDB) SetContractStake(addr common.Address, stake *big.Int) {
+	contract := s.GetOrNewAccountObject(addr)
+	contract.SetContractStake(stake)
+}
+
 type readCloser struct {
 	r io.Reader
 }
