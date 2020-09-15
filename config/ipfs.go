@@ -20,5 +20,6 @@ func GetDefaultIpfsConfig() *IpfsConfig {
 	return &IpfsConfig{
 		BlockPinThreshold: 0.3,
 		FlipPinThreshold:  0.5,
+		Profile: server,
 	}
 }
