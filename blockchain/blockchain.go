@@ -453,7 +453,6 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	clearDustAccounts(appState, networkSize, statsCollector)
 
 	appState.State.IncEpoch()
-	appState.State.ResetBlocksCntWithoutCeremonialTxs()
 
 	validationTime := appState.State.NextValidationTime()
 	nextValidationTime := chain.config.Validation.GetNextValidationTime(validationTime, networkSize)
@@ -675,6 +674,7 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	}
 
 	if flags.HasFlag(types.ValidationFinished) {
+		appState.State.ResetBlocksCntWithoutCeremonialTxs()
 		appState.State.SetValidationPeriod(state.NonePeriod)
 	}
 
