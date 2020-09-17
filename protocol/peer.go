@@ -28,6 +28,9 @@ const (
 	maxTimeoutsBeforeBan = 7
 
 	minCompressionSize = 386 // bytes
+
+	queuedRequestsSize             = 15000
+	queuedHighPriorityRequestsSize = 500
 )
 
 type compression = byte
@@ -58,6 +61,7 @@ type protoPeer struct {
 	transportErr         error
 	peers                uint32
 	metrics              *metricCollector
+	skippedRequestsCount int
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -71,8 +75,8 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		prettyId:             prettyId,
 		stream:               stream,
 		rw:                   rw,
-		queuedRequests:       make(chan *request, 15000),
-		highPriorityRequests: make(chan *request, 500),
+		queuedRequests:       make(chan *request, queuedRequestsSize),
+		highPriorityRequests: make(chan *request, queuedHighPriorityRequestsSize),
 		term:                 make(chan struct{}),
 		finished:             make(chan struct{}),
 		maxDelayMs:           maxDelayMs,
@@ -85,9 +89,9 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 }
 
 func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
-	timer := time.NewTimer(time.Minute)
-	defer timer.Stop()
 	if highPriority {
+		timer := time.NewTimer(time.Second * 5)
+		defer timer.Stop()
 		select {
 		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
 		case <-timer.C:
@@ -99,11 +103,13 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 	} else {
 		select {
 		case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
-		case <-timer.C:
-			err := errors.New("TIMEOUT while sending message")
-			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.queuedRequests))
-			p.disconnect()
+			p.skippedRequestsCount = 0
 		case <-p.finished:
+		default:
+			p.skippedRequestsCount++
+			if p.skippedRequestsCount > queuedRequestsSize/2 {
+				p.disconnect()
+			}
 		}
 	}
 }
@@ -365,7 +371,9 @@ func (p *protoPeer) resetTimeouts() {
 }
 
 func (p *protoPeer) disconnect() {
-	p.stream.Reset()
+	if err := p.stream.Reset(); err != nil {
+		p.log.Error("error while resetting peer stream", "err", err)
+	}
 }
 
 func (p *protoPeer) ID() string {

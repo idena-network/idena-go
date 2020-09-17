@@ -136,15 +136,16 @@ func (p *KeysPool) AddPublicFlipKey(key *types.PublicFlipKey, own bool) error {
 
 func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate.AppState, own bool) error {
 	p.publicKeyMutex.Lock()
-	defer p.publicKeyMutex.Unlock()
 
 	sender, _ := types.SenderFlipKey(key)
 
 	if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
+		p.publicKeyMutex.Unlock()
 		return errors.New("sender has already published his key")
 	}
 
 	if err := validateFlipKey(appState, key); err != nil {
+		p.publicKeyMutex.Unlock()
 		log.Trace("PublicFlipKey is not valid", "sender", sender.Hex(), "err", err)
 		return err
 	}
@@ -152,6 +153,8 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 	p.flipKeys[sender] = key
 
 	p.appState.EvidenceMap.NewFlipsKey(sender)
+
+	p.publicKeyMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
 		Key: key,
@@ -183,13 +186,14 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	sender, _ := types.SenderFlipKeysPackage(keysPackage)
 
 	p.privateKeysMutex.Lock()
-	defer p.privateKeysMutex.Unlock()
 
 	if old, ok := p.flipKeyPackages[sender]; ok && old.Epoch >= keysPackage.Epoch {
+		p.privateKeysMutex.Unlock()
 		return errors.New("sender has already published his keys package")
 	}
 
 	if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
+		p.privateKeysMutex.Unlock()
 		log.Trace("PrivateFLipKeysPackage is not valid", "sender", sender.Hex(), "err", err)
 		return err
 	}
@@ -199,6 +203,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	p.flipKeyPackagesByHash[shortHash] = keysPackage
 
 	p.pushTracker.RemovePull(shortHash)
+
+	p.privateKeysMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
 		Key: keysPackage,
