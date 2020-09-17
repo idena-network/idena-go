@@ -236,9 +236,9 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) erro
 	}
 
 	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
 
 	if err := pool.checkLimits(tx); err != nil {
+		pool.mutex.Unlock()
 		log.Warn("Tx limits", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}
@@ -246,13 +246,26 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) erro
 	sender, _ := types.Sender(tx)
 
 	if err := pool.validate(tx, appState, validation.InboundTx); err != nil {
+		pool.mutex.Unlock()
 		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
 		return err
 	}
 
-	return pool.put(tx)
+	err := pool.put(tx)
+	if err != nil {
+		pool.mutex.Unlock()
+		return err
+	}
+
+	pool.mutex.Unlock()
+
+	pool.bus.Publish(&events.NewTxEvent{
+		Tx:  tx,
+		Own: sender == pool.coinbase,
+	})
+	return nil
 }
 
 func (pool *TxPool) putToPending(tx *types.Transaction) error {
@@ -313,10 +326,6 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 
 	pool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 
-	pool.bus.Publish(&events.NewTxEvent{
-		Tx:  tx,
-		Own: sender == pool.coinbase,
-	})
 	return nil
 }
 
