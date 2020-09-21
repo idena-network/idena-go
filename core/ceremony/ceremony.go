@@ -38,6 +38,8 @@ const (
 	LotterySeedLag                      = 100
 	MaxFlipKeysPackageBroadcastDelaySec = 120
 	MaxShortAnswersBroadcastDelaySec    = 60
+	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
+	FlipKeysSyncTimeFrame = 60 * 4 // seconds
 )
 
 type ValidationCeremony struct {
@@ -398,6 +400,7 @@ func (vc *ValidationCeremony) handleShortSessionPeriod(block *types.Block) {
 
 	if block.Header.Flags().HasFlag(types.ShortSessionStarted) {
 		vc.startShortSession(vc.appState)
+		go vc.delayedStopFlipKeysSync()
 	}
 	vc.broadcastPrivateFlipKeysPackage(vc.appState)
 	vc.broadcastPublicFipKey(vc.appState)
@@ -431,10 +434,15 @@ func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 
 	// attempt to broadcast short answers since MaxShortAnswersBroadcastDelaySec seconds after long session has started
 	shortAnswersBroadcastTime := vc.appState.State.NextValidationTime().Add(vc.config.Validation.GetShortSessionDuration()).Add(MaxShortAnswersBroadcastDelaySec * time.Second)
-
 	if shortAnswersBroadcastTime.Before(time.Now().UTC()) {
 		vc.broadcastShortAnswersTx()
 	}
+
+	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
+	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
+		vc.stopFlipKeysSync()
+	}
+
 	vc.broadcastEvidenceMap()
 }
 
@@ -1395,5 +1403,16 @@ func (vc *ValidationCeremony) newTxLoop() {
 				vc.flipWordsInfo.pool.Store(sender, attachment.Rnd)
 			}
 		}
+	}
+}
+
+func (vc *ValidationCeremony) stopFlipKeysSync() {
+	vc.keysPool.StopSyncing()
+}
+
+func (vc *ValidationCeremony) delayedStopFlipKeysSync() {
+	if vc.shouldInteractWithNetwork() {
+		time.Sleep(FlipKeysSyncTimeFrame * time.Second)
+		vc.stopFlipKeysSync()
 	}
 }

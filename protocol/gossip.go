@@ -778,16 +778,12 @@ func (h *IdenaGossipHandler) sendManifest(p *protoPeer) {
 }
 
 func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
-	keys := h.flipKeyPool.GetFlipKeys()
+	keys := h.flipKeyPool.GetFlipKeysForSync()
 	for _, key := range keys {
-		//TODO: remove
-		if key.Epoch == 53 {
-			continue
-		}
 		p.sendMsg(FlipKey, key, false)
 	}
 
-	keysPackages := h.flipKeyPool.GetFlipPackagesHashes()
+	keysPackages := h.flipKeyPool.GetFlipPackagesHashesForSync()
 	for _, hash := range keysPackages {
 		payload := pushPullHash{
 			Type: pushKeyPackage,

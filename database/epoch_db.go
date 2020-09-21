@@ -21,6 +21,8 @@ var (
 	EvidencePrefix        = []byte("evi")
 	LotterySeedKey        = []byte("ls")
 	FlipCidPrefix         = []byte("cid")
+	PublicFlipKeyPrefix   = []byte("pubk")
+	PrivateFlipKeyPrefix  = []byte("pk")
 )
 
 type EpochDb struct {
@@ -280,3 +282,49 @@ func (edb *EpochDb) HasAnswerHash(addr common.Address) bool {
 	assertNoError(err)
 	return has
 }
+
+func (edb *EpochDb) WritePublicFlipKey(key *types.PublicFlipKey) {
+	data, _ := key.ToBytes()
+	hash := key.Hash()
+	err := edb.db.Set(append(PublicFlipKeyPrefix, hash.Bytes()...), data)
+	assertNoError(err)
+}
+
+
+func (edb *EpochDb) ReadPublicFlipKeys() []*types.PublicFlipKey {
+	it, err := edb.db.Iterator(append(PublicFlipKeyPrefix, common.MinHash[:]...), append(PublicFlipKeyPrefix, common.MaxHash...))
+	assertNoError(err)
+	defer it.Close()
+	var result []*types.PublicFlipKey
+	for ; it.Valid(); it.Next() {
+
+		key := &types.PublicFlipKey{}
+		key.FromBytes(it.Value())
+		result = append(result, key)
+	}
+	return result
+}
+
+func (edb *EpochDb) WritePrivateFlipKey(key *types.PrivateFlipKeysPackage) {
+	data, _ := key.ToBytes()
+	hash := key.Hash128()
+	err := edb.db.Set(append(PrivateFlipKeyPrefix, hash.Bytes()...), data)
+	assertNoError(err)
+}
+
+
+func (edb *EpochDb) ReadPrivateFlipKeys() []*types.PrivateFlipKeysPackage {
+	it, err := edb.db.Iterator(append(PrivateFlipKeyPrefix, common.MinHash128[:]...), append(PrivateFlipKeyPrefix, common.MaxHash128...))
+	assertNoError(err)
+	defer it.Close()
+	var result []*types.PrivateFlipKeysPackage
+	for ; it.Valid(); it.Next() {
+
+		key := &types.PrivateFlipKeysPackage{}
+		key.FromBytes(it.Value())
+		result = append(result, key)
+	}
+	return result
+}
+
+
