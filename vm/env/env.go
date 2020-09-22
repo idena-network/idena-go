@@ -35,7 +35,7 @@ type Env interface {
 	RemoveValue(ctx CallContext, key []byte)
 	Deploy(ctx CallContext)
 	Send(ctx CallContext, dest common.Address, amount *big.Int) error
-	MinFeePerByte() *big.Int
+	MinFeePerGas() *big.Int
 	Balance(address common.Address) *big.Int
 	BlockSeed() []byte
 	NetworkSize() int
@@ -175,7 +175,7 @@ func (e *EnvImp) RemoveValue(ctx CallContext, key []byte) {
 	e.gasCounter.AddGas(5)
 }
 
-func (e *EnvImp) MinFeePerByte() *big.Int {
+func (e *EnvImp) MinFeePerGas() *big.Int {
 	e.gasCounter.AddGas(5)
 	return e.state.State.FeePerGas()
 }

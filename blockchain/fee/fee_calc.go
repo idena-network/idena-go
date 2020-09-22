@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	MinFeePerByte = big.NewInt(10)
+	MinFeePerGas = big.NewInt(10)
 )
 
 func GetFeePerGasForNetwork(networkSize int) *big.Int {
@@ -29,20 +29,20 @@ func GetFeePerGasForNetwork(networkSize int) *big.Int {
 
 	minFeePerGas := math.ToInt(minFeePerGasD)
 
-	if minFeePerGas.Cmp(MinFeePerByte) == -1 {
-		minFeePerGas = new(big.Int).Set(MinFeePerByte)
+	if minFeePerGas.Cmp(MinFeePerGas) == -1 {
+		minFeePerGas = new(big.Int).Set(MinFeePerGas)
 	}
 
 	return minFeePerGas
 }
 
-func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	txFeePerByte := getFeePerGasForTx(networkSize, feePerByte, tx)
-	if txFeePerByte.Sign() == 0 {
+func CalculateFee(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
+	txFeePerGas := getFeePerGasForTx(networkSize, feePerGas, tx)
+	if txFeePerGas.Sign() == 0 {
 		return big.NewInt(0)
 	}
 	gas := CalculateGas(tx)
-	return new(big.Int).Mul(txFeePerByte, big.NewInt(int64(gas)))
+	return new(big.Int).Mul(txFeePerGas, big.NewInt(int64(gas)))
 }
 
 func CalculateGas(tx *types.Transaction) int {
@@ -79,13 +79,13 @@ func getTxSizeForFee(tx *types.Transaction) int {
 	return size
 }
 
-func CalculateCost(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
+func CalculateCost(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
 	result := big.NewInt(0)
 
 	result.Add(result, tx.AmountOrZero())
 	result.Add(result, tx.TipsOrZero())
 
-	fee := CalculateFee(networkSize, feePerByte, tx)
+	fee := CalculateFee(networkSize, feePerGas, tx)
 	result.Add(result, fee)
 
 	return result

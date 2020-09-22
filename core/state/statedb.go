@@ -1175,7 +1175,7 @@ func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
-	stateObject.data.FeePerGas = common.BigIntOrNil(state.Global.FeePerByte)
+	stateObject.data.FeePerGas = common.BigIntOrNil(state.Global.FeePerGas)
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
 	stateObject.data.GodAddressInvites = uint16(state.Global.GodAddressInvites)
@@ -1247,6 +1247,12 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		}
 
 		stateObject.touch()
+	}
+}
+
+func (s *StateDB) SetPredefinedContractValues(state *models.ProtoPredefinedState) {
+	for _, kv := range state.ContractValues {
+		s.tree.Set(kv.Key, kv.Value)
 	}
 }
 
@@ -1335,6 +1341,19 @@ func (s *StateDB) IterateContractStore(addr common.Address, minKey []byte, maxKe
 			}
 
 			return f(key[21:], value)
+		})
+}
+
+// Iterate over all stored contract data
+func (s *StateDB) IterateContractValues(f func(key []byte, value []byte) bool) {
+	minKey := make([]byte, 32)
+	var maxKey []byte
+	for i := 0; i < 32; i++ {
+		maxKey = append(maxKey, 0xFF)
+	}
+	s.tree.GetImmutable().IterateRange(StateDbKeys.ContractStoreKey(common.MinAddr, minKey), StateDbKeys.ContractStoreKey(common.MaxAddr, maxKey), true,
+		func(key []byte, value []byte) (stopped bool) {
+			return f(key, value)
 		})
 }
 

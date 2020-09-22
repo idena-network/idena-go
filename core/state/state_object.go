@@ -142,7 +142,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		WordsSeed:                     s.WordsSeed[:],
 		LastSnapshot:                  s.LastSnapshot,
 		EpochBlock:                    s.EpochBlock,
-		FeePerByte:                    common.BigIntBytesOrNil(s.FeePerGas),
+		FeePerGas:                    common.BigIntBytesOrNil(s.FeePerGas),
 		VrfProposerThreshold:          s.VrfProposerThreshold,
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
 		GodAddressInvites:             uint32(s.GodAddressInvites),
@@ -164,7 +164,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.WordsSeed = types.BytesToSeed(protoGlobal.WordsSeed)
 	s.LastSnapshot = protoGlobal.LastSnapshot
 	s.EpochBlock = protoGlobal.EpochBlock
-	s.FeePerGas = common.BigIntOrNil(protoGlobal.FeePerByte)
+	s.FeePerGas = common.BigIntOrNil(protoGlobal.FeePerGas)
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
@@ -193,7 +193,7 @@ func (a *Account) ToBytes() ([]byte, error) {
 		Balance: common.BigIntBytesOrNil(a.Balance),
 	}
 	if a.Contract != nil {
-		protoAcc.ContractData = &models.ProtoContractData{
+		protoAcc.ContractData = &models.ProtoStateAccount_ProtoContractData{
 			CodeHash: a.Contract.CodeHash.Bytes(),
 			Stake:    common.BigIntBytesOrNil(a.Contract.Stake),
 		}

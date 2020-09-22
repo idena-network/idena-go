@@ -177,8 +177,8 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 }
 
 func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState, txType validation.TxType) error {
-	minFeePerByte := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
-	return validation.ValidateTx(appState, tx, minFeePerByte, txType)
+	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
+	return validation.ValidateTx(appState, tx, minFeePerGas, txType)
 }
 
 func (pool *TxPool) AddTxs(txs []*types.Transaction) {
@@ -466,14 +466,14 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	removingTxs := make(map[common.Hash]*types.Transaction)
 
-	minFeePerByte := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
+	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
 	for _, tx := range pending {
 		if tx.Epoch != globalEpoch {
 			continue
 		}
 
-		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.MempoolTx); err != nil {
+		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.MempoolTx); err != nil {
 			if errors.Cause(err) == validation.InvalidNonce {
 				removingTxs[tx.Hash()] = tx
 				continue

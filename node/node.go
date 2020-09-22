@@ -349,7 +349,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "dna",
 			Version:   "1.0",
-			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion, node.profileManager, node.deferJob, node.subManager),
+			Service:   api.NewDnaApi(baseApi, node.blockchain, node.ceremony, node.appVersion, node.profileManager),
 			Public:    true,
 		},
 		{
@@ -374,6 +374,12 @@ func (node *Node) apis() []rpc.API {
 			Namespace: "ipfs",
 			Version:   "1.0",
 			Service:   api.NewIpfsApi(node.ipfsProxy),
+			Public:    true,
+		},
+		{
+			Namespace: "contract",
+			Version:   "1.0",
+			Service:   api.NewContractApi(baseApi, node.blockchain, node.deferJob, node.subManager),
 			Public:    true,
 		},
 	}

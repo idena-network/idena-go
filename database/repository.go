@@ -389,10 +389,10 @@ func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
 	r.db.Set(activityMonitorKey, data)
 }
 
-func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp int64, feePerByte *big.Int, transaction *types.Transaction) {
+func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp int64, feePerGas *big.Int, transaction *types.Transaction) {
 	s := &types.SavedTransaction{
 		Tx:         transaction,
-		FeePerByte: feePerByte,
+		FeePerGas: feePerGas,
 		BlockHash:  blockHash,
 		Timestamp:  timestamp,
 	}

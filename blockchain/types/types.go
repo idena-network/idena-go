@@ -108,7 +108,7 @@ type ProposedHeader struct {
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
-	FeePerByte     *big.Int
+	FeePerGas      *big.Int
 	Upgrade        uint32
 	SeedProof      []byte
 	TxReceiptsCid  []byte
@@ -335,14 +335,14 @@ func (s *ActivityMonitor) FromBytes(data []byte) error {
 
 type SavedTransaction struct {
 	Tx         *Transaction
-	FeePerByte *big.Int
+	FeePerGas *big.Int
 	BlockHash  common.Hash
 	Timestamp  int64
 }
 
 func (s *SavedTransaction) ToBytes() ([]byte, error) {
 	protoObj := &models.ProtoSavedTransaction{
-		FeePerBye: common.BigIntBytesOrNil(s.FeePerByte),
+		FeePerGas: common.BigIntBytesOrNil(s.FeePerGas),
 		BlockHash: s.BlockHash[:],
 		Timestamp: s.Timestamp,
 	}
@@ -363,7 +363,7 @@ func (s *SavedTransaction) FromBytes(data []byte) error {
 	}
 	s.Timestamp = protoObj.Timestamp
 	s.BlockHash = common.BytesToHash(protoObj.BlockHash)
-	s.FeePerByte = common.BigIntOrNil(protoObj.FeePerBye)
+	s.FeePerGas = common.BigIntOrNil(protoObj.FeePerGas)
 	return nil
 }
 
@@ -510,7 +510,7 @@ func (h *Header) FromProto(protoHeader *models.ProtoBlockHeader) *Header {
 			IpfsHash:       protoHeader.ProposedHeader.IpfsHash,
 			TxBloom:        protoHeader.ProposedHeader.TxBloom,
 			BlockSeed:      BytesToSeed(protoHeader.ProposedHeader.BlockSeed),
-			FeePerByte:     common.BigIntOrNil(protoHeader.ProposedHeader.FeePerByte),
+			FeePerGas:      common.BigIntOrNil(protoHeader.ProposedHeader.FeePerGas),
 			Upgrade:        protoHeader.ProposedHeader.Upgrade,
 			SeedProof:      protoHeader.ProposedHeader.SeedProof,
 			TxReceiptsCid:  protoHeader.ProposedHeader.ReceiptsCid,
@@ -587,11 +587,11 @@ func (h *Header) Time() int64 {
 	}
 }
 
-func (h *Header) FeePerByte() *big.Int {
+func (h *Header) FeePerGas() *big.Int {
 	if h.EmptyBlockHeader != nil {
 		return nil
 	} else {
-		return h.ProposedHeader.FeePerByte
+		return h.ProposedHeader.FeePerGas
 	}
 }
 
@@ -648,7 +648,7 @@ func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
 		IpfsHash:       h.IpfsHash,
 		TxBloom:        h.TxBloom,
 		BlockSeed:      h.BlockSeed[:],
-		FeePerByte:     common.BigIntBytesOrNil(h.FeePerByte),
+		FeePerGas:     common.BigIntBytesOrNil(h.FeePerGas),
 		Upgrade:        h.Upgrade,
 		SeedProof:      h.SeedProof,
 		ReceiptsCid:    h.TxReceiptsCid,

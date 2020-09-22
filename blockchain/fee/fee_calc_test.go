@@ -50,7 +50,7 @@ func TestCalculateCostForInvitation(t *testing.T) {
 	require.Equal(t, 0, tx.AmountOrZero().Cmp(CalculateCost(networkSize, new(big.Int).Div(common.DnaBase, big.NewInt(100)), tx)))
 }
 
-func Test_GetFeePerByteForNetwork(t *testing.T) {
+func Test_GetFeePerGasForNetwork(t *testing.T) {
 	require := require.New(t)
 
 	require.Zero(big.NewInt(1e+16).Cmp(GetFeePerGasForNetwork(0)))

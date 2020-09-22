@@ -94,9 +94,6 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
-		types.DeployContract:       validateDeployContractTx,
-		types.CallContract:         validateCallContractTx,
-		types.TerminateContract:    validateTerminateContractTx,
 	}
 }
 
@@ -110,7 +107,7 @@ func checkIfNonNegative(value *big.Int) error {
 	return nil
 }
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, txType TxType) error {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas *big.Int, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -145,7 +142,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 		return errors.Wrapf(InvalidNonce, "state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
 	}
 
-	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
+	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerGas, tx)
 	if minFee.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return InvalidMaxFee
 	}
@@ -157,7 +154,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 
 	validator, ok := validators[tx.Type]
 	if !ok {
-		return nil
+		return errors.New("unknown tx type")
 	}
 	if err := validator(appState, tx, txType); err != nil {
 		return err
@@ -720,7 +717,7 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 		return err
 	}
 
-	minStake := common.DnaBase
+	minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
 
 	if tx.AmountOrZero().Cmp(minStake) < 0 {
 		return InvalidAmount

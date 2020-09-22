@@ -95,7 +95,7 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 		return errors.New("deposit is late")
 	}
 
-	minDeposit := big.NewInt(0).Mul(e.env.MinFeePerByte(), big.NewInt(10000))
+	minDeposit := big.NewInt(0).Mul(e.env.MinFeePerGas(), big.NewInt(10000))
 	if e.ctx.PayAmount().Cmp(minDeposit) < 0 {
 		return errors.New("deposit is low")
 	}

@@ -33,7 +33,7 @@ message ProtoBlockHeader {
         bytes offlineAddr = 10;
         bytes txBloom = 11;
         bytes blockSeed = 12;
-        bytes feePerByte = 13;
+        bytes feePerGas = 13;
         uint32 upgrade = 14;
         bytes seedProof = 15;
         bytes receiptsCid = 16;
@@ -259,7 +259,7 @@ message ProtoBurntCoins {
 
 message ProtoSavedTransaction {
     ProtoTransaction tx = 1;
-    bytes feePerBye = 2;
+    bytes feePerGas = 2;
     bytes blockHash = 3;
     int64 timestamp = 4;
 }
@@ -309,16 +309,16 @@ message ProtoDeleteFlipAttachment {
 
 // State
 
-message ProtoContractData {
-    bytes codeHash = 1;
-    bytes stake = 2;
-}
-
 message ProtoStateAccount {
     uint32 nonce = 1;
     uint32 epoch = 2;
     bytes balance = 3;
     ProtoContractData contractData = 4;
+
+    message ProtoContractData {
+        bytes codeHash = 1;
+        bytes stake = 2;
+    }
 }
 
 message ProtoStateIdentity {
@@ -361,7 +361,7 @@ message ProtoStateGlobal {
     bytes wordsSeed = 5;
     uint64 lastSnapshot = 6;
     uint64 epochBlock = 7;
-    bytes feePerByte = 8;
+    bytes feePerGas = 8;
     uint64 vrfProposerThreshold = 9;
     bytes emptyBlocksBits = 10;
     uint32 godAddressInvites = 11;
@@ -387,7 +387,7 @@ message ProtoPredefinedState {
         bytes wordsSeed = 5;
         uint64 lastSnapshot = 6;
         uint64 epochBlock = 7;
-        bytes feePerByte = 8;
+        bytes feePerGas = 8;
         uint64 vrfProposerThreshold = 9;
         bytes emptyBlocksBits = 10;
         uint32 godAddressInvites = 11;
@@ -398,17 +398,17 @@ message ProtoPredefinedState {
         repeated bytes addresses = 1;
     }
 
-    message ContractData {
-        bytes codeHash = 1;
-        bytes stake = 2;
-    }
-
     message Account {
         bytes address = 1;
         uint32 nonce = 2;
         uint32 epoch = 3;
         bytes balance = 4;
         ContractData contractData = 5;
+
+        message ContractData {
+            bytes codeHash = 1;
+            bytes stake = 2;
+        }
     }
 
     message Identity {
@@ -449,6 +449,11 @@ message ProtoPredefinedState {
         bool online = 3;
     }
 
+    message ContractKeyValue{
+        bytes key = 1;
+        bytes value = 2;
+    }
+
     uint64 block = 1;
     bytes seed = 2;
     Global global = 3;
@@ -456,6 +461,7 @@ message ProtoPredefinedState {
     repeated Account accounts = 5;
     repeated Identity identities = 6;
     repeated ApprovedIdentity approvedIdentities = 7;
+    repeated ContractKeyValue contractValues = 8;
 }
 
 message ProtoCallContractAttachment {

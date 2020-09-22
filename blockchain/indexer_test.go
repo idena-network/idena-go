@@ -41,8 +41,8 @@ func TestBlockchain_saveOwnTxs(t *testing.T) {
 	for _, item := range txs {
 		header := &types.Header{
 			ProposedHeader: &types.ProposedHeader{
-				Time:       item.timestamp,
-				FeePerByte: big.NewInt(1),
+				Time:      item.timestamp,
+				FeePerGas: big.NewInt(1),
 			},
 		}
 		chain.indexer.HandleBlockTransactions(header, []*types.Transaction{item.tx})
@@ -119,8 +119,8 @@ func Test_handleOwnTxsWithAccounts(t *testing.T) {
 	for _, item := range txs {
 		header := &types.Header{
 			ProposedHeader: &types.ProposedHeader{
-				Time:       item.timestamp,
-				FeePerByte: big.NewInt(1),
+				Time:      item.timestamp,
+				FeePerGas: big.NewInt(1),
 			},
 		}
 		sender, _ := types.Sender(item.tx)

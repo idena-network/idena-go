@@ -176,6 +176,7 @@ func (s *AppState) SetPredefinedState(predefinedState *models.ProtoPredefinedSta
 	s.State.SetPredefinedStatusSwitch(predefinedState)
 	s.State.SetPredefinedAccounts(predefinedState)
 	s.State.SetPredefinedIdentities(predefinedState)
+	s.State.SetPredefinedContractValues(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)
 }
 

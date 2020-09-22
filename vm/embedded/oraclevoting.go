@@ -193,7 +193,7 @@ func (f *OracleVoting) startVoting() error {
 	}
 
 	balance := f.env.Balance(f.ctx.ContractAddr())
-	minBalance := big.NewInt(0).Mul(f.env.MinFeePerByte(), big.NewInt(int64(100*100*f.GetUint64("committeeSize"))))
+	minBalance := big.NewInt(0).Mul(f.env.MinFeePerGas(), big.NewInt(int64(100*100*f.GetUint64("committeeSize"))))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("insufficient funds")
 	}
