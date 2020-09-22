@@ -46,6 +46,9 @@ var (
 	MaxAddr  []byte
 	MinHash  = [HashLength]byte{}
 	MaxHash  []byte
+
+	MinHash128 = [Hash128Length]byte{}
+	MaxHash128 []byte
 )
 
 func init() {
@@ -60,6 +63,12 @@ func init() {
 		maxHash[i] = 0xFF
 	}
 	MaxHash = maxHash[:]
+
+	var maxHash128 [Hash128Length]byte
+	for i := range maxHash128 {
+		maxHash128[i] = 0xFF
+	}
+	MaxHash128 = maxHash128[:]
 }
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
