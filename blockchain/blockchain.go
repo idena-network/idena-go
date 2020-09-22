@@ -345,21 +345,22 @@ func (chain *Blockchain) applyBlockAndTxsOnState(
 	statsCollector collector.StatsCollector,
 ) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, receipts types.TxReceipts, err error) {
 	var totalFee, totalTips *big.Int
-	if totalFee, totalTips, receipts, err = chain.processTxs(appState, block, statsCollector); err != nil {
+	var usedGas uint64
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(appState, block, statsCollector); err != nil {
 		return
 	}
 
-	root, identityRoot, diff = chain.applyBlockOnState(appState, block, prevBlock, totalFee, totalTips, receipts, statsCollector)
+	root, identityRoot, diff = chain.applyBlockOnState(appState, block, prevBlock, totalFee, totalTips, usedGas, statsCollector)
 	return root, identityRoot, diff, receipts, nil
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, receipts types.TxReceipts, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, diff *state.IdentityStateDiff) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
 	chain.applyStatusSwitch(appState, block)
 	chain.applyGlobalParams(appState, block, statsCollector)
-	chain.applyNextBlockFee(appState, block, receipts)
+	chain.applyNextBlockFee(appState, block, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 	diff = appState.Precommit()
 
@@ -756,21 +757,20 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 }
 
 func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block,
-	statsCollector collector.StatsCollector) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, err error) {
+	statsCollector collector.StatsCollector) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, usedGas uint64, err error) {
 	totalFee = new(big.Int)
 	totalTips = new(big.Int)
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
 	vm := vm.NewVmImpl(appState, block.Header, chain.secStore)
 
-	var usedGas uint64
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, 0, err
 		}
 		if usedFee, receipt, err := chain.ApplyTxOnState(appState, vm, tx, statsCollector); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, 0, err
 		} else {
 			gas := uint64(fee.CalculateGas(tx))
 			if receipt != nil {
@@ -778,7 +778,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 				gas += receipt.GasUsed
 			}
 			if usedGas+gas > types.MaxBlockGas {
-				return nil, nil, nil, errors.New("block exceeds gas limit")
+				return nil, nil, nil, 0, errors.New("block exceeds gas limit")
 			}
 			usedGas += gas
 			totalFee.Add(totalFee, usedFee)
@@ -786,7 +786,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 		}
 	}
 
-	return totalFee, totalTips, receipts, nil
+	return totalFee, totalTips, receipts, usedGas, nil
 }
 
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, statsCollector collector.StatsCollector) (*big.Int, *types.TxReceipt, error) {
@@ -976,12 +976,12 @@ func (chain *Blockchain) getGasLimit(appState *appstate.AppState, tx *types.Tran
 	return math.ToInt(decimal.NewFromBigInt(diff, 0).Div(decimal.NewFromBigInt(oneGasCost, 0))).Int64()
 }
 
-func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block, receipts types.TxReceipts) {
-	feePerGas := chain.calculateNextBlockFeePerGas(appState, block, receipts)
+func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block, usedGas uint64) {
+	feePerGas := chain.calculateNextBlockFeePerGas(appState, block, usedGas)
 	appState.State.SetFeePerGas(feePerGas)
 }
 
-func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState, block *types.Block, receipts types.TxReceipts) *big.Int {
+func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState, block *types.Block, usedGas uint64) *big.Int {
 
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
@@ -989,19 +989,12 @@ func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState
 	if common.ZeroOrNil(feePerGas) || feePerGas.Cmp(minFeePerGas) == -1 {
 		feePerGas = new(big.Int).Set(minFeePerGas)
 	}
-	var blockGas int
-	for _, tx := range block.Body.Transactions {
-		blockGas += fee.CalculateGas(tx)
-	}
-	for _, r := range receipts {
-		blockGas += int(r.GasUsed)
-	}
 
 	k := chain.config.Consensus.FeeSensitivityCoef
 	maxBlockGas := types.MaxBlockGas
 
 	// curBlockFee = prevBlockFee * (1 + k * (prevBlockGas / maxBlockGas - 0.5))
-	newFeePerGasD := decimal.New(int64(blockGas), 0).
+	newFeePerGasD := decimal.New(int64(usedGas), 0).
 		Div(decimal.New(int64(maxBlockGas), 0)).
 		Sub(decimal.NewFromFloat(0.5)).
 		Mul(decimal.NewFromFloat32(k)).
@@ -1102,7 +1095,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		header.Flags |= flag
 	}
 
-	filteredTxs, totalFee, totalTips, receipts := chain.filterTxs(checkState, txs, header)
+	filteredTxs, totalFee, totalTips, receipts, usedGas := chain.filterTxs(checkState, txs, header)
 	body := &types.Body{
 		Transactions: filteredTxs,
 	}
@@ -1139,7 +1132,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
-	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, receipts, nil)
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
 	hash := crypto.SignatureHash(proposal)
@@ -1230,7 +1223,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	return flags
 }
 
-func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction, header *types.ProposedHeader) ([]*types.Transaction, *big.Int, *big.Int, types.TxReceipts) {
+func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction, header *types.ProposedHeader) ([]*types.Transaction, *big.Int, *big.Int, types.TxReceipts, uint64) {
 	var result []*types.Transaction
 
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
@@ -1259,7 +1252,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			result = append(result, tx)
 		}
 	}
-	return result, totalFee, totalTips, receipts
+	return result, totalFee, totalTips, receipts, usedGas
 }
 
 func (chain *Blockchain) insertHeader(header *types.Header) {
@@ -1383,7 +1376,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var totalFee, totalTips *big.Int
 	var err error
 	var receipts types.TxReceipts
-	if totalFee, totalTips, receipts, err = chain.processTxs(checkState, block, nil); err != nil {
+	var usedGas uint64
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, nil); err != nil {
 		return err
 	}
 
@@ -1397,7 +1391,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
-	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, receipts, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 

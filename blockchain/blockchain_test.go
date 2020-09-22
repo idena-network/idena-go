@@ -345,15 +345,23 @@ func Test_applyNextBlockFee(t *testing.T) {
 	appState, _ := chain.appState.ForCheck(1)
 
 	block := generateBlock(4, 4000)
-	chain.applyNextBlockFee(appState, block, nil)
+	var usedGas uint64
+	for _, tx := range block.Body.Transactions {
+		usedGas += uint64(fee2.CalculateGas(tx))
+	}
+	chain.applyNextBlockFee(appState, block, usedGas)
 	require.Equal(t, big.NewInt(10996093750000000), appState.State.FeePerGas())
 
 	block = generateBlock(5, 1500)
-	chain.applyNextBlockFee(appState, block, nil)
+	usedGas = 0
+	for _, tx := range block.Body.Transactions {
+		usedGas += uint64(fee2.CalculateGas(tx))
+	}
+	chain.applyNextBlockFee(appState, block, usedGas)
 	require.Equal(t, big.NewInt(10547766685485839), appState.State.FeePerGas())
 
 	block = generateBlock(6, 0)
-	chain.applyNextBlockFee(appState, block, nil)
+	chain.applyNextBlockFee(appState, block, 0)
 	// 0.01 / networkSize, where networkSize is 0, feePerGas = 0.01 DNA
 	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(100)), appState.State.FeePerGas())
 }
