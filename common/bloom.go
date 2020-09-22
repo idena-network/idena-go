@@ -36,12 +36,12 @@ func (s *SerializableBF) Serialize() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (s *SerializableBF) Add(addr Address) {
-	s.BloomFilter.Add(addr.Bytes())
+func (s *SerializableBF) Add(value []byte) {
+	s.BloomFilter.Add(value)
 }
 
-func (s *SerializableBF) Has(addr Address) bool {
-	return s.BloomFilter.Test(addr.Bytes())
+func (s *SerializableBF) Has(value []byte) bool {
+	return s.BloomFilter.Test(value)
 }
 
 func bloomLength(n int) (m int) {

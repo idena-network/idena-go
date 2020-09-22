@@ -28,6 +28,7 @@ type DnaApi struct {
 	ceremony       *ceremony.ValidationCeremony
 	appVersion     string
 	profileManager *profile.Manager
+
 }
 
 func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony, appVersion string,
@@ -70,7 +71,7 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	}
 }
 
-// SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
+// SendTxArgs represents the arguments to submit a new transaction into the transaction pool.
 type SendTxArgs struct {
 	Type     types.TxType    `json:"type"`
 	From     common.Address  `json:"from"`

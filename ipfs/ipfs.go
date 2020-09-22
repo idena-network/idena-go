@@ -56,6 +56,7 @@ const (
 	Block   DataType = 1
 	Flip    DataType = 2
 	Profile DataType = 3
+	TxReceipt DataType = 3
 )
 
 var (
@@ -700,6 +701,7 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 			"mplex":  false,
 		},
 	}
+
 }
 
 func loadPlugins(cfg *config.IpfsConfig) error {

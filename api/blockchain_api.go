@@ -120,17 +120,48 @@ func (api *BlockchainApi) Transaction(hash common.Hash) *Transaction {
 	}
 
 	var blockHash common.Hash
-	var feePerByte *big.Int
+	var feePerGas *big.Int
 	var timestamp int64
 	if idx != nil {
 		blockHash = idx.BlockHash
 		block := api.bc.GetBlock(blockHash)
 		if block != nil {
-			feePerByte = block.Header.FeePerByte()
+			feePerGas = block.Header.FeePerGas()
 			timestamp = block.Header.Time()
 		}
 	}
-	return convertToTransaction(tx, blockHash, feePerByte, timestamp)
+	return convertToTransaction(tx, blockHash, feePerGas, timestamp)
+}
+
+func (api *BlockchainApi) TxReceipt(hash common.Hash) *TxReceipt {
+	tx := api.pool.GetTx(hash)
+	var idx *types.TransactionIndex
+
+	if tx == nil {
+		tx, idx = api.bc.GetTx(hash)
+	}
+
+	if tx == nil {
+		return nil
+	}
+
+	if idx == nil {
+		idx = api.bc.GetTxIndex(hash)
+	}
+
+	var blockHash common.Hash
+	var feePerGas *big.Int
+	if idx != nil {
+		blockHash = idx.BlockHash
+		block := api.bc.GetBlock(blockHash)
+		if block != nil {
+			feePerGas = block.Header.FeePerGas()
+		}
+	}
+
+	receipt := api.bc.GetReceipt(hash)
+
+	return convertReceipt(tx, receipt, feePerGas)
 }
 
 func (api *BlockchainApi) Mempool() []common.Hash {
@@ -207,8 +238,8 @@ func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transaction
 	}
 }
 
-func (api *BlockchainApi) FeePerByte() *big.Int {
-	return api.baseApi.getAppState().State.FeePerByte()
+func (api *BlockchainApi) FeePerGas() *big.Int {
+	return api.baseApi.getAppState().State.FeePerGas()
 }
 
 func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) (common.Hash, error) {
@@ -254,7 +285,7 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 
 	var list []*Transaction
 	for _, item := range txs {
-		list = append(list, convertToTransaction(item.Tx, item.BlockHash, item.FeePerByte, item.Timestamp))
+		list = append(list, convertToTransaction(item.Tx, item.BlockHash, item.FeePerGas, item.Timestamp))
 	}
 
 	var token *hexutil.Bytes
@@ -281,7 +312,7 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 	return res
 }
 
-func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerByte *big.Int, timestamp int64) *Transaction {
+func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerGas *big.Int, timestamp int64) *Transaction {
 	sender, _ := types.Sender(tx)
 	return &Transaction{
 		Hash:      tx.Hash(),
@@ -296,7 +327,7 @@ func convertToTransaction(tx *types.Transaction, blockHash common.Hash, feePerBy
 		Type:      txTypeMap[tx.Type],
 		BlockHash: blockHash,
 		Timestamp: timestamp,
-		UsedFee:   blockchain.ConvertToFloat(fee.CalculateFee(1, feePerByte, tx)),
+		UsedFee:   blockchain.ConvertToFloat(fee.CalculateFee(1, feePerGas, tx)),
 	}
 }
 

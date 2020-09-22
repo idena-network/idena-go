@@ -21,21 +21,21 @@ func Test_BigFeeTx(t *testing.T) {
 	tx := &types.Transaction{
 		Type:         types.SendTx,
 		Amount:       big.NewInt(1000),
-		MaxFee:       big.NewInt(190),
+		MaxFee:       big.NewInt(1900),
 		AccountNonce: 1,
 		To:           &receiver,
 	}
 
 	signedTx, _ := types.SignTx(tx, key) // tx size 97
-	minFeePerByte := big.NewInt(1)
+	minFeePerGas := big.NewInt(1)
 
-	appState.State.SetFeePerByte(big.NewInt(2))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
-	require.Equal(t, validation.BigFee, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
+	appState.State.SetFeePerGas(big.NewInt(2))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerGas, validation.InboundTx))
+	require.Equal(t, validation.BigFee, validation.ValidateTx(appState, signedTx, minFeePerGas, validation.InBlockTx))
 
-	appState.State.SetFeePerByte(big.NewInt(1))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InboundTx))
-	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerByte, validation.InBlockTx))
+	appState.State.SetFeePerGas(big.NewInt(1))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerGas, validation.InboundTx))
+	require.Nil(t, validation.ValidateTx(appState, signedTx, minFeePerGas, validation.InBlockTx))
 }
 
 func Test_InvalidMaxFeeTx(t *testing.T) {
@@ -49,7 +49,7 @@ func Test_InvalidMaxFeeTx(t *testing.T) {
 	tx := &types.Transaction{
 		Type:         types.SendTx,
 		Amount:       big.NewInt(1000),
-		MaxFee:       big.NewInt(190),
+		MaxFee:       big.NewInt(1900),
 		AccountNonce: 1,
 		To:           &receiver,
 	}

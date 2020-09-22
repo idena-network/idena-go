@@ -88,7 +88,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.ApplyTxOnState(chain.appState, signed, nil)
+	chain.ApplyTxOnState(chain.appState, nil, signed, nil)
 
 	require.Equal(t, uint8(0), stateDb.GetInvites(addr))
 	require.Equal(t, state.Invite, stateDb.GetIdentityState(receiver))
@@ -120,7 +120,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.ApplyTxOnState(chain.appState, signed, nil)
+	chain.ApplyTxOnState(chain.appState, nil, signed, nil)
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(sender))
 	require.Equal(t, 0, big.NewInt(0).Cmp(appState.State.GetBalance(sender)))
 
@@ -145,7 +145,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	id.SetStake(stake)
 	id.SetState(state.Invite)
 
-	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 
 	tx := &types.Transaction{
 		Type:         types.KillTx,
@@ -155,9 +155,9 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx)
 	require.Equal(big.NewInt(0), fee)
-	require.Error(validation.ValidateTx(chain.appState, signed, fee2.MinFeePerByte, validation.InBlockTx), "should return error if amount is not zero")
+	require.Error(validation.ValidateTx(chain.appState, signed, fee2.MinFeePerGas, validation.InBlockTx), "should return error if amount is not zero")
 
 	tx2 := &types.Transaction{
 		Type:         types.KillTx,
@@ -166,11 +166,11 @@ func Test_ApplyKillTx(t *testing.T) {
 		To:           &common.Address{0x1},
 	}
 
-	signed2, _ := types.SignTx(tx, key)
+	signed2, _ := types.SignTx(tx2, key)
 
-	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx2)
+	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx2)
 	require.Equal(big.NewInt(0), fee)
-	require.Error(validation.ValidateTx(chain.appState, signed2, fee2.MinFeePerByte, validation.InBlockTx), "should return error if *to is filled")
+	require.Error(validation.ValidateTx(chain.appState, signed2, fee2.MinFeePerGas, validation.InBlockTx), "should return error if *to is filled")
 
 	tx3 := &types.Transaction{
 		Type:         types.KillTx,
@@ -179,10 +179,10 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	signed3, _ := types.SignTx(tx3, key)
 
-	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx3)
+	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
 
-	require.NoError(validation.ValidateTx(chain.appState, signed3, fee2.MinFeePerByte, validation.InBlockTx))
-	chain.ApplyTxOnState(chain.appState, signed3, nil)
+	require.NoError(validation.ValidateTx(chain.appState, signed3, fee2.MinFeePerGas, validation.InBlockTx))
+	chain.ApplyTxOnState(chain.appState, nil, signed3, nil)
 
 	require.Equal(big.NewInt(0), fee)
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
@@ -217,14 +217,14 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	signedTx1, _ := types.SignTx(tx1, key)
 	signedTx2, _ := types.SignTx(tx2, key)
 
-	chain.appState.State.SetFeePerByte(fee2.MinFeePerByte)
-	require.Nil(validation.ValidateTx(chain.appState, signedTx1, fee2.MinFeePerByte, validation.InBlockTx))
-	require.Nil(validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
+	chain.appState.State.SetFeePerGas(fee2.MinFeePerGas)
+	require.Nil(validation.ValidateTx(chain.appState, signedTx1, fee2.MinFeePerGas, validation.InBlockTx))
+	require.Nil(validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
 
-	_, err := chain.ApplyTxOnState(chain.appState, signedTx1, nil)
+	_, _, err := chain.ApplyTxOnState(chain.appState, nil, signedTx1, nil)
 
 	require.Nil(err)
-	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx))
+	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
 }
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
@@ -252,7 +252,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		AccountNonce: 1,
 	}
 	signedTx, _ := types.SignTx(tx, inviterKey)
-	require.Error(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerByte, validation.InBlockTx), "should return error if *to is not filled")
+	require.Error(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerGas, validation.InBlockTx), "should return error if *to is not filled")
 
 	tx2 := &types.Transaction{
 		Type:         types.KillInviteeTx,
@@ -261,7 +261,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		To:           &invitee,
 	}
 	signedTx2, _ := types.SignTx(tx2, inviterKey)
-	require.Error(t, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerByte, validation.InBlockTx), "should return error if amount is not zero")
+	require.Error(t, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx), "should return error if amount is not zero")
 
 	tx3 := &types.Transaction{
 		Type:         types.KillInviteeTx,
@@ -270,12 +270,12 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		MaxFee:       new(big.Int).Mul(big.NewInt(2), common.DnaBase),
 	}
 	signedTx3, _ := types.SignTx(tx3, inviterKey)
-	require.NoError(t, validation.ValidateTx(chain.appState, signedTx3, fee2.MinFeePerByte, validation.InBlockTx))
+	require.NoError(t, validation.ValidateTx(chain.appState, signedTx3, fee2.MinFeePerGas, validation.InBlockTx))
 
-	chain.appState.State.SetFeePerByte(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerByte(), tx3)
+	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
 
-	chain.ApplyTxOnState(chain.appState, signedTx3, nil)
+	chain.ApplyTxOnState(chain.appState, nil, signedTx3, nil)
 
 	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
@@ -344,18 +344,26 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 	appState, _ := chain.appState.ForCheck(1)
 
-	block := generateBlock(4, 4000) // block size 284000
-	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(110611979166666667), appState.State.FeePerByte())
+	block := generateBlock(4, 4000)
+	var usedGas uint64
+	for _, tx := range block.Body.Transactions {
+		usedGas += uint64(fee2.CalculateGas(tx))
+	}
+	chain.applyNextBlockFee(appState, block, usedGas)
+	require.Equal(t, big.NewInt(10996093750000000), appState.State.FeePerGas())
 
-	block = generateBlock(5, 1500) // block size 106000
-	chain.applyNextBlockFee(appState, block)
-	require.Equal(t, big.NewInt(106372213363647461), appState.State.FeePerByte())
+	block = generateBlock(5, 1500)
+	usedGas = 0
+	for _, tx := range block.Body.Transactions {
+		usedGas += uint64(fee2.CalculateGas(tx))
+	}
+	chain.applyNextBlockFee(appState, block, usedGas)
+	require.Equal(t, big.NewInt(10547766685485839), appState.State.FeePerGas())
 
 	block = generateBlock(6, 0)
-	chain.applyNextBlockFee(appState, block)
-	// 0.1 / networkSize, where networkSize is 0, feePerByte = 0.1 DNA
-	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(10)), appState.State.FeePerByte())
+	chain.applyNextBlockFee(appState, block, 0)
+	// 0.01 / networkSize, where networkSize is 0, feePerGas = 0.01 DNA
+	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(100)), appState.State.FeePerGas())
 }
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
@@ -442,12 +450,12 @@ func Test_ApplyBurnTx(t *testing.T) {
 	signedTx, _ := types.SignTx(tx, senderKey)
 
 	appState := chain.appState
-	appState.State.SetFeePerByte(new(big.Int).Div(common.DnaBase, big.NewInt(1000)))
-	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	appState.State.SetFeePerGas(new(big.Int).Div(common.DnaBase, big.NewInt(1000)))
+	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
 	expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, signedTx, nil)
+	chain.ApplyTxOnState(appState, nil, signedTx, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
@@ -479,13 +487,13 @@ func Test_DeleteFlipTx(t *testing.T) {
 	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x2}, 0)
 	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x3}, 1)
 	appState.State.AddFlip(sender, []byte{0x1, 0x2, 0x4}, 2)
-	appState.State.SetFeePerByte(big.NewInt(1))
+	appState.State.SetFeePerGas(big.NewInt(1))
 
-	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
 	expectedBalance := big.NewInt(999_990)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, signedTx, nil)
+	chain.ApplyTxOnState(appState, nil, signedTx, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))

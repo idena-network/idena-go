@@ -126,7 +126,7 @@ type Global struct {
 	WordsSeed                     types.Seed `rlp:"nil"`
 	LastSnapshot                  uint64
 	EpochBlock                    uint64
-	FeePerByte                    *big.Int
+	FeePerGas                     *big.Int
 	VrfProposerThreshold          uint64
 	EmptyBlocksBits               *big.Int
 	GodAddressInvites             uint16
@@ -142,7 +142,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		WordsSeed:                     s.WordsSeed[:],
 		LastSnapshot:                  s.LastSnapshot,
 		EpochBlock:                    s.EpochBlock,
-		FeePerByte:                    common.BigIntBytesOrNil(s.FeePerByte),
+		FeePerGas:                    common.BigIntBytesOrNil(s.FeePerGas),
 		VrfProposerThreshold:          s.VrfProposerThreshold,
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
 		GodAddressInvites:             uint32(s.GodAddressInvites),
@@ -164,7 +164,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.WordsSeed = types.BytesToSeed(protoGlobal.WordsSeed)
 	s.LastSnapshot = protoGlobal.LastSnapshot
 	s.EpochBlock = protoGlobal.EpochBlock
-	s.FeePerByte = common.BigIntOrNil(protoGlobal.FeePerByte)
+	s.FeePerGas = common.BigIntOrNil(protoGlobal.FeePerGas)
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
@@ -175,9 +175,15 @@ func (s *Global) FromBytes(data []byte) error {
 // Account is the Idena consensus representation of accounts.
 // These objects are stored in the main account trie.
 type Account struct {
-	Nonce   uint32
-	Epoch   uint16
-	Balance *big.Int
+	Nonce    uint32
+	Epoch    uint16
+	Balance  *big.Int
+	Contract *ContractData
+}
+
+type ContractData struct {
+	CodeHash common.Hash
+	Stake    *big.Int
 }
 
 func (a *Account) ToBytes() ([]byte, error) {
@@ -185,6 +191,12 @@ func (a *Account) ToBytes() ([]byte, error) {
 		Nonce:   a.Nonce,
 		Epoch:   uint32(a.Epoch),
 		Balance: common.BigIntBytesOrNil(a.Balance),
+	}
+	if a.Contract != nil {
+		protoAcc.ContractData = &models.ProtoStateAccount_ProtoContractData{
+			CodeHash: a.Contract.CodeHash.Bytes(),
+			Stake:    common.BigIntBytesOrNil(a.Contract.Stake),
+		}
 	}
 	return proto.Marshal(protoAcc)
 }
@@ -197,6 +209,14 @@ func (a *Account) FromBytes(data []byte) error {
 	a.Balance = common.BigIntOrNil(protoAcc.Balance)
 	a.Epoch = uint16(protoAcc.Epoch)
 	a.Nonce = protoAcc.Nonce
+	if protoAcc.ContractData != nil {
+		hash := common.Hash{}
+		hash.SetBytes(protoAcc.ContractData.CodeHash)
+		a.Contract = &ContractData{
+			CodeHash: hash,
+			Stake:    common.BigIntOrNil(protoAcc.ContractData.Stake),
+		}
+	}
 	return nil
 }
 
@@ -461,7 +481,7 @@ func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) 
 
 // empty returns whether the account is considered empty.
 func (s *stateAccount) empty() bool {
-	return s.Balance().Sign() == 0 && s.data.Nonce == 0
+	return s.Balance().Sign() == 0 && s.data.Nonce == 0 && s.data.Contract == nil
 }
 
 // Returns the address of the contract/account
@@ -500,6 +520,22 @@ func (s *stateAccount) Nonce() uint32 {
 
 func (s *stateAccount) Epoch() uint16 {
 	return s.data.Epoch
+}
+
+func (s *stateAccount) SetCodeHash(hash common.Hash) {
+	if s.data.Contract == nil {
+		s.data.Contract = &ContractData{}
+	}
+	s.data.Contract.CodeHash = hash
+	s.touch()
+}
+
+func (s *stateAccount) SetContractStake(stake *big.Int) {
+	if s.data.Contract == nil {
+		s.data.Contract = &ContractData{}
+	}
+	s.data.Contract.Stake = stake
+	s.touch()
 }
 
 // Returns the address of the contract/account
@@ -553,7 +589,7 @@ func (s *stateIdentity) GeneticCode() (generation uint32, code []byte) {
 
 func (s *stateIdentity) Stake() *big.Int {
 	if s.data.Stake == nil {
-		return big.NewInt(0)
+		return common.Big0
 	}
 	return s.data.Stake
 }
@@ -887,16 +923,16 @@ func (s *stateGlobal) EpochBlock() uint64 {
 	return s.data.EpochBlock
 }
 
-func (s *stateGlobal) SetFeePerByte(fee *big.Int) {
-	s.data.FeePerByte = fee
+func (s *stateGlobal) SetFeePerGas(fee *big.Int) {
+	s.data.FeePerGas = fee
 	s.touch()
 }
 
-func (s *stateGlobal) FeePerByte() *big.Int {
-	if s.data.FeePerByte == nil {
+func (s *stateGlobal) FeePerGas() *big.Int {
+	if s.data.FeePerGas == nil {
 		return new(big.Int)
 	}
-	return s.data.FeePerByte
+	return s.data.FeePerGas
 }
 
 func (s *stateGlobal) SubGodAddressInvite() {
@@ -1004,4 +1040,9 @@ func (s *stateStatusSwitch) touch() {
 
 func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {
 	return f&flag != 0
+}
+
+type contractStoreValue struct {
+	value   []byte
+	removed bool
 }

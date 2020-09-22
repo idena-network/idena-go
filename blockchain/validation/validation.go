@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"math/big"
@@ -56,6 +57,7 @@ var (
 	InvalidSender        = errors.New("invalid sender")
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
+	NegativeValue        = errors.New("value must be non-negative")
 	validators           map[types.TxType]validator
 )
 
@@ -64,6 +66,12 @@ var (
 		types.SendTx:          true,
 		types.BurnTx:          true,
 		types.ChangeProfileTx: true,
+	}
+
+	contractTxs = map[types.TxType]struct{}{
+		types.CallContract:      {},
+		types.DeployContract:    {},
+		types.TerminateContract: {},
 	}
 )
 
@@ -94,12 +102,12 @@ func checkIfNonNegative(value *big.Int) error {
 		return nil
 	}
 	if value.Sign() == -1 {
-		return errors.New("value must be non-negative")
+		return NegativeValue
 	}
 	return nil
 }
 
-func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByte *big.Int, txType TxType) error {
+func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas *big.Int, txType TxType) error {
 	sender, _ := types.Sender(tx)
 
 	if sender == (common.Address{}) {
@@ -134,7 +142,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 		return errors.Wrapf(InvalidNonce, "state nonce: %v, state epoch: %v, tx nonce: %v, tx epoch: %v", nonce, epoch, tx.AccountNonce, tx.Epoch)
 	}
 
-	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerByte, tx)
+	minFee := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), minFeePerGas, tx)
 	if minFee.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return InvalidMaxFee
 	}
@@ -146,7 +154,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 
 	validator, ok := validators[tx.Type]
 	if !ok {
-		return nil
+		return errors.New("unknown tx type")
 	}
 	if err := validator(appState, tx, txType); err != nil {
 		return err
@@ -158,9 +166,12 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerByt
 func validateTotalCost(sender common.Address, appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	var cost *big.Int
 	if txType != InBlockTx {
-		cost = calculateMaxCost(tx)
+		cost = fee.CalculateMaxCost(tx)
 	} else {
-		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+		cost = fee.CalculateCost(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
+		if _, ok := contractTxs[tx.Type]; ok {
+			cost = fee.CalculateMaxCost(tx)
+		}
 	}
 	if cost.Sign() > 0 && appState.State.GetBalance(sender).Cmp(cost) < 0 {
 		return InsufficientFunds
@@ -185,19 +196,11 @@ func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxTy
 	if txType != InBlockTx {
 		return nil
 	}
-	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerByte(), tx)
+	feeAmount := fee.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
 	if feeAmount.Cmp(tx.MaxFeeOrZero()) == 1 {
 		return BigFee
 	}
 	return nil
-}
-
-func calculateMaxCost(tx *types.Transaction) *big.Int {
-	result := big.NewInt(0)
-	result.Add(result, tx.AmountOrZero())
-	result.Add(result, tx.TipsOrZero())
-	result.Add(result, tx.MaxFeeOrZero())
-	return result
 }
 
 // specific validation for sendTx
@@ -668,6 +671,90 @@ func validateDeleteFlipTx(appState *appstate.AppState, tx *types.Transaction, tx
 	}
 	if !exist {
 		return FlipIsMissing
+	}
+
+	return nil
+}
+
+func validateCallContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	codeHash := appState.State.GetCodeHash(*tx.To)
+	if codeHash == nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	attachment := attachments.ParseCallContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+
+	return nil
+}
+
+func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
+
+	if tx.AmountOrZero().Cmp(minStake) < 0 {
+		return InvalidAmount
+	}
+
+	attachment := attachments.ParseDeployContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
+	}
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok {
+		return InvalidPayload
+	}
+	return nil
+}
+
+func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	codeHash := appState.State.GetCodeHash(*tx.To)
+	if codeHash == nil {
+		return InvalidRecipient
+	}
+
+	if err := ValidateFee(appState, tx, txType); err != nil {
+		return err
+	}
+	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
+		return err
+	}
+
+	attachment := attachments.ParseTerminateContractAttachment(tx)
+	if attachment == nil {
+		return InvalidPayload
 	}
 
 	return nil

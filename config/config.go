@@ -343,7 +343,7 @@ func loadConfig(configPath string, conf *Config) error {
 		byteValue, _ := ioutil.ReadAll(jsonFile)
 		err := json.Unmarshal(byteValue, &conf)
 		if err != nil {
-			return errors.Errorf("Cannot parse JSON config, path: %v", configPath)
+			return errors.Wrap(err, errors.Errorf("Cannot parse JSON config, path: %v", configPath).Error())
 		}
 		return nil
 	}
