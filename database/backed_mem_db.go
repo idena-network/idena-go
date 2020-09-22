@@ -225,6 +225,6 @@ func (it *iterator) Value() (value []byte) {
 	return it.value
 }
 
-func (it *iterator) Close() {
-	it.permanentIter.Close()
+func (it *iterator) Close() error {
+	return it.permanentIter.Close()
 }
