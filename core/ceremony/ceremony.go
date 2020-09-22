@@ -273,6 +273,10 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.calculatePrivateFlipKeysIndexes()
 	vc.startValidationShortSessionTimer()
 	vc.lottery.finished = true
+	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
+	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
+		vc.stopFlipKeysSync()
+	}
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
@@ -451,6 +455,7 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 		vc.logInfoWithInteraction("After long session started")
 	}
 	vc.processCeremonyTxs(block)
+	vc.stopFlipKeysSync()
 	vc.log.Info("After long blocks without ceremonial txs", "cnt", vc.appState.State.BlocksCntWithoutCeremonialTxs())
 }
 
