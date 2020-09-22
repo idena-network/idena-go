@@ -13,6 +13,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
+	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
@@ -30,8 +31,8 @@ var (
 type FlipKeysPool interface {
 	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
 	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
-	GetFlipPackagesHashes() []common.Hash128
-	GetFlipKeys() []*types.PublicFlipKey
+	GetFlipPackagesHashesForSync() []common.Hash128
+	GetFlipKeysForSync() []*types.PublicFlipKey
 }
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 
 type KeysPool struct {
 	db                        dbm.DB
+	epochDb                   *database.EpochDb
 	appState                  *appstate.AppState
 	flipKeys                  map[common.Address]*types.PublicFlipKey
 	publicKeyMutex            sync.RWMutex
@@ -56,6 +58,7 @@ type KeysPool struct {
 	cancelLoadingCtx          context.CancelFunc
 	self                      common.Address
 	pushTracker               pushpull.PendingPushTracker
+	stopSync                  bool
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
@@ -81,13 +84,22 @@ func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secSt
 func (p *KeysPool) Initialize(head *types.Header) {
 	p.head = head
 	p.self = p.secStore.GetAddress()
-
+	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
 	_ = p.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
 			newBlockEvent := e.(*events.NewBlockEvent)
 			p.head = newBlockEvent.Block.Header
 		})
 	p.pushTracker.Run()
+
+	appState, _ := p.appState.Readonly(p.head.Height())
+	for _, k := range p.epochDb.ReadPublicFlipKeys() {
+		_ = p.putPublicFlipKey(k, appState, false)
+	}
+
+	for _, k := range p.epochDb.ReadPrivateFlipKeys() {
+		_ = p.putPrivateFlipKeysPackage(k, appState, false)
+	}
 }
 
 func (p *KeysPool) Add(hash common.Hash128, entry interface{}, highPriority bool) {
@@ -154,6 +166,8 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 
 	p.appState.EvidenceMap.NewFlipsKey(sender)
 
+	p.epochDb.WritePublicFlipKey(key)
+
 	p.publicKeyMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
@@ -204,6 +218,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 
 	p.pushTracker.RemovePull(shortHash)
 
+	p.epochDb.WritePrivateFlipKey(keysPackage)
+
 	p.privateKeysMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
@@ -213,30 +229,28 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	return nil
 }
 
-func (p *KeysPool) GetFlipKeys() []*types.PublicFlipKey {
+func (p *KeysPool) GetFlipKeysForSync() []*types.PublicFlipKey {
 	p.publicKeyMutex.RLock()
 	defer p.publicKeyMutex.RUnlock()
 
 	var list []*types.PublicFlipKey
-
-	for _, tx := range p.flipKeys {
-		list = append(list, tx)
+	if !p.stopSync {
+		for _, tx := range p.flipKeys {
+			list = append(list, tx)
+		}
 	}
 	return list
 }
 
-func (p *KeysPool) GetFlipPackagesHashes() []common.Hash128 {
+func (p *KeysPool) GetFlipPackagesHashesForSync() []common.Hash128 {
 	p.privateKeysMutex.RLock()
 	defer p.privateKeysMutex.RUnlock()
 
 	var list []common.Hash128
-
-	for k, p := range p.flipKeyPackagesByHash {
-		//TODO: remove
-		if p.Epoch == 53 {
-			continue
+	if !p.stopSync {
+		for k := range p.flipKeyPackagesByHash {
+			list = append(list, k)
 		}
-		list = append(list, k)
 	}
 	return list
 }
@@ -320,6 +334,8 @@ func (p *KeysPool) Clear() {
 	p.flipKeyPackagesByHash = make(map[common.Hash128]*types.PrivateFlipKeysPackage)
 	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
 	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
+	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
+	p.stopSync = false
 }
 
 func (p *KeysPool) InitializePrivateKeyIndexes(indexes map[common.Address]int) {
@@ -352,6 +368,10 @@ func (p *KeysPool) AddPrivateFlipKeysPackages(batch []*types.PrivateFlipKeysPack
 	for _, k := range batch {
 		p.putPrivateFlipKeysPackage(k, appState, false)
 	}
+}
+
+func (p *KeysPool) StopSyncing() {
+	p.stopSync = true
 }
 
 func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {
