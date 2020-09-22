@@ -269,10 +269,12 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
 	vc.qualification.restore()
-	vc.calculateCeremonyCandidates()
-	vc.calculatePrivateFlipKeysIndexes()
 	vc.startValidationShortSessionTimer()
-	vc.lottery.finished = true
+	if vc.appState.State.ValidationPeriod() != state.NonePeriod {
+		vc.calculateCeremonyCandidates()
+		vc.calculatePrivateFlipKeysIndexes()
+		vc.lottery.finished = true
+	}
 	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
 	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
 		vc.stopFlipKeysSync()
