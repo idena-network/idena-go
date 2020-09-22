@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -344,4 +345,27 @@ func (api *ContractApi) Events(args EventsArgs) interface{} {
 		}
 	}
 	return list
+}
+
+func conversion(convertTo string, data []byte) (interface{}, error) {
+	switch convertTo {
+	case "byte":
+		return helpers.ExtractByte(0, data)
+	case "uint64":
+		return helpers.ExtractUInt64(0, data)
+	case "string":
+		return string(data), nil
+	case "bigint":
+		v := new(big.Int)
+		v.SetBytes(data)
+		return v.String(), nil
+	case "hex":
+		return hexutil.Encode(data), nil
+	case "dna":
+		v := new(big.Int)
+		v.SetBytes(data)
+		return blockchain.ConvertToFloat(v), nil
+	default:
+		return hexutil.Encode(data), nil
+	}
 }

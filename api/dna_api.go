@@ -16,11 +16,9 @@ import (
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	"math/big"
 	"time"
 )
 
@@ -597,28 +595,4 @@ func (api *DnaApi) ActivateInviteToRandAddr(ctx context.Context, args ActivateIn
 		Address: to,
 		Key:     hex.EncodeToString(crypto.FromECDSA(toKey)),
 	}, nil
-}
-
-
-func conversion(convertTo string, data []byte) (interface{}, error) {
-	switch convertTo {
-	case "byte":
-		return helpers.ExtractByte(0, data)
-	case "uint64":
-		return helpers.ExtractUInt64(0, data)
-	case "string":
-		return string(data), nil
-	case "bigint":
-		v := new(big.Int)
-		v.SetBytes(data)
-		return v.String(), nil
-	case "hex":
-		return hexutil.Encode(data), nil
-	case "dna":
-		v := new(big.Int)
-		v.SetBytes(data)
-		return blockchain.ConvertToFloat(v), nil
-	default:
-		return hexutil.Encode(data), nil
-	}
 }

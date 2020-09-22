@@ -73,7 +73,7 @@ func main() {
 			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
 			Epoch:                         uint32(globalObject.Epoch()),
 			EpochBlock:                    globalObject.EpochBlock(),
-			FeePerGas:                    common.BigIntBytesOrNil(globalObject.FeePerGas()),
+			FeePerGas:                     common.BigIntBytesOrNil(globalObject.FeePerGas()),
 			VrfProposerThreshold:          globalObject.VrfProposerThresholdRaw(),
 			EmptyBlocksBits:               common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
 			GodAddressInvites:             uint32(globalObject.GodAddressInvites()),
@@ -101,13 +101,13 @@ func main() {
 				Epoch:   uint32(data.Epoch),
 				Nonce:   data.Nonce,
 			}
-			snapshot.Accounts = append(snapshot.Accounts, acc)
 			if data.Contract != nil {
 				acc.ContractData = &models.ProtoPredefinedState_Account_ContractData{
 					CodeHash: data.Contract.CodeHash.Bytes(),
 					Stake:    data.Contract.Stake.Bytes(),
 				}
 			}
+			snapshot.Accounts = append(snapshot.Accounts, acc)
 			return false
 		})
 
