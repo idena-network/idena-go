@@ -1323,9 +1323,19 @@ func (s *StateDB) IterateContractStore(addr common.Address, minKey []byte, maxKe
 
 	iteratedKeys := make(map[string]struct{})
 
+	if minKey == nil {
+		minKey = make([]byte, 32)
+	}
+	if maxKey == nil {
+		maxKey = make([]byte, 32)
+		for i := 0; i < len(maxKey); i++ {
+			maxKey[i] = 0xFF
+		}
+	}
+
 	for key, value := range s.contractStoreCache {
 		keyBytes := []byte(key)
-		if (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, minKey)) >= 0 || minKey == nil) && (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, maxKey)) <= 0 || maxKey == nil) {
+		if (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, minKey)) >= 0) && (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, maxKey)) <= 0) {
 			iteratedKeys[key] = struct{}{}
 			if !value.removed && f(keyBytes[21:], value.value) {
 				return

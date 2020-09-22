@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-func TestEnvImp_Caches(t *testing.T) {
+func TestEnvImp_basicMethods(t *testing.T) {
 
 	createHeader := func(height uint64, time int64) *types.Header {
 		seed := types.Seed{}
@@ -111,4 +111,47 @@ func TestEnvImp_Caches(t *testing.T) {
 		return false
 	})
 
+	env.Event("test1", []byte{0x1})
+	env.Event("test2", []byte{0x2})
+
+	events := env.Commit()
+	env.Reset()
+	require.Len(t, events, 2)
+	require.Equal(t, events[0].EventName, "test1")
+	require.Equal(t, events[0].Data, [][]byte{{0x1}})
+	require.Equal(t, events[1].EventName, "test2")
+	require.Equal(t, events[1].Data, [][]byte{{0x2}})
+
+	require.Equal(t, 0, appState.State.GetBalance(common.Address{0x1}).Cmp(big.NewInt(1)))
+	require.Equal(t, 0, appState.State.GetBalance(ctx.ContractAddr()).Cmp(big.NewInt(99)))
+
+	require.Equal(t, 0, appState.State.GetContractStake(ctx.ContractAddr()).Cmp(common.DnaBase))
+	require.Equal(t, attachment.CodeHash, *appState.State.GetCodeHash(ctx.ContractAddr()))
+
+	attach := attachments.CreateTerminateContractAttachment()
+	payload, _ = attach.ToBytes()
+
+	contract := ctx.ContractAddr()
+	tx = &types.Transaction{
+		Epoch:        0,
+		AccountNonce: 2,
+		To:           &contract,
+		Type:         types.TerminateContract,
+		Payload:      payload,
+	}
+	tx, _ = types.SignTx(tx, key)
+	terminateCtx := NewCallContextImpl(tx, attachment.CodeHash)
+	env.Terminate(terminateCtx, common.Address{0x04})
+	env.Commit()
+
+	require.Equal(t, (*common.Hash)(nil), appState.State.GetCodeHash(ctx.ContractAddr()))
+	require.True(t, appState.State.GetContractStake(ctx.ContractAddr()) == nil)
+	require.Equal(t, 0, appState.State.GetBalance(common.Address{0x4}).Cmp(common.DnaBase))
+
+	cnt = 0
+	env.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
+		cnt++
+		return false
+	})
+	require.Equal(t, 0, cnt)
 }

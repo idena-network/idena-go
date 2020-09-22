@@ -8,8 +8,10 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
+	"github.com/tendermint/tendermint/libs/rand"
 	"github.com/tendermint/tm-db"
 	"math/big"
+	"sort"
 	"testing"
 	"time"
 )
@@ -446,4 +448,71 @@ func TestStateDB_GetContractValue(t *testing.T) {
 
 	stateDb.Reset()
 	require.Equal(t, []byte(nil), stateDb.GetContractValue(addr, []byte{0x1}))
+}
+
+func TestStateDB_IterateContractStore(t *testing.T) {
+	database := db.NewMemDB()
+	stateDb := NewLazy(database)
+
+	stateDb.SetBalance(common.Address{0x1}, common.DnaBase)
+	stateDb.SetFeePerGas(common.DnaBase)
+	stateDb.SetState(common.Address{0x2}, 1)
+	stateDb.DeployContract(common.Address{0x3}, common.Hash{0x02}, common.DnaBase)
+
+	type keyValue struct {
+		key   []byte
+		value []byte
+	}
+	var stored []keyValue
+	var addr1Values []keyValue
+	for i := uint64(0); i < 100; i++ {
+		addr := common.Address{}
+		addr.SetBytes(common.ToBytes(i))
+		for j := 0; j < 255; j++ {
+			key := rand.Bytes(20)
+			value := rand.Bytes(10)
+			stateDb.SetContractValue(addr, key, value)
+			stored = append(stored, keyValue{
+				key: StateDbKeys.ContractStoreKey(addr, key), value: value,
+			})
+			if i == 1 {
+				addr1Values = append(addr1Values, keyValue{key, value})
+			}
+		}
+	}
+
+	sort.SliceStable(stored, func(i, j int) bool {
+		return bytes.Compare(stored[i].key, stored[j].key) > 0
+	})
+
+	sort.SliceStable(addr1Values, func(i, j int) bool {
+		return bytes.Compare(addr1Values[i].key, addr1Values[j].key) > 0
+	})
+
+	stateDb.Commit(true)
+
+	var iterated []keyValue
+	stateDb.IterateContractValues(func(key []byte, value []byte) bool {
+		iterated = append(iterated, keyValue{key, value})
+		return false
+	})
+
+	sort.SliceStable(iterated, func(i, j int) bool {
+		return bytes.Compare(iterated[i].key, iterated[j].key) > 0
+	})
+	require.Equal(t, stored, iterated)
+
+	iterated = []keyValue{}
+	addr := common.Address{}
+	addr.SetBytes(common.ToBytes(uint64(1)))
+	stateDb.IterateContractStore(addr, nil, nil, func(key []byte, value []byte) bool {
+		iterated = append(iterated, keyValue{key, value})
+		return false
+	})
+
+	sort.SliceStable(iterated, func(i, j int) bool {
+		return bytes.Compare(iterated[i].key, iterated[j].key) > 0
+	})
+	require.Equal(t, len(addr1Values), len(iterated))
+	require.Equal(t, addr1Values, iterated)
 }
