@@ -10,14 +10,14 @@ type backedMemBatch struct {
 	touch   func(key []byte)
 }
 
-func (b *backedMemBatch) Set(key, value []byte) {
+func (b *backedMemBatch) Set(key, value []byte) error {
 	b.touched = append(b.touched, key)
-	b.batch.Set(key, value)
+	return b.batch.Set(key, value)
 }
 
-func (b *backedMemBatch) Delete(key []byte) {
+func (b *backedMemBatch) Delete(key []byte) error {
 	b.touched = append(b.touched, key)
-	b.batch.Delete(key)
+	return b.batch.Delete(key)
 }
 
 func (b *backedMemBatch) Write() error {
@@ -42,6 +42,6 @@ func (b *backedMemBatch) WriteSync() error {
 	return nil
 }
 
-func (b *backedMemBatch) Close() {
-	b.batch.Close()
+func (b *backedMemBatch) Close() error {
+	return b.batch.Close()
 }
