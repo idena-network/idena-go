@@ -71,8 +71,8 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	require.Error(t, stateDb.Load(101))
 
-	preliminaryPrefix := loadIdentityPrefix(preliminary.original, true)
-	prefix := loadIdentityPrefix(stateDb.original, false)
+	preliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.NotNil(t, preliminaryPrefix)
 	require.NotNil(t, prefix)
@@ -87,8 +87,8 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	require.True(t, stateDb.HasVersion(100))
 
-	preliminaryPrefix = loadIdentityPrefix(preliminary.original, true)
-	prefix = loadIdentityPrefix(stateDb.original, false)
+	preliminaryPrefix = IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix = IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.Len(t, preliminaryPrefix, 0)
 	require.NotNil(t, prefix)
@@ -120,14 +120,14 @@ func TestIdentityStateDB_SwitchToPreliminary(t *testing.T) {
 
 	root := preliminary.Root()
 
-	prevVreliminaryPrefix := loadIdentityPrefix(preliminary.original, true)
+	prevVreliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
 
 	batch, dropDb, err := stateDb.SwitchToPreliminary(150)
 	require.NoError(t, err)
 	batch.WriteSync()
 	common.ClearDb(dropDb)
-	preliminaryPrefix := loadIdentityPrefix(preliminary.original, true)
-	prefix := loadIdentityPrefix(stateDb.original, false)
+	preliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.Len(t, preliminaryPrefix, 0)
 	require.NotNil(t, prefix)

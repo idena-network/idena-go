@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
@@ -27,12 +28,17 @@ const (
 	BurnTx               uint16 = 0xC
 	ChangeProfileTx      uint16 = 0xD
 	DeleteFlipTx         uint16 = 0xE
+	DeployContract       uint16 = 0xF
+	CallContract         uint16 = 0x10
+	TerminateContract    uint16 = 0x11
 )
 
 const (
 	ReductionOne = 253
 	ReductionTwo = 254
 	Final        = 255
+
+	MaxBlockGas = 3000 * 1024
 )
 
 type BlockFlag uint32
@@ -102,9 +108,10 @@ type ProposedHeader struct {
 	OfflineAddr    *common.Address `rlp:"nil"`
 	TxBloom        []byte
 	BlockSeed      Seed
-	FeePerByte     *big.Int
+	FeePerGas      *big.Int
 	Upgrade        uint32
 	SeedProof      []byte
+	TxReceiptsCid  []byte
 }
 
 type Header struct {
@@ -328,14 +335,14 @@ func (s *ActivityMonitor) FromBytes(data []byte) error {
 
 type SavedTransaction struct {
 	Tx         *Transaction
-	FeePerByte *big.Int
+	FeePerGas *big.Int
 	BlockHash  common.Hash
 	Timestamp  int64
 }
 
 func (s *SavedTransaction) ToBytes() ([]byte, error) {
 	protoObj := &models.ProtoSavedTransaction{
-		FeePerBye: common.BigIntBytesOrNil(s.FeePerByte),
+		FeePerGas: common.BigIntBytesOrNil(s.FeePerGas),
 		BlockHash: s.BlockHash[:],
 		Timestamp: s.Timestamp,
 	}
@@ -356,7 +363,7 @@ func (s *SavedTransaction) FromBytes(data []byte) error {
 	}
 	s.Timestamp = protoObj.Timestamp
 	s.BlockHash = common.BytesToHash(protoObj.BlockHash)
-	s.FeePerByte = common.BigIntOrNil(protoObj.FeePerBye)
+	s.FeePerGas = common.BigIntOrNil(protoObj.FeePerGas)
 	return nil
 }
 
@@ -503,9 +510,10 @@ func (h *Header) FromProto(protoHeader *models.ProtoBlockHeader) *Header {
 			IpfsHash:       protoHeader.ProposedHeader.IpfsHash,
 			TxBloom:        protoHeader.ProposedHeader.TxBloom,
 			BlockSeed:      BytesToSeed(protoHeader.ProposedHeader.BlockSeed),
-			FeePerByte:     common.BigIntOrNil(protoHeader.ProposedHeader.FeePerByte),
+			FeePerGas:      common.BigIntOrNil(protoHeader.ProposedHeader.FeePerGas),
 			Upgrade:        protoHeader.ProposedHeader.Upgrade,
 			SeedProof:      protoHeader.ProposedHeader.SeedProof,
+			TxReceiptsCid:  protoHeader.ProposedHeader.ReceiptsCid,
 		}
 		if len(protoHeader.ProposedHeader.OfflineAddr) > 0 {
 			addr := common.BytesToAddress(protoHeader.ProposedHeader.OfflineAddr)
@@ -579,11 +587,11 @@ func (h *Header) Time() int64 {
 	}
 }
 
-func (h *Header) FeePerByte() *big.Int {
+func (h *Header) FeePerGas() *big.Int {
 	if h.EmptyBlockHeader != nil {
 		return nil
 	} else {
-		return h.ProposedHeader.FeePerByte
+		return h.ProposedHeader.FeePerGas
 	}
 }
 
@@ -640,9 +648,10 @@ func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
 		IpfsHash:       h.IpfsHash,
 		TxBloom:        h.TxBloom,
 		BlockSeed:      h.BlockSeed[:],
-		FeePerByte:     common.BigIntBytesOrNil(h.FeePerByte),
+		FeePerGas:     common.BigIntBytesOrNil(h.FeePerGas),
 		Upgrade:        h.Upgrade,
 		SeedProof:      h.SeedProof,
+		ReceiptsCid:    h.TxReceiptsCid,
 	}
 	if h.OfflineAddr != nil {
 		protoProposed.OfflineAddr = (*h.OfflineAddr)[:]
@@ -1378,5 +1387,168 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 	i.Idx = protoObj.Idx
 	i.BlockHash = common.BytesToHash(protoObj.BlockHash)
 
+	return nil
+}
+
+type TxEvent struct {
+	EventName string
+	Data      [][]byte
+}
+
+type TxReceipt struct {
+	ContractAddress common.Address
+	Success         bool
+	GasUsed         uint64
+	GasCost         *big.Int
+	From            common.Address
+	TxHash          common.Hash
+	Error           error
+	Events          []*TxEvent
+}
+
+type TxReceipts []*TxReceipt
+
+func (txrs TxReceipts) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoTxReceipts{}
+	for _, r := range txrs {
+		protoObj.Receipts = append(protoObj.Receipts, r.ToProto())
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (txrs TxReceipts) FromBytes(data []byte) TxReceipts {
+	protoObj := new(models.ProtoTxReceipts)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return nil
+	}
+	return txrs.FromProto(protoObj)
+}
+
+func (txrs TxReceipts) FromProto(protoObj *models.ProtoTxReceipts) TxReceipts {
+	var ret TxReceipts
+	for _, r := range protoObj.Receipts {
+		receipt := new(TxReceipt)
+		receipt.FromProto(r)
+		ret = append(ret, receipt)
+	}
+	return ret
+}
+
+func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
+	protoObj := &models.ProtoTxReceipts_ProtoTxReceipt{
+		Success:  r.Success,
+		Contract: r.ContractAddress.Bytes(),
+		From:     r.From.Bytes(),
+		GasUsed:  r.GasUsed,
+		TxHash:   r.TxHash.Bytes(),
+	}
+	if r.Error != nil {
+		protoObj.Error = r.Error.Error()
+	}
+	if r.GasCost != nil {
+		protoObj.GasCost = r.GasCost.Bytes()
+	}
+	for idx := range r.Events {
+		e := r.Events[idx]
+		protoObj.Events = append(protoObj.Events, &models.ProtoTxReceipts_ProtoEvent{
+			Event: e.EventName,
+			Data:  e.Data,
+		})
+	}
+	return protoObj
+}
+
+func (r *TxReceipt) ToBytes() ([]byte, error) {
+	return proto.Marshal(r.ToProto())
+}
+
+func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
+	var from common.Address
+	from.SetBytes(protoObj.From)
+	r.From = from
+
+	var contract common.Address
+	contract.SetBytes(protoObj.Contract)
+	r.ContractAddress = contract
+
+	gasCost := big.NewInt(0)
+	gasCost.SetBytes(protoObj.GasCost)
+	r.GasCost = gasCost
+
+	if protoObj.Error != "" {
+		r.Error = errors.New(protoObj.Error)
+	}
+	r.Success = protoObj.Success
+	r.GasUsed = protoObj.GasUsed
+
+	var hash common.Hash
+	hash.SetBytes(protoObj.TxHash)
+	r.TxHash = hash
+
+	for idx := range protoObj.Events {
+		e := protoObj.Events[idx]
+		r.Events = append(r.Events, &TxEvent{
+			EventName: e.Event,
+			Data:      e.Data,
+		})
+	}
+}
+
+func (r *TxReceipt) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoTxReceipts_ProtoTxReceipt)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	r.FromProto(protoObj)
+	return nil
+}
+
+type TxReceiptIndex struct {
+	ReceiptCid []byte
+	// tx index in receipts
+	Idx uint32
+}
+
+func (i *TxReceiptIndex) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoTxReceiptIndex{
+		Cid:   i.ReceiptCid,
+		Index: i.Idx,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (i *TxReceiptIndex) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoTxReceiptIndex)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	i.Idx = protoObj.Index
+	i.ReceiptCid = protoObj.Cid
+	return nil
+}
+
+type SavedEvent struct {
+	Contract common.Address
+	Event    string
+	Args     [][]byte
+}
+
+func (i *SavedEvent) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoSavedEvent{
+		Contract: i.Contract.Bytes(),
+		Event:    i.Event,
+		Args:     i.Args,
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (i *SavedEvent) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoSavedEvent)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	i.Contract.SetBytes(protoObj.Contract)
+	i.Event = protoObj.Event
+	i.Args = protoObj.Args
 	return nil
 }

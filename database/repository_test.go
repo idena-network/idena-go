@@ -73,3 +73,52 @@ func TestRepo_WritActivityMonitor(t *testing.T) {
 	require.Equal(monitor.Data[0].Addr, readActivity.Data[0].Addr)
 	require.Equal(monitor.Data[0].Time.Unix(), readActivity.Data[0].Time.Unix())
 }
+
+func TestRepo_GetSavedEvents(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+
+	addr1 := common.Address{1}
+	addr2 := common.Address{2}
+
+	tx1 := common.Hash{0x1}
+	tx2 := common.Hash{0x2}
+
+	repo.WriteEvent(addr1, tx1, 1, &types.TxEvent{
+		EventName: "event2",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr1, tx1, 2, &types.TxEvent{
+		EventName: "event1",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr1, tx1, 3, &types.TxEvent{
+		EventName: "event1",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 1, &types.TxEvent{
+		EventName: "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 2, &types.TxEvent{
+		EventName: "e",
+		Data:      [][]byte{{0x1}},
+	})
+	repo.WriteEvent(addr2, tx2, 3, &types.TxEvent{
+		EventName: "ev2",
+		Data:      [][]byte{{0x1}},
+	})
+
+	events1 := repo.GetSavedEvents(addr1)
+	events2 := repo.GetSavedEvents(addr2)
+	require.Len(t, events1, 3)
+	require.Len(t, events2, 3)
+
+	require.Equal(t, "event1", events1[0].Event)
+	require.Equal(t, "event1", events1[1].Event)
+	require.Equal(t, "event2", events1[2].Event)
+	require.Equal(t, "ev2", events2[0].Event)
+	require.Equal(t, "e", events2[1].Event)
+	require.Equal(t, "ZZZZZZZZZZZZZZZ ZZZZZZZZZZZZZZZZZZ", events2[2].Event)
+
+}

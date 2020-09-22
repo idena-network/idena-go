@@ -15,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
@@ -23,6 +24,7 @@ import (
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/pkg/errors"
 	"net"
 	"os"
@@ -60,6 +62,8 @@ type Node struct {
 	offlineDetector *blockchain.OfflineDetector
 	appVersion      string
 	profileManager  *profile.Manager
+	deferJob        *deferredtx.Job
+	subManager      *subscriptions.Manager
 }
 
 type NodeCtx struct {
@@ -157,18 +161,29 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore)
+	subManager, err := subscriptions.NewManager(config.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore, subManager)
 	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, &ceremonyChecker{
 		appState: appState,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
-	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector)
+	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore,
 		downloader, offlineDetector, statsCollector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
 	profileManager := profile.NewProfileManager(ipfsProxy)
+
+	deferJob, err := deferredtx.NewJob(bus, config.DataDir, appState, chain, txpool, keyStore, secStore)
+	if err != nil {
+		return nil, err
+	}
+
 	node := &Node{
 		config:          config,
 		blockchain:      chain,
@@ -190,6 +205,8 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		votes:           votes,
 		appVersion:      appVersion,
 		profileManager:  profileManager,
+		deferJob:        deferJob,
+		subManager:      subManager,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -351,6 +368,18 @@ func (node *Node) apis() []rpc.API {
 			Namespace: "bcn",
 			Version:   "1.0",
 			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool, node.downloader, node.pm),
+			Public:    true,
+		},
+		{
+			Namespace: "ipfs",
+			Version:   "1.0",
+			Service:   api.NewIpfsApi(node.ipfsProxy),
+			Public:    true,
+		},
+		{
+			Namespace: "contract",
+			Version:   "1.0",
+			Service:   api.NewContractApi(baseApi, node.blockchain, node.deferJob, node.subManager),
 			Public:    true,
 		},
 	}

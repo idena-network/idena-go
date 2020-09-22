@@ -16,37 +16,41 @@ const (
 )
 
 var (
-	MinFeePerByte = big.NewInt(1e+2)
+	MinFeePerGas = big.NewInt(10)
 )
 
-func GetFeePerByteForNetwork(networkSize int) *big.Int {
+func GetFeePerGasForNetwork(networkSize int) *big.Int {
 	if networkSize == 0 {
 		networkSize = 1
 	}
-	minFeePerByteD := decimal.NewFromFloat(0.1).
+	minFeePerGasD := decimal.NewFromFloat(0.01).
 		Div(decimal.NewFromInt(int64(networkSize))).
 		Mul(decimal.NewFromBigInt(common.DnaBase, 0))
 
-	minFeePerByte := math.ToInt(minFeePerByteD)
+	minFeePerGas := math.ToInt(minFeePerGasD)
 
-	if minFeePerByte.Cmp(MinFeePerByte) == -1 {
-		minFeePerByte = new(big.Int).Set(MinFeePerByte)
+	if minFeePerGas.Cmp(MinFeePerGas) == -1 {
+		minFeePerGas = new(big.Int).Set(MinFeePerGas)
 	}
 
-	return minFeePerByte
+	return minFeePerGas
 }
 
-func CalculateFee(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	txFeePerByte := getFeePerByteForTx(networkSize, feePerByte, tx)
-	if txFeePerByte.Sign() == 0 {
+func CalculateFee(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
+	txFeePerGas := getFeePerGasForTx(networkSize, feePerGas, tx)
+	if txFeePerGas.Sign() == 0 {
 		return big.NewInt(0)
 	}
-	size := getTxSizeForFee(tx)
-	return new(big.Int).Mul(txFeePerByte, big.NewInt(int64(size)))
+	gas := CalculateGas(tx)
+	return new(big.Int).Mul(txFeePerGas, big.NewInt(int64(gas)))
 }
 
-func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
-	if networkSize == 0 || common.ZeroOrNil(feePerByte) {
+func CalculateGas(tx *types.Transaction) int {
+	return getTxSizeForFee(tx) * 10
+}
+
+func getFeePerGasForTx(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
+	if networkSize == 0 || common.ZeroOrNil(feePerGas) {
 		return big.NewInt(0)
 	}
 	if tx.Type == types.SubmitFlipTx || tx.Type == types.SubmitAnswersHashTx || tx.Type == types.SubmitShortAnswersTx ||
@@ -57,11 +61,11 @@ func getFeePerByteForTx(networkSize int, feePerByte *big.Int, tx *types.Transact
 	if tx.Type == types.OnlineStatusTx {
 		attachment := attachments.ParseOnlineStatusAttachment(tx)
 		if attachment != nil && attachment.Online {
-			return new(big.Int).Mul(big.NewInt(2), feePerByte)
+			return new(big.Int).Mul(big.NewInt(2), feePerGas)
 		}
 		return big.NewInt(0)
 	}
-	return feePerByte
+	return feePerGas
 }
 
 func getTxSizeForFee(tx *types.Transaction) int {
@@ -75,14 +79,22 @@ func getTxSizeForFee(tx *types.Transaction) int {
 	return size
 }
 
-func CalculateCost(networkSize int, feePerByte *big.Int, tx *types.Transaction) *big.Int {
+func CalculateCost(networkSize int, feePerGas *big.Int, tx *types.Transaction) *big.Int {
 	result := big.NewInt(0)
 
 	result.Add(result, tx.AmountOrZero())
 	result.Add(result, tx.TipsOrZero())
 
-	fee := CalculateFee(networkSize, feePerByte, tx)
+	fee := CalculateFee(networkSize, feePerGas, tx)
 	result.Add(result, fee)
 
+	return result
+}
+
+func CalculateMaxCost(tx *types.Transaction) *big.Int {
+	result := big.NewInt(0)
+	result.Add(result, tx.AmountOrZero())
+	result.Add(result, tx.TipsOrZero())
+	result.Add(result, tx.MaxFeeOrZero())
 	return result
 }

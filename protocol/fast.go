@@ -13,7 +13,9 @@ import (
 	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/pkg/errors"
 	"os"
 	"time"
@@ -37,6 +39,8 @@ type fastSync struct {
 	bus                  eventbus.Bus
 	deferredHeaders      []blockPeer
 	coinBase             common.Address
+	keyStore             *keystore.KeyStore
+	subManager           *subscriptions.Manager
 }
 
 func (fs *fastSync) batchSize() uint64 {
@@ -48,7 +52,8 @@ func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 	ipfs ipfs.Proxy,
 	appState *appstate.AppState,
 	potentialForkedPeers mapset.Set,
-	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus, coinbase common.Address) *fastSync {
+	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus, coinbase common.Address, keyStore *keystore.KeyStore,
+	subManager *subscriptions.Manager) *fastSync {
 
 	return &fastSync{
 		appState:             appState,
@@ -63,6 +68,8 @@ func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 		sm:                   sm,
 		bus:                  bus,
 		coinBase:             coinbase,
+		keyStore:             keyStore,
+		subManager:           subManager,
 	}
 }
 
@@ -136,16 +143,39 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		if err != nil {
 			return b.Header.Height(), err
 		}
-		if bloom.Has(fs.coinBase) {
+		if fs.testBloom(bloom) {
 			txs, err := fs.GetBlockTransactions(b.Header.Hash(), b.Header.ProposedHeader.IpfsHash)
 			if err != nil {
 				return b.Header.Height(), err
 			}
 			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
 			fs.chain.Indexer().HandleBlockTransactions(b.Header, txs)
+
+			receipts, err := fs.GetTxReceipts(b.Header.ProposedHeader.TxReceiptsCid)
+			if err != nil {
+				return b.Header.Height(), err
+			}
+			fs.chain.WriteTxReceipts(b.Header.ProposedHeader.TxReceiptsCid, receipts)
 		}
 	}
 	return 0, nil
+}
+
+func (fs *fastSync) testBloom(bloom *common.SerializableBF) bool {
+	if bloom.Has(fs.coinBase.Bytes()) {
+		return true
+	}
+	for _, a := range fs.keyStore.Accounts() {
+		if bloom.Has(a.Address.Bytes()) {
+			return true
+		}
+	}
+	for _, s := range fs.subManager.RawSubscriptions() {
+		if bloom.Has(s) {
+			return true
+		}
+	}
+	return false
 }
 
 func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (types.Transactions, error) {
@@ -158,6 +188,18 @@ func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (typ
 		body := &types.Body{}
 		body.FromBytes(txs)
 		return body.Transactions, nil
+	}
+}
+
+func (fs *fastSync) GetTxReceipts(receiptCid []byte) (types.TxReceipts, error) {
+	if data, err := fs.ipfs.Get(receiptCid, ipfs.TxReceipt); err != nil {
+		return nil, err
+	} else {
+		if len(data) == 0 {
+			return nil, nil
+		}
+		body := types.TxReceipts{}
+		return body.FromBytes(data), nil
 	}
 }
 

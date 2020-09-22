@@ -73,7 +73,7 @@ func main() {
 			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
 			Epoch:                         uint32(globalObject.Epoch()),
 			EpochBlock:                    globalObject.EpochBlock(),
-			FeePerByte:                    common.BigIntBytesOrNil(globalObject.FeePerByte()),
+			FeePerGas:                     common.BigIntBytesOrNil(globalObject.FeePerGas()),
 			VrfProposerThreshold:          globalObject.VrfProposerThresholdRaw(),
 			EmptyBlocksBits:               common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
 			GodAddressInvites:             uint32(globalObject.GodAddressInvites()),
@@ -95,13 +95,19 @@ func main() {
 				log.Error(err.Error())
 				return false
 			}
-
-			snapshot.Accounts = append(snapshot.Accounts, &models.ProtoPredefinedState_Account{
+			acc := &models.ProtoPredefinedState_Account{
 				Address: addr.Bytes(),
 				Balance: common.BigIntBytesOrNil(data.Balance),
 				Epoch:   uint32(data.Epoch),
 				Nonce:   data.Nonce,
-			})
+			}
+			if data.Contract != nil {
+				acc.ContractData = &models.ProtoPredefinedState_Account_ContractData{
+					CodeHash: data.Contract.CodeHash.Bytes(),
+					Stake:    data.Contract.Stake.Bytes(),
+				}
+			}
+			snapshot.Accounts = append(snapshot.Accounts, acc)
 			return false
 		})
 
@@ -160,6 +166,14 @@ func main() {
 			}
 
 			snapshot.Identities = append(snapshot.Identities, identity)
+			return false
+		})
+
+		appState.State.IterateContractValues(func(key []byte, value []byte) bool {
+			snapshot.ContractValues = append(snapshot.ContractValues, &models.ProtoPredefinedState_ContractKeyValue{
+				Key:   key,
+				Value: value,
+			})
 			return false
 		})
 

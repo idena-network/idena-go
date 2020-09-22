@@ -53,7 +53,7 @@ func (api *BaseApi) getTx(from common.Address, to *common.Address, txType types.
 	// if maxFee is not set, we set it as 2x from fee
 	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {
 		tx := blockchain.BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
-		txFee := fee.CalculateFee(state.ValidatorsCache.NetworkSize(), state.State.FeePerByte(), tx)
+		txFee := fee.CalculateFee(state.ValidatorsCache.NetworkSize(), state.State.FeePerGas(), tx)
 		maxFee = blockchain.ConvertToFloat(new(big.Int).Mul(txFee, big.NewInt(2)))
 	}
 
