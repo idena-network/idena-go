@@ -53,9 +53,9 @@ const (
 type DataType = uint32
 
 const (
-	Block   DataType = 1
-	Flip    DataType = 2
-	Profile DataType = 3
+	Block     DataType = 1
+	Flip      DataType = 2
+	Profile   DataType = 3
 	TxReceipt DataType = 3
 )
 
@@ -612,7 +612,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 	var ipfsConfig *ipfsConf.Config
 
 	datadir, _ := filepath.Abs(cfg.DataDir)
-
+	writeSwarmKey(datadir, cfg.SwarmKey)
 	if !fsrepo.IsInitialized(datadir) {
 		ipfsConfig, err := ipfsConf.Init(os.Stdout, 2048)
 		if err != nil {
@@ -627,7 +627,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		if err := transformer.Transform(ipfsConfig); err != nil {
 			return nil, err
 		}
-*/
+		*/
 		err = updateIpfsConfig(ipfsConfig)
 		if err != nil {
 			return nil, err
@@ -635,8 +635,6 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		if err := fsrepo.Init(datadir, ipfsConfig); err != nil {
 			return nil, err
 		}
-
-		writeSwarmKey(datadir, cfg.SwarmKey)
 	} else {
 		ipfsConfig, err := fsrepo.ConfigAt(datadir)
 		if err != nil {
@@ -679,11 +677,9 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 
 func writeSwarmKey(dataDir string, swarmKey string) {
 	swarmPath := filepath.Join(dataDir, "swarm.key")
-	if _, err := os.Stat(swarmPath); os.IsNotExist(err) {
-		err = ioutil.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0644)
-		if err != nil {
-			log.Error(fmt.Sprintf("Failed to persist swarm file: %v", err))
-		}
+	err := ioutil.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0644)
+	if err != nil {
+		log.Error(fmt.Sprintf("Failed to persist swarm file: %v", err))
 	}
 }
 
