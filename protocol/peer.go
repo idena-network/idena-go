@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	handshakeTimeout  = 20 * time.Second
-	msgCacheAliveTime = 3 * time.Minute
-	msgCacheGcTime    = 5 * time.Minute
+	handshakeTimeout         = 20 * time.Second
+	msgCacheAliveTime        = 3 * time.Minute
+	flipKeyMsgCacheAliveTime = 10 * time.Minute
+	msgCacheGcTime           = 5 * time.Minute
 
 	maxTimeoutsBeforeBan = 7
 
@@ -339,8 +340,16 @@ func (p *protoPeer) markPayload(payload []byte) {
 	p.markKey(msgKey(payload))
 }
 
+func (p *protoPeer) markPayloadWithExpiration(payload []byte, expiration time.Duration) {
+	p.markKeyWithExpiration(msgKey(payload), expiration)
+}
+
 func (p *protoPeer) markKey(key string) {
-	p.msgCache.Add(key, struct{}{}, cache.DefaultExpiration)
+	p.markKeyWithExpiration(key, cache.DefaultExpiration)
+}
+
+func (p *protoPeer) markKeyWithExpiration(key string, expiration time.Duration) {
+	p.msgCache.Add(key, struct{}{}, expiration)
 }
 
 func msgKey(data []byte) string {
