@@ -95,8 +95,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 		select {
 		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
 		case <-timer.C:
-			err := errors.New("TIMEOUT while sending message (high priority)")
-			p.log.Error(err.Error(), "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.highPriorityRequests))
+			p.log.Error("TIMEOUT while sending message (high priority)", "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.highPriorityRequests))
 			p.disconnect()
 		case <-p.finished:
 		}
@@ -108,6 +107,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 		default:
 			p.skippedRequestsCount++
 			if p.skippedRequestsCount > queuedRequestsSize/2 {
+				p.log.Error("skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
 				p.disconnect()
 			}
 		}
