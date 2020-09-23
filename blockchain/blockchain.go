@@ -825,16 +825,16 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	case types.ActivationTx:
 		balance := stateDB.GetBalance(sender)
 		generation, code := stateDB.GeneticCode(sender)
-		change := new(big.Int).Sub(balance, totalCost)
+		balanceToTransfer := new(big.Int).Sub(balance, totalCost)
 
-		// zero balance and kill temp identity
-		stateDB.SetBalance(sender, big.NewInt(0))
+		// sub balance, which should be transferred, and kill temp identity
+		stateDB.SubBalance(sender, balanceToTransfer)
 		stateDB.SetState(sender, state.Killed)
 
-		// verify identity and add transfer all available funds from temp account
+		// verify identity and add transferred balance
 		recipient := *tx.To
 		stateDB.SetState(recipient, state.Candidate)
-		stateDB.AddBalance(recipient, change)
+		stateDB.AddBalance(recipient, balanceToTransfer)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
 
@@ -847,15 +847,15 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			}
 		}
 
-		collector.AddActivationTxBalanceTransfer(statsCollector, tx, change)
+		collector.AddActivationTxBalanceTransfer(statsCollector, tx, balanceToTransfer)
 		if sender != *tx.To {
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
 		}
 	case types.SendTx:
-		stateDB.SubBalance(sender, totalCost)
+		stateDB.SubBalance(sender, tx.AmountOrZero())
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 	case types.BurnTx:
-		stateDB.SubBalance(sender, totalCost)
+		stateDB.SubBalance(sender, tx.AmountOrZero())
 		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
 	case types.InviteTx:
 		if sender == stateDB.GodAddress() {
@@ -864,7 +864,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.SubInvite(sender, 1)
 		}
 
-		stateDB.SubBalance(sender, totalCost)
+		stateDB.SubBalance(sender, tx.AmountOrZero())
 		generation, code := stateDB.GeneticCode(sender)
 
 		stateDB.SetState(*tx.To, state.Invite)
@@ -878,7 +878,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.AddBalance(sender, stake)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
@@ -886,8 +885,6 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		if inviteePrevState == state.Newbie {
 			stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
 			stateDB.AddBalance(sender, stakeToTransfer)
@@ -899,26 +896,16 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.AddInvite(sender, 1)
 		}
 	case types.SubmitFlipTx:
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
 		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
 	case types.OnlineStatusTx:
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		stateDB.ToggleStatusSwitchAddress(sender)
 	case types.ChangeGodAddressTx:
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		appState.State.SetGodAddress(*tx.To)
 	case types.ChangeProfileTx:
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
 	case types.DeleteFlipTx:
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
@@ -939,10 +926,10 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
 		fee = fee.Add(fee, receipt.GasCost)
-		stateDB.SubBalance(sender, fee)
-		stateDB.SubBalance(sender, tx.TipsOrZero())
 	}
 
+	stateDB.SubBalance(sender, fee)
+	stateDB.SubBalance(sender, tx.TipsOrZero())
 	stateDB.SetNonce(sender, tx.AccountNonce)
 
 	if senderAccount.Epoch() != tx.Epoch {
