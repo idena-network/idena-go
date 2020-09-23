@@ -4,6 +4,7 @@ import (
 	"errors"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
 	"sync"
+	"time"
 )
 
 var (
@@ -85,11 +86,15 @@ func (ps *peerSet) Peers() []*protoPeer {
 }
 
 func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, highPriority bool) {
+	ps.SendWithFilterAndExpiration(msgcode, key, payload, highPriority, msgCacheAliveTime)
+}
+
+func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, highPriority bool, expiration time.Duration) {
 	peers := ps.Peers()
 
 	for _, p := range peers {
 		if _, ok := p.msgCache.Get(key); !ok {
-			p.markKey(key)
+			p.markKeyWithExpiration(key, expiration)
 			p.sendMsg(msgcode, payload, highPriority)
 		}
 	}

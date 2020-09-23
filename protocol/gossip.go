@@ -311,7 +311,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(msg.Payload)
+		p.markPayloadWithExpiration(msg.Payload, flipKeyMsgCacheAliveTime)
 		h.flipKeyPool.AddPublicFlipKey(flipKey, false)
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
@@ -327,7 +327,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if h.isProcessed(msg.Payload) {
 			return nil
 		}
-		p.markPayload(msg.Payload)
+		p.markPayloadWithExpiration(msg.Payload, flipKeyMsgCacheAliveTime)
 		h.flipKeyPool.AddPrivateKeysPackage(keysPackage, false)
 	case Push:
 		pushHash := new(pushPullHash)
@@ -338,7 +338,11 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(ValidationErr, "%v", msg)
 		}
 
-		p.markPayload(msg.Payload)
+		if pushHash.Type == pushKeyPackage {
+			p.markPayloadWithExpiration(msg.Payload, flipKeyMsgCacheAliveTime)
+		} else {
+			p.markPayload(msg.Payload)
+		}
 		h.pushPullManager.addPush(p.id, *pushHash)
 	case Pull:
 		pullHash := new(pushPullHash)
@@ -674,7 +678,11 @@ func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
 
 func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
 	data, _ := hash.ToBytes()
-	h.peers.SendWithFilter(Push, msgKey(data), hash, false)
+	if hash.Type == pushKeyPackage {
+		h.peers.SendWithFilterAndExpiration(Push, msgKey(data), hash, false, flipKeyMsgCacheAliveTime)
+	} else {
+		h.peers.SendWithFilter(Push, msgKey(data), hash, false)
+	}
 }
 
 func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}, highPriority bool) {
@@ -727,7 +735,7 @@ func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
 
 func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
 	b, _ := flipKey.ToBytes()
-	h.peers.SendWithFilter(FlipKey, msgKey(b), flipKey, own)
+	h.peers.SendWithFilterAndExpiration(FlipKey, msgKey(b), flipKey, own, flipKeyMsgCacheAliveTime)
 }
 
 func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
@@ -791,7 +799,7 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 		}
 		p.sendMsg(Push, payload, false)
 		bytes, _ := payload.ToBytes()
-		p.markPayload(bytes)
+		p.markPayloadWithExpiration(bytes, flipKeyMsgCacheAliveTime)
 	}
 }
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {
