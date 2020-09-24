@@ -17,6 +17,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/sha3"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/database"
@@ -26,6 +27,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
@@ -49,18 +51,13 @@ type ValidationCeremony struct {
 	flipper                  *flip.Flipper
 	secStore                 *secstore.SecStore
 	log                      log.Logger
-	flips                    [][]byte
-	flipsPerAuthor           map[int][][]byte
-	shortFlipsPerCandidate   [][]int
-	longFlipsPerCandidate    [][]int
-	shortFlipsToSolve        [][]byte
-	longFlipsToSolve         [][]byte
 	publicKeySent            bool
 	privateKeysSent          bool
 	shortAnswersSent         bool
 	evidenceSent             bool
 	shortSessionStarted      bool
 	candidates               []*candidate
+	candidateIndexes         map[common.Address]int
 	nonCandidates            []common.Address
 	mutex                    sync.Mutex
 	epochDb                  *database.EpochDb
@@ -75,8 +72,6 @@ type ValidationCeremony struct {
 	epoch                    uint16
 	config                   *config.Config
 	applyEpochMutex          sync.Mutex
-	flipAuthorMap            map[string]common.Address
-	flipAuthorMapLock        sync.Mutex
 	epochApplyingCache       map[uint64]epochApplyingCache
 	validationStartCtxCancel context.CancelFunc
 	validationStartMutex     sync.Mutex
@@ -84,6 +79,7 @@ type ValidationCeremony struct {
 	authorsPerCandidate      map[int][]int
 	newTxQueue               chan *types.Transaction
 	lottery                  *lottery
+	flipsData                *flipsData
 }
 
 type flipWordsInfo struct {
@@ -113,6 +109,16 @@ type lottery struct {
 	wg       sync.WaitGroup
 }
 
+type flipsData struct {
+	allFlips               [][]byte
+	flipsPerAuthor         map[int][][]byte
+	flipAuthorMap          map[string]common.Address
+	shortFlipsPerCandidate [][]int
+	longFlipsPerCandidate  [][]int
+	shortFlipsToSolve      map[common.Address][][]byte
+	longFlipsToSolve       map[common.Address][][]byte
+}
+
 type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
@@ -134,6 +140,10 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		newTxQueue:         make(chan *types.Transaction, 10000),
 		flipWordsInfo:      &flipWordsInfo{pool: &sync.Map{}},
 		lottery:            &lottery{},
+		flipsData: &flipsData{
+			shortFlipsToSolve: make(map[common.Address][][]byte),
+			longFlipsToSolve:  make(map[common.Address][][]byte),
+		},
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -206,12 +216,36 @@ func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState
 	return len(identity.Flips) > 0
 }
 
-func (vc *ValidationCeremony) GetShortFlipsToSolve() [][]byte {
-	return vc.shortFlipsToSolve
+func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address) [][]byte {
+	if data, ok := vc.flipsData.shortFlipsToSolve[address]; ok {
+		return data
+	}
+	vc.mutex.Lock()
+	defer vc.mutex.Unlock()
+	if data, ok := vc.flipsData.shortFlipsToSolve[address]; ok {
+		return data
+	}
+	data := getFlipsToSolve(address, vc.candidates, vc.flipsData.shortFlipsPerCandidate, vc.flipsData.allFlips)
+	if data != nil {
+		vc.flipsData.shortFlipsToSolve[address] = data
+	}
+	return data
 }
 
-func (vc *ValidationCeremony) GetLongFlipsToSolve() [][]byte {
-	return vc.longFlipsToSolve
+func (vc *ValidationCeremony) GetLongFlipsToSolve(address common.Address) [][]byte {
+	if data, ok := vc.flipsData.longFlipsToSolve[address]; ok {
+		return data
+	}
+	vc.mutex.Lock()
+	defer vc.mutex.Unlock()
+	if data, ok := vc.flipsData.longFlipsToSolve[address]; ok {
+		return data
+	}
+	data := getFlipsToSolve(address, vc.candidates, vc.flipsData.longFlipsPerCandidate, vc.flipsData.allFlips)
+	if data != nil {
+		vc.flipsData.longFlipsToSolve[address] = data
+	}
+	return data
 }
 
 func (vc *ValidationCeremony) SubmitShortAnswers(answers *types.Answers) (common.Hash, error) {
@@ -250,21 +284,6 @@ func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.
 	return hash, err
 }
 
-func (vc *ValidationCeremony) ShortSessionFlipsCount() uint {
-	return common.ShortSessionFlipsCount()
-}
-
-func (vc *ValidationCeremony) LongSessionFlipsCount() uint {
-	if len(vc.candidates) == 0 {
-		return 1
-	}
-	count := uint(len(vc.flips) * common.LongSessionTesters / len(vc.candidates))
-	if count == 0 {
-		count = 1
-	}
-	return count
-}
-
 func (vc *ValidationCeremony) restoreState() {
 	vc.generateFlipKeyWordPairs(vc.appState.State.FlipWordsSeed().Bytes())
 	vc.appState.EvidenceMap.SetShortSessionTime(vc.appState.State.NextValidationTime(), vc.config.Validation.GetShortSessionDuration())
@@ -272,7 +291,6 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.startValidationShortSessionTimer()
 	if vc.appState.State.ValidationPeriod() != state.NonePeriod {
 		vc.calculateCeremonyCandidates()
-		vc.calculatePrivateFlipKeysIndexes()
 		vc.lottery.finished = true
 	}
 	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
@@ -334,25 +352,23 @@ func (vc *ValidationCeremony) completeEpoch() {
 		vc.validationStartCtxCancel()
 	}
 	vc.candidates = nil
-	vc.flips = nil
-	vc.flipsPerAuthor = nil
-	vc.shortFlipsPerCandidate = nil
-	vc.longFlipsPerCandidate = nil
-	vc.shortFlipsToSolve = nil
-	vc.longFlipsToSolve = nil
+	vc.candidateIndexes = nil
 	vc.publicKeySent = false
 	vc.privateKeysSent = false
 	vc.shortAnswersSent = false
 	vc.evidenceSent = false
 	vc.shortSessionStarted = false
 	vc.validationStats = nil
-	vc.flipAuthorMap = nil
 	vc.validationStartCtxCancel = nil
 	vc.epochApplyingCache = make(map[uint64]epochApplyingCache)
 	vc.candidatesPerAuthor = nil
 	vc.authorsPerCandidate = nil
 	vc.flipWordsInfo = &flipWordsInfo{pool: &sync.Map{}}
 	vc.lottery = &lottery{}
+	vc.flipsData = &flipsData{
+		shortFlipsToSolve: make(map[common.Address][][]byte),
+		longFlipsToSolve:  make(map[common.Address][][]byte),
+	}
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -392,7 +408,6 @@ func (vc *ValidationCeremony) tryToBroadcastFlipKeysPackage() {
 func (vc *ValidationCeremony) asyncFlipLotteryCalculations() {
 	vc.logInfoWithInteraction("Flip lottery calculations started")
 	vc.calculateCeremonyCandidates()
-	vc.calculatePrivateFlipKeysIndexes()
 	vc.logInfoWithInteraction("Flip lottery calculations finished")
 	vc.lottery.finished = true
 	vc.lottery.wg.Done()
@@ -471,20 +486,25 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		return
 	}
 
-	vc.flipAuthorMapLock.Lock()
-	vc.candidates, vc.nonCandidates, vc.flips, vc.flipsPerAuthor, vc.flipAuthorMap = vc.getCandidatesAndFlips()
-	vc.flipAuthorMapLock.Unlock()
+	vc.candidates, vc.nonCandidates, vc.flipsData.allFlips, vc.flipsData.flipsPerAuthor, vc.flipsData.flipAuthorMap = vc.getCandidatesAndFlips()
 
-	shortFlipsCount := int(vc.ShortSessionFlipsCount() + common.ShortSessionExtraFlipsCount())
+	//cache indexes for fast searching
+	m := make(map[common.Address]int)
+	for index, c := range vc.candidates {
+		m[c.Address] = index
+	}
+	vc.candidateIndexes = m
+
+	shortFlipsCount := int(common.ShortSessionFlipsCount() + common.ShortSessionExtraFlipsCount())
 	vc.authorsPerCandidate, vc.candidatesPerAuthor = GetAuthorsDistribution(vc.candidates, seed, shortFlipsCount)
-	vc.shortFlipsPerCandidate, vc.longFlipsPerCandidate = GetFlipsDistribution(len(vc.candidates), vc.authorsPerCandidate, vc.flipsPerAuthor, vc.flips, seed, shortFlipsCount)
+	vc.flipsData.shortFlipsPerCandidate, vc.flipsData.longFlipsPerCandidate = GetFlipsDistribution(len(vc.candidates), vc.authorsPerCandidate, vc.flipsData.flipsPerAuthor, vc.flipsData.allFlips, seed, shortFlipsCount)
 
-	vc.shortFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.shortFlipsPerCandidate, vc.flips)
-	vc.longFlipsToSolve = getFlipsToSolve(vc.secStore.GetAddress(), vc.candidates, vc.longFlipsPerCandidate, vc.flips)
+	shortToSolve := vc.GetShortFlipsToSolve(vc.secStore.GetAddress())
+	longToSolve := vc.GetLongFlipsToSolve(vc.secStore.GetAddress())
 
 	if vc.shouldInteractWithNetwork() {
-		go vc.flipper.Load(vc.shortFlipsToSolve)
-		go vc.flipper.Load(vc.longFlipsToSolve)
+		go vc.flipper.LoadInMemory(shortToSolve)
+		go vc.flipper.LoadInMemory(longToSolve)
 	}
 
 	vc.logInfoWithInteraction("Ceremony candidates", "cnt", len(vc.candidates))
@@ -497,8 +517,8 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		vc.logInfoWithInteraction("Ceremony candidates", "addresses", addrs)
 	}
 
-	vc.logInfoWithInteraction("Should solve flips in short session", "cnt", len(vc.shortFlipsToSolve))
-	vc.logInfoWithInteraction("Should solve flips in long session", "cnt", len(vc.longFlipsToSolve))
+	vc.logInfoWithInteraction("Should solve flips in short session", "cnt", len(shortToSolve))
+	vc.logInfoWithInteraction("Should solve flips in long session", "cnt", len(longToSolve))
 }
 
 func (vc *ValidationCeremony) shouldInteractWithNetwork() bool {
@@ -538,9 +558,12 @@ func (vc *ValidationCeremony) broadcastPublicFipKey(appState *appstate.AppState)
 		return
 	}
 
-	vc.keysPool.AddPublicFlipKey(signedMsg, true)
+	if err := vc.keysPool.AddPublicFlipKey(signedMsg, true); err != nil {
+		vc.log.Warn("cannot add own public key", "epoch", epoch, "err", err)
+	}
 	vc.publicKeySent = true
 }
+
 func (vc *ValidationCeremony) delayedFlipPackageBroadcast() {
 	if vc.shouldInteractWithNetwork() {
 		time.Sleep(time.Duration(rand.Intn(MaxFlipKeysPackageBroadcastDelaySec)) * time.Second)
@@ -554,7 +577,7 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 
 	epoch := vc.appState.State.Epoch()
-	myIndex := vc.getOwnCandidateIndex()
+	myIndex := vc.getCandidateIndex(vc.secStore.GetAddress())
 
 	candidateIndexes, ok := vc.candidatesPerAuthor[myIndex]
 	if !ok {
@@ -846,16 +869,16 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	vc.validationStats = statsTypes.NewValidationStats()
 	stats := vc.validationStats
-	stats.FlipCids = vc.flips
+	stats.FlipCids = vc.flipsData.allFlips
 	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(), vc.epochDb.ReadEvidenceMaps())
 	approvedCandidatesSet := mapset.NewSet()
 	for _, item := range approvedCandidates {
 		approvedCandidatesSet.Add(item)
 	}
 
-	totalFlipsCount := len(vc.flips)
+	totalFlipsCount := len(vc.flipsData.allFlips)
 
-	flipQualification, reportersToReward := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.longFlipsPerCandidate)
+	flipQualification, reportersToReward := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.candidates, vc.flipsData.longFlipsPerCandidate)
 
 	flipQualificationMap := make(map[int]FlipQualification)
 	for i, item := range flipQualification {
@@ -888,11 +911,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		addr := candidate.Address
 		var totalFlips uint32
 		var shortScore, longScore, totalScore float32
-		shortFlipsToSolve := vc.shortFlipsPerCandidate[idx]
+		shortFlipsToSolve := vc.flipsData.shortFlipsPerCandidate[idx]
 		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort, noAnswersShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
 		addFlipAnswersToStats(shortFlipAnswers, true, stats)
 
-		longFlipsToSolve := vc.longFlipsPerCandidate[idx]
+		longFlipsToSolve := vc.flipsData.longFlipsPerCandidate[idx]
 		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong, noAnswersLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
 		addFlipAnswersToStats(longFlipAnswers, false, stats)
 
@@ -1073,8 +1096,8 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 	nonQualifiedFlips := make(map[common.Address]int)
 
 	for flipIdx, item := range qualifications {
-		cid := vc.flips[flipIdx]
-		author := vc.flipAuthorMap[string(cid)]
+		cid := vc.flipsData.allFlips[flipIdx]
+		author := vc.flipsData.flipAuthorMap[string(cid)]
 		madeFlips[author] = append(madeFlips[author], flipIdx)
 		if _, ok := authorResults[author]; !ok {
 			authorResults[author] = new(types.AuthorResults)
@@ -1148,8 +1171,8 @@ func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set)
 	for i, c := range vc.candidates {
 		addr := c.Address
 		if !approvedCandidates.Contains(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
-			for _, f := range vc.flipsPerAuthor[i] {
-				flipIdx := flipPos(vc.flips, f)
+			for _, f := range vc.flipsData.flipsPerAuthor[i] {
+				flipIdx := flipPos(vc.flipsData.allFlips, f)
 				result.Add(flipIdx)
 			}
 		}
@@ -1324,10 +1347,11 @@ func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 }
 
 func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {
-	vc.flipAuthorMapLock.Lock()
-	author, ok := vc.flipAuthorMap[string(cid)]
-	vc.flipAuthorMapLock.Unlock()
+	if vc.flipsData.flipAuthorMap == nil {
+		return 0, 0, errors.New("flip author not found")
+	}
 
+	author, ok := vc.flipsData.flipAuthorMap[string(cid)]
 	if !ok {
 		return 0, 0, errors.New("flip author not found")
 	}
@@ -1353,12 +1377,9 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 	return GetWords(rnd, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
 
-func (vc *ValidationCeremony) getOwnCandidateIndex() int {
-	myAddress := vc.secStore.GetAddress()
-	for idx, candidate := range vc.candidates {
-		if candidate.Address == myAddress {
-			return idx
-		}
+func (vc *ValidationCeremony) getCandidateIndex(addr common.Address) int {
+	if idx, ok := vc.candidateIndexes[addr]; ok {
+		return idx
 	}
 	return -1
 }
@@ -1373,24 +1394,6 @@ func getShortAnswersSalt(epoch uint16, secStore *secstore.SecStore) []byte {
 
 func (vc *ValidationCeremony) ShortSessionStarted() bool {
 	return vc.shortSessionStarted
-}
-
-func (vc *ValidationCeremony) calculatePrivateFlipKeysIndexes() {
-	if vc.candidates == nil || !vc.isCandidate() {
-		return
-	}
-	myIndex := vc.getOwnCandidateIndex()
-	authors := vc.authorsPerCandidate[myIndex]
-	m := make(map[common.Address]int)
-	for _, item := range authors {
-		authorCandidates := vc.candidatesPerAuthor[item]
-		for idx, c := range authorCandidates {
-			if c == myIndex {
-				m[vc.candidates[item].Address] = idx
-			}
-		}
-	}
-	vc.keysPool.InitializePrivateKeyIndexes(m)
 }
 
 func (vc *ValidationCeremony) addNewTx(tx *types.Transaction) {
@@ -1422,4 +1425,176 @@ func (vc *ValidationCeremony) delayedStopFlipKeysSync() {
 		time.Sleep(FlipKeysSyncTimeFrame * time.Second)
 		vc.stopFlipKeysSync()
 	}
+}
+
+func (vc *ValidationCeremony) GetCoinbaseFlipKeys(cidBytes []byte) ([]byte, []byte, error) {
+	publicKey, encryptedPrivateKey, err := vc.GetExternalFlipKeys(vc.secStore.GetAddress(), cidBytes)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	decryptedPrivateKey, err := vc.secStore.DecryptMessage(encryptedPrivateKey)
+	if err != nil {
+		return nil, nil, errors.Errorf("invalid private key, encrypted: %x, err: %v", encryptedPrivateKey, err)
+	}
+
+	return publicKey, decryptedPrivateKey, nil
+}
+
+func (vc *ValidationCeremony) GetExternalFlipKeys(addr common.Address, cidBytes []byte) (publicKey []byte, encryptedPrivateKey []byte, err error) {
+	if !vc.lottery.finished {
+		return nil, nil, errors.New("data is not ready")
+	}
+	author, ok := vc.flipsData.flipAuthorMap[string(cidBytes)]
+	if !ok {
+		return nil, nil, errors.New("bad flip")
+	}
+	index := vc.getPrivateKeyPackageIndex(addr, author)
+	if index == -1 {
+		return nil, nil, errors.New("invalid private key index")
+	}
+
+	publicEncryptionKey, encryptedPrivateKey := vc.keysPool.GetPublicFlipKey(author), vc.keysPool.GetEncryptedPrivateFlipKey(index, author)
+
+	if publicEncryptionKey == nil {
+		return nil, nil, errors.New("public key is missing")
+	}
+
+	return crypto.FromECDSA(publicEncryptionKey.ExportECDSA()), encryptedPrivateKey, nil
+}
+
+func (vc *ValidationCeremony) GetDecryptedFlip(key []byte) (publicPart []byte, privatePart []byte, err error) {
+	encryptedPublicPart, encryptedPrivatePart, err := vc.flipper.GetFlipFromMemory(key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	publicKey, privateKey, err := vc.GetCoinbaseFlipKeys(key)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return decryptFlip(encryptedPublicPart, encryptedPrivatePart, publicKey, privateKey)
+}
+
+func (vc *ValidationCeremony) IsFlipReadyToSolve(key []byte) bool {
+	hash := common.Hash(crypto.Hash(key))
+
+	loaded := vc.flipper.HasFlipInMemory(hash)
+	if !loaded {
+		return false
+	}
+
+	ready := vc.flipper.GetFlipReadiness(hash)
+
+	if !ready {
+		if _, _, err := vc.GetDecryptedFlip(key); err == nil {
+			vc.flipper.SetFlipReadiness(hash)
+			ready = true
+		} else {
+			c, _ := cid.Cast(key)
+			log.Warn("flip is not ready", "err", err, "cid", c.String())
+		}
+	}
+
+	return ready
+}
+
+func (vc *ValidationCeremony) IsFlipInMemory(key []byte) bool {
+	hash := common.Hash(crypto.Hash(key))
+	return vc.flipper.HasFlipInMemory(hash)
+}
+
+func (vc *ValidationCeremony) SendPublicEncryptionKey(key []byte, signature []byte, epoch uint16) error {
+
+	msg := &types.PublicFlipKey{
+		Key:       key,
+		Epoch:     epoch,
+		Signature: signature,
+	}
+
+	return vc.keysPool.AddPublicFlipKey(msg, false)
+}
+
+func (vc *ValidationCeremony) SendPrivateEncryptionKeysPackage(data []byte, signature []byte, epoch uint16) error {
+
+	msg := &types.PrivateFlipKeysPackage{
+		Data:      data,
+		Epoch:     epoch,
+		Signature: signature,
+	}
+
+	return vc.keysPool.AddPrivateKeysPackage(msg, false)
+}
+
+func (vc *ValidationCeremony) PrivateEncryptionKeyCandidates(addr common.Address) ([][]byte, error) {
+	if !vc.lottery.finished {
+		return nil, errors.New("data is not ready")
+	}
+
+	index := vc.getCandidateIndex(addr)
+
+	if index == -1 {
+		return nil, errors.Errorf("address %v does not have candidates", addr.String())
+	}
+
+	candidateIndexes, ok := vc.candidatesPerAuthor[index]
+	if !ok {
+		return nil, errors.Errorf("address %v does not have candidates", addr.String())
+	}
+
+	var pubKeys [][]byte
+	for _, item := range candidateIndexes {
+		candidate := vc.candidates[item]
+		pubKeys = append(pubKeys, candidate.PubKey)
+	}
+
+	return pubKeys, nil
+}
+
+func (vc *ValidationCeremony) IsValidationReady() bool {
+	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
+		return false
+	}
+	return vc.lottery.finished
+}
+
+func (vc *ValidationCeremony) getPrivateKeyPackageIndex(addr common.Address, author common.Address) int {
+	addrIndex := vc.getCandidateIndex(addr)
+	authorIndex := vc.getCandidateIndex(author)
+	authorCandidates := vc.candidatesPerAuthor[authorIndex]
+
+	for idx, item := range authorCandidates {
+		if item == addrIndex {
+			return idx
+		}
+	}
+	return -1
+}
+
+func decryptFlip(encryptedPublicPart []byte, encryptedPrivatePart []byte, publicKey []byte, privateKey []byte) (publicPart []byte, privatePart []byte, err error) {
+	ecdsaKeyPublicPart, _ := crypto.ToECDSA(publicKey)
+	publicEncryptionKey := ecies.ImportECDSA(ecdsaKeyPublicPart)
+
+	ecdsaKeyPrivatePart, _ := crypto.ToECDSA(privateKey)
+	privateEncryptionKey := ecies.ImportECDSA(ecdsaKeyPrivatePart)
+
+	decryptedPublicPart, err := publicEncryptionKey.Decrypt(encryptedPublicPart, nil, nil)
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot decrypt flip public part")
+	}
+
+	var decryptedPrivatePart []byte
+	if len(encryptedPrivatePart) > 0 {
+		decryptedPrivatePart, err = privateEncryptionKey.Decrypt(encryptedPrivatePart, nil, nil)
+
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "cannot decrypt flip private part")
+		}
+	}
+
+	return decryptedPublicPart, decryptedPrivatePart, nil
 }
