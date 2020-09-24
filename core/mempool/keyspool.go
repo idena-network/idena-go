@@ -40,42 +40,43 @@ func init() {
 }
 
 type KeysPool struct {
-	db                        dbm.DB
-	epochDb                   *database.EpochDb
-	appState                  *appstate.AppState
-	flipKeys                  map[common.Address]*types.PublicFlipKey
-	publicKeyMutex            sync.RWMutex
-	privateKeysMutex          sync.RWMutex
-	bus                       eventbus.Bus
-	head                      *types.Header
-	log                       log.Logger
-	flipKeyPackages           map[common.Address]*types.PrivateFlipKeysPackage
-	flipKeyPackagesByHash     map[common.Hash128]*types.PrivateFlipKeysPackage
-	privateKeyIndexes         map[common.Address]int // shows which key (by index) use from author's package
-	encryptedPrivateKeysCache map[common.Address]*ecies.PrivateKey
-	secStore                  *secstore.SecStore
-	packagesLoadingCtx        context.Context
-	cancelLoadingCtx          context.CancelFunc
-	self                      common.Address
-	pushTracker               pushpull.PendingPushTracker
-	stopSync                  bool
+	db                                dbm.DB
+	epochDb                           *database.EpochDb
+	appState                          *appstate.AppState
+	flipKeys                          map[common.Address]*types.PublicFlipKey
+	publicKeyMutex                    sync.RWMutex
+	privateKeysMutex                  sync.RWMutex
+	bus                               eventbus.Bus
+	head                              *types.Header
+	log                               log.Logger
+	flipKeyPackages                   map[common.Address]*types.PrivateFlipKeysPackage
+	flipKeyPackagesByHash             map[common.Hash128]*types.PrivateFlipKeysPackage
+	encryptedCoinbasePrivateKeysCache map[common.Address]*ecies.PrivateKey
+	privateKeysArrayCache             map[common.Address]*keysArray
+	secStore                          *secstore.SecStore
+	packagesLoadingCtx                context.Context
+	cancelLoadingCtx                  context.CancelFunc
+	self                              common.Address
+	pushTracker                       pushpull.PendingPushTracker
+	stopSync                          bool
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	pool := &KeysPool{
-		db:                        db,
-		appState:                  appState,
-		bus:                       bus,
-		log:                       log.New(),
-		flipKeys:                  make(map[common.Address]*types.PublicFlipKey),
-		flipKeyPackages:           make(map[common.Address]*types.PrivateFlipKeysPackage),
-		flipKeyPackagesByHash:     make(map[common.Hash128]*types.PrivateFlipKeysPackage),
-		encryptedPrivateKeysCache: make(map[common.Address]*ecies.PrivateKey),
-		secStore:                  secStore,
-		packagesLoadingCtx:        ctx,
-		cancelLoadingCtx:          cancel,
-		pushTracker:               pushpull.NewDefaultPushTracker(time.Second * 5),
+		db:                                db,
+		appState:                          appState,
+		bus:                               bus,
+		log:                               log.New(),
+		flipKeys:                          make(map[common.Address]*types.PublicFlipKey),
+		flipKeyPackages:                   make(map[common.Address]*types.PrivateFlipKeysPackage),
+		flipKeyPackagesByHash:             make(map[common.Hash128]*types.PrivateFlipKeysPackage),
+		encryptedCoinbasePrivateKeysCache: make(map[common.Address]*ecies.PrivateKey),
+		privateKeysArrayCache:             make(map[common.Address]*keysArray),
+		secStore:                          secStore,
+		packagesLoadingCtx:                ctx,
+		cancelLoadingCtx:                  cancel,
+		pushTracker:                       pushpull.NewDefaultPushTracker(time.Second * 5),
 	}
 	pool.pushTracker.SetHolder(pool)
 	return pool
@@ -271,39 +272,21 @@ func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
 	return ecies.ImportECDSA(ecdsaKey)
 }
 
-func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
+func (p *KeysPool) GetPrivateFlipKey(indexInPackage int, address common.Address) *ecies.PrivateKey {
 	p.privateKeysMutex.Lock()
-	defer p.privateKeysMutex.Unlock()
-
-	if data, ok := p.encryptedPrivateKeysCache[address]; ok {
+	if data, ok := p.encryptedCoinbasePrivateKeysCache[address]; ok {
 		return data
 	}
+	p.privateKeysMutex.Unlock()
 
-	publicFlipKey := p.getPublicFlipKey(address)
-	if publicFlipKey == nil {
-		log.Warn("GetPrivateFlipKey: public flip key is missing", "address", address.Hex())
+	encryptedKey := p.GetEncryptedPrivateFlipKey(indexInPackage, address)
+
+	if encryptedKey == nil {
+		log.Warn("GetPrivateFlipKey: encrypted key is missing", "address", address.Hex())
 		return nil
 	}
 
-	keysPackage, ok := p.flipKeyPackages[address]
-	if !ok {
-		log.Warn("GetPrivateFlipKey: package is missing", "address", address.Hex())
-		return nil
-	}
-
-	idx, ok := p.privateKeyIndexes[address]
-	if !ok {
-		log.Warn("GetPrivateFlipKey: indexes are missing", "address", address.Hex())
-		return nil
-	}
-
-	encryptedFlipKey, err := getEncryptedKeyFromPackage(publicFlipKey, keysPackage.Data, idx)
-	if err != nil {
-		log.Warn("GetPrivateFlipKey: Cannot get key from package", "err", err, "len", len(keysPackage.Data), "address", address.Hex())
-		return nil
-	}
-
-	rawKey, err := p.secStore.DecryptMessage(encryptedFlipKey)
+	rawKey, err := p.secStore.DecryptMessage(encryptedKey)
 	if err != nil {
 		log.Warn("GetPrivateFlipKey: Cannot decrypt key from package", "err", err, "address", address.Hex())
 		return nil
@@ -316,8 +299,55 @@ func (p *KeysPool) GetPrivateFlipKey(address common.Address) *ecies.PrivateKey {
 	}
 
 	result := ecies.ImportECDSA(ecdsaKey)
-	p.encryptedPrivateKeysCache[address] = result
+
+	p.privateKeysMutex.Lock()
+	p.encryptedCoinbasePrivateKeysCache[address] = result
+	p.privateKeysMutex.Unlock()
+
 	return result
+}
+
+func (p *KeysPool) GetEncryptedPrivateFlipKey(indexInPackage int, address common.Address) []byte {
+	log.Info("Getting private key by index", "idx", indexInPackage, "address", address.Hex())
+
+	publicFlipKey := p.getPublicFlipKey(address)
+	if publicFlipKey == nil {
+		log.Warn("GetEncryptedPrivateFlipKey: public flip key is missing", "address", address.Hex())
+		return nil
+	}
+
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
+
+	if data, ok := p.privateKeysArrayCache[address]; ok {
+		if indexInPackage > len(data.Pairs)-1 {
+			return nil
+		}
+		return data.Pairs[indexInPackage]
+	}
+
+	keysPackage, ok := p.flipKeyPackages[address]
+	if !ok {
+		log.Warn("GetEncryptedPrivateFlipKey: package is missing", "address", address.Hex())
+		return nil
+	}
+
+	decryptedPackage, err := publicFlipKey.Decrypt(keysPackage.Data, nil, nil)
+	if err != nil {
+		log.Warn("GetEncryptedPrivateFlipKey: cannot decrypt package", "address", address.Hex())
+		return nil
+	}
+	keysArray := new(keysArray)
+	if err := keysArray.FromBytes(decryptedPackage); err != nil {
+		log.Warn("GetEncryptedPrivateFlipKey: proto deserialization failed", "address", address.Hex())
+		return nil
+	}
+	p.privateKeysArrayCache[address] = keysArray
+
+	if indexInPackage > len(keysArray.Pairs)-1 {
+		return nil
+	}
+	return keysArray.Pairs[indexInPackage]
 }
 
 func (p *KeysPool) Clear() {
@@ -328,20 +358,14 @@ func (p *KeysPool) Clear() {
 	defer p.publicKeyMutex.Unlock()
 
 	p.cancelLoadingCtx()
-	p.privateKeyIndexes = nil
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
 	p.flipKeyPackages = make(map[common.Address]*types.PrivateFlipKeysPackage)
 	p.flipKeyPackagesByHash = make(map[common.Hash128]*types.PrivateFlipKeysPackage)
-	p.encryptedPrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
+	p.encryptedCoinbasePrivateKeysCache = make(map[common.Address]*ecies.PrivateKey)
+	p.privateKeysArrayCache = make(map[common.Address]*keysArray)
 	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
 	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
 	p.stopSync = false
-}
-
-func (p *KeysPool) InitializePrivateKeyIndexes(indexes map[common.Address]int) {
-	p.privateKeysMutex.Lock()
-	p.privateKeyIndexes = indexes
-	p.privateKeysMutex.Unlock()
 }
 
 func (p *KeysPool) AddPublicFlipKeys(batch []*types.PublicFlipKey) {

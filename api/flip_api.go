@@ -113,14 +113,23 @@ type FlipHashesResponse struct {
 	Available bool   `json:"available"`
 }
 
-func (api *FlipApi) isCeremonyCandidate() bool {
-	identity := api.baseApi.getAppState().State.GetIdentity(api.baseApi.getCurrentCoinbase())
+func (api *FlipApi) isCeremonyCandidate(addr common.Address) bool {
+	identity := api.baseApi.getAppState().State.GetIdentity(addr)
 	return state.IsCeremonyCandidate(identity)
 }
 
-func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
+func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, error) {
 	log.Info("short hashes request")
 	defer log.Info("short hashes response")
+
+	coinbase := api.baseApi.getCurrentCoinbase()
+
+	var address common.Address
+	if addr != nil {
+		address = *addr
+	} else {
+		address = coinbase
+	}
 
 	period := api.baseApi.getAppState().State.ValidationPeriod()
 
@@ -128,18 +137,27 @@ func (api *FlipApi) ShortHashes() ([]FlipHashesResponse, error) {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
 	}
 
-	if !api.isCeremonyCandidate() {
-		return nil, errors.New("coinbase address is not a ceremony candidate")
+	if !api.isCeremonyCandidate(address) {
+		return nil, errors.Errorf("0x%x address is not a ceremony candidate", address)
 	}
 
-	flips := api.ceremony.GetShortFlipsToSolve()
+	flips := api.ceremony.GetShortFlipsToSolve(address)
 
-	return prepareHashes(api.fp, flips, true)
+	return prepareHashes(api.ceremony, flips, true, address == coinbase)
 }
 
-func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
+func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, error) {
 	log.Info("long hashes request")
 	defer log.Info("long hashes response")
+
+	coinbase := api.baseApi.getCurrentCoinbase()
+
+	var address common.Address
+	if addr != nil {
+		address = *addr
+	} else {
+		address = coinbase
+	}
 
 	period := api.baseApi.getAppState().State.ValidationPeriod()
 
@@ -147,16 +165,16 @@ func (api *FlipApi) LongHashes() ([]FlipHashesResponse, error) {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
 	}
 
-	if !api.isCeremonyCandidate() {
-		return nil, errors.New("coinbase address is not a ceremony candidate")
+	if !api.isCeremonyCandidate(address) {
+		return nil, errors.Errorf("0x%x address is not a ceremony candidate", address)
 	}
 
-	flips := api.ceremony.GetLongFlipsToSolve()
+	flips := api.ceremony.GetLongFlipsToSolve(address)
 
-	return prepareHashes(api.fp, flips, false)
+	return prepareHashes(api.ceremony, flips, false, address == coinbase)
 }
 
-func prepareHashes(flipper *flip.Flipper, flips [][]byte, shortSession bool) ([]FlipHashesResponse, error) {
+func prepareHashes(ceremony *ceremony.ValidationCeremony, flips [][]byte, shortSession bool, isCoinbaseAddress bool) ([]FlipHashesResponse, error) {
 	if flips == nil {
 		return nil, errors.New("no flips to solve")
 	}
@@ -168,12 +186,16 @@ func prepareHashes(flipper *flip.Flipper, flips [][]byte, shortSession bool) ([]
 			extraFlip = true
 		}
 		cid, _ := cid.Parse(v)
-		result = append(result, FlipHashesResponse{
-			Hash:      cid.String(),
-			Ready:     flipper.IsFlipReady(v),
-			Available: flipper.IsFlipAvailable(v),
-			Extra:     extraFlip,
-		})
+		h := FlipHashesResponse{
+			Hash:  cid.String(),
+			Extra: extraFlip,
+		}
+
+		if isCoinbaseAddress {
+			h.Ready = ceremony.IsFlipReadyToSolve(v)
+			h.Available = ceremony.IsFlipInMemory(v)
+		}
+		result = append(result, h)
 	}
 
 	return result, nil
@@ -184,6 +206,7 @@ type FlipResponse struct {
 	PrivateHex hexutil.Bytes `json:"privateHex"`
 }
 
+// Works only for coinbase address
 func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	log.Info("get flip request", "hash", hash)
 	defer log.Info("get flip response", "hash", hash)
@@ -194,7 +217,7 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	}
 	cidBytes := c.Bytes()
 
-	publicPart, privatePart, err := api.fp.GetFlip(cidBytes)
+	publicPart, privatePart, err := api.ceremony.GetDecryptedFlip(cidBytes)
 
 	if err != nil {
 		return FlipResponse{}, err
@@ -238,14 +261,18 @@ type FlipKeysResponse struct {
 	PrivateKey hexutil.Bytes `json:"privateKey"`
 }
 
-func (api *FlipApi) GetKeys(hash string) (FlipKeysResponse, error) {
+func (api *FlipApi) GetKeys(addr common.Address, hash string) (FlipKeysResponse, error) {
 	c, err := cid.Decode(hash)
 	if err != nil {
 		return FlipKeysResponse{}, err
 	}
 	cidBytes := c.Bytes()
-
-	publicKey, privateKey, err := api.fp.GetFlipKeys(cidBytes)
+	var publicKey, privateKey []byte
+	if addr == api.baseApi.getCurrentCoinbase() {
+		publicKey, privateKey, err = api.ceremony.GetCoinbaseFlipKeys(cidBytes)
+	} else {
+		publicKey, privateKey, err = api.ceremony.GetExternalFlipKeys(addr, cidBytes)
+	}
 
 	if err != nil {
 		return FlipKeysResponse{}, err
@@ -255,6 +282,35 @@ func (api *FlipApi) GetKeys(hash string) (FlipKeysResponse, error) {
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
 	}, nil
+}
+
+type EncryptionKeyArgs struct {
+	Data      hexutil.Bytes `json:"data"`
+	Signature hexutil.Bytes `json:"signature"`
+	Epoch     uint16        `json:"epoch"`
+}
+
+func (api *FlipApi) SendPublicEncryptionKey(args EncryptionKeyArgs) error {
+	return api.ceremony.SendPublicEncryptionKey(args.Data, args.Signature, args.Epoch)
+}
+
+func (api *FlipApi) SendPrivateEncryptionKeysPackage(args EncryptionKeyArgs) error {
+	return api.ceremony.SendPrivateEncryptionKeysPackage(args.Data, args.Signature, args.Epoch)
+}
+
+func (api *FlipApi) PrivateEncryptionKeyCandidates(addr common.Address) ([]hexutil.Bytes, error) {
+	pubKeys, err := api.ceremony.PrivateEncryptionKeyCandidates(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []hexutil.Bytes
+
+	for _, item := range pubKeys {
+		result = append(result, item)
+	}
+
+	return result, nil
 }
 
 type FlipAnswer struct {
@@ -277,11 +333,11 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 	log.Info("short answers submitting request")
 	defer log.Info("short answers submitting response")
 
-	if !api.isCeremonyCandidate() {
+	if !api.isCeremonyCandidate(api.baseApi.getCurrentCoinbase()) {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flips := api.ceremony.GetShortFlipsToSolve()
+	flips := api.ceremony.GetShortFlipsToSolve(api.baseApi.getCurrentCoinbase())
 
 	answers := prepareAnswers(args.Answers, flips, true)
 
@@ -300,11 +356,11 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 	log.Info("long answers submitting request")
 	defer log.Info("long answers submitting response")
 
-	if !api.isCeremonyCandidate() {
+	if !api.isCeremonyCandidate(api.baseApi.getCurrentCoinbase()) {
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flips := api.ceremony.GetLongFlipsToSolve()
+	flips := api.ceremony.GetLongFlipsToSolve(api.baseApi.getCurrentCoinbase())
 
 	answers := prepareAnswers(args.Answers, flips, false)
 
