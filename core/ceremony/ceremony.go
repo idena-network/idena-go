@@ -217,9 +217,6 @@ func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState
 }
 
 func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address) [][]byte {
-	if data, ok := vc.flipsData.shortFlipsToSolve[address]; ok {
-		return data
-	}
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
 	if data, ok := vc.flipsData.shortFlipsToSolve[address]; ok {
@@ -233,9 +230,6 @@ func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address) [][]b
 }
 
 func (vc *ValidationCeremony) GetLongFlipsToSolve(address common.Address) [][]byte {
-	if data, ok := vc.flipsData.longFlipsToSolve[address]; ok {
-		return data
-	}
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
 	if data, ok := vc.flipsData.longFlipsToSolve[address]; ok {
