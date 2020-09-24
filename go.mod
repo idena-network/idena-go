@@ -45,7 +45,6 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	github.com/tendermint/iavl v0.13.2
-	github.com/tendermint/tendermint v0.33.4
 	github.com/tendermint/tm-db v0.6.2
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/cli v1.22.4
