@@ -200,7 +200,7 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildDeployContractTx(args)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildTerminateContractTx(args)
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore, nil)
 	data, err := vm.Read(args.Contract, args.Method, args.Args.ToSlice()...)
 	if err != nil {
 		return nil, err

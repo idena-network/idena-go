@@ -189,9 +189,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
 
-	// todo indexer ownerFee
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions, ownerFee)
 	return nil
 }
 
@@ -406,7 +405,8 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		if result != nil {
 			f.SetByte("result", *result)
 		}
-		collector.AddOracleVotingCallFinish(f.statsCollector, state, result, fundInt, reward)
+
+		collector.AddOracleVotingCallFinish(f.statsCollector, state, result, fundInt, oracleReward, ownerReward)
 		return nil
 	}
 	return errors.New("no quorum")
@@ -441,15 +441,19 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < committeeSize*winnerThreshold/100 &&
 		votedCount < committeeSize*quorum/100 &&
 		duration >= votingDuration+publicVotingDuration {
-		f.SetArray("vrfSeed", f.env.BlockSeed())
+		vrfSeed := f.env.BlockSeed()
+		f.SetArray("vrfSeed", vrfSeed)
+		var startBlock *uint64
 		if duration >= votingDuration+publicVotingDuration {
-			f.SetUint64("startBlock", f.env.BlockNumber())
+			v := f.env.BlockNumber()
+			startBlock = &v
+			f.SetUint64("startBlock", v)
 		}
-		f.SetUint16("epoch", f.env.Epoch())
+		epoch := f.env.Epoch()
+		f.SetUint16("epoch", epoch)
 
-		// todo indexer add epoch, make start_block nullable
 		if f.statsCollector != nil && f.statsCollector.IsIndexer() {
-			collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, vrfSeed, committeeSize, f.env.NetworkSizeFree())
+			collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, f.env.NetworkSizeFree())
 		}
 		return nil
 	}
@@ -473,7 +477,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 			}
 		}
 		f.env.Terminate(f.ctx, f.Owner())
-		collector.AddOracleVotingCallTermination(f.statsCollector, dest)
+		collector.AddOracleVotingTermination(f.statsCollector, balance)
 		return nil
 	}
 	return errors.New("voting can not be terminated")

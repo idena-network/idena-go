@@ -47,7 +47,7 @@ func (e *OracleLock) Deploy(args ...[]byte) error {
 
 	e.BaseContract.Deploy(EvidenceLockContract)
 	e.SetOwner(e.ctx.Sender())
-	collector.AddEvidenceLockDeploy(e.statsCollector, e.ctx.ContractAddr(), factEvidenceAddr, value, successAddr, failAddr)
+	collector.AddOracleLockDeploy(e.statsCollector, e.ctx.ContractAddr(), oracleVotingAddr, value, successAddr, failAddr)
 	return nil
 }
 
@@ -80,12 +80,12 @@ func (e *OracleLock) push(args ...[]byte) error {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("failAddr"))
 		e.env.Send(e.ctx, dest, amount)
-		collector.AddEvidenceLockCallPush(e.statsCollector, false, votedValue, err, amount)
+		collector.AddOracleLockCallPush(e.statsCollector, false, votedValue, err, amount)
 	} else {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("successAddr"))
 		e.env.Send(e.ctx, dest, amount)
-		collector.AddEvidenceLockCallPush(e.statsCollector, true, votedValue, err, amount)
+		collector.AddOracleLockCallPush(e.statsCollector, true, votedValue, err, amount)
 	}
 	return nil
 }
@@ -103,6 +103,6 @@ func (e *OracleLock) Terminate(args ...[]byte) error {
 		return err
 	}
 	e.env.Terminate(e.ctx, dest)
-	collector.AddOracleVotingTermination(e.statsCollector, dest)
+	collector.AddOracleLockTermination(e.statsCollector, dest)
 	return nil
 }

@@ -77,27 +77,26 @@ type StatsCollector interface {
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
-		maxOptions uint64)
+		maxOptions uint64, ownerFee byte)
 	AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
 	AddOracleVotingCallVoteProof(voteHash []byte)
 	AddOracleVotingCallVote(vote byte, salt []byte)
-	AddOracleVotingCallFinish(state uint64, result *byte, fund, reward *big.Int)
-	AddOracleVotingCallProlongation(startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int)
-	AddOracleVotingCallTermination(state uint64, transfer *big.Int)
-	AddOracleVotingTermination(dest common.Address)
+	AddOracleVotingCallFinish(state uint64, result *byte, fund, oracleReward, ownerReward *big.Int)
+	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int)
+	AddOracleVotingTermination(balanceTransfer *big.Int)
 
-	AddEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
+	AddOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
 		failAddress common.Address)
-	AddEvidenceLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int)
-	AddEvidenceLockTermination(dest common.Address)
+	AddOracleLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int)
+	AddOracleLockTermination(dest common.Address)
 
-	AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte,
+	AddRefundableOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte,
 		successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-		refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int)
-	AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee *big.Int)
-	AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64)
-	AddRefundableEvidenceLockCallRefund(balance *big.Int, coef decimal.Decimal)
-	AddRefundableEvidenceLockTermination(dest common.Address)
+		refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int)
+	AddRefundableOracleLockCallDeposit(ownSum, sum, fee *big.Int)
+	AddRefundableOracleLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64)
+	AddRefundableOracleLockCallRefund(balance *big.Int, coef decimal.Decimal)
+	AddRefundableOracleLockTermination(dest common.Address)
 
 	AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte)
 	AddMultisigCallAdd(address common.Address, newState *byte)
@@ -658,18 +657,18 @@ func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount G
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
-	committeeSize, maxOptions uint64) {
+	committeeSize, maxOptions uint64, ownerFee byte) {
 	// do nothing
 }
 
 func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
-	committeeSize, maxOptions uint64) {
+	committeeSize, maxOptions uint64, ownerFee byte) {
 	if c == nil {
 		return
 	}
 	c.AddOracleVotingDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
-		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
+		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions, ownerFee)
 }
 
 func (c *collectorStub) AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte,
@@ -707,145 +706,132 @@ func AddOracleVotingCallVote(c StatsCollector, vote byte, salt []byte) {
 	c.AddOracleVotingCallVote(vote, salt)
 }
 
-func (c *collectorStub) AddOracleVotingCallFinish(state uint64, result *byte, fund,
-	reward *big.Int) {
+func (c *collectorStub) AddOracleVotingCallFinish(state uint64, result *byte, fund, oracleReward, ownerReward *big.Int) {
 	// do nothing
 }
 
-func AddOracleVotingCallFinish(c StatsCollector, state uint64, result *byte, fund,
-	reward *big.Int) {
+func AddOracleVotingCallFinish(c StatsCollector, state uint64, result *byte, fund, oracleReward, ownerReward *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallFinish(state, result, fund, reward)
+	c.AddOracleVotingCallFinish(state, result, fund, oracleReward, ownerReward)
 }
 
-func (c *collectorStub) AddOracleVotingCallProlongation(startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int) {
+func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int) {
 	// do nothing
 }
 
-func AddOracleVotingCallProlongation(c StatsCollector, startBlock uint64, vrfSeed []byte, committeeSize uint64, networkSize int) {
+func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallProlongation(startBlock, vrfSeed, committeeSize, networkSize)
+	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize)
 }
 
-func (c *collectorStub) AddOracleVotingCallTermination(state uint64, transfer *big.Int) {
+func (c *collectorStub) AddOracleVotingTermination(balanceTransfer *big.Int) {
 	// do nothing
 }
 
-func AddOracleVotingCallTermination(c StatsCollector, state uint64, transfer *big.Int) {
+func AddOracleVotingTermination(c StatsCollector, balanceTransfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallTermination(state, transfer)
+	c.AddOracleVotingTermination(balanceTransfer)
 }
 
-func (c *collectorStub) AddOracleVotingTermination(dest common.Address) {
-	// do nothing
-}
-
-func AddOracleVotingTermination(c StatsCollector, dest common.Address) {
-	if c == nil {
-		return
-	}
-	c.AddOracleVotingTermination(dest)
-}
-
-func (c *collectorStub) AddEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
+func (c *collectorStub) AddOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, failAddress common.Address) {
 	// do nothing
 }
 
-func AddEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
+func AddOracleLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, failAddress common.Address) {
 	if c == nil {
 		return
 	}
-	c.AddEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress)
+	c.AddOracleLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress)
 }
 
-func (c *collectorStub) AddEvidenceLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
+func (c *collectorStub) AddOracleLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
 	// do nothing
 }
 
-func AddEvidenceLockCallPush(c StatsCollector, success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
+func AddOracleLockCallPush(c StatsCollector, success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddEvidenceLockCallPush(success, oracleVotingResult, oracleVotingResultErr, transfer)
+	c.AddOracleLockCallPush(success, oracleVotingResult, oracleVotingResultErr, transfer)
 }
 
-func (c *collectorStub) AddEvidenceLockTermination(dest common.Address) {
+func (c *collectorStub) AddOracleLockTermination(dest common.Address) {
 	// do nothing
 }
 
-func AddEvidenceLockTermination(c StatsCollector, dest common.Address) {
+func AddOracleLockTermination(c StatsCollector, dest common.Address) {
 	if c == nil {
 		return
 	}
-	c.AddEvidenceLockTermination(dest)
+	c.AddOracleLockTermination(dest)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
+func (c *collectorStub) AddRefundableOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-	refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int) {
+	refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
+func AddRefundableOracleLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-	refundDelay, depositDeadline uint64, factEvidenceFee byte, state byte, sum *big.Int) {
+	refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, successAddressErr,
-		failAddress, failAddressErr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
+	c.AddRefundableOracleLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, successAddressErr,
+		failAddress, failAddressErr, refundDelay, depositDeadline, oracleVotingFee, state, sum)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee *big.Int) {
+func (c *collectorStub) AddRefundableOracleLockCallDeposit(ownSum, sum, fee *big.Int) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockCallDeposit(c StatsCollector, ownSum, sum, fee *big.Int) {
+func AddRefundableOracleLockCallDeposit(c StatsCollector, ownSum, sum, fee *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockCallDeposit(ownSum, sum, fee)
+	c.AddRefundableOracleLockCallDeposit(ownSum, sum, fee)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
+func (c *collectorStub) AddRefundableOracleLockCallPush(state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockCallPush(c StatsCollector, state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
+func AddRefundableOracleLockCallPush(c StatsCollector, state byte, oracleVotingResult byte, transfer *big.Int, refundBlock uint64) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockCallPush(state, oracleVotingResult, transfer, refundBlock)
+	c.AddRefundableOracleLockCallPush(state, oracleVotingResult, transfer, refundBlock)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockCallRefund(balance *big.Int, coef decimal.Decimal) {
+func (c *collectorStub) AddRefundableOracleLockCallRefund(balance *big.Int, coef decimal.Decimal) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockCallRefund(c StatsCollector, balance *big.Int, coef decimal.Decimal) {
+func AddRefundableOracleLockCallRefund(c StatsCollector, balance *big.Int, coef decimal.Decimal) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockCallRefund(balance, coef)
+	c.AddRefundableOracleLockCallRefund(balance, coef)
 }
 
-func (c *collectorStub) AddRefundableEvidenceLockTermination(dest common.Address) {
+func (c *collectorStub) AddRefundableOracleLockTermination(dest common.Address) {
 	// do nothing
 }
 
-func AddRefundableEvidenceLockTermination(c StatsCollector, dest common.Address) {
+func AddRefundableOracleLockTermination(c StatsCollector, dest common.Address) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableEvidenceLockTermination(dest)
+	c.AddRefundableOracleLockTermination(dest)
 }
 
 func (c *collectorStub) AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte) {

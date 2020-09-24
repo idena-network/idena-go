@@ -74,7 +74,7 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	sum := big.NewInt(0)
 	e.SetBigInt("sum", sum)
 
-	collector.AddRefundableEvidenceLockDeploy(e.statsCollector, e.ctx.ContractAddr(), factEvidenceAddr, value, successAddr,
+	collector.AddRefundableOracleLockDeploy(e.statsCollector, e.ctx.ContractAddr(), oracleVoting, value, successAddr,
 		successAddrErr, failAddr, failAddrErr, refundDelay, depositDeadline, factEvidenceFee, state, sum)
 	return nil
 }
@@ -131,7 +131,7 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
-	collector.AddRefundableEvidenceLockCallDeposit(e.statsCollector, balance, sum, feeInt)
+	collector.AddRefundableOracleLockCallDeposit(e.statsCollector, balance, sum, feeInt)
 	return nil
 }
 
@@ -181,7 +181,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 		e.SetUint64("refundBlock", refundBlock)
 	}
 
-	collector.AddRefundableEvidenceLockCallPush(e.statsCollector, newState, votedValue, amount, refundBlock)
+	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, votedValue, amount, refundBlock)
 
 	return nil
 }
@@ -215,7 +215,7 @@ func (e *RefundableEvidenceLock) refund(args ...[]byte) error {
 		err = e.env.Send(e.ctx, dest, math2.ToInt(decimal.NewFromBigInt(deposit, 0).Mul(k)))
 		return err != nil
 	})
-	collector.AddRefundableEvidenceLockCallRefund(e.statsCollector, balance, k)
+	collector.AddRefundableOracleLockCallRefund(e.statsCollector, balance, k)
 	return err
 }
 
@@ -232,6 +232,6 @@ func (e *RefundableEvidenceLock) Terminate(args ...[]byte) error {
 		return err
 	}
 	e.env.Terminate(e.ctx, dest)
-	collector.AddRefundableEvidenceLockTermination(e.statsCollector, dest)
+	collector.AddRefundableOracleLockTermination(e.statsCollector, dest)
 	return nil
 }
