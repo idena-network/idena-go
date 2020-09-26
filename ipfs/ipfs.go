@@ -612,7 +612,6 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 	var ipfsConfig *ipfsConf.Config
 
 	datadir, _ := filepath.Abs(cfg.DataDir)
-	writeSwarmKey(datadir, cfg.SwarmKey)
 	if !fsrepo.IsInitialized(datadir) {
 		ipfsConfig, err := ipfsConf.Init(os.Stdout, 2048)
 		if err != nil {
@@ -672,6 +671,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 			return nil, err
 		}
 	}
+	writeSwarmKey(datadir, cfg.SwarmKey)
 	return ipfsConfig, nil
 }
 
