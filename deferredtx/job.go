@@ -42,17 +42,25 @@ type Job struct {
 
 func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *blockchain.Blockchain, txpool mempool.TransactionPool,
 	ks *keystore.KeyStore, secStore *secstore.SecStore) (*Job, error) {
-	job := &Job{bus: bus, datadir: datadir,
-		appState: appState, bc: bc, txpool: txpool, ks: ks, secStore: secStore}
+	job := &Job{
+		bus:      bus,
+		datadir:  datadir,
+		appState: appState,
+		bc:       bc,
+		txpool:   txpool,
+		ks:       ks,
+		secStore: secStore,
+		txs:      new(DeferredTxs),
+	}
 
 	file, err := job.openFile()
-	defer file.Close()
+
 	if err == nil {
+		defer file.Close()
 		data, err := ioutil.ReadAll(file)
 		if err != nil {
 			return nil, err
 		}
-		job.txs = new(DeferredTxs)
 		if err := job.txs.FromBytes(data); err != nil {
 			return nil, err
 		}
