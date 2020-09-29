@@ -152,7 +152,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 	var successAddr common.Address
 	successAddr.SetBytes(e.GetArray("successAddr"))
 
-	votedValue, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("result")))
+	votedValue, votedValueErr := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("result")))
 
 	var newState byte
 	var amount *big.Int
@@ -181,7 +181,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 		e.SetUint64("refundBlock", refundBlock)
 	}
 
-	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, votedValue, amount, refundBlock)
+	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, votedValue, votedValueErr, amount, refundBlock)
 
 	return nil
 }
