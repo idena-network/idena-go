@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
@@ -552,10 +553,14 @@ func (vc *ValidationCeremony) broadcastPublicFipKey(appState *appstate.AppState)
 		return
 	}
 
-	if err := vc.keysPool.AddPublicFlipKey(signedMsg, true); err != nil {
-		vc.log.Warn("cannot add own public key", "epoch", epoch, "err", err)
+	if err := vc.keysPool.AddPublicFlipKey(signedMsg, true); err == mempool.KeyIsAlreadyPublished {
+		vc.log.Info("public flip key broadcasting skipped")
+		vc.publicKeySent = true
+	} else if err != nil {
+		vc.log.Error("failed to broadcast public flip key", "epoch", epoch, "err", err)
+	} else {
+		vc.publicKeySent = true
 	}
-	vc.publicKeySent = true
 }
 
 func (vc *ValidationCeremony) delayedFlipPackageBroadcast() {
@@ -571,20 +576,14 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 
 	epoch := vc.appState.State.Epoch()
-	myIndex := vc.getCandidateIndex(vc.secStore.GetAddress())
 
-	candidateIndexes, ok := vc.candidatesPerAuthor[myIndex]
-	if !ok {
-		vc.log.Error("user does not have candidates", "epoch", epoch, "addr", vc.secStore.GetAddress().String())
+	pubKeys, err := vc.PrivateEncryptionKeyCandidates(vc.secStore.GetAddress())
+	if err != nil {
+		vc.log.Error("cannot calculate key package candidates", "epoch", epoch, "err", err)
 		return
 	}
-	publicFlipKey, privateFlipKey := vc.flipper.GetFlipPublicEncryptionKey(), vc.flipper.GetFlipPrivateEncryptionKey()
 
-	var pubKeys [][]byte
-	for _, item := range candidateIndexes {
-		candidate := vc.candidates[item]
-		pubKeys = append(pubKeys, candidate.PubKey)
-	}
+	publicFlipKey, privateFlipKey := vc.flipper.GetFlipPublicEncryptionKey(), vc.flipper.GetFlipPrivateEncryptionKey()
 
 	msg := types.PrivateFlipKeysPackage{
 		Data:  mempool.EncryptPrivateKeysPackage(publicFlipKey, privateFlipKey, pubKeys),
@@ -598,7 +597,10 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 		return
 	}
 
-	if err := vc.keysPool.AddPrivateKeysPackage(signedMsg, true); err != nil {
+	if err := vc.keysPool.AddPrivateKeysPackage(signedMsg, true); err == mempool.KeyIsAlreadyPublished {
+		vc.log.Info("private flip keys package broadcasting skipped")
+		vc.privateKeysSent = true
+	} else if err != nil {
 		vc.log.Error("failed to add key package", "epoch", epoch, "err", err)
 	} else {
 		vc.log.Info("private flip keys package has been broadcast")
@@ -720,11 +722,11 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 	h, err := vrf.HashFromProof(vc.flipWordsInfo.proof)
 	if err != nil {
-		vc.log.Error("Cannot get hash from proof during short answers broadcasting")
+		vc.log.Error("cannot get hash from proof during short answers broadcasting")
 		return
 	}
 
-	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h))); err == nil {
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h))); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
 		vc.shortAnswersSent = true
 	} else {
 		vc.log.Error("cannot send short answers tx", "err", err)
@@ -1509,7 +1511,10 @@ func (vc *ValidationCeremony) SendPublicEncryptionKey(key []byte, signature []by
 		Signature: signature,
 	}
 
-	return vc.keysPool.AddPublicFlipKey(msg, false)
+	if err := vc.keysPool.AddPublicFlipKey(msg, true); err != mempool.KeyIsAlreadyPublished {
+		return err
+	}
+	return nil
 }
 
 func (vc *ValidationCeremony) SendPrivateEncryptionKeysPackage(data []byte, signature []byte, epoch uint16) error {
@@ -1520,7 +1525,10 @@ func (vc *ValidationCeremony) SendPrivateEncryptionKeysPackage(data []byte, sign
 		Signature: signature,
 	}
 
-	return vc.keysPool.AddPrivateKeysPackage(msg, false)
+	if err := vc.keysPool.AddPrivateKeysPackage(msg, true); err != mempool.KeyIsAlreadyPublished {
+		return err
+	}
+	return nil
 }
 
 func (vc *ValidationCeremony) PrivateEncryptionKeyCandidates(addr common.Address) ([][]byte, error) {
