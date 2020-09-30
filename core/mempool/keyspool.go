@@ -28,6 +28,10 @@ var (
 	maxFloat *big.Float
 )
 
+var (
+	KeyIsAlreadyPublished = errors.New("sender has already published his keys")
+)
+
 type FlipKeysPool interface {
 	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
 	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
@@ -154,7 +158,7 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 
 	if old, ok := p.flipKeys[sender]; ok && old.Epoch >= key.Epoch {
 		p.publicKeyMutex.Unlock()
-		return errors.New("sender has already published his key")
+		return KeyIsAlreadyPublished
 	}
 
 	if err := validateFlipKey(appState, key); err != nil {
@@ -204,7 +208,7 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 
 	if old, ok := p.flipKeyPackages[sender]; ok && old.Epoch >= keysPackage.Epoch {
 		p.privateKeysMutex.Unlock()
-		return errors.New("sender has already published his keys package")
+		return KeyIsAlreadyPublished
 	}
 
 	if err := validateFlipKeysPackage(appState, keysPackage); err != nil {
