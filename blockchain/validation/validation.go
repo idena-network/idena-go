@@ -94,6 +94,9 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
+		types.DeployContract:       validateDeployContractTx,
+		types.CallContract:         validateCallContractTx,
+		types.TerminateContract:    validateTerminateContractTx,
 	}
 }
 
