@@ -169,7 +169,7 @@ func (m *Multisig) push(args ...[]byte) error {
 		m.voteAmount.Set(key, common.Big0.Bytes())
 		return false
 	})
-	collector.AddMultisigCallPush(m.statsCollector, dest, amount)
+	collector.AddMultisigCallPush(m.statsCollector, dest, amount, voteAddressCnt, voteAmountCnt)
 	return nil
 }
 

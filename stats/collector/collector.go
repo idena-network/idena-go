@@ -101,7 +101,7 @@ type StatsCollector interface {
 	AddMultisigDeploy(contractAddress common.Address, minVotes, maxVotes, state byte)
 	AddMultisigCallAdd(address common.Address, newState *byte)
 	AddMultisigCallSend(dest common.Address, amount []byte)
-	AddMultisigCallPush(dest common.Address, amount []byte)
+	AddMultisigCallPush(dest common.Address, amount []byte, voteAddressCnt, voteAmountCnt int)
 	AddMultisigTermination(dest common.Address)
 
 	AddTimeLockDeploy(contractAddress common.Address, timestamp uint64)
@@ -867,15 +867,15 @@ func AddMultisigCallSend(c StatsCollector, dest common.Address, amount []byte) {
 	c.AddMultisigCallSend(dest, amount)
 }
 
-func (c *collectorStub) AddMultisigCallPush(dest common.Address, amount []byte) {
+func (c *collectorStub) AddMultisigCallPush(dest common.Address, amount []byte, voteAddressCnt, voteAmountCnt int) {
 	// do nothing
 }
 
-func AddMultisigCallPush(c StatsCollector, dest common.Address, amount []byte) {
+func AddMultisigCallPush(c StatsCollector, dest common.Address, amount []byte, voteAddressCnt, voteAmountCnt int) {
 	if c == nil {
 		return
 	}
-	c.AddMultisigCallPush(dest, amount)
+	c.AddMultisigCallPush(dest, amount, voteAddressCnt, voteAmountCnt)
 }
 
 func (c *collectorStub) AddMultisigTermination(dest common.Address) {
