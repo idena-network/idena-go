@@ -43,6 +43,7 @@ const (
 	MaxShortAnswersBroadcastDelaySec    = 60
 	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
 	FlipKeysSyncTimeFrame = 60 * 4 // seconds
+	AllFlipsLoadingTime   = time.Hour * 2
 )
 
 type ValidationCeremony struct {
@@ -81,6 +82,7 @@ type ValidationCeremony struct {
 	newTxQueue               chan *types.Transaction
 	lottery                  *lottery
 	flipsData                *flipsData
+	allFlipsIsLoading        bool
 }
 
 type flipWordsInfo struct {
@@ -310,6 +312,11 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 			for {
 				select {
 				case <-ticker.C:
+					// load all flips in case of public node
+					if vc.config.Sync.LoadAllFlips && !vc.allFlipsIsLoading && time.Now().UTC().Add(AllFlipsLoadingTime).After(validationTime) {
+						vc.allFlipsIsLoading = true
+						go vc.loadAllFlips(ctx)
+					}
 					if time.Now().UTC().After(validationTime) {
 						if appState, err := vc.appState.Readonly(vc.chain.Head.Height()); err == nil {
 							vc.startShortSession(appState)
@@ -364,6 +371,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 		shortFlipsToSolve: make(map[common.Address][][]byte),
 		longFlipsToSolve:  make(map[common.Address][][]byte),
 	}
+	vc.allFlipsIsLoading = false
 }
 
 func (vc *ValidationCeremony) handleBlock(block *types.Block) {
@@ -1574,6 +1582,47 @@ func (vc *ValidationCeremony) getPrivateKeyPackageIndex(addr common.Address, aut
 		}
 	}
 	return -1
+}
+
+func (vc *ValidationCeremony) loadAllFlips(ctx context.Context) {
+	var flips [][]byte
+	vc.appState.State.IterateIdentities(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+
+		var data state.Identity
+		if err := data.FromBytes(value); err != nil {
+			return false
+		}
+		for _, flip := range data.Flips {
+			flips = append(flips, flip.Cid)
+		}
+		return false
+	})
+
+	log.Info("started all flips loading", "count", len(flips))
+
+	errorsCount := 0
+	for i, flip := range flips {
+		select {
+		case <-ctx.Done():
+			log.Info("stopped all flips loading", "processed", i, "errors", errorsCount)
+			return
+		default:
+		}
+		_, err := vc.flipper.GetRawFlip(flip)
+		if err != nil {
+			errorsCount++
+		}
+		if i > 0 && i%1000 == 0 {
+			log.Info(fmt.Sprintf("processed %d out of %d flips", i, len(flips)))
+		}
+	}
+
+	log.Info("finished all flips loading", "count", len(flips), "errors", errorsCount)
 }
 
 func decryptFlip(encryptedPublicPart []byte, encryptedPrivatePart []byte, publicKey []byte, privateKey []byte) (publicPart []byte, privatePart []byte, err error) {
