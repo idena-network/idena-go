@@ -291,11 +291,29 @@ type EncryptionKeyArgs struct {
 }
 
 func (api *FlipApi) SendPublicEncryptionKey(args EncryptionKeyArgs) error {
-	return api.ceremony.SendPublicEncryptionKey(args.Data, args.Signature, args.Epoch)
+	msg := &types.PublicFlipKey{
+		Key:       args.Data,
+		Epoch:     args.Epoch,
+		Signature: args.Signature,
+	}
+	sender, _ := types.SenderFlipKey(msg)
+	log.Info("send public key request", "sender", sender.Hex())
+	err := api.ceremony.SendPublicEncryptionKey(msg)
+	log.Info("send public key response", "sender", sender.Hex(), "err", err)
+	return err
 }
 
 func (api *FlipApi) SendPrivateEncryptionKeysPackage(args EncryptionKeyArgs) error {
-	return api.ceremony.SendPrivateEncryptionKeysPackage(args.Data, args.Signature, args.Epoch)
+	msg := &types.PrivateFlipKeysPackage{
+		Data:      args.Data,
+		Epoch:     args.Epoch,
+		Signature: args.Signature,
+	}
+	sender, _ := types.SenderFlipKeysPackage(msg)
+	log.Info("send private package request", "sender", sender.Hex())
+	err := api.ceremony.SendPrivateEncryptionKeysPackage(msg)
+	log.Info("send private package response", "sender", sender.Hex(), "err", err)
+	return err
 }
 
 func (api *FlipApi) PrivateEncryptionKeyCandidates(addr common.Address) ([]hexutil.Bytes, error) {

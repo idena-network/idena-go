@@ -1465,6 +1465,10 @@ func (vc *ValidationCeremony) GetExternalFlipKeys(addr common.Address, cidBytes 
 		return nil, nil, errors.New("public key is missing")
 	}
 
+	if len(encryptedPrivateKey) == 0 {
+		return nil, nil, errors.New("private keys package is missing")
+	}
+
 	return crypto.FromECDSA(publicEncryptionKey.ExportECDSA()), encryptedPrivateKey, nil
 }
 
@@ -1511,29 +1515,15 @@ func (vc *ValidationCeremony) IsFlipInMemory(key []byte) bool {
 	return vc.flipper.HasFlipInMemory(hash)
 }
 
-func (vc *ValidationCeremony) SendPublicEncryptionKey(key []byte, signature []byte, epoch uint16) error {
-
-	msg := &types.PublicFlipKey{
-		Key:       key,
-		Epoch:     epoch,
-		Signature: signature,
-	}
-
-	if err := vc.keysPool.AddPublicFlipKey(msg, true); err != mempool.KeyIsAlreadyPublished {
+func (vc *ValidationCeremony) SendPublicEncryptionKey(key *types.PublicFlipKey) error {
+	if err := vc.keysPool.AddPublicFlipKey(key, true); err != mempool.KeyIsAlreadyPublished {
 		return err
 	}
 	return nil
 }
 
-func (vc *ValidationCeremony) SendPrivateEncryptionKeysPackage(data []byte, signature []byte, epoch uint16) error {
-
-	msg := &types.PrivateFlipKeysPackage{
-		Data:      data,
-		Epoch:     epoch,
-		Signature: signature,
-	}
-
-	if err := vc.keysPool.AddPrivateKeysPackage(msg, true); err != mempool.KeyIsAlreadyPublished {
+func (vc *ValidationCeremony) SendPrivateEncryptionKeysPackage(data *types.PrivateFlipKeysPackage) error {
+	if err := vc.keysPool.AddPrivateKeysPackage(data, true); err != mempool.KeyIsAlreadyPublished {
 		return err
 	}
 	return nil
