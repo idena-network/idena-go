@@ -181,7 +181,7 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 		e.SetUint64("refundBlock", refundBlock)
 	}
 
-	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, votedValue, votedValueErr, amount, refundBlock)
+	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, oracleVotingExist, votedValue, votedValueErr, amount, refundBlock)
 
 	return nil
 }
@@ -215,8 +215,11 @@ func (e *RefundableEvidenceLock) refund(args ...[]byte) error {
 		err = e.env.Send(e.ctx, dest, math2.ToInt(decimal.NewFromBigInt(deposit, 0).Mul(k)))
 		return err != nil
 	})
+	if err != nil {
+		return err
+	}
 	collector.AddRefundableOracleLockCallRefund(e.statsCollector, balance, k)
-	return err
+	return nil
 }
 
 func (e *RefundableEvidenceLock) Terminate(args ...[]byte) error {

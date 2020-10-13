@@ -94,7 +94,7 @@ type StatsCollector interface {
 		successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
 		refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int)
 	AddRefundableOracleLockCallDeposit(ownSum, sum, fee *big.Int)
-	AddRefundableOracleLockCallPush(state byte, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64)
+	AddRefundableOracleLockCallPush(state byte, oracleVotingExists bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64)
 	AddRefundableOracleLockCallRefund(balance *big.Int, coef decimal.Decimal)
 	AddRefundableOracleLockTermination(dest common.Address)
 
@@ -801,15 +801,15 @@ func AddRefundableOracleLockCallDeposit(c StatsCollector, ownSum, sum, fee *big.
 	c.AddRefundableOracleLockCallDeposit(ownSum, sum, fee)
 }
 
-func (c *collectorStub) AddRefundableOracleLockCallPush(state byte, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64) {
+func (c *collectorStub) AddRefundableOracleLockCallPush(state byte, oracleVotingExists bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64) {
 	// do nothing
 }
 
-func AddRefundableOracleLockCallPush(c StatsCollector, state byte, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64) {
+func AddRefundableOracleLockCallPush(c StatsCollector, state byte, oracleVotingExists bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64) {
 	if c == nil {
 		return
 	}
-	c.AddRefundableOracleLockCallPush(state, oracleVotingResult, oracleVotingResultErr, transfer, refundBlock)
+	c.AddRefundableOracleLockCallPush(state, oracleVotingExists, oracleVotingResult, oracleVotingResultErr, transfer, refundBlock)
 }
 
 func (c *collectorStub) AddRefundableOracleLockCallRefund(balance *big.Int, coef decimal.Decimal) {
