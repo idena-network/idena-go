@@ -299,9 +299,9 @@ func Test_determineNewIdentityState(t *testing.T) {
 	}
 
 	require := require.New(t)
-
+	cfg := config.GetDefaultConsensusConfig()
 	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
+		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
 }
 

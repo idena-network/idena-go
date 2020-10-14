@@ -368,7 +368,7 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 			seedHeight = block.Height() - LotterySeedLag
 		}
 
-		seedHeight = math.Max(vc.chain.Genesis().Height()+1, seedHeight)
+		seedHeight = math.Max(vc.chain.Genesis().Genesis.Height()+1, seedHeight)
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
@@ -914,7 +914,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		totalScore, totalFlips = calculateNewTotalScore(appState.State.GetScores(addr), shortFlipPoint, shortQualifiedFlipsCount, totalFlipPoints, totalQualifiedFlipsCount)
 
 		identity := appState.State.GetIdentity(addr)
-		newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
+		newIdentityState := determineNewIdentityState(vc.config.Consensus, identity, shortScore, longScore, totalScore,
 			totalFlips, missed, noQualShort, noQualLong)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
@@ -968,7 +968,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	for _, addr := range vc.nonCandidates {
 		identity := appState.State.GetIdentity(addr)
-		newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
+		newIdentityState := determineNewIdentityState(vc.config.Consensus, identity, 0, 0, 0, 0, true, false, false)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 		if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
@@ -1200,7 +1200,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
+func determineNewIdentityState(conf *config.ConsensusConf, identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -1303,7 +1303,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
-		if totalScore >= common.MinTotalScore && longScore >= common.MinLongScore {
+		if totalScore >= common.MinTotalScore && (longScore >= common.MinLongScore || conf.HumanCanFailLongSession) {
 			return state.Suspended
 		}
 		return state.Killed

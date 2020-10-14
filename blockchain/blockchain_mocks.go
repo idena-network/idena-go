@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
@@ -59,8 +60,8 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")
-
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager)
+	upgrader := upgrade.NewUpgrader(cfg, appState, db)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager, upgrader)
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
@@ -111,7 +112,8 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")
-	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager)
+	upgrader := upgrade.NewUpgrader(cfg, appState, db)
+	chain := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), secStore, bus, offline, keyStore, subManager, upgrader)
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 
@@ -154,7 +156,8 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")
-	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore, subManager)
+	upgrader := upgrade.NewUpgrader(cfg, appState, db)
+	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore, subManager, upgrader)
 	copy.InitializeChain()
 	appState.Initialize(copy.Head.Height())
 	return &TestBlockchain{db, copy}, appState

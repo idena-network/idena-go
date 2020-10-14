@@ -14,6 +14,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/profile"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/ipfs"
@@ -64,6 +65,7 @@ type Node struct {
 	profileManager  *profile.Manager
 	deferJob        *deferredtx.Job
 	subManager      *subscriptions.Manager
+	upgrader        *upgrade.Upgrader
 }
 
 type NodeCtx struct {
@@ -156,7 +158,11 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	appState := appstate.NewAppState(db, bus)
 
 	offlineDetector := blockchain.NewOfflineDetector(config, db, appState, secStore, bus)
-	votes := pengings.NewVotes(appState, bus, offlineDetector)
+
+	upgrader := upgrade.NewUpgrader(config, appState, db)
+	upgrader.UpgradeConfigIfNeeded()
+
+	votes := pengings.NewVotes(appState, bus, offlineDetector, upgrader)
 
 	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
@@ -166,16 +172,16 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		return nil, err
 	}
 
-	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore, subManager)
-	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector)
+	chain := blockchain.NewBlockchain(config, db, txpool, appState, ipfsProxy, secStore, bus, offlineDetector, keyStore, subManager, upgrader)
+	proposals, pendingProofs := pengings.NewProposals(chain, appState, offlineDetector, upgrader)
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, &ceremonyChecker{
 		appState: appState,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore)
-	consensusEngine := consensus.NewEngine(chain, pm, proposals, config.Consensus, appState, votes, txpool, secStore,
-		downloader, offlineDetector, statsCollector)
+	consensusEngine := consensus.NewEngine(chain, pm, proposals, config, appState, votes, txpool, secStore,
+		downloader, offlineDetector, upgrader, statsCollector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
 	profileManager := profile.NewProfileManager(ipfsProxy)
 
@@ -207,6 +213,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		profileManager:  profileManager,
 		deferJob:        deferJob,
 		subManager:      subManager,
+		upgrader:        upgrader,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -266,6 +273,7 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
 	node.pm.Start()
+	node.upgrader.Start()
 
 	// Configure RPC
 	if err := node.startRPC(); err != nil {

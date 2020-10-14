@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
@@ -64,7 +65,7 @@ type Blockchain struct {
 	secStore        *secstore.SecStore
 	Head            *types.Header
 	PreliminaryHead *types.Header
-	genesis         *types.Header
+	genesis         *types.GenesisInfo
 	config          *config.Config
 	pubKey          []byte
 	coinBaseAddress common.Address
@@ -78,6 +79,7 @@ type Blockchain struct {
 	timing          *timing
 	bus             eventbus.Bus
 	subManager      *subscriptions.Manager
+	upgrader        *upgrade.Upgrader
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
 	isSyncing       bool
 }
@@ -93,7 +95,7 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
-	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager) *Blockchain {
+	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
 		repo:            database.NewRepo(db),
 		config:          config,
@@ -107,6 +109,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		offlineDetector: offlineDetector,
 		indexer:         newBlockchainIndexer(db, bus, config, keyStore),
 		subManager:      subManager,
+		upgrader:        upgrader,
 	}
 }
 
@@ -148,9 +151,22 @@ func (chain *Blockchain) InitializeChain() error {
 			genesisHeight = predefinedState.Block
 		}
 
-		if chain.genesis = chain.GetBlockHeaderByHeight(genesisHeight); chain.genesis == nil {
+		predefinedGenesis := chain.GetBlockHeaderByHeight(genesisHeight)
+		if predefinedGenesis == nil {
 			return errors.New("genesis block is not found")
 		}
+
+		intermediateGenesisHeight := chain.repo.ReadIntermediateGenesis()
+		if intermediateGenesisHeight == 0 {
+			chain.genesis = &types.GenesisInfo{Genesis: predefinedGenesis}
+		} else {
+			genesis := chain.GetBlockHeaderByHeight(intermediateGenesisHeight)
+			if genesis == nil {
+				return errors.New("intermediate genesis block is not found")
+			}
+			chain.genesis = &types.GenesisInfo{Genesis: genesis, OldGenesis: predefinedGenesis}
+		}
+
 	} else {
 		_, err := chain.GenerateGenesis(chain.config.Network)
 		if err != nil {
@@ -249,7 +265,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	if err := chain.insertBlock(block, new(state.IdentityStateDiff), nil); err != nil {
 		return nil, err
 	}
-	chain.genesis = block.Header
+	chain.genesis = &types.GenesisInfo{Genesis: block.Header}
 	return block, nil
 }
 
@@ -268,7 +284,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	}
 
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
-	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block)
+	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
 
 	chain.applyEmptyBlockOnState(checkState, block, nil)
 
@@ -1117,7 +1133,11 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.TxBloom = calculateTxBloom(block, receipts)
 
-	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
+	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block, head)
+
+	if chain.upgrader.CanUpgrade() && !block.Header.ProposedHeader.Flags.HasFlag(types.Upgrade) {
+		header.Upgrade = chain.upgrader.UpgradeBits()
+	}
 
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, nil)
 
@@ -1159,7 +1179,7 @@ func calculateTxBloom(block *types.Block, receipts types.TxReceipts) []byte {
 	return data
 }
 
-func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *types.Block) types.BlockFlag {
+func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) types.BlockFlag {
 
 	var flags types.BlockFlag
 
@@ -1206,7 +1226,9 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
-
+	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 {
+		flags |= types.Upgrade
+	}
 	return flags
 }
 
@@ -1374,7 +1396,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
 
-	if expected := chain.calculateFlags(checkState, block); expected != persistentFlags {
+	if expected := chain.calculateFlags(checkState, block, prevBlock); expected != persistentFlags {
 		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
@@ -1671,7 +1693,7 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 	return int(math2.Round(float64(size) * chain.config.Consensus.AgreementThreshold))
 }
 
-func (chain *Blockchain) Genesis() *types.Header {
+func (chain *Blockchain) Genesis() *types.GenesisInfo {
 	return chain.genesis
 }
 
@@ -1822,8 +1844,8 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	if hash != header.Seed() {
 		return errors.New("seed is invalid")
 	}
-	if header.ProposedHeader.Upgrade > 0 {
-		return errors.New("unknown block upgrade")
+	if header.Flags().HasFlag(types.Upgrade) && header.ProposedHeader.Upgrade != 0 {
+		return errors.New("upgrade is invalid")
 	}
 	//TODO: add proposer's check??
 

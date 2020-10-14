@@ -116,6 +116,7 @@ message ProtoHandshake {
     int64 timestamp = 4;
     string appVersion = 5;
     uint32 peers = 6;
+    bytes oldGenesis = 7;
 }
 
 message ProtoMsg {
@@ -522,4 +523,12 @@ message ProtoSavedEvent {
     bytes contract = 1;
     string event = 2;
     repeated bytes args = 3;
+}
+
+message ProtoUpgradeVotes {
+    message ProtoUpgradeVote {
+        bytes voter = 1;
+        uint32 upgrade = 2;
+    }
+    repeated ProtoUpgradeVote votes = 1;
 }

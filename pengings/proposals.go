@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -25,6 +26,7 @@ type Proposals struct {
 	log             log.Logger
 	chain           *blockchain.Blockchain
 	offlineDetector *blockchain.OfflineDetector
+	upgrader        *upgrade.Upgrader
 
 	// proposed blocks are grouped by round
 	blocksByRound *sync.Map
@@ -62,11 +64,12 @@ type bestHash struct {
 
 type ProposerByRound func(round uint64) (hash common.Hash, proposer []byte, ok bool)
 
-func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, detector *blockchain.OfflineDetector) (*Proposals, *sync.Map) {
+func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, detector *blockchain.OfflineDetector, upgrader *upgrade.Upgrader) (*Proposals, *sync.Map) {
 	p := &Proposals{
 		chain:                chain,
 		appState:             appState,
 		offlineDetector:      detector,
+		upgrader:             upgrader,
 		log:                  log.New(),
 		blocksByRound:        &sync.Map{},
 		pendingBlocks:        &sync.Map{},
@@ -237,6 +240,10 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 
 		if err := proposals.offlineDetector.ValidateBlock(proposals.chain.Head, block); err != nil {
 			log.Warn("Failed block offline proposing", "err", err.Error())
+			return false, false
+		}
+		if err := proposals.upgrader.ValidateBlock(block); err != nil {
+			log.Warn("Failed block upgrading proposing", "err", err.Error())
 			return false, false
 		}
 

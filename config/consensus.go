@@ -6,6 +6,9 @@ import (
 )
 
 type ConsensusConf struct {
+	Version                           ConsensusVerson
+	StartActivationDate               int64 // unix timestamp
+	EndActivationDate                 int64 // unix timestamp
 	MaxSteps                          uint8
 	AgreementThreshold                float64
 	CommitteePercent                  float64
@@ -38,10 +41,30 @@ type ConsensusConf struct {
 	StatusSwitchRange                 uint64
 	InvitesPercent                    float32
 	MinProposerThreshold              float64
+	HumanCanFailLongSession           bool
+	UpgradeIntervalBeforeValidation   time.Duration
 }
 
-func GetDefaultConsensusConfig() *ConsensusConf {
-	return &ConsensusConf{
+type ConsensusVerson uint16
+
+const (
+	// Base consensus parameters
+	ConsensusV1 ConsensusVerson = 1
+	// Allows human fail long session
+	ConsensusV2 ConsensusVerson = 2
+)
+
+var (
+	v1                ConsensusConf
+	v2                ConsensusConf
+	ConsensusVersions map[ConsensusVerson]*ConsensusConf
+)
+
+func init() {
+	ConsensusVersions = map[ConsensusVerson]*ConsensusConf{
+	}
+	v1 = ConsensusConf{
+		Version:                           ConsensusV1,
 		MaxSteps:                          150,
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
@@ -73,5 +96,21 @@ func GetDefaultConsensusConfig() *ConsensusConf {
 		StatusSwitchRange:                 50,
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
+		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 	}
+	ConsensusVersions[ConsensusV1] = &v1
+	v2 = v1
+	ApplyV2(&v2)
+	ConsensusVersions[ConsensusV2] = &v2
+}
+
+func ApplyV2(cfg *ConsensusConf) {
+	cfg.HumanCanFailLongSession = true
+	cfg.Version = ConsensusV2
+	cfg.StartActivationDate = time.Date(2020, 10, 13, 0, 0, 0, 0, time.UTC).Unix()
+	cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
+}
+
+func GetDefaultConsensusConfig() *ConsensusConf {
+	return &v1
 }

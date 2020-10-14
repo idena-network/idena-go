@@ -35,4 +35,8 @@ var (
 	activityMonitorKey = []byte("activity")
 
 	eventPrefix = []byte("e")
+
+	intermediateGenesisKey = []byte("g")
+
+	upgradeVotesKey = []byte("uv")
 )

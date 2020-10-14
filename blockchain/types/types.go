@@ -53,6 +53,7 @@ const (
 	Snapshot
 	OfflinePropose
 	OfflineCommit
+	Upgrade
 )
 
 var CeremonialTxs map[uint16]struct{}
@@ -334,10 +335,10 @@ func (s *ActivityMonitor) FromBytes(data []byte) error {
 }
 
 type SavedTransaction struct {
-	Tx         *Transaction
+	Tx        *Transaction
 	FeePerGas *big.Int
-	BlockHash  common.Hash
-	Timestamp  int64
+	BlockHash common.Hash
+	Timestamp int64
 }
 
 func (s *SavedTransaction) ToBytes() ([]byte, error) {
@@ -648,7 +649,7 @@ func (h *ProposedHeader) ToProto() *models.ProtoBlockHeader_Proposed {
 		IpfsHash:       h.IpfsHash,
 		TxBloom:        h.TxBloom,
 		BlockSeed:      h.BlockSeed[:],
-		FeePerGas:     common.BigIntBytesOrNil(h.FeePerGas),
+		FeePerGas:      common.BigIntBytesOrNil(h.FeePerGas),
 		Upgrade:        h.Upgrade,
 		SeedProof:      h.SeedProof,
 		ReceiptsCid:    h.TxReceiptsCid,
@@ -1550,5 +1551,77 @@ func (i *SavedEvent) FromBytes(data []byte) error {
 	i.Contract.SetBytes(protoObj.Contract)
 	i.Event = protoObj.Event
 	i.Args = protoObj.Args
+	return nil
+}
+
+type GenesisInfo struct {
+	// the genesis with highest height
+	Genesis *Header
+	// previous genesis or empty
+	OldGenesis *Header
+}
+
+func (gi *GenesisInfo) EqualAny(genesis common.Hash, oldGenesis *common.Hash) bool {
+	ownHash := gi.Genesis.Hash()
+	var ownOldHash common.Hash
+	if gi.OldGenesis != nil {
+		ownOldHash = gi.OldGenesis.Hash()
+	}
+	if ownHash == genesis {
+		return true
+	}
+	if oldGenesis != nil {
+		if ownOldHash == *oldGenesis || ownHash == *oldGenesis {
+			return true
+		}
+	}
+	if ownOldHash == genesis {
+		return true
+	}
+	return false
+}
+
+type UpgradeVote struct {
+	Voter   common.Address
+	Upgrade uint32
+}
+
+type UpgradeVotes struct {
+	Dict map[common.Address]uint32
+}
+
+func NewUpgradeVotes() *UpgradeVotes {
+	return &UpgradeVotes{Dict: make(map[common.Address]uint32)}
+}
+
+func (uv *UpgradeVotes) Add(voter common.Address, upgrade uint32) {
+	uv.Dict[voter] = upgrade
+}
+
+func (uv *UpgradeVotes) Remove(addr common.Address) {
+	delete(uv.Dict, addr)
+}
+
+func (uv *UpgradeVotes) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoUpgradeVotes{}
+	for v, u := range uv.Dict {
+		protoObj.Votes = append(protoObj.Votes, &models.ProtoUpgradeVotes_ProtoUpgradeVote{
+			Voter:   v.Bytes(),
+			Upgrade: u,
+		})
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (uv *UpgradeVotes) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoUpgradeVotes)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	for _, v := range protoObj.Votes {
+		var addr common.Address
+		addr.SetBytes(v.Voter)
+		uv.Dict[addr] = v.Upgrade
+	}
 	return nil
 }

@@ -391,10 +391,10 @@ func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
 
 func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp int64, feePerGas *big.Int, transaction *types.Transaction) {
 	s := &types.SavedTransaction{
-		Tx:         transaction,
+		Tx:        transaction,
 		FeePerGas: feePerGas,
-		BlockHash:  blockHash,
-		Timestamp:  timestamp,
+		BlockHash: blockHash,
+		Timestamp: timestamp,
 	}
 	data, err := s.ToBytes()
 	if err != nil {
@@ -529,4 +529,31 @@ func (r *Repo) GetSavedEvents(contract common.Address) (events []*types.SavedEve
 		events = append(events, e)
 	}
 	return events
+}
+
+func (r *Repo) WriteIntermediateGenesis(height uint64) {
+	r.db.Set(intermediateGenesisKey, common.ToBytes(height))
+}
+
+func (r *Repo) ReadIntermediateGenesis() uint64 {
+	data, err := r.db.Get(intermediateGenesisKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(data)
+}
+
+func (r *Repo) WriteUpgradeVotes(votes *types.UpgradeVotes) {
+	data, _ := votes.ToBytes()
+	r.db.Set(upgradeVotesKey, data)
+}
+
+func (r *Repo) ReadUpgradeVotes() *types.UpgradeVotes {
+	data, _ := r.db.Get(upgradeVotesKey)
+	if len(data) > 0 {
+		v := types.NewUpgradeVotes()
+		v.FromBytes(data)
+		return v
+	}
+	return nil
 }
