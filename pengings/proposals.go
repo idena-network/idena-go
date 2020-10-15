@@ -239,6 +239,10 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 			log.Warn("Failed block offline proposing", "err", err.Error())
 			return false, false
 		}
+		if block.Header.ProposedHeader.Upgrade > 0 {
+			log.Warn("Failed block upgrading proposing", "err", "block has unknown upgrade")
+			return false, false
+		}
 
 		round.Store(block.Hash(), &proposedBlock{proposal: proposal, receivingTime: receivingTime})
 		proposals.setBestHash(currentRound, vrfHash, block.Header.ProposedHeader.ProposerPubKey)
