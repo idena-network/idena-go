@@ -2,7 +2,6 @@ module github.com/idena-network/idena-go
 
 require (
 	github.com/RoaringBitmap/roaring v0.5.1
-	github.com/alangpierce/go-forceexport v0.0.0-20160317203124-8f1d6941cd75 // indirect
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
@@ -31,7 +30,6 @@ require (
 	github.com/libp2p/go-sockaddr v0.1.0 // indirect
 	github.com/libp2p/go-yamux v1.4.0
 	github.com/mholt/archiver v3.1.1+incompatible
-	github.com/mmcloughlin/avo v0.0.0-20200523190732-4439b6b2c061 // indirect
 	github.com/multiformats/go-multiaddr v0.3.1
 	github.com/multiformats/go-multihash v0.0.14
 	github.com/nwaples/rardecode v1.1.0 // indirect

@@ -2,13 +2,13 @@ package state
 
 import (
 	"bytes"
+	"crypto/rand"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/rand"
 	"github.com/tendermint/tm-db"
 	"math/big"
 	"sort"
@@ -469,8 +469,10 @@ func TestStateDB_IterateContractStore(t *testing.T) {
 		addr := common.Address{}
 		addr.SetBytes(common.ToBytes(i))
 		for j := 0; j < 255; j++ {
-			key := rand.Bytes(20)
-			value := rand.Bytes(10)
+			key := make([]byte, 20)
+			value := make([]byte, 10)
+			rand.Read(key)
+			rand.Read(value)
 			stateDb.SetContractValue(addr, key, value)
 			stored = append(stored, keyValue{
 				key: StateDbKeys.ContractStoreKey(addr, key), value: value,
