@@ -470,8 +470,8 @@ func TestStateDB_IterateContractStore(t *testing.T) {
 		addr.SetBytes(common.ToBytes(i))
 		for j := 0; j < 255; j++ {
 			key := make([]byte, 20)
-			value := make([]byte, 10)
 			rand.Read(key)
+			value := make([]byte, 10)
 			rand.Read(value)
 			stateDb.SetContractValue(addr, key, value)
 			stored = append(stored, keyValue{
