@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
 	"github.com/urfave/cli"
@@ -63,7 +64,20 @@ func main() {
 
 		log.Root().SetHandler(handler)
 
-		cfg, err := config.MakeConfig(context)
+		cfg, err := config.MakeConfig(context, func(cfg *config.Config) {
+			db, err := node.OpenDatabase(cfg.DataDir, "idenachain", 16, 16)
+			if err != nil {
+				log.Error("Cannot transform consensus config", "err", err)
+				return
+			}
+			repo := database.NewRepo(db)
+			consVersion := repo.ReadConsensusVersion()
+			if uint32(cfg.Consensus.Version) == consVersion {
+				return
+			}
+			config.ApplyConsensusVersion(config.ConsensusVerson(consVersion), cfg.Consensus)
+			log.Info("Consensus config transformed to new version", "ver", consVersion)
+		})
 
 		if err != nil {
 			return err

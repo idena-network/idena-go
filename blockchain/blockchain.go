@@ -319,7 +319,16 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
-
+	if block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
+		chain.log.Info("Detected upgrade block", "upgrade", block.Header.ProposedHeader.Upgrade)
+		chain.upgrader.CompleteMigration()
+		diff := time.Unix(block.Header.Time(), 0).Add(time.Minute * 2).Sub(time.Now().UTC())
+		if diff > 0 {
+			// pause block producing to allow weak machines process state migration on time
+			chain.log.Info("Node goes to sleep", "duration", diff.String())
+			time.Sleep(diff)
+		}
+	}
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
 	})
@@ -1897,8 +1906,8 @@ func (chain *Blockchain) RemovePreliminaryHead(batch dbm.Batch) {
 }
 
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
-	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
-		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.Upgrade) ||
+		header.Height()%chain.config.Blockchain.StoreCertRange == 0 || header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
@@ -1999,6 +2008,13 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	chain.setHead(chain.PreliminaryHead.Height(), batch)
 	newHead := chain.PreliminaryHead
 	chain.RemovePreliminaryHead(batch)
+
+	consensusVersion := chain.ReadPreliminaryConsensusVersion()
+	if consensusVersion > 0 {
+		chain.repo.WriteConsensusVersion(batch, consensusVersion)
+		chain.repo.RemovePreliminaryConsensusVersion(batch)
+	}
+
 	if err := batch.WriteSync(); err != nil {
 		return err
 	}
@@ -2012,4 +2028,16 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 
 func (chain *Blockchain) ReadEvents(contract common.Address) []*types.SavedEvent {
 	return chain.repo.GetSavedEvents(contract)
+}
+
+func (chain *Blockchain) WritePreliminaryConsensusVersion(ver uint32) {
+	chain.repo.WritePreliminaryConsensusVersion(ver)
+}
+
+func (chain *Blockchain) ReadPreliminaryConsensusVersion() uint32 {
+	return chain.repo.ReadPreliminaryConsensusVersion()
+}
+
+func (chain *Blockchain) RemovePreliminaryConsensusVersion() {
+	chain.repo.RemovePreliminaryConsensusVersion(nil)
 }

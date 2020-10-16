@@ -193,8 +193,6 @@ func (engine *Engine) loop() {
 
 		engine.alignTime()
 
-		engine.tryUpgrade()
-
 		engine.prevRoundDuration = 0
 		roundStart := time.Now().UTC()
 
@@ -570,18 +568,4 @@ func (engine *Engine) ntpTimeDriftUpdate() {
 
 func (engine *Engine) Synced() bool {
 	return engine.synced
-}
-
-func (engine *Engine) tryUpgrade() {
-	if engine.chain.Head.ProposedHeader == nil {
-		return
-	}
-	if engine.chain.Head.ProposedHeader.Upgrade > 0 {
-		engine.log.Info("Detected upgrade block", "upgrade", engine.chain.Head.ProposedHeader.Upgrade)
-		engine.upgrader.CompleteMigration()
-		diff := time.Unix(engine.chain.Head.Time(), 0).Add(time.Minute * 2).Sub(time.Now().UTC())
-		if diff > 0 {
-			time.Sleep(diff)
-		}
-	}
 }

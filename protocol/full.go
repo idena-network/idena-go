@@ -191,7 +191,8 @@ func (fs *fullSync) validateHeader(block *block, p *protoPeer) error {
 		return err
 	}
 
-	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) || block.Header.Height() == p.knownHeight {
+	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.Upgrade) || block.Header.Height() == p.knownHeight ||
+		block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade > 0 {
 		if block.Cert.Empty() {
 			return BlockCertIsMissing
 		}

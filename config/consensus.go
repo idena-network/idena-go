@@ -96,19 +96,22 @@ func init() {
 		StatusSwitchRange:                 50,
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
-		UpgradeIntervalBeforeValidation:   time.Hour * 48,
+		UpgradeIntervalBeforeValidation:   time.Second * 30,
 	}
 	ConsensusVersions[ConsensusV1] = &v1
 	v2 = v1
-	ApplyV2(&v2)
+	ApplyConsensusVersion(ConsensusV2, &v2)
 	ConsensusVersions[ConsensusV2] = &v2
 }
 
-func ApplyV2(cfg *ConsensusConf) {
-	cfg.HumanCanFailLongSession = true
-	cfg.Version = ConsensusV2
-	cfg.StartActivationDate = time.Date(2020, 10, 13, 0, 0, 0, 0, time.UTC).Unix()
-	cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
+func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
+	switch ver {
+	case ConsensusV2:
+		cfg.HumanCanFailLongSession = true
+		cfg.Version = ConsensusV2
+		cfg.StartActivationDate = time.Date(2020, 10, 13, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
+	}
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {

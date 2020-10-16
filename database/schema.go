@@ -39,4 +39,8 @@ var (
 	intermediateGenesisKey = []byte("g")
 
 	upgradeVotesKey = []byte("uv")
+
+	consensusVersionKey = []byte("v")
+
+	preliminaryConsVersionKey = []byte("pv")
 )

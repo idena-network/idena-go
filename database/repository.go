@@ -557,3 +557,39 @@ func (r *Repo) ReadUpgradeVotes() *types.UpgradeVotes {
 	}
 	return nil
 }
+
+func (r *Repo) WriteConsensusVersion(batch dbm.Batch, v uint32) {
+	if batch != nil {
+		batch.Set(consensusVersionKey, common.ToBytes(v))
+	} else {
+		r.db.Set(consensusVersionKey, common.ToBytes(v))
+	}
+}
+
+func (r *Repo) ReadConsensusVersion() uint32 {
+	data, err := r.db.Get(consensusVersionKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(data)
+}
+
+func (r *Repo) WritePreliminaryConsensusVersion(v uint32) {
+	r.db.Set(preliminaryConsVersionKey, common.ToBytes(v))
+}
+
+func (r *Repo) ReadPreliminaryConsensusVersion() uint32 {
+	data, err := r.db.Get(preliminaryConsVersionKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(data)
+}
+
+func (r *Repo) RemovePreliminaryConsensusVersion(batch dbm.Batch) {
+	if batch != nil {
+		batch.Delete(preliminaryConsVersionKey)
+	} else {
+		r.db.Delete(preliminaryConsVersionKey)
+	}
+}

@@ -119,10 +119,7 @@ func (u *Upgrader) processVote(vote *types.Vote) {
 	}
 }
 
-func (u *Upgrader) CompleteMigration() {
-	u.config.Consensus = config.ConsensusVersions[u.Target()]
-	u.votes = types.NewUpgradeVotes()
-}
+
 
 func (u *Upgrader) persist() {
 	u.mutex.RLock()
@@ -139,9 +136,25 @@ func (u *Upgrader) restore() {
 	}
 }
 
-func (u *Upgrader) UpgradeConfigIfNeeded() {
-	genesis := u.repo.ReadIntermediateGenesis()
-	if genesis > 0 {
-		config.ApplyV2(u.config.Consensus)
+func (u *Upgrader) UpgradeConfigTo(ver uint32) (prev *config.ConsensusConf) {
+	if ver > 0 && ver > uint32(u.config.Consensus.Version) {
+		prevVersion := *u.config.Consensus
+		config.ApplyConsensusVersion(config.ConsensusVerson(ver), u.config.Consensus)
+		return &prevVersion
 	}
+	return nil
+}
+
+func (u *Upgrader) RevertConfig(prevConfig *config.ConsensusConf) {
+	u.config.Consensus = prevConfig
+}
+
+func (u *Upgrader) CompleteMigration() {
+	config.ApplyConsensusVersion(u.Target(), u.config.Consensus)
+	u.votes = types.NewUpgradeVotes()
+}
+
+// use to migrate identity state db in fast sync mode
+func (u *Upgrader) MigrateIdentityStateDb() {
+	// no migration for v2
 }

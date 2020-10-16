@@ -160,7 +160,6 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	offlineDetector := blockchain.NewOfflineDetector(config, db, appState, secStore, bus)
 
 	upgrader := upgrade.NewUpgrader(config, appState, db)
-	upgrader.UpgradeConfigIfNeeded()
 
 	votes := pengings.NewVotes(appState, bus, offlineDetector, upgrader)
 
@@ -179,7 +178,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		appState: appState,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
-	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore)
+	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore, upgrader)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config, appState, votes, txpool, secStore,
 		downloader, offlineDetector, upgrader, statsCollector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)

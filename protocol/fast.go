@@ -7,9 +7,11 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
@@ -41,6 +43,8 @@ type fastSync struct {
 	coinBase             common.Address
 	keyStore             *keystore.KeyStore
 	subManager           *subscriptions.Manager
+	upgrader             *upgrade.Upgrader
+	prevConfig           *config.ConsensusConf
 }
 
 func (fs *fastSync) batchSize() uint64 {
@@ -53,7 +57,7 @@ func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 	appState *appstate.AppState,
 	potentialForkedPeers mapset.Set,
 	manifest *snapshot.Manifest, sm *state.SnapshotManager, bus eventbus.Bus, coinbase common.Address, keyStore *keystore.KeyStore,
-	subManager *subscriptions.Manager) *fastSync {
+	subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *fastSync {
 
 	return &fastSync{
 		appState:             appState,
@@ -70,6 +74,7 @@ func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 		coinBase:             coinbase,
 		keyStore:             keyStore,
 		subManager:           subManager,
+		upgrader:             upgrader,
 	}
 }
 
@@ -79,6 +84,11 @@ func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB
 
 func (fs *fastSync) dropPreliminaries() {
 	fs.chain.RemovePreliminaryHead(nil)
+	fs.chain.RemovePreliminaryConsensusVersion()
+	if fs.prevConfig != nil {
+		fs.upgrader.RevertConfig(fs.prevConfig)
+		fs.prevConfig = nil
+	}
 	fs.appState.IdentityState.DropPreliminary()
 	fs.stateDb = nil
 }
@@ -104,6 +114,9 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		fs.dropPreliminaries()
 		return fs.preConsuming(head)
 	}
+	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
+		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
+	}
 	fs.loadValidators()
 	from = fs.chain.PreliminaryHead.Height() + 1
 	return from, nil
@@ -127,6 +140,13 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		if err := fs.chain.AddHeader(b.Header); err != nil {
 			fs.pm.BanPeer(b.peerId, err)
 			return b.Header.Height(), err
+		}
+
+		if b.Header.ProposedHeader != nil && b.Header.ProposedHeader.Upgrade == uint32(fs.upgrader.Target()) {
+			fs.log.Debug("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
+			fs.prevConfig = fs.upgrader.UpgradeConfigTo(b.Header.ProposedHeader.Upgrade)
+			fs.chain.WritePreliminaryConsensusVersion(b.Header.ProposedHeader.Upgrade)
+			fs.upgrader.MigrateIdentityStateDb()
 		}
 
 		if !b.IdentityDiff.Empty() {
@@ -279,7 +299,8 @@ func (fs *fastSync) validateHeader(block *block) error {
 		return err
 	}
 
-	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
+	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.Upgrade) ||
+		block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade > 0 {
 		if block.Cert.Empty() {
 			return BlockCertIsMissing
 		}
