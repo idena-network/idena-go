@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/log"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
 	"time"
@@ -119,8 +120,6 @@ func (u *Upgrader) processVote(vote *types.Vote) {
 	}
 }
 
-
-
 func (u *Upgrader) persist() {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
@@ -140,17 +139,20 @@ func (u *Upgrader) UpgradeConfigTo(ver uint32) (prev *config.ConsensusConf) {
 	if ver > 0 && ver > uint32(u.config.Consensus.Version) {
 		prevVersion := *u.config.Consensus
 		config.ApplyConsensusVersion(config.ConsensusVerson(ver), u.config.Consensus)
+		log.Info("Consensus config transformed to", "ver", ver)
 		return &prevVersion
 	}
+	log.Info("Consensus config didn't transformed", "current version", u.config.Consensus.Version, "target", ver)
 	return nil
 }
 
 func (u *Upgrader) RevertConfig(prevConfig *config.ConsensusConf) {
 	u.config.Consensus = prevConfig
+	log.Info("Consensus config reverted to", "ver", prevConfig.Version)
 }
 
 func (u *Upgrader) CompleteMigration() {
-	config.ApplyConsensusVersion(u.Target(), u.config.Consensus)
+	u.UpgradeConfigTo(uint32(u.Target()))
 	u.votes = types.NewUpgradeVotes()
 }
 

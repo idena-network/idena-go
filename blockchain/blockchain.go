@@ -321,13 +321,17 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 	if block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
 		chain.log.Info("Detected upgrade block", "upgrade", block.Header.ProposedHeader.Upgrade)
+		chain.repo.WriteConsensusVersion(nil, block.Header.ProposedHeader.Upgrade)
 		chain.upgrader.CompleteMigration()
-		diff := time.Unix(block.Header.Time(), 0).Add(time.Minute * 2).Sub(time.Now().UTC())
+		diff := time.Unix(block.Header.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
 		if diff > 0 {
 			// pause block producing to allow weak machines process state migration on time
 			chain.log.Info("Node goes to sleep", "duration", diff.String())
 			time.Sleep(diff)
 		}
+	}
+	if block.Header.Flags().HasFlag(types.NewGenesis) {
+		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
 	}
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
@@ -1144,7 +1148,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block, head)
 
-	if chain.upgrader.CanUpgrade() && !block.Header.ProposedHeader.Flags.HasFlag(types.Upgrade) {
+	if chain.upgrader.CanUpgrade() && !block.Header.ProposedHeader.Flags.HasFlag(types.NewGenesis) {
 		header.Upgrade = chain.upgrader.UpgradeBits()
 	}
 
@@ -1235,8 +1239,8 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
-	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 {
-		flags |= types.Upgrade
+	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 && chain.config.Consensus.GenerateGenesisAfterUpgrade {
+		flags |= types.NewGenesis
 	}
 	return flags
 }
@@ -1853,8 +1857,17 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	if hash != header.Seed() {
 		return errors.New("seed is invalid")
 	}
-	if header.Flags().HasFlag(types.Upgrade) && header.ProposedHeader.Upgrade != 0 {
-		return errors.New("upgrade is invalid")
+	if header.Flags().HasFlag(types.NewGenesis) {
+		if header.ProposedHeader.Upgrade != 0 || prevBlock.ProposedHeader == nil ||
+			prevBlock.ProposedHeader.Upgrade == 0 ||
+			!chain.config.Consensus.GenerateGenesisAfterUpgrade {
+			return errors.New("flag NewGenesis is invalid")
+		}
+	}
+	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 && chain.config.Consensus.GenerateGenesisAfterUpgrade {
+		if !header.Flags().HasFlag(types.NewGenesis) {
+			return errors.New("flag NewGenesis is required")
+		}
 	}
 	//TODO: add proposer's check??
 
@@ -1906,7 +1919,7 @@ func (chain *Blockchain) RemovePreliminaryHead(batch dbm.Batch) {
 }
 
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
-	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.Upgrade) ||
+	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.NewGenesis) ||
 		header.Height()%chain.config.Blockchain.StoreCertRange == 0 || header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0
 }
 
@@ -2014,6 +2027,11 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 		chain.repo.WriteConsensusVersion(batch, consensusVersion)
 		chain.repo.RemovePreliminaryConsensusVersion(batch)
 	}
+	preliminaryIntermediateGenesis := chain.repo.ReadPreliminaryIntermediateGenesis()
+	if preliminaryIntermediateGenesis > 0 {
+		chain.repo.WriteIntermediateGenesis(batch, preliminaryIntermediateGenesis)
+		chain.repo.RemovePreliminaryIntermediateGenesis(batch)
+	}
 
 	if err := batch.WriteSync(); err != nil {
 		return err
@@ -2040,4 +2058,12 @@ func (chain *Blockchain) ReadPreliminaryConsensusVersion() uint32 {
 
 func (chain *Blockchain) RemovePreliminaryConsensusVersion() {
 	chain.repo.RemovePreliminaryConsensusVersion(nil)
+}
+
+func (chain *Blockchain) WritePreliminaryIntermediateGenesis(height uint64) {
+	chain.repo.WritePreliminaryIntermediateGenesis(height)
+}
+
+func (chain *Blockchain) RemovePreliminaryIntermediateGenesis() {
+	chain.repo.RemovePreliminaryIntermediateGenesis(nil)
 }

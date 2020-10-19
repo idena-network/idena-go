@@ -53,7 +53,7 @@ const (
 	Snapshot
 	OfflinePropose
 	OfflineCommit
-	Upgrade
+	NewGenesis
 )
 
 var CeremonialTxs map[uint16]struct{}

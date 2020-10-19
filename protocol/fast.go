@@ -85,6 +85,7 @@ func (fs *fastSync) createPreliminaryCopy(height uint64) (*state.IdentityStateDB
 func (fs *fastSync) dropPreliminaries() {
 	fs.chain.RemovePreliminaryHead(nil)
 	fs.chain.RemovePreliminaryConsensusVersion()
+	fs.chain.RemovePreliminaryIntermediateGenesis()
 	if fs.prevConfig != nil {
 		fs.upgrader.RevertConfig(fs.prevConfig)
 		fs.prevConfig = nil
@@ -143,10 +144,14 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		}
 
 		if b.Header.ProposedHeader != nil && b.Header.ProposedHeader.Upgrade == uint32(fs.upgrader.Target()) {
-			fs.log.Debug("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
+			fs.log.Info("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
 			fs.prevConfig = fs.upgrader.UpgradeConfigTo(b.Header.ProposedHeader.Upgrade)
 			fs.chain.WritePreliminaryConsensusVersion(b.Header.ProposedHeader.Upgrade)
 			fs.upgrader.MigrateIdentityStateDb()
+		}
+
+		if b.Header.Flags().HasFlag(types.NewGenesis) {
+			fs.chain.WritePreliminaryIntermediateGenesis(b.Header.Height())
 		}
 
 		if !b.IdentityDiff.Empty() {
@@ -299,7 +304,7 @@ func (fs *fastSync) validateHeader(block *block) error {
 		return err
 	}
 
-	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.Upgrade) ||
+	if block.Header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.NewGenesis) ||
 		block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade > 0 {
 		if block.Cert.Empty() {
 			return BlockCertIsMissing

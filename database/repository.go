@@ -531,8 +531,12 @@ func (r *Repo) GetSavedEvents(contract common.Address) (events []*types.SavedEve
 	return events
 }
 
-func (r *Repo) WriteIntermediateGenesis(height uint64) {
-	r.db.Set(intermediateGenesisKey, common.ToBytes(height))
+func (r *Repo) WriteIntermediateGenesis(batch dbm.Batch, height uint64) {
+	if batch != nil {
+		batch.Set(intermediateGenesisKey, common.ToBytes(height))
+	} else{
+		r.db.Set(intermediateGenesisKey, common.ToBytes(height))
+	}
 }
 
 func (r *Repo) ReadIntermediateGenesis() uint64 {
@@ -591,5 +595,25 @@ func (r *Repo) RemovePreliminaryConsensusVersion(batch dbm.Batch) {
 		batch.Delete(preliminaryConsVersionKey)
 	} else {
 		r.db.Delete(preliminaryConsVersionKey)
+	}
+}
+
+func (r *Repo) WritePreliminaryIntermediateGenesis(height uint64) {
+	r.db.Set(preliminaryIntermediateGenesisKey, common.ToBytes(height))
+}
+
+func (r *Repo) ReadPreliminaryIntermediateGenesis() uint64 {
+	data, err := r.db.Get(preliminaryIntermediateGenesisKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(data)
+}
+
+func (r *Repo) RemovePreliminaryIntermediateGenesis(batch dbm.Batch) {
+	if batch != nil {
+		batch.Delete(preliminaryIntermediateGenesisKey)
+	} else {
+		r.db.Delete(preliminaryIntermediateGenesisKey)
 	}
 }

@@ -70,13 +70,14 @@ func main() {
 				log.Error("Cannot transform consensus config", "err", err)
 				return
 			}
+			defer db.Close()
 			repo := database.NewRepo(db)
 			consVersion := repo.ReadConsensusVersion()
-			if uint32(cfg.Consensus.Version) == consVersion {
+			if consVersion <= uint32(cfg.Consensus.Version) {
 				return
 			}
 			config.ApplyConsensusVersion(config.ConsensusVerson(consVersion), cfg.Consensus)
-			log.Info("Consensus config transformed to new version", "ver", consVersion)
+			log.Info("Consensus config transformed to", "ver", consVersion)
 		})
 
 		if err != nil {

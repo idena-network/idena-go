@@ -6,9 +6,12 @@ import (
 )
 
 type ConsensusConf struct {
-	Version                           ConsensusVerson
-	StartActivationDate               int64 // unix timestamp
-	EndActivationDate                 int64 // unix timestamp
+	Version                     ConsensusVerson
+	StartActivationDate         int64 // unix timestamp
+	EndActivationDate           int64 // unix timestamp
+	MigrationTimeout            time.Duration
+	GenerateGenesisAfterUpgrade bool
+
 	MaxSteps                          uint8
 	AgreementThreshold                float64
 	CommitteePercent                  float64
@@ -111,6 +114,8 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.Version = ConsensusV2
 		cfg.StartActivationDate = time.Date(2020, 10, 13, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 
