@@ -1,9 +1,7 @@
 package genext
 
 import (
-	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
-	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
@@ -46,7 +44,6 @@ func main() {
 			return errors.New("intermediate genesis is not found")
 		}
 
-		_ := appstate.NewAppState(db, eventbus.New())
 
 
 		return nil
