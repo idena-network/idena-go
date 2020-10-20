@@ -1734,7 +1734,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		chain.Head.IdentityRoot() != chain.appState.IdentityState.Root() {
 		wasReset = true
 		resetTo := uint64(0)
-		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.SyncTreeKeepEvery)+1; h, tryCnt = h-1, tryCnt+1 {
+		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.MaxSavedStatesCount)+1; h, tryCnt = h-1, tryCnt+1 {
 			if chain.appState.IdentityState.HasVersion(h) {
 				resetTo = h
 				break
