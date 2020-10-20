@@ -179,39 +179,3 @@ func (s *AppState) SetPredefinedState(predefinedState *models.ProtoPredefinedSta
 	s.State.SetPredefinedContractValues(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)
 }
-
-func (s *AppState) UseSyncTree() error {
-	if !s.defaultTree {
-		return nil
-	}
-	if err := s.State.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
-		return err
-	}
-	if err := s.IdentityState.SwitchTree(state.SyncTreeKeepEvery, state.SyncTreeKeepRecent); err != nil {
-		return err
-	}
-	s.defaultTree = false
-	return nil
-}
-
-func (s *AppState) UseDefaultTree() error {
-	if s.defaultTree {
-		return nil
-	}
-	if err := s.State.FlushToDisk(); err != nil {
-		return err
-	}
-
-	if err := s.IdentityState.FlushToDisk(); err != nil {
-		return err
-	}
-
-	if err := s.State.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
-		return err
-	}
-	if err := s.IdentityState.SwitchTree(state.DefaultTreeKeepEvery, state.DefaultTreeKeepRecent); err != nil {
-		return err
-	}
-	s.defaultTree = true
-	return nil
-}
