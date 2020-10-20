@@ -1,7 +1,7 @@
 module github.com/idena-network/idena-go
 
 require (
-	github.com/RoaringBitmap/roaring v0.5.1
+	github.com/RoaringBitmap/roaring v0.5.2
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
@@ -52,7 +52,7 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
-	golang.org/x/net v0.0.0-20200813134508-3edf25e44fcc
+	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sys v0.0.0-20200814200057-3d37ad5750ed
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
