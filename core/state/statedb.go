@@ -44,12 +44,6 @@ const (
 	MaxSavedStatesCount = 100
 	GeneticCodeSize     = 12
 
-	SyncTreeKeepEvery  = int64(200)
-	SyncTreeKeepRecent = int64(2)
-
-	DefaultTreeKeepEvery  = int64(1)
-	DefaultTreeKeepRecent = int64(0)
-
 	SnapshotBlockSize = 10000
 )
 
@@ -77,7 +71,7 @@ type StateDB struct {
 
 func NewLazy(db dbm.DB) *StateDB {
 	pdb := dbm.NewPrefixDB(db, StateDbKeys.LoadDbPrefix(db))
-	tree := NewMutableTreeWithOpts(pdb, dbm.NewMemDB(), DefaultTreeKeepEvery, DefaultTreeKeepRecent)
+	tree := NewMutableTree(pdb)
 	return &StateDB{
 		original:           db,
 		db:                 pdb,
@@ -92,7 +86,7 @@ func NewLazy(db dbm.DB) *StateDB {
 
 func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -111,7 +105,7 @@ func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 
 func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -128,7 +122,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 }
 
 func (s *StateDB) Readonly(height int64) (*StateDB, error) {
-	tree := NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(s.db)
 	if _, err := tree.LazyLoad(height); err != nil {
 		return nil, err
 	}
@@ -1254,21 +1248,6 @@ func (s *StateDB) SetPredefinedContractValues(state *models.ProtoPredefinedState
 	for _, kv := range state.ContractValues {
 		s.tree.Set(kv.Key, kv.Value)
 	}
-}
-
-// flush recent version to disk
-func (s *StateDB) FlushToDisk() error {
-	return common.Copy(s.tree.RecentDb(), s.db)
-}
-
-func (s *StateDB) SwitchTree(keepEvery, keepRecent int64) error {
-	version := s.tree.Version()
-	s.tree = NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), keepEvery, keepRecent)
-	if _, err := s.tree.LoadVersion(version); err != nil {
-		return err
-	}
-	s.Clear()
-	return nil
 }
 
 func (s *StateDB) HasStatusSwitchAddresses(addr common.Address) bool {

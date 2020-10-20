@@ -47,18 +47,3 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	require.Equal(t, stateHash, appState.State.Root())
 	require.Equal(t, identityHash, appState.IdentityState.Root())
 }
-
-func TestAppState_UseSyncTree(t *testing.T) {
-	db := db2.NewMemDB()
-	bus := eventbus.New()
-
-	appState := NewAppState(db, bus)
-	appState.Commit(nil)
-	require.True(t, appState.defaultTree)
-
-	require.NoError(t, appState.UseSyncTree())
-	require.False(t, appState.defaultTree)
-
-	require.NoError(t, appState.UseDefaultTree())
-	require.True(t, appState.defaultTree)
-}
