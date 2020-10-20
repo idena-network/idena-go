@@ -1822,6 +1822,9 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	if hash != header.Seed() {
 		return errors.New("seed is invalid")
 	}
+	if header.ProposedHeader.Upgrade > 0 {
+		return errors.New("unknown block upgrade")
+	}
 	//TODO: add proposer's check??
 
 	return nil
