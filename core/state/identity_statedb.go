@@ -27,7 +27,7 @@ type IdentityStateDB struct {
 
 func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 	pdb := dbm.NewPrefixDB(db, IdentityStateDbKeys.LoadDbPrefix(db, false))
-	tree := NewMutableTreeWithOpts(pdb, dbm.NewMemDB(), DefaultTreeKeepEvery, DefaultTreeKeepRecent)
+	tree := NewMutableTree(pdb)
 	return &IdentityStateDB{
 		db:                   pdb,
 		original:             db,
@@ -40,7 +40,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 
 func (s *IdentityStateDB) ForCheckWithOverwrite(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *IdentityStateDB) ForCheckWithOverwrite(height uint64) (*IdentityStateDB
 
 func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTreeWithOpts(db, database.NewBackedMemDb(s.tree.RecentDb()), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(db)
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (s *IdentityStateDB) ForCheck(height uint64) (*IdentityStateDB, error) {
 }
 
 func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
-	tree := NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), s.tree.KeepEvery(), s.tree.KeepRecent())
+	tree := NewMutableTree(s.db)
 	if _, err := tree.LazyLoad(int64(height)); err != nil {
 		return nil, err
 	}
@@ -409,20 +409,6 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedS
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
 	}
-}
-
-func (s *IdentityStateDB) FlushToDisk() error {
-	return common.Copy(s.tree.RecentDb(), s.db)
-}
-
-func (s *IdentityStateDB) SwitchTree(keepEvery, keepRecent int64) error {
-	version := s.tree.Version()
-	s.tree = NewMutableTreeWithOpts(s.db, s.tree.RecentDb(), keepEvery, keepRecent)
-	if _, err := s.tree.LoadVersion(version); err != nil {
-		return err
-	}
-	s.Clear()
-	return nil
 }
 
 type IdentityStateDiffValue struct {
