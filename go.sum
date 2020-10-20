@@ -412,6 +412,8 @@ github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed/go.
 github.com/idena-network/iavl v0.12.3-0.20200512113010-084227856fe0/go.mod h1:MlfGg+DJhvUYs0u32sVk9ZmJZi1z7UoOIYDWRdywVxk=
 github.com/idena-network/iavl v0.12.3-0.20201015172807-9b9f8d431ea6 h1:w/wwNK2Zj91t6/9sI4tZ2NoBQXZAJYAKp3sfdyf5MSc=
 github.com/idena-network/iavl v0.12.3-0.20201015172807-9b9f8d431ea6/go.mod h1:3xOIaNNX19p0QrX0VqWa6voPRoJRGGYtny+DH8NEPvE=
+github.com/idena-network/iavl v0.12.3-0.20201020104506-2c36f3388d7b h1:bj0CJgF+otQZAIaarNiKryQ9aoitJ91JyoS5rtk2I3A=
+github.com/idena-network/iavl v0.12.3-0.20201020104506-2c36f3388d7b/go.mod h1:3xOIaNNX19p0QrX0VqWa6voPRoJRGGYtny+DH8NEPvE=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
 github.com/ipfs/bbloom v0.0.1 h1:s7KkiBPfxCeDVo47KySjK0ACPc5GJRUxFpdyWEuDjhw=
