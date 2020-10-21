@@ -1032,14 +1032,16 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	case types.DeployContract, types.CallContract, types.TerminateContract:
 		amount := tx.AmountOrZero()
 		if amount.Sign() > 0 && tx.Type == types.CallContract {
+			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 			stateDB.SubBalance(sender, amount)
 			stateDB.AddBalance(*tx.To, amount)
+			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
 		receipt = vm.Run(tx, chain.getGasLimit(appState, tx))
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
-		collector.BeginTxBalanceUpdate(statsCollector, tx, appState, receipt.ContractAddress)
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
 		if !receipt.Success && tx.Type == types.CallContract {
