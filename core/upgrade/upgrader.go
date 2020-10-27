@@ -3,6 +3,7 @@ package upgrade
 import (
 	"errors"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/database"
@@ -23,7 +24,7 @@ type Upgrader struct {
 	votes     *types.UpgradeVotes
 }
 
-func NewUpgrader(config *config.Config, appState *appstate.AppState, db dbm.DB, ) *Upgrader {
+func NewUpgrader(config *config.Config, appState *appstate.AppState, db dbm.DB) *Upgrader {
 	return &Upgrader{
 		config:    config,
 		appState:  appState,
@@ -161,4 +162,16 @@ func (u *Upgrader) CompleteMigration() {
 // use to migrate identity state db in fast sync mode
 func (u *Upgrader) MigrateIdentityStateDb() {
 	// no migration for v2
+}
+
+func (u *Upgrader) GetVotes() map[common.Address]uint32 {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	res := make(map[common.Address]uint32, len(u.votes.Dict))
+	for voter, upgrade := range u.votes.Dict {
+		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) {
+			res[voter] = upgrade
+		}
+	}
+	return res
 }
