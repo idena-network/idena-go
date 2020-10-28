@@ -332,6 +332,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 	if block.Header.Flags().HasFlag(types.NewGenesis) {
 		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
+		chain.genesis.OldGenesis = chain.genesis.Genesis
+		chain.genesis.Genesis = block.Header
 	}
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
@@ -1134,7 +1136,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	}
 
 	header.IpfsHash = bodyCidBytes
-	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs))
+	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs), chain.config.Consensus.UseTxHashIavl)
 	header.TxReceiptsCid = receiptsCidBytes
 
 	block := &types.Block{
@@ -1391,7 +1393,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	var txs = types.Transactions(block.Body.Transactions)
 
-	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
+	if types.DeriveSha(txs, chain.config.Consensus.UseTxHashIavl) != block.Header.ProposedHeader.TxHash {
 		return errors.New("txHash is invalid")
 	}
 
@@ -1706,7 +1708,7 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 	return int(math2.Round(float64(size) * chain.config.Consensus.AgreementThreshold))
 }
 
-func (chain *Blockchain) Genesis() *types.GenesisInfo {
+func (chain *Blockchain) GenesisInfo() *types.GenesisInfo {
 	return chain.genesis
 }
 
@@ -2032,9 +2034,13 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 		chain.repo.WriteIntermediateGenesis(batch, preliminaryIntermediateGenesis)
 		chain.repo.RemovePreliminaryIntermediateGenesis(batch)
 	}
-
 	if err := batch.WriteSync(); err != nil {
 		return err
+	}
+	if preliminaryIntermediateGenesis > 0 {
+		hash := chain.repo.ReadCanonicalHash(preliminaryIntermediateGenesis)
+		chain.genesis.OldGenesis = chain.genesis.Genesis
+		chain.genesis.Genesis = chain.repo.ReadBlockHeader(hash)
 	}
 	chain.setCurrentHead(newHead)
 	go func() {

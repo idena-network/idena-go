@@ -195,7 +195,7 @@ func (api *BlockchainApi) Syncing() Syncing {
 	}
 	return Syncing{
 		Syncing:      isSyncing,
-		GenesisBlock: api.bc.Genesis().Genesis.Height(),
+		GenesisBlock: api.bc.GenesisInfo().Genesis.Height(),
 		CurrentBlock: current,
 		HighestBlock: highest,
 		WrongTime:    api.pm.WrongTime(),

@@ -44,8 +44,9 @@ type ConsensusConf struct {
 	StatusSwitchRange                 uint64
 	InvitesPercent                    float32
 	MinProposerThreshold              float64
-	HumanCanFailLongSession           bool
 	UpgradeIntervalBeforeValidation   time.Duration
+	HumanCanFailLongSession           bool
+	UseTxHashIavl                     bool
 }
 
 type ConsensusVerson uint16
@@ -99,7 +100,7 @@ func init() {
 		StatusSwitchRange:                 50,
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
-		UpgradeIntervalBeforeValidation:   time.Second * 30,
+		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 	}
 	ConsensusVersions[ConsensusV1] = &v1
 	v2 = v1
@@ -116,6 +117,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.UseTxHashIavl = true
 	}
 }
 

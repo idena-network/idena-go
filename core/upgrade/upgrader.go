@@ -132,6 +132,8 @@ func (u *Upgrader) restore() {
 	u.votes = u.repo.ReadUpgradeVotes()
 	if u.votes == nil {
 		u.votes = types.NewUpgradeVotes()
+	} else {
+		log.Info("Restore upgrade votes", "cnt", len(u.votes.Dict))
 	}
 }
 
