@@ -149,6 +149,11 @@ func (chain *Blockchain) InitializeChain() error {
 				return err
 			}
 			genesisHeight = predefinedState.Block
+
+			bindataGenesis, err := chain.readBindataGenesis()
+			if err == nil {
+				genesisHeight = bindataGenesis.Height()
+			}
 		}
 
 		predefinedGenesis := chain.GetBlockHeaderByHeight(genesisHeight)
@@ -189,8 +194,55 @@ func (chain *Blockchain) setHead(height uint64, batch dbm.Batch) {
 	chain.setCurrentHead(chain.GetHead())
 }
 
-func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
+func (chain *Blockchain) readBindataGenesis() (*types.Header, error) {
+	data, err := Asset("bindata/header.tar")
+	if err != nil {
+		return nil, err
+	}
+	header := &types.Header{}
+	if err = header.FromBytes(data); err != nil {
+		return nil, err
+	}
+	return header, nil
+}
 
+func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Block, error) {
+
+	if network != Testnet {
+		return nil, errors.New(fmt.Sprintf("predefined genesis for network=%v was not found", network))
+	}
+
+	header, err := chain.readBindataGenesis()
+	if err != nil {
+		return nil, err
+	}
+
+	stateDbData, err := Asset("bindata/statedb.tar")
+	if err != nil {
+		return nil, err
+	}
+
+	if err = chain.appState.State.RecoverSnapshot(header.Height(), header.Root(), bytes.NewReader(stateDbData)); err != nil {
+		return nil, err
+	}
+
+	chain.appState.State.CommitSnapshot(header.Height(), nil)
+
+	identityStateDbData, err := Asset("bindata/identitystatedb.tar")
+	if err != nil {
+		return nil, err
+	}
+
+	if err = chain.appState.IdentityState.RecoverSnapshot(header.Height(), header.IdentityRoot(), bytes.NewReader(identityStateDbData)); err != nil {
+		return nil, err
+	}
+
+	chain.appState.IdentityState.CommitSnapshot(header.Height())
+
+	return &types.Block{Header: header, Body: &types.Body{}}, nil
+}
+
+func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, error) {
 	for addr, alloc := range chain.config.GenesisConf.Alloc {
 		if alloc.Balance != nil {
 			chain.appState.State.SetBalance(addr, alloc.Balance)
@@ -249,7 +301,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	var emptyHash [32]byte
 
-	block := &types.Block{Header: &types.Header{
+	return &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
 			Time:         0,
@@ -260,7 +312,18 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
 			FeePerGas:    feePerGas,
 		},
-	}, Body: &types.Body{}}
+	}, Body: &types.Body{}}, nil
+}
+
+func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
+
+	block, err := chain.loadPredefinedGenesis(network)
+	if err != nil {
+		block, err = chain.generateGenesis(network)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if err := chain.insertBlock(block, new(state.IdentityStateDiff), nil); err != nil {
 		return nil, err
@@ -2017,7 +2080,7 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	}
 	defer batch.Close()
 
-	oldStateDb := chain.appState.State.CommitSnapshot(manifest, batch)
+	oldStateDb := chain.appState.State.CommitSnapshot(manifest.Height, batch)
 	chain.appState.ValidatorsCache.Load()
 
 	chain.setHead(chain.PreliminaryHead.Height(), batch)

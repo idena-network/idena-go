@@ -338,7 +338,7 @@ func (fs *fastSync) postConsuming() error {
 	if err != nil {
 		return err
 	}
-	err = fs.appState.State.RecoverSnapshot(fs.manifest, file)
+	err = fs.appState.State.RecoverSnapshot(fs.manifest.Height, fs.manifest.Root, file)
 	file.Close()
 	if err != nil {
 		fs.sm.AddInvalidManifest(fs.manifest.Cid)

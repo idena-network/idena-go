@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/database"
 	"github.com/stretchr/testify/require"
@@ -312,17 +311,11 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	stateDb.WriteSnapshot(Height, buffer)
 	require.True(t, buffer.Len() > 0)
 
-	require.Nil(t, stateDb.RecoverSnapshot(&snapshot.Manifest{
-		Height: Height,
-		Root:   expectedRoot,
-	}, buffer))
+	require.Nil(t, stateDb.RecoverSnapshot(Height, expectedRoot, buffer))
 
 	batch := stateDb.original.NewBatch()
 
-	dropDb := stateDb.CommitSnapshot(&snapshot.Manifest{
-		Height: Height,
-		Root:   expectedRoot,
-	}, batch)
+	dropDb := stateDb.CommitSnapshot(Height, batch)
 	common.ClearDb(dropDb)
 	batch.WriteSync()
 	//assert

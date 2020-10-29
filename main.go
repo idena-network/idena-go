@@ -83,11 +83,11 @@ func main() {
 		if err != nil {
 			return err
 		}
-
-		err = dropOldDirOnFork(cfg)
-		if err != nil {
-			return err
-		}
+		/*
+			err = dropOldDirOnFork(cfg)
+			if err != nil {
+				return err
+			} */
 
 		fileHandler, err := getLogFileHandler(cfg, logFileSize)
 

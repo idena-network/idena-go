@@ -1,15 +1,20 @@
-package genext
+package main
 
 import (
+	"github.com/go-bindata/go-bindata/v3"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
-	db "github.com/tendermint/tm-db"
+	dbm "github.com/tendermint/tm-db"
 	"github.com/urfave/cli"
 	"os"
+	"path/filepath"
 	"runtime"
 )
 
@@ -38,14 +43,78 @@ func main() {
 		if err != nil {
 			return err
 		}
+		defer db.Close()
 		repo := database.NewRepo(db)
 		genesis := repo.ReadIntermediateGenesis()
 		if genesis == 0 {
 			return errors.New("intermediate genesis is not found")
 		}
 
+		genesisBlockHash := repo.ReadCanonicalHash(genesis)
 
+		genesisBlock := repo.ReadBlockHeader(genesisBlockHash)
 
+		appState := appstate.NewAppState(db, eventbus.New())
+		if err := appState.Initialize(genesis); err != nil {
+			return err
+		}
+
+		stateDb := dbm.NewPrefixDB(db, state.StateDbKeys.LoadDbPrefix(db))
+		identityStateDb := dbm.NewPrefixDB(db, state.IdentityStateDbKeys.LoadDbPrefix(db, false))
+
+		if err := os.Mkdir("bindata", 0777); err != nil {
+			return err
+		}
+
+		file, err := os.Create("bindata/statedb.tar")
+		if err != nil {
+			return err
+		}
+
+		stateRoot, err := state.WriteTreeTo(stateDb, genesis, file)
+		file.Close()
+		if err != nil {
+			return err
+		}
+
+		file, err = os.Create("bindata/identitystatedb.tar")
+		if err != nil {
+			return err
+		}
+
+		identityRoot, err := state.WriteTreeTo(identityStateDb, genesis, file)
+		file.Close()
+		if err != nil {
+			return err
+		}
+
+		if genesisBlock.ProposedHeader.Root != stateRoot || genesisBlock.ProposedHeader.IdentityRoot != identityRoot {
+			return errors.New("written tree is incompatible with block header")
+		}
+
+		file, err = os.Create("bindata/header.tar")
+		if err != nil {
+			return err
+		}
+
+		data, err := genesisBlock.ToBytes()
+		if err != nil {
+			return err
+		}
+		if _, err := file.Write(data); err != nil {
+			return err
+		}
+		file.Close()
+
+		err = bindata.Translate(&bindata.Config{
+			Input: []bindata.InputConfig{{
+				Path:      filepath.Clean("bindata"),
+				Recursive: false,
+			}},
+			Package: "blockchain",
+			Output:  "bindata.go",
+		})
+		log.Info("Genesis block generated", "height", genesis, "hash", genesisBlock.Hash())
 		return nil
 	}
 
@@ -55,8 +124,8 @@ func main() {
 	}
 }
 
-func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, error) {
-	return db.NewGoLevelDBWithOpts(name, datadir, &opt.Options{
+func OpenDatabase(datadir string, name string, cache int, handles int) (dbm.DB, error) {
+	return dbm.NewGoLevelDBWithOpts(name, datadir, &opt.Options{
 		OpenFilesCacheCapacity: handles,
 		BlockCacheCapacity:     cache / 2 * opt.MiB,
 		WriteBuffer:            cache / 4 * opt.MiB,

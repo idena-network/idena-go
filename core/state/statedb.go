@@ -18,17 +18,12 @@ package state
 
 import (
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
-	"github.com/mholt/archiver"
-	"github.com/pkg/errors"
 	"io"
-	"io/ioutil"
-	"strconv"
 	"time"
 
 	"github.com/idena-network/idena-go/common"
@@ -43,8 +38,6 @@ import (
 const (
 	MaxSavedStatesCount = 100
 	GeneticCodeSize     = 12
-
-	SnapshotBlockSize = 10000
 )
 
 type StateDB struct {
@@ -1033,121 +1026,29 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 }
 
 func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
-	db := database.NewBackedMemDb(s.db)
-	tree := NewMutableTree(db)
-	if _, err := tree.LoadVersionForOverwriting(int64(height)); err != nil {
-		return common.Hash{}, err
-	}
-
-	tar := archiver.Tar{
-		MkdirAll:               true,
-		OverwriteExisting:      false,
-		ImplicitTopLevelFolder: false,
-	}
-
-	if err := tar.Create(to); err != nil {
-		return common.Hash{}, err
-	}
-
-	it, err := db.Iterator(nil, nil)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	defer it.Close()
-
-	sb := new(models.ProtoSnapshotBlock)
-
-	writeBlock := func(sb *models.ProtoSnapshotBlock, name string) error {
-
-		data, _ := proto.Marshal(sb)
-
-		return tar.Write(archiver.File{
-			FileInfo: archiver.FileInfo{
-				CustomName: name,
-				FileInfo: &fakeFileInfo{
-					size: int64(len(data)),
-				},
-			},
-			ReadCloser: &readCloser{r: bytes.NewReader(data)},
-		})
-	}
-
-	i := 0
-	for ; it.Valid(); it.Next() {
-		sb.Data = append(sb.Data, &models.ProtoSnapshotBlock_KeyValue{
-			Key:   it.Key(),
-			Value: it.Value(),
-		})
-		if len(sb.Data) >= SnapshotBlockSize {
-			if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
-				return common.Hash{}, err
-			}
-			i++
-			sb = new(models.ProtoSnapshotBlock)
-		}
-	}
-	if len(sb.Data) > 0 {
-		if err := writeBlock(sb, strconv.Itoa(i)); err != nil {
-			return common.Hash{}, err
-		}
-	}
-	return tree.WorkingHash(), tar.Close()
+	return WriteTreeTo(s.db, height, to)
 }
 
-func (s *StateDB) RecoverSnapshot(manifest *snapshot.Manifest, from io.Reader) error {
-	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(manifest.Height))
-
-	tar := archiver.Tar{
-		MkdirAll:               true,
-		OverwriteExisting:      false,
-		ImplicitTopLevelFolder: false,
-	}
-
-	if err := tar.Open(from, 0); err != nil {
-		return err
-	}
-
-	for file, err := tar.Read(); err == nil; file, err = tar.Read() {
-		if data, err := ioutil.ReadAll(file); err != nil {
-			common.ClearDb(pdb)
-			return err
-		} else {
-			sb := new(models.ProtoSnapshotBlock)
-			if err := proto.Unmarshal(data, sb); err != nil {
-				common.ClearDb(pdb)
-				return err
-			}
-			for _, pair := range sb.Data {
-				pdb.Set(pair.Key, pair.Value)
-			}
-		}
-	}
-	tree := NewMutableTree(pdb)
-	if _, err := tree.LoadVersion(int64(manifest.Height)); err != nil {
-		common.ClearDb(pdb)
-		return err
-	}
-
-	if tree.WorkingHash() != manifest.Root {
-		common.ClearDb(pdb)
-		return errors.New("wrong manifest root")
-	}
-	if !tree.ValidateTree() {
-		common.ClearDb(pdb)
-		return errors.New("corrupted tree")
-	}
-	return nil
+func (s *StateDB) RecoverSnapshot(height uint64, treeRoot common.Hash, from io.Reader) error {
+	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
+	return ReadTreeFrom(pdb, height, treeRoot, from)
 }
 
-func (s *StateDB) CommitSnapshot(manifest *snapshot.Manifest, batch dbm.Batch) (dropDb dbm.DB) {
-	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(manifest.Height))
+func (s *StateDB) CommitSnapshot(height uint64, batch dbm.Batch) (dropDb dbm.DB) {
+	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
 
-	StateDbKeys.SaveDbPrefix(batch, StateDbKeys.BuildDbPrefix(manifest.Height))
+	if batch != nil {
+		StateDbKeys.SaveDbPrefix(batch, StateDbKeys.BuildDbPrefix(height))
+	} else {
+		batch := s.original.NewBatch()
+		StateDbKeys.SaveDbPrefix(batch, StateDbKeys.BuildDbPrefix(height))
+		batch.Write()
+	}
 	dropDb = s.db
 
 	s.db = pdb
 	tree := NewMutableTree(pdb)
-	if _, err := tree.LoadVersion(int64(manifest.Height)); err != nil {
+	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		panic(err)
 	}
 	s.tree = tree

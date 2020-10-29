@@ -113,10 +113,10 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV2:
 		cfg.HumanCanFailLongSession = true
 		cfg.Version = ConsensusV2
-		cfg.StartActivationDate = time.Date(2020, 10, 13, 0, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2020, 10, 30, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.StartActivationDate = time.Date(2020, 11, 4, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2020, 11, 11, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.GenerateGenesisAfterUpgrade = false
 		cfg.UseTxHashIavl = true
 	}
 }
