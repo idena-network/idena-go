@@ -78,6 +78,7 @@ type NodeCtx struct {
 	OfflineDetector *blockchain.OfflineDetector
 	PendingProofs   *sync.Map
 	ProposerByRound pengings.ProposerByRound
+	Upgrader        *upgrade.Upgrader
 }
 
 type ceremonyChecker struct {
@@ -224,6 +225,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		OfflineDetector: offlineDetector,
 		PendingProofs:   pendingProofs,
 		ProposerByRound: proposals.ProposerByRound,
+		Upgrader:        upgrader,
 	}, nil
 }
 
