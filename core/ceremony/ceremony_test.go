@@ -299,7 +299,25 @@ func Test_determineNewIdentityState(t *testing.T) {
 	}
 
 	require := require.New(t)
-	cfg := config.GetDefaultConsensusConfig()
+	cfg := config.ConsensusVersions[config.ConsensusV1]
+	for i, c := range cases {
+		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
+	}
+
+	cfg =  config.ConsensusVersions[config.ConsensusV2]
+	cases = []data{
+		{
+			state.Human,
+			0, 0, common.MinHumanTotalScore, 24, false,
+			state.Suspended, false, false,
+		},
+
+		{
+			state.Human,
+			0, 0, 0.74, 24, false,
+			state.Killed, false, false,
+		},
+	}
 	for i, c := range cases {
 		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
