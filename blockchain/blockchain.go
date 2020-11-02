@@ -65,7 +65,7 @@ type Blockchain struct {
 	secStore        *secstore.SecStore
 	Head            *types.Header
 	PreliminaryHead *types.Header
-	genesis         *types.GenesisInfo
+	genesisInfo     *types.GenesisInfo
 	config          *config.Config
 	pubKey          []byte
 	coinBaseAddress common.Address
@@ -163,13 +163,13 @@ func (chain *Blockchain) InitializeChain() error {
 
 		intermediateGenesisHeight := chain.repo.ReadIntermediateGenesis()
 		if intermediateGenesisHeight == 0 {
-			chain.genesis = &types.GenesisInfo{Genesis: predefinedGenesis}
+			chain.genesisInfo = &types.GenesisInfo{Genesis: predefinedGenesis}
 		} else {
 			genesis := chain.GetBlockHeaderByHeight(intermediateGenesisHeight)
 			if genesis == nil {
 				return errors.New("intermediate genesis block is not found")
 			}
-			chain.genesis = &types.GenesisInfo{Genesis: genesis, OldGenesis: predefinedGenesis}
+			chain.genesisInfo = &types.GenesisInfo{Genesis: genesis, OldGenesis: predefinedGenesis}
 		}
 
 	} else {
@@ -328,7 +328,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	if err := chain.insertBlock(block, new(state.IdentityStateDiff), nil); err != nil {
 		return nil, err
 	}
-	chain.genesis = &types.GenesisInfo{Genesis: block.Header}
+	chain.genesisInfo = &types.GenesisInfo{Genesis: block.Header}
 	return block, nil
 }
 
@@ -395,8 +395,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 	if block.Header.Flags().HasFlag(types.NewGenesis) {
 		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
-		chain.genesis.OldGenesis = chain.genesis.Genesis
-		chain.genesis.Genesis = block.Header
+		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
+		chain.genesisInfo.Genesis = block.Header
 	}
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
@@ -1772,7 +1772,7 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 }
 
 func (chain *Blockchain) GenesisInfo() *types.GenesisInfo {
-	return chain.genesis
+	return chain.genesisInfo
 }
 
 func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.BlockBundle) error {
@@ -2102,8 +2102,8 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	}
 	if preliminaryIntermediateGenesis > 0 {
 		hash := chain.repo.ReadCanonicalHash(preliminaryIntermediateGenesis)
-		chain.genesis.OldGenesis = chain.genesis.Genesis
-		chain.genesis.Genesis = chain.repo.ReadBlockHeader(hash)
+		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
+		chain.genesisInfo.Genesis = chain.repo.ReadBlockHeader(hash)
 	}
 	chain.setCurrentHead(newHead)
 	go func() {
