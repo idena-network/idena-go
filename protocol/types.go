@@ -57,6 +57,7 @@ type handshakeData struct {
 	Timestamp    int64
 	AppVersion   string
 	Peers        uint32
+	OldGenesis   *common.Hash
 }
 
 func (h *handshakeData) ToBytes() ([]byte, error) {
@@ -67,6 +68,9 @@ func (h *handshakeData) ToBytes() ([]byte, error) {
 		Timestamp:  h.Timestamp,
 		AppVersion: h.AppVersion,
 		Peers:      h.Peers,
+	}
+	if h.OldGenesis != nil {
+		protoHandshake.OldGenesis = h.OldGenesis.Bytes()
 	}
 	return proto.Marshal(protoHandshake)
 }
@@ -82,6 +86,10 @@ func (h *handshakeData) FromBytes(data []byte) error {
 	h.Timestamp = protoHandshake.Timestamp
 	h.AppVersion = protoHandshake.AppVersion
 	h.Peers = protoHandshake.Peers
+	if protoHandshake.OldGenesis != nil {
+		h.OldGenesis = &common.Hash{}
+		h.OldGenesis.SetBytes(protoHandshake.OldGenesis)
+	}
 	return nil
 }
 

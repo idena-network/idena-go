@@ -391,10 +391,10 @@ func (r *Repo) WriteActivity(monitor *types.ActivityMonitor) {
 
 func (r *Repo) SaveTx(address common.Address, blockHash common.Hash, timestamp int64, feePerGas *big.Int, transaction *types.Transaction) {
 	s := &types.SavedTransaction{
-		Tx:         transaction,
+		Tx:        transaction,
 		FeePerGas: feePerGas,
-		BlockHash:  blockHash,
-		Timestamp:  timestamp,
+		BlockHash: blockHash,
+		Timestamp: timestamp,
 	}
 	data, err := s.ToBytes()
 	if err != nil {
@@ -529,4 +529,91 @@ func (r *Repo) GetSavedEvents(contract common.Address) (events []*types.SavedEve
 		events = append(events, e)
 	}
 	return events
+}
+
+func (r *Repo) WriteIntermediateGenesis(batch dbm.Batch, height uint64) {
+	if batch != nil {
+		batch.Set(intermediateGenesisKey, common.ToBytes(height))
+	} else{
+		r.db.Set(intermediateGenesisKey, common.ToBytes(height))
+	}
+}
+
+func (r *Repo) ReadIntermediateGenesis() uint64 {
+	data, err := r.db.Get(intermediateGenesisKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(data)
+}
+
+func (r *Repo) WriteUpgradeVotes(votes *types.UpgradeVotes) {
+	data, _ := votes.ToBytes()
+	r.db.Set(upgradeVotesKey, data)
+}
+
+func (r *Repo) ReadUpgradeVotes() *types.UpgradeVotes {
+	data, _ := r.db.Get(upgradeVotesKey)
+	if len(data) > 0 {
+		v := types.NewUpgradeVotes()
+		v.FromBytes(data)
+		return v
+	}
+	return nil
+}
+
+func (r *Repo) WriteConsensusVersion(batch dbm.Batch, v uint32) {
+	if batch != nil {
+		batch.Set(consensusVersionKey, common.ToBytes(v))
+	} else {
+		r.db.Set(consensusVersionKey, common.ToBytes(v))
+	}
+}
+
+func (r *Repo) ReadConsensusVersion() uint32 {
+	data, err := r.db.Get(consensusVersionKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(data)
+}
+
+func (r *Repo) WritePreliminaryConsensusVersion(v uint32) {
+	r.db.Set(preliminaryConsVersionKey, common.ToBytes(v))
+}
+
+func (r *Repo) ReadPreliminaryConsensusVersion() uint32 {
+	data, err := r.db.Get(preliminaryConsVersionKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(data)
+}
+
+func (r *Repo) RemovePreliminaryConsensusVersion(batch dbm.Batch) {
+	if batch != nil {
+		batch.Delete(preliminaryConsVersionKey)
+	} else {
+		r.db.Delete(preliminaryConsVersionKey)
+	}
+}
+
+func (r *Repo) WritePreliminaryIntermediateGenesis(height uint64) {
+	r.db.Set(preliminaryIntermediateGenesisKey, common.ToBytes(height))
+}
+
+func (r *Repo) ReadPreliminaryIntermediateGenesis() uint64 {
+	data, err := r.db.Get(preliminaryIntermediateGenesisKey)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(data)
+}
+
+func (r *Repo) RemovePreliminaryIntermediateGenesis(batch dbm.Batch) {
+	if batch != nil {
+		batch.Delete(preliminaryIntermediateGenesisKey)
+	} else {
+		r.db.Delete(preliminaryIntermediateGenesisKey)
+	}
 }

@@ -17,7 +17,10 @@
 package types
 
 import (
+	"encoding/binary"
+	"github.com/cosmos/iavl"
 	"github.com/idena-network/idena-go/common"
+	db "github.com/tendermint/tm-db"
 )
 
 type DerivableList interface {
@@ -25,17 +28,17 @@ type DerivableList interface {
 	GetBytes(i int) []byte
 }
 
-func DeriveSha(list DerivableList) common.Hash {
-	//TODO: apply on next fork
-	//tree, _ := iavl.NewMutableTree(db.NewMemDB(), 1024)
-	//for i := 0; i < list.Len(); i++ {
-	//	key := make([]byte, 4)
-	//	binary.LittleEndian.PutUint32(key, uint32(i))
-	//	tree.Set(key, list.GetBytes(i))
-	//}
-	//tree.SaveVersion()
-	//var result common.Hash
-	//copy(result[:], tree.Hash())
-	//return result
-	return common.Hash{}
+func DeriveSha(list DerivableList, useIavl bool) common.Hash {
+	if !useIavl {
+		return common.Hash{}
+	}
+	tree, _ := iavl.NewMutableTree(db.NewMemDB(), 1024)
+	for i := 0; i < list.Len(); i++ {
+		key := make([]byte, 4)
+		binary.LittleEndian.PutUint32(key, uint32(i))
+		tree.Set(key, list.GetBytes(i))
+	}
+	var result common.Hash
+	copy(result[:], tree.WorkingHash())
+	return result
 }

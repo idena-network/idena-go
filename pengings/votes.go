@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/events"
 	"sync"
 )
@@ -25,9 +26,10 @@ type Votes struct {
 	head            *types.Header
 	bus             eventbus.Bus
 	offlineDetector *blockchain.OfflineDetector
+	upgrade         *upgrade.Upgrader
 }
 
-func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *blockchain.OfflineDetector) *Votes {
+func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *blockchain.OfflineDetector, upgrade *upgrade.Upgrader) *Votes {
 	v := &Votes{
 		votesByRound:    &sync.Map{},
 		votesByHash:     &sync.Map{},
@@ -35,6 +37,7 @@ func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *block
 		state:           state,
 		bus:             bus,
 		offlineDetector: offlineDetector,
+		upgrade:         upgrade,
 	}
 	v.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -78,6 +81,7 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 	votes.knownVotes.Add(vote.Hash())
 	votes.votesByHash.Store(vote.Hash(), vote)
 	votes.offlineDetector.ProcessVote(vote)
+	votes.upgrade.ProcessVote(vote)
 	return true
 }
 

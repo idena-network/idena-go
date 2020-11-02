@@ -13,6 +13,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
@@ -67,6 +68,7 @@ type Downloader struct {
 	statsCollector       collector.StatsCollector
 	keyStore             *keystore.KeyStore
 	subManager           *subscriptions.Manager
+	upgrader             *upgrade.Upgrader
 }
 
 func (d *Downloader) IsSyncing() bool {
@@ -93,6 +95,7 @@ func NewDownloader(
 	statsCollector collector.StatsCollector,
 	subManager *subscriptions.Manager,
 	keyStore *keystore.KeyStore,
+	upgrader *upgrade.Upgrader,
 ) *Downloader {
 	return &Downloader{
 		pm:                   pm,
@@ -109,6 +112,7 @@ func NewDownloader(
 		statsCollector:       statsCollector,
 		subManager:           subManager,
 		keyStore:             keyStore,
+		upgrader:             upgrader,
 	}
 }
 
@@ -292,7 +296,7 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 
 	if canUseFastSync {
 		d.log.Info("Fast sync will be used")
-		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm, d.bus, d.secStore.GetAddress(), d.keyStore, d.subManager), manifest.Height
+		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm, d.bus, d.secStore.GetAddress(), d.keyStore, d.subManager, d.upgrader), manifest.Height
 	} else {
 		d.log.Info("Full sync will be used")
 		top := d.top

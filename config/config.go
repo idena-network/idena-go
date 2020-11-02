@@ -172,12 +172,15 @@ func MakeMobileConfig(path string, cfg string) (*Config, error) {
 	return conf, nil
 }
 
-func MakeConfig(ctx *cli.Context) (*Config, error) {
+func MakeConfig(ctx *cli.Context, cfgTransform func(cfg *Config)) (*Config, error) {
 	cfg, err := MakeConfigFromFile(ctx.String(CfgFileFlag.Name))
 	if err != nil {
 		return nil, err
 	}
-
+	if ctx.IsSet(DataDirFlag.Name) {
+		cfg.DataDir = ctx.String(DataDirFlag.Name)
+	}
+	cfgTransform(cfg)
 	applyFlags(ctx, cfg)
 	return cfg, nil
 }
@@ -259,9 +262,6 @@ func getDefaultConfig(dataDir string) *Config {
 }
 
 func applyFlags(ctx *cli.Context, cfg *Config) {
-	if ctx.IsSet(DataDirFlag.Name) {
-		cfg.DataDir = ctx.String(DataDirFlag.Name)
-	}
 	applyProfile(ctx, cfg)
 	applyP2PFlags(ctx, cfg)
 	applyConsensusFlags(ctx, cfg)

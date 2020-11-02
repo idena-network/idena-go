@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
@@ -64,7 +65,7 @@ type Blockchain struct {
 	secStore        *secstore.SecStore
 	Head            *types.Header
 	PreliminaryHead *types.Header
-	genesis         *types.Header
+	genesisInfo     *types.GenesisInfo
 	config          *config.Config
 	pubKey          []byte
 	coinBaseAddress common.Address
@@ -78,6 +79,7 @@ type Blockchain struct {
 	timing          *timing
 	bus             eventbus.Bus
 	subManager      *subscriptions.Manager
+	upgrader        *upgrade.Upgrader
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
 	isSyncing       bool
 }
@@ -93,7 +95,7 @@ func init() {
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
-	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager) *Blockchain {
+	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
 		repo:            database.NewRepo(db),
 		config:          config,
@@ -107,6 +109,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		offlineDetector: offlineDetector,
 		indexer:         newBlockchainIndexer(db, bus, config, keyStore),
 		subManager:      subManager,
+		upgrader:        upgrader,
 	}
 }
 
@@ -146,11 +149,29 @@ func (chain *Blockchain) InitializeChain() error {
 				return err
 			}
 			genesisHeight = predefinedState.Block
+
+			bindataGenesis, err := chain.readBindataGenesis()
+			if err == nil {
+				genesisHeight = bindataGenesis.Height()
+			}
 		}
 
-		if chain.genesis = chain.GetBlockHeaderByHeight(genesisHeight); chain.genesis == nil {
+		predefinedGenesis := chain.GetBlockHeaderByHeight(genesisHeight)
+		if predefinedGenesis == nil {
 			return errors.New("genesis block is not found")
 		}
+
+		intermediateGenesisHeight := chain.repo.ReadIntermediateGenesis()
+		if intermediateGenesisHeight == 0 {
+			chain.genesisInfo = &types.GenesisInfo{Genesis: predefinedGenesis}
+		} else {
+			genesis := chain.GetBlockHeaderByHeight(intermediateGenesisHeight)
+			if genesis == nil {
+				return errors.New("intermediate genesis block is not found")
+			}
+			chain.genesisInfo = &types.GenesisInfo{Genesis: genesis, OldGenesis: predefinedGenesis}
+		}
+
 	} else {
 		_, err := chain.GenerateGenesis(chain.config.Network)
 		if err != nil {
@@ -173,8 +194,55 @@ func (chain *Blockchain) setHead(height uint64, batch dbm.Batch) {
 	chain.setCurrentHead(chain.GetHead())
 }
 
-func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
+func (chain *Blockchain) readBindataGenesis() (*types.Header, error) {
+	data, err := Asset("bindata/header.tar")
+	if err != nil {
+		return nil, err
+	}
+	header := &types.Header{}
+	if err = header.FromBytes(data); err != nil {
+		return nil, err
+	}
+	return header, nil
+}
 
+func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Block, error) {
+
+	if network != Testnet {
+		return nil, errors.New(fmt.Sprintf("predefined genesis for network=%v was not found", network))
+	}
+
+	header, err := chain.readBindataGenesis()
+	if err != nil {
+		return nil, err
+	}
+
+	stateDbData, err := Asset("bindata/statedb.tar")
+	if err != nil {
+		return nil, err
+	}
+
+	if err = chain.appState.State.RecoverSnapshot(header.Height(), header.Root(), bytes.NewReader(stateDbData)); err != nil {
+		return nil, err
+	}
+
+	chain.appState.State.CommitSnapshot(header.Height(), nil)
+
+	identityStateDbData, err := Asset("bindata/identitystatedb.tar")
+	if err != nil {
+		return nil, err
+	}
+
+	if err = chain.appState.IdentityState.RecoverSnapshot(header.Height(), header.IdentityRoot(), bytes.NewReader(identityStateDbData)); err != nil {
+		return nil, err
+	}
+
+	chain.appState.IdentityState.CommitSnapshot(header.Height())
+
+	return &types.Block{Header: header, Body: &types.Body{}}, nil
+}
+
+func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, error) {
 	for addr, alloc := range chain.config.GenesisConf.Alloc {
 		if alloc.Balance != nil {
 			chain.appState.State.SetBalance(addr, alloc.Balance)
@@ -233,7 +301,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 
 	var emptyHash [32]byte
 
-	block := &types.Block{Header: &types.Header{
+	return &types.Block{Header: &types.Header{
 		ProposedHeader: &types.ProposedHeader{
 			ParentHash:   emptyHash,
 			Time:         0,
@@ -244,12 +312,23 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 			IpfsHash:     ipfs.EmptyCid.Bytes(),
 			FeePerGas:    feePerGas,
 		},
-	}, Body: &types.Body{}}
+	}, Body: &types.Body{}}, nil
+}
+
+func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, error) {
+
+	block, err := chain.loadPredefinedGenesis(network)
+	if err != nil {
+		block, err = chain.generateGenesis(network)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if err := chain.insertBlock(block, new(state.IdentityStateDiff), nil); err != nil {
 		return nil, err
 	}
-	chain.genesis = block.Header
+	chain.genesisInfo = &types.GenesisInfo{Genesis: block.Header}
 	return block, nil
 }
 
@@ -268,7 +347,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	}
 
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
-	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block)
+	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
 
 	chain.applyEmptyBlockOnState(checkState, block, nil)
 
@@ -303,7 +382,22 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
-
+	if block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
+		chain.log.Info("Detected upgrade block", "upgrade", block.Header.ProposedHeader.Upgrade)
+		chain.repo.WriteConsensusVersion(nil, block.Header.ProposedHeader.Upgrade)
+		chain.upgrader.CompleteMigration()
+		diff := time.Unix(block.Header.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
+		if diff > 0 {
+			// pause block producing to allow weak machines process state migration on time
+			chain.log.Info("Node goes to sleep", "duration", diff.String())
+			time.Sleep(diff)
+		}
+	}
+	if block.Header.Flags().HasFlag(types.NewGenesis) {
+		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
+		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
+		chain.genesisInfo.Genesis = block.Header
+	}
 	chain.bus.Publish(&events.NewBlockEvent{
 		Block: block,
 	})
@@ -1105,7 +1199,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	}
 
 	header.IpfsHash = bodyCidBytes
-	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs))
+	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs), chain.config.Consensus.UseTxHashIavl)
 	header.TxReceiptsCid = receiptsCidBytes
 
 	block := &types.Block{
@@ -1117,7 +1211,11 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.TxBloom = calculateTxBloom(block, receipts)
 
-	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
+	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block, head)
+
+	if chain.upgrader.CanUpgrade() && !block.Header.ProposedHeader.Flags.HasFlag(types.NewGenesis) {
+		header.Upgrade = chain.upgrader.UpgradeBits()
+	}
 
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, nil)
 
@@ -1159,7 +1257,7 @@ func calculateTxBloom(block *types.Block, receipts types.TxReceipts) []byte {
 	return data
 }
 
-func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *types.Block) types.BlockFlag {
+func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *types.Block, prevBlock *types.Header) types.BlockFlag {
 
 	var flags types.BlockFlag
 
@@ -1206,7 +1304,9 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
-
+	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 && chain.config.Consensus.GenerateGenesisAfterUpgrade {
+		flags |= types.NewGenesis
+	}
 	return flags
 }
 
@@ -1356,7 +1456,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	var txs = types.Transactions(block.Body.Transactions)
 
-	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
+	if types.DeriveSha(txs, chain.config.Consensus.UseTxHashIavl) != block.Header.ProposedHeader.TxHash {
 		return errors.New("txHash is invalid")
 	}
 
@@ -1374,7 +1474,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
 
-	if expected := chain.calculateFlags(checkState, block); expected != persistentFlags {
+	if expected := chain.calculateFlags(checkState, block, prevBlock); expected != persistentFlags {
 		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
@@ -1671,8 +1771,8 @@ func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCac
 	return int(math2.Round(float64(size) * chain.config.Consensus.AgreementThreshold))
 }
 
-func (chain *Blockchain) Genesis() *types.Header {
-	return chain.genesis
+func (chain *Blockchain) GenesisInfo() *types.GenesisInfo {
+	return chain.genesisInfo
 }
 
 func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.BlockBundle) error {
@@ -1822,8 +1922,17 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 	if hash != header.Seed() {
 		return errors.New("seed is invalid")
 	}
-	if header.ProposedHeader.Upgrade > 0 {
-		return errors.New("unknown block upgrade")
+	if header.Flags().HasFlag(types.NewGenesis) {
+		if header.ProposedHeader.Upgrade != 0 || prevBlock.ProposedHeader == nil ||
+			prevBlock.ProposedHeader.Upgrade == 0 ||
+			!chain.config.Consensus.GenerateGenesisAfterUpgrade {
+			return errors.New("flag NewGenesis is invalid")
+		}
+	}
+	if prevBlock.ProposedHeader != nil && prevBlock.ProposedHeader.Upgrade > 0 && chain.config.Consensus.GenerateGenesisAfterUpgrade {
+		if !header.Flags().HasFlag(types.NewGenesis) {
+			return errors.New("flag NewGenesis is required")
+		}
 	}
 	//TODO: add proposer's check??
 
@@ -1875,8 +1984,8 @@ func (chain *Blockchain) RemovePreliminaryHead(batch dbm.Batch) {
 }
 
 func (chain *Blockchain) IsPermanentCert(header *types.Header) bool {
-	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot) ||
-		header.Height()%chain.config.Blockchain.StoreCertRange == 0
+	return header.Flags().HasFlag(types.IdentityUpdate|types.Snapshot|types.NewGenesis) ||
+		header.Height()%chain.config.Blockchain.StoreCertRange == 0 || header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0
 }
 
 func (chain *Blockchain) ReadTxs(address common.Address, count int, token []byte) ([]*types.SavedTransaction, []byte) {
@@ -1971,14 +2080,30 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	}
 	defer batch.Close()
 
-	oldStateDb := chain.appState.State.CommitSnapshot(manifest, batch)
+	oldStateDb := chain.appState.State.CommitSnapshot(manifest.Height, batch)
 	chain.appState.ValidatorsCache.Load()
 
 	chain.setHead(chain.PreliminaryHead.Height(), batch)
 	newHead := chain.PreliminaryHead
 	chain.RemovePreliminaryHead(batch)
+
+	consensusVersion := chain.ReadPreliminaryConsensusVersion()
+	if consensusVersion > 0 {
+		chain.repo.WriteConsensusVersion(batch, consensusVersion)
+		chain.repo.RemovePreliminaryConsensusVersion(batch)
+	}
+	preliminaryIntermediateGenesis := chain.repo.ReadPreliminaryIntermediateGenesis()
+	if preliminaryIntermediateGenesis > 0 {
+		chain.repo.WriteIntermediateGenesis(batch, preliminaryIntermediateGenesis)
+		chain.repo.RemovePreliminaryIntermediateGenesis(batch)
+	}
 	if err := batch.WriteSync(); err != nil {
 		return err
+	}
+	if preliminaryIntermediateGenesis > 0 {
+		hash := chain.repo.ReadCanonicalHash(preliminaryIntermediateGenesis)
+		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
+		chain.genesisInfo.Genesis = chain.repo.ReadBlockHeader(hash)
 	}
 	chain.setCurrentHead(newHead)
 	go func() {
@@ -1990,4 +2115,24 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 
 func (chain *Blockchain) ReadEvents(contract common.Address) []*types.SavedEvent {
 	return chain.repo.GetSavedEvents(contract)
+}
+
+func (chain *Blockchain) WritePreliminaryConsensusVersion(ver uint32) {
+	chain.repo.WritePreliminaryConsensusVersion(ver)
+}
+
+func (chain *Blockchain) ReadPreliminaryConsensusVersion() uint32 {
+	return chain.repo.ReadPreliminaryConsensusVersion()
+}
+
+func (chain *Blockchain) RemovePreliminaryConsensusVersion() {
+	chain.repo.RemovePreliminaryConsensusVersion(nil)
+}
+
+func (chain *Blockchain) WritePreliminaryIntermediateGenesis(height uint64) {
+	chain.repo.WritePreliminaryIntermediateGenesis(height)
+}
+
+func (chain *Blockchain) RemovePreliminaryIntermediateGenesis() {
+	chain.repo.RemovePreliminaryIntermediateGenesis(nil)
 }

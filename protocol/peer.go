@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
@@ -229,19 +228,25 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 	return nil, errors.Errorf("type %T is not serializable", payload)
 }
 
-func (p *protoPeer) Handshake(network types.Network, height uint64, genesis common.Hash, appVersion string, peersCount uint32) error {
+func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *types.GenesisInfo, appVersion string, peersCount uint32) error {
 	errc := make(chan error, 2)
 	handShake := new(handshakeData)
 	p.log.Trace("start handshake")
 	go func() {
-		msg := makeMsg(Handshake, &handshakeData{
+		data := &handshakeData{
 			NetworkId:    network,
 			Height:       height,
-			GenesisBlock: genesis,
+			GenesisBlock: genesis.Genesis.Hash(),
 			Timestamp:    time.Now().UTC().Unix(),
 			AppVersion:   appVersion,
 			Peers:        peersCount,
-		})
+		}
+		if genesis.OldGenesis != nil {
+			hash := genesis.OldGenesis.Hash()
+			data.OldGenesis = &hash
+		}
+
+		msg := makeMsg(Handshake, data)
 		errc <- p.rw.WriteMsg(msg)
 		p.log.Trace("handshake message sent")
 	}()
@@ -310,7 +315,7 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	return result, nil
 }
 
-func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis common.Hash) (err error) {
+func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, genesis *types.GenesisInfo) (err error) {
 	p.log.Trace("read handshake data")
 	msg, err := p.ReadMsg()
 	if err != nil {
@@ -323,9 +328,10 @@ func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, 
 		return errors.New(fmt.Sprintf("can't decode handshake %v: %v", msg, err))
 	}
 	p.appVersion = handShake.AppVersion
-	if handShake.GenesisBlock != genesis {
-		return errors.New(fmt.Sprintf("bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis[:8]))
+	if !genesis.EqualAny(handShake.GenesisBlock, handShake.OldGenesis) {
+		return errors.New(fmt.Sprintf("bad genesis block %x (!= %x)", handShake.GenesisBlock[:8], genesis.Genesis.Hash().Bytes()[:8]))
 	}
+
 	if handShake.NetworkId != network {
 		return errors.New(fmt.Sprintf("network mismatch: %d (!= %d)", handShake.NetworkId, network))
 	}

@@ -9,6 +9,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
+	"io"
 	"sync"
 )
 
@@ -409,6 +410,28 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedS
 		stateObj.data.Approved = identity.Approved
 		stateObj.touch()
 	}
+}
+
+func (s *IdentityStateDB) RecoverSnapshot(height uint64, treeRoot common.Hash, from io.Reader) error {
+	pdb := dbm.NewPrefixDB(s.original, IdentityStateDbKeys.buildDbPrefix(height))
+	return ReadTreeFrom(pdb, height, treeRoot, from)
+}
+
+func (s *IdentityStateDB) CommitSnapshot(height uint64) (dropDb dbm.DB) {
+	pdb := dbm.NewPrefixDB(s.original, IdentityStateDbKeys.buildDbPrefix(height))
+	batch := s.original.NewBatch()
+	IdentityStateDbKeys.SaveDbPrefix(batch, IdentityStateDbKeys.buildDbPrefix(height), false)
+	batch.Write()
+	dropDb = s.db
+
+	s.db = pdb
+	tree := NewMutableTree(pdb)
+	if _, err := tree.LoadVersion(int64(height)); err != nil {
+		panic(err)
+	}
+	s.tree = tree
+	s.Clear()
+	return dropDb
 }
 
 type IdentityStateDiffValue struct {
