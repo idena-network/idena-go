@@ -96,8 +96,8 @@ func TestFactChecking_Call(t *testing.T) {
 	gas.Reset(-1)
 
 	// deploy
-	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore)
-	contract := NewOracleVotingContract(ctx, e)
+	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore, nil)
+	contract := NewOracleVotingContract(ctx, e, nil)
 
 	require.NoError(t, contract.Deploy(attachment.Args...))
 	e.Commit()
@@ -122,14 +122,14 @@ func TestFactChecking_Call(t *testing.T) {
 
 	txNotOwner, _ := types.SignTx(tx, identities[0])
 
-	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(txNotOwner, OracleVotingContract), e)
+	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(txNotOwner, OracleVotingContract), e, nil)
 
 	require.Error(t, contract.Call("startVoting"))
 	e.Reset()
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
+	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 
 	require.Error(t, contract.Call("startVoting"))
 	e.Reset()
@@ -195,8 +195,8 @@ func TestFactChecking_Call(t *testing.T) {
 		}
 		tx, _ = types.SignTx(tx, key)
 		gas.Reset(-1)
-		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore)
-		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
+		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
+		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 		err = contract.Call(callAttach.Method, callAttach.Args...)
 		if shouldBeError {
 			e.Reset()
@@ -232,8 +232,8 @@ func TestFactChecking_Call(t *testing.T) {
 		}
 		gas.Reset(-1)
 		tx, _ = types.SignTx(tx, key)
-		e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
-		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
+		e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore, nil)
+		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 
 		err := contract.Call(callAttach.Method, callAttach.Args...)
 		if _, ok := votedIdentities[addr]; !ok {
@@ -261,8 +261,8 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
+	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore, nil)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 
 	require.NoError(t, contract.Call(callAttach.Method, callAttach.Args...))
 	e.Commit()
@@ -301,8 +301,8 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	e = env.NewEnvImp(appState, createHeader(4320*3+4, 21), gas, secStore)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e)
+	e = env.NewEnvImp(appState, createHeader(4320*3+4, 21), gas, secStore, nil)
+	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 	require.NoError(t, contract.Terminate(terminateAttach.Args...))
 	e.Commit()
 

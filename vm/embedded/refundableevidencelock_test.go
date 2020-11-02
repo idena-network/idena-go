@@ -74,7 +74,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	gas.Reset(-1)
 
 	// deploy
-	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore)
+	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore, nil)
 	contract := NewRefundableEvidenceLock(ctx, e)
 
 	contractAddr := ctx.ContractAddr()
@@ -103,7 +103,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 		ctx := env.NewCallContextImpl(tx, RefundableEvidenceLockContract)
 		gas.Reset(-1)
-		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore)
+		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
 		contract = NewRefundableEvidenceLock(ctx, e)
 		err = contract.Call(attachment.Method, attachment.Args...)
 		e.Commit()
@@ -133,12 +133,11 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore)
+	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
 	contract = NewRefundableEvidenceLock(env.NewCallContextImpl(tx, RefundableEvidenceLockContract), e)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)
 	e.Reset()
-
 
 	callAttach = attachments.CreateCallContractAttachment("push")
 	payload, _ = attachment.ToBytes()
@@ -153,7 +152,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore)
+	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
 	contract = NewRefundableEvidenceLock(env.NewCallContextImpl(tx, RefundableEvidenceLockContract), e)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)

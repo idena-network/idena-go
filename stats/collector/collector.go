@@ -109,6 +109,9 @@ type StatsCollector interface {
 	AddTimeLockTermination(dest common.Address)
 
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
+
+	RemoveMemPoolTxs(txs []*types.Transaction)
+	RemoveMemPoolTxsMap(map[common.Hash]*types.Transaction)
 }
 
 type GetBalanceFunc func(address common.Address) *big.Int
@@ -125,6 +128,14 @@ func (c *collectorStub) IsIndexer() bool {
 }
 
 func (c *collectorStub) EnableCollecting() {
+	// do nothing
+}
+
+func (c *collectorStub) RemoveMemPoolTxs(txs []*types.Transaction) {
+	// do nothing
+}
+
+func (c *collectorStub) RemoveMemPoolTxsMap(map[common.Hash]*types.Transaction) {
 	// do nothing
 }
 

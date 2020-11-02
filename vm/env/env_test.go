@@ -52,7 +52,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 
 	gas := &GasCounter{gasLimit: -1}
 
-	env := NewEnvImp(appState, createHeader(3, 21), gas, secStore)
+	env := NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
 
 	require.Error(t, env.Send(ctx, common.Address{0x1}, big.NewInt(1)))
 	env.Reset()
