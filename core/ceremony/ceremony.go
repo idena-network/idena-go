@@ -1431,22 +1431,7 @@ func (vc *ValidationCeremony) delayedStopFlipKeysSync() {
 	}
 }
 
-func (vc *ValidationCeremony) GetCoinbaseFlipKeys(cidBytes []byte) ([]byte, []byte, error) {
-	publicKey, encryptedPrivateKey, err := vc.GetExternalFlipKeys(vc.secStore.GetAddress(), cidBytes)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	decryptedPrivateKey, err := vc.secStore.DecryptMessage(encryptedPrivateKey)
-	if err != nil {
-		return nil, nil, errors.Errorf("invalid private key, encrypted: %x, err: %v", encryptedPrivateKey, err)
-	}
-
-	return publicKey, decryptedPrivateKey, nil
-}
-
-func (vc *ValidationCeremony) GetExternalFlipKeys(addr common.Address, cidBytes []byte) (publicKey []byte, encryptedPrivateKey []byte, err error) {
+func (vc *ValidationCeremony) GetFlipKeys(addr common.Address, cidBytes []byte) (publicKey []byte, encryptedPrivateKey []byte, err error) {
 	if !vc.lottery.finished {
 		return nil, nil, errors.New("data is not ready")
 	}
@@ -1478,13 +1463,18 @@ func (vc *ValidationCeremony) GetDecryptedFlip(key []byte) (publicPart []byte, p
 		return nil, nil, err
 	}
 
-	publicKey, privateKey, err := vc.GetCoinbaseFlipKeys(key)
+	publicKey, encryptedPrivateKey, err := vc.GetFlipKeys(vc.secStore.GetAddress(), key)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return decryptFlip(encryptedPublicPart, encryptedPrivatePart, publicKey, privateKey)
+	decryptedPrivateKey, err := vc.secStore.DecryptMessage(encryptedPrivateKey)
+	if err != nil {
+		return nil, nil, errors.Errorf("invalid private key, encrypted: %x, err: %v", encryptedPrivateKey, err)
+	}
+
+	return decryptFlip(encryptedPublicPart, encryptedPrivatePart, publicKey, decryptedPrivateKey)
 }
 
 func (vc *ValidationCeremony) IsFlipReadyToSolve(key []byte) bool {

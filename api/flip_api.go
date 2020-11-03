@@ -267,12 +267,7 @@ func (api *FlipApi) GetKeys(addr common.Address, hash string) (FlipKeysResponse,
 		return FlipKeysResponse{}, err
 	}
 	cidBytes := c.Bytes()
-	var publicKey, privateKey []byte
-	if addr == api.baseApi.getCurrentCoinbase() {
-		publicKey, privateKey, err = api.ceremony.GetCoinbaseFlipKeys(cidBytes)
-	} else {
-		publicKey, privateKey, err = api.ceremony.GetExternalFlipKeys(addr, cidBytes)
-	}
+	publicKey, privateKey, err := api.ceremony.GetFlipKeys(addr, cidBytes)
 
 	if err != nil {
 		return FlipKeysResponse{}, err
