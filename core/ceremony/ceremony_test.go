@@ -358,8 +358,10 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	app.State.SetRequiredFlips(approvedAddr, 3)
 
 	vc.candidates = candidates
-	vc.flips = flips
-	vc.flipsPerAuthor = flipsPerAuthor
+	vc.flipsData = &flipsData{
+		allFlips:       flips,
+		flipsPerAuthor: flipsPerAuthor,
+	}
 	vc.appState = app
 
 	approvedCandidates := mapset.NewSet()
@@ -408,9 +410,11 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporter2 := common.Address{13}
 	reporter3 := common.Address{14}
 
-	vc.flips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc},
+	vc.flipsData = &flipsData{}
+
+	vc.flipsData.allFlips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc},
 		{0xd}, {0xe}, {0xf}, {0x10}, {0x11}, {0x12}, {0x13}, {0x14}, {0x15}, {0x16}}
-	vc.flipAuthorMap = map[string]common.Address{
+	vc.flipsData.flipAuthorMap = map[string]common.Address{
 		string([]byte{0x0}): auth1,
 		string([]byte{0x1}): auth1,
 		string([]byte{0x2}): auth1,
