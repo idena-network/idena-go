@@ -30,7 +30,7 @@ const (
 	minCompressionSize = 386 // bytes
 
 	queuedRequestsSize             = 15000
-	queuedHighPriorityRequestsSize = 500
+	queuedHighPriorityRequestsSize = 2000
 )
 
 type compression = byte

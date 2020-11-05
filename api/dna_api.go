@@ -28,7 +28,6 @@ type DnaApi struct {
 	ceremony       *ceremony.ValidationCeremony
 	appVersion     string
 	profileManager *profile.Manager
-
 }
 
 func NewDnaApi(baseApi *BaseApi, bc *blockchain.Blockchain, ceremony *ceremony.ValidationCeremony, appVersion string,
@@ -595,4 +594,13 @@ func (api *DnaApi) ActivateInviteToRandAddr(ctx context.Context, args ActivateIn
 		Address: to,
 		Key:     hex.EncodeToString(crypto.FromECDSA(toKey)),
 	}, nil
+}
+
+func (api *DnaApi) IsValidationReady() bool {
+	return api.ceremony.IsValidationReady()
+}
+
+func (api *DnaApi) WordsSeed() hexutil.Bytes {
+	seed := api.baseApi.getAppState().State.FlipWordsSeed()
+	return seed[:]
 }
