@@ -114,7 +114,7 @@ type FlipHashesResponse struct {
 }
 
 func (api *FlipApi) isCeremonyCandidate(addr common.Address) bool {
-	identity := api.baseApi.getAppState().State.GetIdentity(addr)
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
 	return state.IsCeremonyCandidate(identity)
 }
 
@@ -131,7 +131,7 @@ func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, err
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
@@ -159,7 +159,7 @@ func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, erro
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")

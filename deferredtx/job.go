@@ -3,6 +3,7 @@ package deferredtx
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -173,7 +174,11 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 	}
 	r.GasCost = j.bc.GetGasCost(j.appState, r.GasUsed)
 
-	tx, err = j.getSignedTx(dtx, blockchain.ConvertToFloat(big.NewInt(0).Mul(r.GasCost, big.NewInt(2))))
+	fee := fee.CalculateFee(readonlyAppState.ValidatorsCache.NetworkSize(), readonlyAppState.State.FeePerGas(), tx)
+	fee.Add(fee, r.GasCost)
+	maxFee := big.NewInt(0).Mul(fee, big.NewInt(2))
+
+	tx, err = j.getSignedTx(dtx, blockchain.ConvertToFloat(maxFee))
 	if err != nil {
 		return err
 	}

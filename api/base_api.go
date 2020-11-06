@@ -33,8 +33,16 @@ func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.K
 	return &BaseApi{engine, txpool, ks, secStore}
 }
 
-func (api *BaseApi) getAppState() *appstate.AppState {
+func (api *BaseApi) getReadonlyAppState() *appstate.AppState {
 	state, err := api.engine.ReadonlyAppState()
+	if err != nil {
+		panic(err)
+	}
+	return state
+}
+
+func (api *BaseApi) getAppStateForCheck() *appstate.AppState {
+	state, err := api.engine.AppStateForCheck()
 	if err != nil {
 		panic(err)
 	}
@@ -48,7 +56,7 @@ func (api *BaseApi) getCurrentCoinbase() common.Address {
 func (api *BaseApi) getTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
 	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte) *types.Transaction {
 
-	state := api.getAppState()
+	state := api.getReadonlyAppState()
 
 	// if maxFee is not set, we set it as 2x from fee
 	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {

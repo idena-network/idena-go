@@ -199,7 +199,7 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 }
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
+	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildDeployContractTx(args)
 	if err != nil {
@@ -214,7 +214,7 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 }
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
+	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
@@ -223,13 +223,17 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
+	sender, _ := types.Sender(tx)
+	appState.State.SubBalance(sender, tx.Amount)
+	appState.State.AddBalance(*tx.To, tx.Amount)
+
 	r := vm.Run(tx, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
+	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildTerminateContractTx(args)
 	if err != nil {
@@ -293,7 +297,7 @@ func (api *ContractApi) Terminate(ctx context.Context, args TerminateArgs) (comm
 }
 
 func (api *ContractApi) ReadData(contract common.Address, key string, format string) (interface{}, error) {
-	data := api.baseApi.getAppState().State.GetContractValue(contract, []byte(key))
+	data := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, []byte(key))
 	if data == nil {
 		return nil, errors.New("data is nil")
 	}
@@ -301,7 +305,7 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore, nil)
+	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc.Head, api.baseApi.secStore, nil)
 	data, err := vm.Read(args.Contract, args.Method, args.Args.ToSlice()...)
 	if err != nil {
 		return nil, err
@@ -310,8 +314,8 @@ func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error)
 }
 
 func (api *ContractApi) GetStake(contract common.Address) interface{} {
-	hash := api.baseApi.getAppState().State.GetCodeHash(contract)
-	stake := api.baseApi.getAppState().State.GetContractStake(contract)
+	hash := api.baseApi.getReadonlyAppState().State.GetCodeHash(contract)
+	stake := api.baseApi.getReadonlyAppState().State.GetContractStake(contract)
 	return struct {
 		Hash  *common.Hash
 		Stake decimal.Decimal
