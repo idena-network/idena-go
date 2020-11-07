@@ -15,10 +15,6 @@ import (
 	"sort"
 )
 
-const (
-	maxEnvKeyLength = 32
-)
-
 var (
 	eventRegexp *regexp.Regexp
 )
@@ -150,7 +146,7 @@ func (e *EnvImp) BlockNumber() uint64 {
 }
 
 func (e *EnvImp) SetValue(ctx CallContext, key []byte, value []byte) {
-	if len(key) > maxEnvKeyLength {
+	if len(key) > common.MaxContractStoreKeyLength {
 		panic("key is too big")
 	}
 	addr := ctx.ContractAddr()

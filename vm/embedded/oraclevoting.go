@@ -155,7 +155,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		winnerThreshold = math.Min(math.Max(50, value), 100)
 	}
 	if value, err := helpers.ExtractUInt64(5, args...); err == nil {
-		quorum = math.Min(math.Max(20, value), 100)
+		quorum = math.Min(math.Max(1, value), 100)
 	}
 
 	if value, err := helpers.ExtractUInt64(6, args...); err == nil {
@@ -227,7 +227,6 @@ func (f *OracleVoting) startVoting() error {
 	if f.statsCollector != nil && f.statsCollector.IsIndexer() {
 		collector.AddOracleVotingCallStart(f.statsCollector, state, startBlock, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
 	}
-
 	return nil
 }
 
@@ -353,8 +352,8 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	if winnerVotesCnt >= committeeSize*winnerThreshold/100 ||
-		duration >= votingDuration+publicVotingDuration && votedCount >= committeeSize*quorum/100 {
+	if winnerVotesCnt >= f.CalcPercentUint64(committeeSize, winnerThreshold) ||
+		duration >= votingDuration+publicVotingDuration && votedCount >= f.CalcPercentUint64(committeeSize, quorum) {
 		state := uint64(2)
 		f.SetUint64("state", 2)
 		var result *byte
@@ -362,11 +361,11 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		fund := decimal.NewFromBigInt(fundInt, 0)
 		winnersCnt := uint64(0)
 
-		if winnerVotesCnt >= votedCount*winnerThreshold/100 {
+		if winnerVotesCnt > f.CalcPercentUint64(votedCount, winnerThreshold) {
 			result = &winner
 			winnersCnt = winnerVotesCnt
 		}
-		if winnerVotesCnt < votedCount*winnerThreshold/100 {
+		if winnerVotesCnt <= f.CalcPercentUint64(votedCount, winnerThreshold) {
 			result = nil
 			winnersCnt = votedCount
 		}
@@ -438,8 +437,8 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < committeeSize*winnerThreshold/100 &&
-		votedCount < committeeSize*quorum/100 &&
+	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < f.CalcPercentUint64(committeeSize, winnerThreshold) &&
+		votedCount < f.CalcPercentUint64(committeeSize, quorum) &&
 		duration >= votingDuration+publicVotingDuration {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)

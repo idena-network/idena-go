@@ -223,9 +223,11 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
-	sender, _ := types.Sender(tx)
-	appState.State.SubBalance(sender, tx.Amount)
-	appState.State.AddBalance(*tx.To, tx.Amount)
+	if tx.Amount != nil && tx.Amount.Sign() > 0 {
+		sender, _ := types.Sender(tx)
+		appState.State.SubBalance(sender, tx.Amount)
+		appState.State.AddBalance(*tx.To, tx.Amount)
+	}
 
 	r := vm.Run(tx, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
