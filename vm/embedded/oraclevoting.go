@@ -206,7 +206,7 @@ func (f *OracleVoting) startVoting() error {
 	committeeSize := f.GetUint64("committeeSize")
 	minBalance := big.NewInt(0).Mul(f.env.MinFeePerGas(), big.NewInt(int64(100*100*committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
-		return errors.New("insufficient funds")
+		return errors.New("contract balance is less than minimal oracles reward")
 	}
 	state := uint64(1)
 	f.SetUint64("state", state)
@@ -249,14 +249,15 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 		return errors.New("sender has voted already")
 	}
 
-	duration := f.GetUint64("votingDuration")
+	votingDuration := f.GetUint64("votingDuration")
+	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
-	if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
-		return errors.New("wrong block number")
+	if duration >= votingDuration {
+		return errors.New("too late to accept secret vote")
 	}
 	payment := f.GetBigInt("votingMinPayment")
 	if payment.Cmp(f.ctx.PayAmount()) > 0 {
-		return errors.New("tx amount is less than votingMinPayment")
+		return errors.New("tx amount is less than voting minimal payment")
 	}
 
 	pubKeyData := f.env.PubKey(f.ctx.Sender())
@@ -302,9 +303,13 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
-	if duration < votingDuration || duration > votingDuration+publicVotingDuration {
-		return errors.New("wrong block number")
+	if duration < votingDuration {
+		return errors.New("too early to accept open vote")
 	}
+	if duration > votingDuration+publicVotingDuration {
+		return errors.New("too late to accept open vote")
+	}
+
 	storedHash := f.voteHashes.Get(f.ctx.Sender().Bytes())
 
 	computedHash := crypto.Hash(append(common.ToBytes(vote), salt...))
@@ -353,8 +358,10 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	if winnerVotesCnt >= f.CalcPercentUint64(committeeSize, winnerThreshold) ||
-		duration >= votingDuration+publicVotingDuration && votedCount >= f.CalcPercentUint64(committeeSize, quorum) {
+	hasWinner := winnerVotesCnt >= f.CalcPercentUint64(committeeSize, winnerThreshold)
+	hasQuorum := votedCount >= f.CalcPercentUint64(committeeSize, quorum)
+
+	if hasWinner || duration >= votingDuration+publicVotingDuration && hasQuorum {
 		state := uint64(2)
 		f.SetUint64("state", 2)
 		var result *byte
@@ -409,7 +416,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		collector.AddOracleVotingCallFinish(f.statsCollector, state, result, fundInt, oracleReward, ownerReward)
 		return nil
 	}
-	return errors.New("no quorum")
+	return errors.New("not enough votes to finish voting")
 }
 
 func (f *OracleVoting) prolongVoting(args ...[]byte) error {
@@ -438,9 +445,16 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < f.CalcPercentUint64(committeeSize, winnerThreshold) &&
-		votedCount < f.CalcPercentUint64(committeeSize, quorum) &&
-		duration >= votingDuration+publicVotingDuration {
+	var secretVotes uint64
+	f.voteHashes.Iterate(func(key []byte, value []byte) bool {
+		secretVotes++
+		return false
+	})
+	noWinnerVotes := winnerVotesCnt < f.CalcPercentUint64(committeeSize, winnerThreshold)
+	noQuorum := votedCount < f.CalcPercentUint64(committeeSize, quorum)
+	if f.env.Epoch() != f.GetUint16("epoch") ||
+		duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum ||
+		duration >= votingDuration && (votedCount+secretVotes) < f.CalcPercentUint64(committeeSize, quorum) {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
 		var startBlock *uint64
