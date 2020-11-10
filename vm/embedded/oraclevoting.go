@@ -237,7 +237,7 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 		return err
 	}
 	if !f.env.State(f.ctx.Sender()).NewbieOrBetter() {
-		return errors.New("sender is now identity")
+		return errors.New("sender is not identity")
 	}
 	if f.env.Epoch() != f.GetUint16("epoch") {
 		return errors.New("voting should be prolonged")
