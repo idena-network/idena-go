@@ -78,7 +78,7 @@ type StatsCollector interface {
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
 		maxOptions uint64, ownerFee byte)
-	AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
+	AddOracleVotingCallStart(state, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
 	AddOracleVotingCallVoteProof(voteHash []byte)
 	AddOracleVotingCallVote(vote byte, salt []byte)
 	AddOracleVotingCallFinish(state uint64, result *byte, fund, oracleReward, ownerReward *big.Int)
@@ -682,17 +682,17 @@ func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, sta
 		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions, ownerFee)
 }
 
-func (c *collectorStub) AddOracleVotingCallStart(state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte,
+func (c *collectorStub) AddOracleVotingCallStart(state, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte,
 	committeeSize uint64, networkSize int) {
 	// do nothing
 }
 
-func AddOracleVotingCallStart(c StatsCollector, state, startBlock uint64, votingMinPayment *big.Int, vrfSeed []byte,
+func AddOracleVotingCallStart(c StatsCollector, state, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte,
 	committeeSize uint64, networkSize int) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallStart(state, startBlock, votingMinPayment, vrfSeed, committeeSize, networkSize)
+	c.AddOracleVotingCallStart(state, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, networkSize)
 }
 
 func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte) {

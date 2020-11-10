@@ -222,10 +222,11 @@ func (f *OracleVoting) startVoting() error {
 	}
 	vrfSeed := f.env.BlockSeed()
 	f.SetArray("vrfSeed", vrfSeed)
-	f.SetUint16("epoch", f.env.Epoch())
+	epoch := f.env.Epoch()
+	f.SetUint16("epoch", epoch)
 
 	if f.statsCollector != nil && f.statsCollector.IsIndexer() {
-		collector.AddOracleVotingCallStart(f.statsCollector, state, startBlock, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
+		collector.AddOracleVotingCallStart(f.statsCollector, state, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
 	}
 	return nil
 }
