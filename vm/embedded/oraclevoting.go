@@ -136,7 +136,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 
 	votingDuration := uint64(4320)
 	publicVotingDuration := uint64(4320)
-	winnerThreshold := uint64(50)
+	winnerThreshold := uint64(51)
 	quorum := uint64(20)
 	networkSize := uint64(f.env.NetworkSize())
 	committeeSize := math.Min(100, networkSize)
@@ -152,7 +152,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		publicVotingDuration = value
 	}
 	if value, err := helpers.ExtractUInt64(4, args...); err == nil {
-		winnerThreshold = math.Min(math.Max(50, value), 100)
+		winnerThreshold = math.Min(math.Max(51, value), 100)
 	}
 	if value, err := helpers.ExtractUInt64(5, args...); err == nil {
 		quorum = math.Min(math.Max(1, value), 100)
@@ -358,8 +358,8 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	votedCount := f.GetUint64("votedCount")
 	quorum := f.GetUint64("quorum")
 
-	hasWinner := winnerVotesCnt >= f.CalcPercentUint64(committeeSize, winnerThreshold)
-	hasQuorum := votedCount >= f.CalcPercentUint64(committeeSize, quorum)
+	hasWinner := float64(winnerVotesCnt) >= f.CalcPercent(committeeSize, winnerThreshold)
+	hasQuorum := float64(votedCount) >= f.CalcPercent(committeeSize, quorum)
 
 	if hasWinner || duration >= votingDuration+publicVotingDuration && hasQuorum {
 		state := uint64(2)
@@ -369,11 +369,10 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		fund := decimal.NewFromBigInt(fundInt, 0)
 		winnersCnt := uint64(0)
 
-		if winnerVotesCnt > f.CalcPercentUint64(votedCount, winnerThreshold) {
+		if float64(winnerVotesCnt) >= f.CalcPercent(votedCount, winnerThreshold) {
 			result = &winner
 			winnersCnt = winnerVotesCnt
-		}
-		if winnerVotesCnt <= f.CalcPercentUint64(votedCount, winnerThreshold) {
+		} else {
 			result = nil
 			winnersCnt = votedCount
 		}
@@ -450,11 +449,11 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		secretVotes++
 		return false
 	})
-	noWinnerVotes := winnerVotesCnt < f.CalcPercentUint64(committeeSize, winnerThreshold)
-	noQuorum := votedCount < f.CalcPercentUint64(committeeSize, quorum)
+	noWinnerVotes := float64(winnerVotesCnt) < f.CalcPercent(committeeSize, winnerThreshold)
+	noQuorum := float64(votedCount) < f.CalcPercent(committeeSize, quorum)
 	if f.env.Epoch() != f.GetUint16("epoch") ||
 		duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum ||
-		duration >= votingDuration && (votedCount+secretVotes) < f.CalcPercentUint64(committeeSize, quorum) {
+		duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum) {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
 		var startBlock *uint64

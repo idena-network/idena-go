@@ -5,7 +5,6 @@ import (
 	"github.com/idena-network/idena-go/stats/collector"
 	env2 "github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
-	"math"
 	"math/big"
 )
 
@@ -128,6 +127,6 @@ func (b *BaseContract) IsOwner() bool {
 	return b.Owner() == b.ctx.Sender()
 }
 
-func (b *BaseContract) CalcPercentUint64(value, percent uint64) uint64 {
-	return uint64(math.Ceil(float64(value*percent) / 100.0))
+func (b *BaseContract) CalcPercent(value, percent uint64) float64 {
+	return float64(value*percent) / 100.0
 }
