@@ -301,7 +301,7 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	e = env.NewEnvImp(appState, createHeader(4320*3+4, 21), gas, secStore, nil)
+	e = env.NewEnvImp(appState, createHeader(4320*3+4+30240, 21), gas, secStore, nil)
 	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
 	require.NoError(t, contract.Terminate(terminateAttach.Args...))
 	e.Commit()

@@ -482,11 +482,25 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 
 	votingDuration := f.GetUint64("votingDuration")
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
-	if duration >= votingDuration+publicVotingDuration*2 {
+	oneWeekBlocks := uint64(30240)
+	if duration >= votingDuration+publicVotingDuration+oneWeekBlocks {
 		balance := f.env.Balance(f.ctx.ContractAddr())
 		if balance.Sign() > 0 {
-			if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
-				return err
+			votedCount := f.GetUint64("votedCount")
+			if votedCount == 0 {
+				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
+					return err
+				}
+			} else {
+				fund := decimal.NewFromBigInt(balance, 0)
+				oracleReward := math.ToInt(fund.Div(decimal.NewFromInt(int64(votedCount))))
+				f.votes.Iterate(func(key []byte, value []byte) bool {
+					dest := common.Address{}
+					dest.SetBytes(key)
+					err := f.env.Send(f.ctx, dest, oracleReward)
+					f.env.Event("reward", dest.Bytes(), oracleReward.Bytes())
+					return err != nil
+				})
 			}
 		}
 		f.env.Terminate(f.ctx, f.Owner())

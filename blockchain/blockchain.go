@@ -1048,6 +1048,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.AddBalance(sender, amount)
 			stateDB.SubBalance(*tx.To, amount)
 		}
+		if receipt.Success && tx.Type == types.DeployContract {
+			stateDB.SubBalance(sender, amount)
+		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
 		fee = fee.Add(fee, receipt.GasCost)
 		collector.AddTxReceipt(statsCollector, receipt, appState)
