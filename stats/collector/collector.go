@@ -63,6 +63,8 @@ type StatsCollector interface {
 	CompleteBalanceUpdate(appState *appstate.AppState)
 
 	SetCommitteeRewardShare(amount *big.Int)
+
+	RemoveMemPoolTx(tx *types.Transaction)
 }
 
 type collectorStub struct {
@@ -73,6 +75,10 @@ func NewStatsCollector() StatsCollector {
 }
 
 func (c *collectorStub) EnableCollecting() {
+	// do nothing
+}
+
+func (c *collectorStub) RemoveMemPoolTx(tx *types.Transaction) {
 	// do nothing
 }
 

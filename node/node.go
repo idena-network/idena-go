@@ -164,7 +164,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 
 	votes := pengings.NewVotes(appState, bus, offlineDetector, upgrader)
 
-	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
+	txpool := mempool.NewTxPool(appState, bus, config.Mempool, statsCollector)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
 	subManager, err := subscriptions.NewManager(config.DataDir)
