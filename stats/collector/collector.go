@@ -76,7 +76,7 @@ type StatsCollector interface {
 	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
-		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
+		fact []byte, state, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte, committeeSize,
 		maxOptions uint64, ownerFee byte)
 	AddOracleVotingCallStart(state, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
 	AddOracleVotingCallVoteProof(voteHash []byte)
@@ -667,13 +667,13 @@ func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount G
 }
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,
-	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration uint64, winnerThreshold , quorum byte,
 	committeeSize, maxOptions uint64, ownerFee byte) {
 	// do nothing
 }
 
 func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
-	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
 	committeeSize, maxOptions uint64, ownerFee byte) {
 	if c == nil {
 		return

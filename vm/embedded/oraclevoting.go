@@ -136,8 +136,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 
 	votingDuration := uint64(4320)
 	publicVotingDuration := uint64(4320)
-	winnerThreshold := uint64(51)
-	quorum := uint64(20)
+	winnerThreshold := byte(51)
+	quorum := byte(20)
 	networkSize := uint64(f.env.NetworkSize())
 	committeeSize := math.Min(100, networkSize)
 	maxOptions := uint64(2)
@@ -151,11 +151,11 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	if value, err := helpers.ExtractUInt64(3, args...); err == nil {
 		publicVotingDuration = value
 	}
-	if value, err := helpers.ExtractUInt64(4, args...); err == nil {
-		winnerThreshold = math.Min(math.Max(51, value), 100)
+	if value, err := helpers.ExtractByte(4, args...); err == nil {
+		winnerThreshold = byte(math.MinInt(math.MaxInt(51, int(value)), 100))
 	}
-	if value, err := helpers.ExtractUInt64(5, args...); err == nil {
-		quorum = math.Min(math.Max(1, value), 100)
+	if value, err := helpers.ExtractByte(5, args...); err == nil {
+		quorum = byte(math.MinInt(math.MaxInt(1, int(value)), 100))
 	}
 
 	if value, err := helpers.ExtractUInt64(6, args...); err == nil {
@@ -180,8 +180,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetUint64("state", state)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
-	f.SetUint64("winnerThreshold", winnerThreshold)
-	f.SetUint64("quorum", quorum)
+	f.SetByte("winnerThreshold", winnerThreshold)
+	f.SetByte("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
 	f.SetByte("ownerFee", ownerFee)
@@ -350,13 +350,13 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	})
 
 	committeeSize := f.GetUint64("committeeSize")
-	winnerThreshold := f.GetUint64("winnerThreshold")
+	winnerThreshold := f.GetByte("winnerThreshold")
 
 	votingDuration := f.GetUint64("votingDuration")
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 
 	votedCount := f.GetUint64("votedCount")
-	quorum := f.GetUint64("quorum")
+	quorum := f.GetByte("quorum")
 
 	hasWinner := float64(winnerVotesCnt) >= f.CalcPercent(committeeSize, winnerThreshold)
 	hasQuorum := float64(votedCount) >= f.CalcPercent(committeeSize, quorum)
@@ -436,13 +436,13 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
 	committeeSize := f.GetUint64("committeeSize")
-	winnerThreshold := f.GetUint64("winnerThreshold")
+	winnerThreshold := f.GetByte("winnerThreshold")
 
 	votingDuration := f.GetUint64("votingDuration")
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 
 	votedCount := f.GetUint64("votedCount")
-	quorum := f.GetUint64("quorum")
+	quorum := f.GetByte("quorum")
 
 	var secretVotes uint64
 	f.voteHashes.Iterate(func(key []byte, value []byte) bool {

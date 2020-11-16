@@ -127,6 +127,6 @@ func (b *BaseContract) IsOwner() bool {
 	return b.Owner() == b.ctx.Sender()
 }
 
-func (b *BaseContract) CalcPercent(value, percent uint64) float64 {
-	return float64(value*percent) / 100.0
+func (b *BaseContract) CalcPercent(value uint64, percent byte) float64 {
+	return float64(value) * float64(percent) / 100.0
 }
