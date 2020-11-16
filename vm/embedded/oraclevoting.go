@@ -486,21 +486,39 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 	if duration >= votingDuration+publicVotingDuration+oneWeekBlocks {
 		balance := f.env.Balance(f.ctx.ContractAddr())
 		if balance.Sign() > 0 {
+			fund := decimal.NewFromBigInt(balance, 0)
 			votedCount := f.GetUint64("votedCount")
+
+			ownerFee := f.GetByte("ownerFee")
+			ownerReward := common.Big0
+			if ownerFee > 0 {
+				payment := f.GetBigInt("votingMinPayment")
+				ownerRewardD := fund.Sub(decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount))), 0)).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
+				ownerReward = math.ToInt(ownerRewardD)
+			}
+			if ownerReward.Sign() > 0 {
+				if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
+					return err
+				}
+			}
+
 			if votedCount == 0 {
-				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
+				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance.Sub(balance, ownerReward)); err != nil {
 					return err
 				}
 			} else {
-				fund := decimal.NewFromBigInt(balance, 0)
-				oracleReward := math.ToInt(fund.Div(decimal.NewFromInt(int64(votedCount))))
+				oracleReward := math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount))))
+				var err error
 				f.votes.Iterate(func(key []byte, value []byte) bool {
 					dest := common.Address{}
 					dest.SetBytes(key)
-					err := f.env.Send(f.ctx, dest, oracleReward)
+					err = f.env.Send(f.ctx, dest, oracleReward)
 					f.env.Event("reward", dest.Bytes(), oracleReward.Bytes())
 					return err != nil
 				})
+				if err != nil {
+					return err
+				}
 			}
 		}
 		f.env.Terminate(f.ctx, f.Owner())
