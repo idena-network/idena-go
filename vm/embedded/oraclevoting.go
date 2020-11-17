@@ -485,12 +485,14 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 	oneWeekBlocks := uint64(30240)
 	if duration >= votingDuration+publicVotingDuration+oneWeekBlocks {
 		balance := f.env.Balance(f.ctx.ContractAddr())
+		var fundInt, ownerReward, oracleReward *big.Int
 		if balance.Sign() > 0 {
-			fund := decimal.NewFromBigInt(balance, 0)
+			fundInt = new(big.Int).Set(balance)
+			fund := decimal.NewFromBigInt(fundInt, 0)
 			votedCount := f.GetUint64("votedCount")
 
 			ownerFee := f.GetByte("ownerFee")
-			ownerReward := common.Big0
+			ownerReward = common.Big0
 			if ownerFee > 0 {
 				payment := f.GetBigInt("votingMinPayment")
 				ownerRewardD := fund.Sub(decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount))), 0)).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
@@ -507,7 +509,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 					return err
 				}
 			} else {
-				oracleReward := math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount))))
+				oracleReward = math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount))))
 				var err error
 				f.votes.Iterate(func(key []byte, value []byte) bool {
 					dest := common.Address{}
@@ -522,7 +524,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 			}
 		}
 		f.env.Terminate(f.ctx, f.Owner())
-		collector.AddOracleVotingTermination(f.statsCollector, balance)
+		collector.AddOracleVotingTermination(f.statsCollector, fundInt, oracleReward, ownerReward)
 		return nil
 	}
 	return errors.New("voting can not be terminated")
