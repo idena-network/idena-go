@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	math2 "math"
 	"math/big"
 )
 
@@ -140,7 +141,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	quorum := byte(20)
 	networkSize := uint64(f.env.NetworkSize())
 	committeeSize := math.Min(100, networkSize)
-	maxOptions := uint64(2)
+	maxOptions := byte(2)
 	ownerFee := byte(0)
 	var votingMinPayment *big.Int
 	state := uint64(0)
@@ -162,7 +163,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		committeeSize = math.Min(value, networkSize)
 	}
 
-	if value, err := helpers.ExtractUInt64(7, args...); err == nil {
+	if value, err := helpers.ExtractByte(7, args...); err == nil {
 		maxOptions = value
 	}
 
@@ -183,7 +184,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetByte("winnerThreshold", winnerThreshold)
 	f.SetByte("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
-	f.SetUint64("maxOptions", maxOptions)
+	f.SetByte("maxOptions", maxOptions)
 	f.SetByte("ownerFee", ownerFee)
 	if votingMinPayment != nil {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
@@ -192,6 +193,16 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
 		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions, ownerFee)
 	return nil
+}
+
+func minOracleReward(committeeSize uint64, networkSize int) *big.Int {
+	network := float64(networkSize)
+	if network == 0 {
+		network = 1
+	}
+	dnaReward := decimal.NewFromFloat(math2.Pow(math2.Log10(network), math2.Log10(float64(committeeSize)/network*100)/2))
+	decimalOneDna := decimal.NewFromBigInt(common.DnaBase, 0)
+	return math.ToInt(dnaReward.Mul(decimalOneDna))
 }
 
 func (f *OracleVoting) startVoting() error {
@@ -204,7 +215,9 @@ func (f *OracleVoting) startVoting() error {
 
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
-	minBalance := big.NewInt(0).Mul(f.env.MinFeePerGas(), big.NewInt(int64(100*100*committeeSize)))
+
+	oracleReward := minOracleReward(committeeSize, f.env.NetworkSize())
+	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("contract balance is less than minimal oracles reward")
 	}
@@ -317,11 +330,11 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 	if bytes.Compare(storedHash, computedHash[:]) != 0 {
 		return errors.New("wrong vote hash")
 	}
-	f.votes.Set(f.ctx.Sender().Bytes(), args[0][:1])
+	f.votes.Set(f.ctx.Sender().Bytes(), common.ToBytes(vote))
 	f.voteHashes.Remove(f.ctx.Sender().Bytes())
 
-	cnt, _ := helpers.ExtractUInt64(0, f.voteOptions.Get(args[0][:1]))
-	f.voteOptions.Set(args[0][:1], common.ToBytes(cnt+1))
+	cnt, _ := helpers.ExtractUInt64(0, f.voteOptions.Get(common.ToBytes(vote)))
+	f.voteOptions.Set(common.ToBytes(vote), common.ToBytes(cnt+1))
 
 	c := f.GetUint64("votedCount") + 1
 	f.SetUint64("votedCount", c)
@@ -339,8 +352,13 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 
 	winnerVotesCnt := uint64(0)
 	winner := byte(0)
+	maxOption := f.GetByte("maxOptions")
 
 	f.voteOptions.Iterate(func(key []byte, value []byte) bool {
+		option, _ := helpers.ExtractByte(0, key)
+		if option > maxOption {
+			return false
+		}
 		cnt, _ := helpers.ExtractUInt64(0, value)
 		if cnt > winnerVotesCnt {
 			winnerVotesCnt = cnt
@@ -424,8 +442,13 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	}
 
 	winnerVotesCnt := uint64(0)
+	maxOption := f.GetByte("maxOptions")
 
 	f.voteOptions.Iterate(func(key []byte, value []byte) bool {
+		option, _ := helpers.ExtractByte(0, key)
+		if option > maxOption {
+			return false
+		}
 		cnt, _ := helpers.ExtractUInt64(0, value)
 		if cnt > winnerVotesCnt {
 			winnerVotesCnt = cnt

@@ -13,8 +13,10 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -77,16 +79,20 @@ func TestFactChecking_Call(t *testing.T) {
 
 	printDbSize(db, "Before contract deploy")
 
+	ownerFee := byte(5)
+
 	attachment := attachments.CreateDeployContractAttachment(OracleVotingContract, []byte{0x1}, common.ToBytes(uint64(10)),
-		nil, nil, nil, nil, nil, nil, nil, common.ToBytes(byte(5)))
+		nil, nil, nil, nil, nil, nil, nil, common.ToBytes(ownerFee))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
+
+	deployContractStake := common.DnaBase
 
 	tx := &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
 		Type:         types.DeployContract,
-		Amount:       common.DnaBase,
+		Amount:       deployContractStake,
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)
@@ -135,7 +141,9 @@ func TestFactChecking_Call(t *testing.T) {
 	e.Reset()
 	gas.Reset(-1)
 
-	appState.State.SetBalance(contractAddr, big.NewInt(20000000))
+	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(2000))
+
+	appState.State.SetBalance(contractAddr, contractBalance)
 
 	require.NoError(t, contract.Call("startVoting"))
 	e.Commit()
@@ -146,7 +154,7 @@ func TestFactChecking_Call(t *testing.T) {
 	gas.Reset(-1)
 
 	require.Equal(t, common.ToBytes(uint64(1)), appState.State.GetContractValue(contractAddr, []byte("state")))
-	require.Equal(t, big.NewInt(1000000).Bytes(), appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
+	require.Equal(t, big.NewInt(0).Quo(contractBalance, big.NewInt(20)).Bytes(), appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
 
 	seed := types.Seed{}
 	seed.SetBytes(common.ToBytes(uint64(3)))
@@ -271,13 +279,12 @@ func TestFactChecking_Call(t *testing.T) {
 
 	for addr := range votedIdentities {
 		b := appState.State.GetBalance(addr)
-		expected, _ := big.NewInt(0).SetString("1206521", 10)
-		require.Equal(t, 0, expected.Cmp(b))
+		require.Equal(t, "120652173913043478260", b.String())
 	}
 
 	stakeAfterFinish := appState.State.GetContractStake(contractAddr)
 
-	require.Equal(t, 0, big.NewInt(0).Add(common.DnaBase, big.NewInt(1000000)).Cmp(stakeAfterFinish))
+	require.Equal(t, 0, big.NewInt(0).Add(deployContractStake, big.NewInt(0).Quo(contractBalance, big.NewInt(int64(100/ownerFee)))).Cmp(stakeAfterFinish))
 
 	fmt.Printf("Finish voting gas: %v\n", gas.UsedGas)
 
@@ -315,4 +322,26 @@ func TestFactChecking_Call(t *testing.T) {
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 
 	require.Nil(t, appState.State.GetContractValue(contractAddr, []byte("vrfSeed")))
+}
+
+func Test_minOracleReward(t *testing.T) {
+
+	cases := []struct {
+		percent int
+		network int
+		reward  float64
+	}{
+		{percent: 1, network: 1000, reward: 1.0},
+		{percent: 1, network: 3400, reward: 1.0},
+		{percent: 50, network: 5000, reward: 3.0379},
+		{percent: 50, network: 1000, reward: 2.5428},
+		{percent: 100, network: 1000, reward: 3.0},
+		{percent: 90, network: 100000, reward: 4.8192},
+	}
+
+	for _, c := range cases {
+		f, _ := decimal.NewFromBigInt(minOracleReward(uint64(c.percent*c.network/100), c.network), -18).Float64()
+		require.Equal(t, c.reward, math.Round(f*10000)/10000)
+	}
+
 }
