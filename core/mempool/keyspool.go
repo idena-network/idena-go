@@ -3,12 +3,12 @@ package mempool
 import (
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
@@ -18,10 +18,16 @@ import (
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"sync"
 	"time"
+)
+
+const (
+	maxPrivateKeysPackageDataSize = 1024 * 100
+	publicFlipKeySize             = 32
 )
 
 var (
@@ -270,7 +276,11 @@ func (p *KeysPool) getPublicFlipKey(address common.Address) *ecies.PrivateKey {
 		return nil
 	}
 
-	ecdsaKey, _ := crypto.ToECDSA(key.Key)
+	ecdsaKey, err := crypto.ToECDSA(key.Key)
+	if err != nil {
+		p.log.Warn("Public flip key is not valid ECDSA key", "err", err, "key", hexutil.Encode(key.Key), "address", address.Hex())
+		return nil
+	}
 	return ecies.ImportECDSA(ecdsaKey)
 }
 
@@ -365,11 +375,17 @@ func (p *KeysPool) StopSyncing() {
 }
 
 func validateFlipKey(appState *appstate.AppState, key *types.PublicFlipKey) error {
+	if len(key.Key) != publicFlipKeySize {
+		return errors.Errorf("invalid flip key length %d", len(key.Key))
+	}
 	sender, _ := types.SenderFlipKey(key)
 	return validateKey(sender, key.Epoch, appState)
 }
 
 func validateFlipKeysPackage(appState *appstate.AppState, keysPackage *types.PrivateFlipKeysPackage) error {
+	if len(keysPackage.Data) > maxPrivateKeysPackageDataSize {
+		return errors.Errorf("too big flip keys package, size: %d", len(keysPackage.Data))
+	}
 	sender, _ := types.SenderFlipKeysPackage(keysPackage)
 	return validateKey(sender, keysPackage.Epoch, appState)
 }
