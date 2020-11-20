@@ -3,7 +3,6 @@ package protocol
 import (
 	"errors"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -90,18 +89,8 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{
 	ps.SendWithFilterAndExpiration(msgcode, key, payload, highPriority, msgCacheAliveTime)
 }
 
-func (ps *peerSet) takeRandomNPeers(n int) []*protoPeer {
-	peers := ps.Peers()
-	idxs := rand.Perm(len(peers))
-	var result []*protoPeer
-	for i := 0; i < len(idxs) && i < n; i++ {
-		result = append(result, peers[idxs[i]])
-	}
-	return result
-}
-
 func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, highPriority bool, expiration time.Duration) {
-	peers := ps.takeRandomNPeers(9)
+	peers := ps.Peers()
 
 	for _, p := range peers {
 		if _, ok := p.msgCache.Get(key); !ok {
