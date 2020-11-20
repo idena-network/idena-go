@@ -82,7 +82,7 @@ func TestFactChecking_Call(t *testing.T) {
 	ownerFee := byte(5)
 
 	attachment := attachments.CreateDeployContractAttachment(OracleVotingContract, []byte{0x1}, common.ToBytes(uint64(10)),
-		nil, nil, nil, nil, nil, nil, nil, common.ToBytes(ownerFee))
+		nil, nil, nil, nil, nil, nil, common.ToBytes(ownerFee))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
 

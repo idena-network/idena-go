@@ -141,7 +141,6 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	quorum := byte(20)
 	networkSize := uint64(f.env.NetworkSize())
 	committeeSize := math.Min(100, networkSize)
-	maxOptions := byte(2)
 	ownerFee := byte(0)
 	var votingMinPayment *big.Int
 	state := uint64(0)
@@ -163,15 +162,11 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		committeeSize = math.Min(value, networkSize)
 	}
 
-	if value, err := helpers.ExtractByte(7, args...); err == nil {
-		maxOptions = value
-	}
-
-	if value, err := helpers.ExtractBigInt(8, args...); err == nil {
+	if value, err := helpers.ExtractBigInt(7, args...); err == nil {
 		votingMinPayment = value
 	}
 
-	if value, err := helpers.ExtractByte(9, args...); err == nil {
+	if value, err := helpers.ExtractByte(8, args...); err == nil {
 		ownerFee = byte(math.MinInt(math.MaxInt(0, int(value)), 100))
 	}
 
@@ -184,14 +179,13 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetByte("winnerThreshold", winnerThreshold)
 	f.SetByte("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
-	f.SetByte("maxOptions", maxOptions)
 	f.SetByte("ownerFee", ownerFee)
 	if votingMinPayment != nil {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions, ownerFee)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee)
 	return nil
 }
 
@@ -352,13 +346,8 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 
 	winnerVotesCnt := uint64(0)
 	winner := byte(0)
-	maxOption := f.GetByte("maxOptions")
 
 	f.voteOptions.Iterate(func(key []byte, value []byte) bool {
-		option, _ := helpers.ExtractByte(0, key)
-		if option > maxOption {
-			return false
-		}
 		cnt, _ := helpers.ExtractUInt64(0, value)
 		if cnt > winnerVotesCnt {
 			winnerVotesCnt = cnt
@@ -442,13 +431,8 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	}
 
 	winnerVotesCnt := uint64(0)
-	maxOption := f.GetByte("maxOptions")
 
 	f.voteOptions.Iterate(func(key []byte, value []byte) bool {
-		option, _ := helpers.ExtractByte(0, key)
-		if option > maxOption {
-			return false
-		}
 		cnt, _ := helpers.ExtractUInt64(0, value)
 		if cnt > winnerVotesCnt {
 			winnerVotesCnt = cnt
