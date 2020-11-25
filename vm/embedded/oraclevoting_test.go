@@ -52,12 +52,14 @@ func TestFactChecking_Call(t *testing.T) {
 	db := dbm.NewMemDB()
 	appState := appstate.NewAppState(db, eventbus.New())
 
+	initialBalance := common.DnaBase
+
 	appState.State.SetFeePerGas(big.NewInt(1))
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	appState.State.SetState(addr, state.Newbie)
-	appState.State.SetBalance(addr, common.DnaBase)
+	appState.State.SetBalance(addr, initialBalance)
 	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
 	appState.IdentityState.Add(addr)
 
@@ -317,7 +319,9 @@ func TestFactChecking_Call(t *testing.T) {
 	printDbSize(db, "After terminating")
 	fmt.Printf("Terminating gas: %v\n", gas.UsedGas)
 
-	require.Equal(t, 0, appState.State.GetBalance(addr).Cmp(big.NewInt(0).Add(common.DnaBase, stakeAfterFinish)))
+	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
+
+	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(initialBalance, stakeToBalance).Bytes())
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 

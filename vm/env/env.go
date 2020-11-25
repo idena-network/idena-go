@@ -272,7 +272,7 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	if stake == nil || stake.Sign() == 0 {
 		return
 	}
-	e.addBalance(dest, stake)
+	e.addBalance(dest, big.NewInt(0).Quo(stake, big.NewInt(2)))
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
 	emptySlice := make([]byte, 32)

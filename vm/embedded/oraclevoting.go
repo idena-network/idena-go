@@ -388,7 +388,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		ownerReward := common.Big0
 		if ownerFee > 0 {
 			payment := f.GetBigInt("votingMinPayment")
-			ownerRewardD := fund.Sub(decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(winnersCnt))), 0)).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
+			ownerRewardD := fund.Sub(decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount))), 0)).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
 			ownerReward = math.ToInt(ownerRewardD)
 		}
 		oracleReward := math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(winnersCnt))))
