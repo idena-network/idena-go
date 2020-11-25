@@ -74,6 +74,7 @@ type StatsCollector interface {
 	AddContractStake(amount *big.Int)
 	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
 	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
+	AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int)
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte, committeeSize uint64, ownerFee byte)
@@ -663,6 +664,17 @@ func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount G
 		return
 	}
 	c.AddContractBurntCoins(address, getAmount)
+}
+
+func (c *collectorStub) AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int) {
+	// do nothing
+}
+
+func AddContractTerminationBurntCoins(c StatsCollector, address common.Address, stake, refund *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddContractTerminationBurntCoins(address, stake, refund)
 }
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,

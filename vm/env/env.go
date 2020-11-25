@@ -272,7 +272,8 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	if stake == nil || stake.Sign() == 0 {
 		return
 	}
-	e.addBalance(dest, big.NewInt(0).Quo(stake, big.NewInt(2)))
+	refund := big.NewInt(0).Quo(stake, big.NewInt(2))
+	e.addBalance(dest, refund)
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
 	emptySlice := make([]byte, 32)
@@ -286,6 +287,8 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 		e.RemoveValue(ctx, key)
 		return false
 	})
+
+	collector.AddContractTerminationBurntCoins(e.statsCollector, dest, stake, refund)
 }
 
 func (e *EnvImp) Commit() []*types.TxEvent {
