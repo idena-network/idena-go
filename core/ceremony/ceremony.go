@@ -1606,10 +1606,16 @@ func (vc *ValidationCeremony) loadAllFlips(ctx context.Context) {
 }
 
 func decryptFlip(encryptedPublicPart []byte, encryptedPrivatePart []byte, publicKey []byte, privateKey []byte) (publicPart []byte, privatePart []byte, err error) {
-	ecdsaKeyPublicPart, _ := crypto.ToECDSA(publicKey)
+	ecdsaKeyPublicPart, err := crypto.ToECDSA(publicKey)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "public flip key is not valid ECDSA key")
+	}
 	publicEncryptionKey := ecies.ImportECDSA(ecdsaKeyPublicPart)
 
-	ecdsaKeyPrivatePart, _ := crypto.ToECDSA(privateKey)
+	ecdsaKeyPrivatePart, err := crypto.ToECDSA(privateKey)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "private flip key is not valid ECDSA key")
+	}
 	privateEncryptionKey := ecies.ImportECDSA(ecdsaKeyPrivatePart)
 
 	decryptedPublicPart, err := publicEncryptionKey.Decrypt(encryptedPublicPart, nil, nil)
