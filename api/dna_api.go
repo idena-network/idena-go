@@ -93,6 +93,7 @@ type SendInviteArgs struct {
 type ActivateInviteArgs struct {
 	Key string          `json:"key"`
 	To  *common.Address `json:"to"`
+	Payload  *hexutil.Bytes  `json:"payload"`
 	BaseTxArgs
 }
 
@@ -144,7 +145,13 @@ func (api *DnaApi) ActivateInvite(ctx context.Context, args ActivateInviteArgs) 
 		}
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
-	payload := api.baseApi.secStore.GetPubKey()
+	var payload []byte
+	if args.Payload != nil {
+		payload = *args.Payload
+	}else{
+		payload = api.baseApi.secStore.GetPubKey()
+	}
+	
 	to := args.To
 	if to == nil {
 		coinbase := api.baseApi.getCurrentCoinbase()
