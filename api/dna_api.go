@@ -92,7 +92,6 @@ type SendInviteArgs struct {
 
 type ActivateInviteArgs struct {
 	Key    string          `json:"key"`
-	To     *common.Address `json:"to"`
 	PubKey *hexutil.Bytes  `json:"pubKey"`
 	BaseTxArgs
 }
