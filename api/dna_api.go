@@ -151,8 +151,11 @@ func (api *DnaApi) ActivateInvite(ctx context.Context, args ActivateInviteArgs) 
 	} else {
 		pubKey = api.baseApi.secStore.GetPubKey()
 	}
-	to := crypto.PubKeyBytesToAddress(pubKey)
-	hash, err := api.baseApi.sendTx(ctx, from, to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, pubKey, key)
+	to, err := crypto.PubKeyBytesToAddress(pubKey)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	hash, err := api.baseApi.sendTx(ctx, from, &to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, pubKey, key)
 
 	if err != nil {
 		return common.Hash{}, err
