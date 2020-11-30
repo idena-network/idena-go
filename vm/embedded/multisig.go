@@ -16,10 +16,11 @@ type Multisig struct {
 	voteAmount  *env.Map
 }
 
-func NewMultisig(ctx env.CallContext, e env.Env) *Multisig {
+func NewMultisig(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *Multisig {
 	return &Multisig{&BaseContract{
-		ctx: ctx,
-		env: e,
+		ctx:            ctx,
+		env:            e,
+		statsCollector: statsCollector,
 	}, env.NewMap([]byte("addr"), e, ctx), env.NewMap([]byte("amount"), e, ctx)}
 }
 

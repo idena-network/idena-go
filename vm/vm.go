@@ -44,9 +44,9 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.EvidenceLockContract:
 		return embedded.NewOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableEvidenceLockContract:
-		return embedded.NewRefundableEvidenceLock(ctx, vm.env)
+		return embedded.NewRefundableEvidenceLock(ctx, vm.env, vm.statsCollector)
 	case embedded.MultisigContract:
-		return embedded.NewMultisig(ctx, vm.env)
+		return embedded.NewMultisig(ctx, vm.env, vm.statsCollector)
 	default:
 		return nil
 	}

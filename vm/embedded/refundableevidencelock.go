@@ -16,10 +16,11 @@ type RefundableEvidenceLock struct {
 	deposits *env.Map
 }
 
-func NewRefundableEvidenceLock(ctx env.CallContext, e env.Env) *RefundableEvidenceLock {
+func NewRefundableEvidenceLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *RefundableEvidenceLock {
 	return &RefundableEvidenceLock{&BaseContract{
-		ctx: ctx,
-		env: e,
+		ctx:            ctx,
+		env:            e,
+		statsCollector: statsCollector,
 	}, env.NewMap([]byte("deposits"), e, ctx)}
 }
 
