@@ -96,7 +96,7 @@ func (e *OracleLock) Terminate(args ...[]byte) error {
 	}
 	balance := e.env.Balance(e.ctx.ContractAddr())
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		return errors.New("conrtact has dna")
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {

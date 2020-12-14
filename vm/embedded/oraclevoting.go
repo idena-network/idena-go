@@ -82,7 +82,7 @@ func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {
 		duration := f.GetUint64("votingDuration")
 
 		if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
-			return nil, errors.New("wrong block number")
+			return nil, errors.New("too late to accept secret vote")
 		}
 
 		seed := f.GetArray("vrfSeed")

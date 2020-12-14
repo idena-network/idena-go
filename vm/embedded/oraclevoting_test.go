@@ -48,6 +48,248 @@ func createHeader(height uint64, time int64) *types.Header {
 	}
 }
 
+type contractTester struct {
+	db       dbm.DB
+	mainKey  *ecdsa.PrivateKey
+	mainAddr common.Address
+
+	appState *appstate.AppState
+	secStore *secstore.SecStore
+
+	initialOwnerContractBalance *big.Int
+}
+
+type contractTesterBuilder struct {
+	networkSize                 int
+	initialOwnerContractBalance *big.Int
+}
+
+func createTestContractBuilder(networkSize int) *contractTesterBuilder {
+	return &contractTesterBuilder{networkSize: networkSize, initialOwnerContractBalance: common.DnaBase}
+}
+
+func (b *contractTesterBuilder) SetInitialOwnerContractBalance(balance *big.Int) *contractTesterBuilder {
+	b.initialOwnerContractBalance = balance
+	return b
+}
+
+func (b *contractTesterBuilder) Build() *contractTester {
+
+	db := dbm.NewMemDB()
+	appState := appstate.NewAppState(db, eventbus.New())
+
+	appState.State.SetFeePerGas(big.NewInt(1))
+	rnd := rand.New(rand.NewSource(1))
+	key, _ := crypto.GenerateKeyFromSeed(rnd)
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	appState.State.SetState(addr, state.Newbie)
+	appState.State.SetBalance(addr, b.initialOwnerContractBalance)
+	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
+	appState.IdentityState.Add(addr)
+
+	secStore := secstore.NewSecStore()
+
+	var identities []*ecdsa.PrivateKey
+
+	for i := 0; i < b.networkSize-1; i++ {
+		key, _ := crypto.GenerateKeyFromSeed(rnd)
+		identities = append(identities, key)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		appState.State.SetState(addr, state.Newbie)
+		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
+		appState.IdentityState.Add(addr)
+	}
+	appState.Commit(nil)
+
+	appState.Initialize(1)
+	return &contractTester{
+		db:                          db,
+		appState:                    appState,
+		mainKey:                     key,
+		mainAddr:                    addr,
+		initialOwnerContractBalance: b.initialOwnerContractBalance,
+		secStore:                    secStore,
+	}
+}
+
+type deployContractSwitch struct {
+	contractTester *contractTester
+	deployStake    *big.Int
+}
+
+func (s *deployContractSwitch) OracleVoting() *configurableOracleVotingDeploy {
+	return &configurableOracleVotingDeploy{
+		contractTester: s.contractTester,
+		deployStake:    s.deployStake,
+		fact:           []byte{0x1}, startTime: 10, committeeSize: 100, ownerFee: 0,
+		publicVotingDuration: 30,
+		votingDuration:       30,
+		quorum:               20,
+		winnerThreshold:      51,
+	}
+}
+
+type configurableDeploy interface {
+	Parameters() (contract EmbeddedContractType, deployStake *big.Int, params [][]byte)
+}
+
+type configurableOracleVotingDeploy struct {
+	contractTester *contractTester
+	deployStake    *big.Int
+
+	fact                 []byte
+	startTime            uint64
+	votingDuration       uint64
+	publicVotingDuration uint64
+	winnerThreshold      byte
+	quorum               byte
+	committeeSize        uint64
+	votingMinPayment     *big.Int
+	ownerFee             byte
+}
+
+func (c *configurableOracleVotingDeploy) Parameters() (contract EmbeddedContractType, deployStake *big.Int, params [][]byte) {
+	var data [][]byte
+	data = append(data, c.fact)
+	data = append(data, common.ToBytes(c.startTime))
+	data = append(data, common.ToBytes(c.votingDuration))
+	data = append(data, common.ToBytes(c.publicVotingDuration))
+	data = append(data, common.ToBytes(c.winnerThreshold))
+	data = append(data, common.ToBytes(c.quorum))
+	data = append(data, common.ToBytes(c.committeeSize))
+	if c.votingMinPayment != nil {
+		data = append(data, c.votingMinPayment.Bytes())
+	} else {
+		data = append(data, nil)
+	}
+	data = append(data, common.ToBytes(c.ownerFee))
+	return OracleVotingContract, c.deployStake, data
+}
+
+func (c *configurableOracleVotingDeploy) SetStartTime(startTime uint64) *configurableOracleVotingDeploy {
+	c.startTime = startTime
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetVotingDuration(votingDuration uint64) *configurableOracleVotingDeploy {
+	c.votingDuration = votingDuration
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetPublicVotingDuration(publicVotingDuration uint64) *configurableOracleVotingDeploy {
+	c.publicVotingDuration = publicVotingDuration
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetWinnerThreshold(winnerThreshold byte) *configurableOracleVotingDeploy {
+	c.winnerThreshold = winnerThreshold
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetQuorum(quorum byte) *configurableOracleVotingDeploy {
+	c.quorum = quorum
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetCommitteeSize(committeeSize uint64) *configurableOracleVotingDeploy {
+	c.committeeSize = committeeSize
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetVotingMinPayment(votingMinPayment *big.Int) *configurableOracleVotingDeploy {
+	c.votingMinPayment = votingMinPayment
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetOwnerFee(ownerFee byte) *configurableOracleVotingDeploy {
+	c.ownerFee = ownerFee
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) Deploy() (*oracleVotingCaller, error) {
+	if err := c.contractTester.Deploy(c); err != nil {
+		return nil, err
+	}
+	return &oracleVotingCaller{
+	}, nil
+}
+
+func (c *contractTester) ConfigureDeploy(deployStake *big.Int) *deployContractSwitch {
+	return &deployContractSwitch{contractTester: c, deployStake: deployStake}
+}
+
+func (c *contractTester) createContract(ctx env.CallContext, e env.Env) Contract {
+	switch ctx.CodeHash() {
+	case TimeLockContract:
+		return NewTimeLock(ctx, e, nil)
+	case OracleVotingContract:
+		return NewOracleVotingContract(ctx, e, nil)
+	case EvidenceLockContract:
+		return NewOracleLock(ctx, e, nil)
+	case RefundableEvidenceLockContract:
+		return NewRefundableEvidenceLock(ctx, e)
+	case MultisigContract:
+		return NewMultisig(ctx, e)
+	default:
+		return nil
+	}
+}
+
+func (c *contractTester) Deploy(config configurableDeploy) error {
+
+	contractType, deployStake, deployParams := config.Parameters()
+
+	attachment := attachments.CreateDeployContractAttachment(contractType, deployParams...)
+	payload, err := attachment.ToBytes()
+	if err != nil {
+		return err
+	}
+
+	tx := &types.Transaction{
+		Epoch:        0,
+		AccountNonce: 1,
+		Type:         types.DeployContract,
+		Amount:       deployStake,
+		Payload:      payload,
+	}
+	tx, _ = types.SignTx(tx, c.mainKey)
+	ctx := env.NewDeployContextImpl(tx, attachment.CodeHash)
+
+	gas := new(env.GasCounter)
+	gas.Reset(-1)
+
+	// deploy
+	e := env.NewEnvImp(c.appState, createHeader(2, 1), gas, c.secStore, nil)
+
+	return c.createContract(ctx, e).Deploy(attachment.Args...)
+}
+
+func (c *contractTester) Call(contract EmbeddedContractType) {
+
+}
+
+type oracleVotingCaller struct {
+	contractTester *contractTester
+}
+
+func (c *oracleVotingCaller) StartVoting() error {
+	c.contractTester.Call(OracleVotingContract)
+	return nil
+}
+
+func TestOracleVoting_scenario_0(t *testing.T) {
+	deployContractStake := common.DnaBase
+
+	builder := createTestContractBuilder(2000)
+	tester := builder.Build()
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(5).Deploy()
+
+	require.NoError(t, err)
+
+	caller.StartVoting()
+}
+
+
 func TestFactChecking_Call(t *testing.T) {
 	db := dbm.NewMemDB()
 	appState := appstate.NewAppState(db, eventbus.New())
