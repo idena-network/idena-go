@@ -430,6 +430,14 @@ func (s *StateDB) SetValidationStatus(addr common.Address, status ValidationStat
 	s.GetOrNewIdentityObject(addr).SetValidationStatus(status)
 }
 
+func (s *StateDB) SetDelegatee(addr common.Address, delegatee common.Address) {
+	s.GetOrNewIdentityObject(addr).SetDelegatee(delegatee)
+}
+
+func (s *StateDB) RemoveDelegatee(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).RemoveDelegatee()
+}
+
 func (s *StateDB) IncEpoch() {
 	s.GetOrNewGlobalObject().IncEpoch()
 }

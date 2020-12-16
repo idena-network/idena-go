@@ -31,6 +31,8 @@ const (
 	DeployContract       uint16 = 0xF
 	CallContract         uint16 = 0x10
 	TerminateContract    uint16 = 0x11
+	DelegateTx 			 uint16 = 0x12
+	UndelegateTx         uint16 = 0x13
 )
 
 const (

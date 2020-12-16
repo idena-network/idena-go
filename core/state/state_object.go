@@ -253,6 +253,8 @@ type Identity struct {
 	ValidationTxsBits    byte
 	LastValidationStatus ValidationStatusFlag
 	Scores               []byte
+
+	Delegatee *common.Address
 }
 
 type TxAddr struct {
@@ -803,6 +805,16 @@ func (s *stateIdentity) ResetValidationTxBits() {
 
 func (s *stateIdentity) SetValidationStatus(status ValidationStatusFlag) {
 	s.data.LastValidationStatus = status
+	s.touch()
+}
+
+func (s *stateIdentity) SetDelegatee(delegatee common.Address) {
+	s.data.Delegatee = &delegatee
+	s.touch()
+}
+
+func (s *stateIdentity) RemoveDelegatee(){
+	s.data.Delegatee = nil
 	s.touch()
 }
 
