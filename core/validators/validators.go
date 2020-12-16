@@ -157,6 +157,10 @@ func (v *ValidatorsCache) Height() uint64 {
 	return v.height
 }
 
+func (v *ValidatorsCache) PoolSize(pool common.Address) int {
+	return 0
+}
+
 func sortValidNodes(nodes []common.Address) []common.Address {
 	sort.SliceStable(nodes, func(i, j int) bool {
 		return bytes.Compare(nodes[i][:], nodes[j][:]) > 0
