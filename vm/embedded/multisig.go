@@ -47,7 +47,6 @@ func (m *Multisig) Deploy(args ...[]byte) error {
 	state := byte(1)
 	m.SetByte("state", state)
 	m.SetByte("count", 0)
-	m.BaseContract.Deploy(MultisigContract)
 	m.SetOwner(m.ctx.Sender())
 	collector.AddMultisigDeploy(m.statsCollector, m.ctx.ContractAddr(), minVotes, maxVotes, state)
 	return nil
@@ -174,19 +173,18 @@ func (m *Multisig) push(args ...[]byte) error {
 	return nil
 }
 
-func (m *Multisig) Terminate(args ...[]byte) error {
+func (m *Multisig) Terminate(args ...[]byte) (common.Address, error) {
 	if !m.IsOwner() {
-		return errors.New("sender is not an owner")
+		return common.Address{}, errors.New("sender is not an owner")
 	}
 	balance := m.env.Balance(m.ctx.ContractAddr())
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		return common.Address{}, errors.New("contract has dna")
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	m.env.Terminate(m.ctx, dest)
 	collector.AddMultisigTermination(m.statsCollector, dest)
-	return nil
+	return dest, nil
 }

@@ -55,7 +55,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	appState.Initialize(1)
 
-	attachment := attachments.CreateDeployContractAttachment(RefundableEvidenceLockContract, oraceVotingAddr.Bytes(),
+	attachment := attachments.CreateDeployContractAttachment(RefundableOracleLockContract, oraceVotingAddr.Bytes(),
 		common.ToBytes(byte(1)), successAddr.Bytes(), failAddr.Bytes(), nil, common.ToBytes(uint64(1000)), common.ToBytes(byte(5)))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	// deploy
 	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore, nil)
-	contract := NewRefundableEvidenceLock(ctx, e, nil)
+	contract := NewRefundableOracleLock(ctx, e, nil)
 
 	contractAddr := ctx.ContractAddr()
 
@@ -101,10 +101,10 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 		}
 		tx, _ = types.SignTx(tx, key)
 
-		ctx := env.NewCallContextImpl(tx, RefundableEvidenceLockContract)
+		ctx := env.NewCallContextImpl(tx, RefundableOracleLockContract)
 		gas.Reset(-1)
 		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
-		contract = NewRefundableEvidenceLock(ctx, e, nil)
+		contract = NewRefundableOracleLock(ctx, e, nil)
 		err = contract.Call(attachment.Method, attachment.Args...)
 		e.Commit()
 		require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
 	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
-	contract = NewRefundableEvidenceLock(env.NewCallContextImpl(tx, RefundableEvidenceLockContract), e, nil)
+	contract = NewRefundableOracleLock(env.NewCallContextImpl(tx, RefundableOracleLockContract), e, nil)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)
 	e.Reset()
@@ -153,7 +153,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
 	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
-	contract = NewRefundableEvidenceLock(env.NewCallContextImpl(tx, RefundableEvidenceLockContract), e, nil)
+	contract = NewRefundableOracleLock(env.NewCallContextImpl(tx, RefundableOracleLockContract), e, nil)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)
 	e.Reset()

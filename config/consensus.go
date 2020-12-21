@@ -47,6 +47,7 @@ type ConsensusConf struct {
 	UpgradeIntervalBeforeValidation   time.Duration
 	HumanCanFailLongSession           bool
 	UseTxHashIavl                     bool
+	EnableContracts                   bool
 }
 
 type ConsensusVerson uint16
@@ -56,11 +57,14 @@ const (
 	ConsensusV1 ConsensusVerson = 1
 	// Allows human fail long session
 	ConsensusV2 ConsensusVerson = 2
+	// Enables contracts
+	ConsensusV3 ConsensusVerson = 3
 )
 
 var (
 	v1                ConsensusConf
 	v2                ConsensusConf
+	v3                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -106,6 +110,10 @@ func init() {
 	v2 = v1
 	ApplyConsensusVersion(ConsensusV2, &v2)
 	ConsensusVersions[ConsensusV2] = &v2
+
+	v3 = v2
+	ApplyConsensusVersion(ConsensusV3, &v3)
+	ConsensusVersions[ConsensusV3] = &v3
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -118,6 +126,13 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = false
 		cfg.UseTxHashIavl = true
+	case ConsensusV3:
+		cfg.EnableContracts = true
+		cfg.Version = ConsensusV2
+		cfg.StartActivationDate = time.Date(2020, 12, 24, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 

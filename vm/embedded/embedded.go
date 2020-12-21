@@ -11,27 +11,27 @@ import (
 type EmbeddedContractType = common.Hash
 
 var (
-	TimeLockContract               EmbeddedContractType
-	OracleVotingContract           EmbeddedContractType
-	EvidenceLockContract           EmbeddedContractType
-	RefundableEvidenceLockContract EmbeddedContractType
-	MultisigContract               EmbeddedContractType
-	AvailableContracts             map[EmbeddedContractType]struct{}
+	TimeLockContract             EmbeddedContractType
+	OracleVotingContract         EmbeddedContractType
+	OracleLockContract           EmbeddedContractType
+	RefundableOracleLockContract EmbeddedContractType
+	MultisigContract             EmbeddedContractType
+	AvailableContracts           map[EmbeddedContractType]struct{}
 )
 
 func init() {
 	TimeLockContract.SetBytes([]byte{0x1})
 	OracleVotingContract.SetBytes([]byte{0x2})
-	EvidenceLockContract.SetBytes([]byte{0x3})
-	RefundableEvidenceLockContract.SetBytes([]byte{0x4})
+	OracleLockContract.SetBytes([]byte{0x3})
+	RefundableOracleLockContract.SetBytes([]byte{0x4})
 	MultisigContract.SetBytes([]byte{0x5})
 
 	AvailableContracts = map[EmbeddedContractType]struct{}{
-		TimeLockContract:               {},
-		OracleVotingContract:           {},
-		EvidenceLockContract:           {},
-		RefundableEvidenceLockContract: {},
-		MultisigContract:               {},
+		TimeLockContract:             {},
+		OracleVotingContract:         {},
+		OracleLockContract:           {},
+		RefundableOracleLockContract: {},
+		MultisigContract:             {},
 	}
 }
 
@@ -39,7 +39,7 @@ type Contract interface {
 	Deploy(args ...[]byte) error
 	Call(method string, args ...[]byte) error
 	Read(method string, args ...[]byte) ([]byte, error)
-	Terminate(args ...[]byte) error
+	Terminate(args ...[]byte) (stakeDest common.Address, err error)
 }
 
 // base contract with useful common methods
@@ -59,10 +59,6 @@ func (b *BaseContract) Owner() common.Address {
 	var owner common.Address
 	owner.SetBytes(bytes)
 	return owner
-}
-
-func (b *BaseContract) Deploy(contractType EmbeddedContractType) {
-	b.env.Deploy(b.ctx)
 }
 
 func (b *BaseContract) SetUint64(s string, value uint64) {

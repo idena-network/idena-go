@@ -11,20 +11,27 @@ import (
 	"math/big"
 )
 
-type RefundableEvidenceLock struct {
+const (
+	oracleLockLocked          = byte(1)
+	oracleLockUnlockedSuccess = byte(2)
+	oracleLockUnlockedFail    = byte(3)
+	oracleLockUnlockedRefund  = byte(4)
+)
+
+type RefundableOracleLock struct {
 	*BaseContract
 	deposits *env.Map
 }
 
-func NewRefundableEvidenceLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *RefundableEvidenceLock {
-	return &RefundableEvidenceLock{&BaseContract{
+func NewRefundableOracleLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *RefundableOracleLock {
+	return &RefundableOracleLock{&BaseContract{
 		ctx:            ctx,
 		env:            e,
 		statsCollector: statsCollector,
 	}, env.NewMap([]byte("deposits"), e, ctx)}
 }
 
-func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
+func (e *RefundableOracleLock) Deploy(args ...[]byte) error {
 	oracleVoting, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
 		return err
@@ -66,11 +73,9 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 		factEvidenceFee = byte(math2.MaxInt(1, math2.MinInt(100, int(fee))))
 	}
 	e.SetByte("factEvidenceFee", factEvidenceFee)
-
-	e.BaseContract.Deploy(RefundableEvidenceLockContract)
 	e.SetOwner(e.ctx.Sender())
 
-	state := byte(1) // - locked
+	state := oracleLockLocked
 	e.SetByte("state", state)
 	sum := big.NewInt(0)
 	e.SetBigInt("sum", sum)
@@ -80,7 +85,7 @@ func (e *RefundableEvidenceLock) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableEvidenceLock) Call(method string, args ...[]byte) error {
+func (e *RefundableOracleLock) Call(method string, args ...[]byte) error {
 	switch method {
 	case "deposit":
 		return e.deposit(args...)
@@ -93,11 +98,11 @@ func (e *RefundableEvidenceLock) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (e *RefundableEvidenceLock) Read(method string, args ...[]byte) ([]byte, error) {
+func (e *RefundableOracleLock) Read(method string, args ...[]byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
+func (e *RefundableOracleLock) deposit(args ...[]byte) error {
 	var oracleVotingAddr common.Address
 	oracleVotingAddr.SetBytes(e.GetArray("oracleVoting"))
 
@@ -136,13 +141,13 @@ func (e *RefundableEvidenceLock) deposit(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableEvidenceLock) push(args ...[]byte) error {
+func (e *RefundableOracleLock) push(args ...[]byte) error {
 	var oracleVoting common.Address
 	oracleVoting.SetBytes(e.GetArray("oracleVoting"))
 	oracleVotingExist := e.env.ContractStake(oracleVoting) != nil && e.env.ContractStake(oracleVoting).Sign() > 0
 
-	state, _ := helpers.ExtractUInt64(0, e.env.ReadContractData(oracleVoting, []byte("state")))
-	if state != 2 && oracleVotingExist {
+	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("state")))
+	if state != oracleVotingStateFinished && oracleVotingExist {
 		return errors.New("voting is not completed")
 	}
 	expected := e.GetByte("value")
@@ -157,25 +162,29 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 
 	var newState byte
 	var amount *big.Int
-	if expected == votedValue && !successAddr.IsEmpty() {
-		newState = 2 // - unlocked success
+	if expected == votedValue && votedValueErr != nil && !successAddr.IsEmpty() {
+		newState = oracleLockUnlockedSuccess
 		e.SetByte("state", newState)
 		amount = e.env.Balance(e.ctx.ContractAddr())
-		e.env.Send(e.ctx, successAddr, amount)
+		if err := e.env.Send(e.ctx, successAddr, amount); err != nil {
+			return err
+		}
 	}
 
-	if expected != votedValue && !failAddr.IsEmpty() {
-		newState = 3 // - unlocked fail
+	if expected != votedValue && votedValueErr != nil && !failAddr.IsEmpty() {
+		newState = oracleLockUnlockedFail
 		e.SetByte("state", newState)
 		amount = e.env.Balance(e.ctx.ContractAddr())
-		e.env.Send(e.ctx, failAddr, amount)
+		if err := e.env.Send(e.ctx, failAddr, amount); err != nil {
+			return err
+		}
 	}
 
 	var refundBlock uint64
 	if expected == votedValue && successAddr.IsEmpty() ||
 		expected != votedValue && failAddr.IsEmpty() ||
-		!oracleVotingExist {
-		newState = 4 // - unlocked refund
+		!oracleVotingExist || votedValueErr == nil {
+		newState = oracleLockUnlockedRefund
 		e.SetByte("state", newState)
 		delay := e.GetUint64("refundDelay")
 		refundBlock = e.env.BlockNumber() + delay
@@ -187,8 +196,8 @@ func (e *RefundableEvidenceLock) push(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableEvidenceLock) refund(args ...[]byte) error {
-	if e.GetByte("state") != 4 {
+func (e *RefundableOracleLock) refund(args ...[]byte) error {
+	if e.GetByte("state") != oracleLockUnlockedRefund {
 		return errors.New("state is not unlocked_refund")
 	}
 	if e.env.BlockNumber() < e.GetUint64("refundBlock") {
@@ -219,23 +228,23 @@ func (e *RefundableEvidenceLock) refund(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
+	e.env.BurnAll(e.ctx)
 	collector.AddRefundableOracleLockCallRefund(e.statsCollector, balance, k)
 	return nil
 }
 
-func (e *RefundableEvidenceLock) Terminate(args ...[]byte) error {
+func (e *RefundableOracleLock) Terminate(args ...[]byte) (common.Address, error) {
 	if !e.IsOwner() {
-		return errors.New("sender is not an owner")
+		return common.Address{}, errors.New("sender is not an owner")
 	}
 	balance := e.env.Balance(e.ctx.ContractAddr())
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		return common.Address{}, errors.New("contract has dna")
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	e.env.Terminate(e.ctx, dest)
 	collector.AddRefundableOracleLockTermination(e.statsCollector, dest)
-	return nil
+	return dest, nil
 }

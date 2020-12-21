@@ -1,6 +1,7 @@
 package embedded
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
@@ -27,8 +28,6 @@ func (t *TimeLock) Deploy(args ...[]byte) error {
 		return err
 	}
 	t.SetUint64("timestamp", time)
-
-	t.BaseContract.Deploy(TimeLockContract)
 	t.SetOwner(t.ctx.Sender())
 	collector.AddTimeLockDeploy(t.statsCollector, t.ctx.ContractAddr(), time)
 	return nil
@@ -71,22 +70,21 @@ func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	return nil
 }
 
-func (t *TimeLock) Terminate(args ...[]byte) error {
+func (t *TimeLock) Terminate(args ...[]byte) (common.Address, error) {
 	if !t.IsOwner() {
-		return errors.New("sender is not an owner")
+		return common.Address{}, errors.New("sender is not an owner")
 	}
 	if uint64(t.env.BlockTimeStamp()) < t.GetUint64("timestamp") {
-		return errors.New("terminate is locked")
+		return common.Address{}, errors.New("terminate is locked")
 	}
 	balance := t.env.Balance(t.ctx.ContractAddr())
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		return common.Address{}, errors.New("contract has dna")
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	t.env.Terminate(t.ctx, dest)
 	collector.AddTimeLockTermination(t.statsCollector, dest)
-	return nil
+	return dest, nil
 }

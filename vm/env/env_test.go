@@ -146,7 +146,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 
 	require.Equal(t, (*common.Hash)(nil), appState.State.GetCodeHash(ctx.ContractAddr()))
 	require.True(t, appState.State.GetContractStake(ctx.ContractAddr()) == nil)
-	require.Equal(t, 0, appState.State.GetBalance(common.Address{0x4}).Cmp(common.DnaBase))
+	require.Equal(t, 0, appState.State.GetBalance(common.Address{0x4}).Cmp(big.NewInt(0).Quo(common.DnaBase, big.NewInt(2))))
 
 	cnt = 0
 	env.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {

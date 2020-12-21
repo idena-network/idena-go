@@ -1405,6 +1405,7 @@ type TxReceipt struct {
 	TxHash          common.Hash
 	Error           error
 	Events          []*TxEvent
+	Method          string
 }
 
 type TxReceipts []*TxReceipt
@@ -1442,6 +1443,7 @@ func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
 		From:     r.From.Bytes(),
 		GasUsed:  r.GasUsed,
 		TxHash:   r.TxHash.Bytes(),
+		Method:   r.Method,
 	}
 	if r.Error != nil {
 		protoObj.Error = r.Error.Error()
@@ -1481,7 +1483,7 @@ func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
 	}
 	r.Success = protoObj.Success
 	r.GasUsed = protoObj.GasUsed
-
+	r.Method = protoObj.Method
 	var hash common.Hash
 	hash.SetBytes(protoObj.TxHash)
 	r.TxHash = hash

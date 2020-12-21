@@ -41,10 +41,10 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
 		return embedded.NewOracleVotingContract(ctx, vm.env, vm.statsCollector)
-	case embedded.EvidenceLockContract:
+	case embedded.OracleLockContract:
 		return embedded.NewOracleLock(ctx, vm.env, vm.statsCollector)
-	case embedded.RefundableEvidenceLockContract:
-		return embedded.NewRefundableEvidenceLock(ctx, vm.env, vm.statsCollector)
+	case embedded.RefundableOracleLockContract:
+		return embedded.NewRefundableOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.MultisigContract:
 		return embedded.NewMultisig(ctx, vm.env, vm.statsCollector)
 	default:
@@ -69,19 +69,20 @@ func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error)
 		}
 	}()
 	err = contract.Deploy(attach.Args...)
+	vm.env.Deploy(ctx)
 	return addr, err
 }
 
-func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, err error) {
+func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, method string, err error) {
 	ctx := env2.NewCallContextImpl(tx, *vm.appState.State.GetCodeHash(*tx.To))
 	attach := attachments.ParseCallContractAttachment(tx)
 	if attach == nil {
-		return ctx.ContractAddr(), errors.New("can't parse attachment")
+		return ctx.ContractAddr(), "", errors.New("can't parse attachment")
 	}
 	contract := vm.createContract(ctx)
 	addr = ctx.ContractAddr()
 	if contract == nil {
-		return addr, errors.New("unknown contract")
+		return addr, "", errors.New("unknown contract")
 	}
 
 	defer func() {
@@ -90,7 +91,7 @@ func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, err error) {
 		}
 	}()
 	err = contract.Call(attach.Method, attach.Args...)
-	return addr, err
+	return addr, attach.Method, err
 }
 
 func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err error) {
@@ -109,7 +110,11 @@ func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err err
 			err = errors.New(fmt.Sprint(r))
 		}
 	}()
-	err = contract.Terminate(attach.Args...)
+	var stakeDest common.Address
+	stakeDest, err = contract.Terminate(attach.Args...)
+	if err == nil {
+		vm.env.Terminate(ctx, stakeDest)
+	}
 	return addr, err
 }
 
@@ -123,12 +128,15 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 
 	var err error
 	var contractAddr common.Address
+	var method string
 	switch tx.Type {
 	case types.DeployContract:
+		method = "deploy"
 		contractAddr, err = vm.deploy(tx)
 	case types.CallContract:
-		contractAddr, err = vm.call(tx)
+		contractAddr, method, err = vm.call(tx)
 	case types.TerminateContract:
+		method = "terminate"
 		contractAddr, err = vm.terminate(tx)
 	}
 
@@ -152,6 +160,7 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 		From:            sender,
 		ContractAddress: contractAddr,
 		Events:          events,
+		Method:          method,
 	}
 }
 

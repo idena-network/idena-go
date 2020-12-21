@@ -18,6 +18,12 @@ var (
 	maxHash *big.Float
 )
 
+const (
+	oracleVotingStatePending  = byte(0)
+	oracleVotingStateStarted  = byte(1)
+	oracleVotingStateFinished = byte(2)
+)
+
 func init() {
 	var max [32]byte
 	for i := range max {
@@ -60,66 +66,10 @@ func (f *OracleVoting) Call(method string, args ...[]byte) error {
 		return f.finishVoting(args...)
 	case "prolongVoting":
 		return f.prolongVoting(args...)
+	case "addStake":
+		return f.addStake(args...)
 	default:
 		return errors.New("unknown method")
-	}
-}
-
-func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {
-
-	switch method {
-	case "proof":
-
-		addr, err := helpers.ExtractAddr(0, args...)
-		if err != nil {
-			return nil, err
-		}
-
-		if f.GetUint64("state") != 1 {
-			return nil, errors.New("contract is not in running state")
-		}
-
-		duration := f.GetUint64("votingDuration")
-
-		if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
-			return nil, errors.New("too late to accept secret vote")
-		}
-
-		seed := f.GetArray("vrfSeed")
-
-		pubKey := f.env.PubKey(addr)
-
-		h := crypto.Hash(append(pubKey, seed...))
-
-		v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
-
-		q := new(big.Float).Quo(v, maxHash)
-
-		committeeSize := f.GetUint64("committeeSize")
-		networkSize := float64(f.env.NetworkSize())
-		if networkSize == 0 {
-			networkSize = 1
-		}
-		if q.Cmp(big.NewFloat(1-float64(committeeSize)/networkSize)) < 0 {
-			return nil, errors.New("invalid proof")
-		}
-		return []byte{1}, nil
-	case "voteHash":
-		vote, err := helpers.ExtractByte(0, args...)
-		if err != nil {
-			return nil, err
-		}
-		salt, err := helpers.ExtractArray(1, args...)
-		if err != nil {
-			return nil, err
-		}
-		hash := crypto.Hash(append(common.ToBytes(vote), salt...))
-		return hash[:], nil
-	case "voteBlock":
-		block := f.GetUint64("startBlock") + f.GetUint64("votingDuration")
-		return common.ToBytes(block), nil
-	default:
-		return nil, errors.New("unknown method")
 	}
 }
 
@@ -133,8 +83,6 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		return err
 	}
 
-	f.BaseContract.Deploy(OracleVotingContract)
-
 	votingDuration := uint64(4320)
 	publicVotingDuration := uint64(4320)
 	winnerThreshold := byte(51)
@@ -143,7 +91,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	committeeSize := math.Min(100, networkSize)
 	ownerFee := byte(0)
 	var votingMinPayment *big.Int
-	state := uint64(0)
+	state := oracleVotingStatePending
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
 		votingDuration = value
@@ -173,7 +121,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
 	f.SetArray("fact", fact)
-	f.SetUint64("state", state)
+	f.SetByte("state", state)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
 	f.SetByte("winnerThreshold", winnerThreshold)
@@ -200,7 +148,7 @@ func minOracleReward(committeeSize uint64, networkSize int) *big.Int {
 }
 
 func (f *OracleVoting) startVoting() error {
-	if f.GetUint64("state") != 0 {
+	if f.GetByte("state") != oracleVotingStatePending {
 		return errors.New("contract is not in pending state")
 	}
 	if uint64(f.env.BlockTimeStamp()) < f.GetUint64("startTime") {
@@ -209,17 +157,16 @@ func (f *OracleVoting) startVoting() error {
 
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
-
-	oracleReward := minOracleReward(committeeSize, f.env.NetworkSize())
+	networkSize := f.env.NetworkSize()
+	oracleReward := minOracleReward(committeeSize, networkSize)
 	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("contract balance is less than minimal oracles reward")
 	}
-	state := uint64(1)
-	f.SetUint64("state", state)
+	f.SetByte("state", oracleVotingStateStarted)
 	startBlock := f.env.BlockNumber()
 	f.SetUint64("startBlock", startBlock)
-
+	f.SetUint64("network", uint64(networkSize))
 	var votingMinPayment *big.Int
 	if f.GetBigInt("votingMinPayment") == nil {
 		payment := decimal.NewFromBigInt(balance, 0)
@@ -233,7 +180,7 @@ func (f *OracleVoting) startVoting() error {
 	f.SetUint16("epoch", epoch)
 
 	if f.statsCollector != nil && f.statsCollector.IsIndexer() {
-		collector.AddOracleVotingCallStart(f.statsCollector, state, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
+		collector.AddOracleVotingCallStart(f.statsCollector, oracleVotingStateStarted, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
 	}
 	return nil
 }
@@ -249,7 +196,7 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	if f.env.Epoch() != f.GetUint16("epoch") {
 		return errors.New("voting should be prolonged")
 	}
-	if f.GetUint64("state") != 1 {
+	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
 	if f.votes.Get(f.ctx.Sender().Bytes()) != nil {
@@ -276,7 +223,7 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	q := new(big.Float).Quo(v, maxHash)
 
 	committeeSize := f.GetUint64("committeeSize")
-	networkSize := float64(f.env.NetworkSize())
+	networkSize := float64(f.GetUint64("network"))
 	if networkSize == 0 {
 		networkSize = 1
 	}
@@ -302,7 +249,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
-	if f.GetUint64("state") != 1 {
+	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
 
@@ -339,7 +286,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 }
 
 func (f *OracleVoting) finishVoting(args ...[]byte) error {
-	if f.GetUint64("state") != 1 {
+	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
@@ -369,8 +316,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	hasQuorum := float64(votedCount) >= f.CalcPercent(committeeSize, quorum)
 
 	if hasWinner || duration >= votingDuration+publicVotingDuration && hasQuorum {
-		state := uint64(2)
-		f.SetUint64("state", 2)
+		f.SetByte("state", oracleVotingStateFinished)
 		var result *byte
 		fundInt := f.env.Balance(f.ctx.ContractAddr())
 		fund := decimal.NewFromBigInt(fundInt, 0)
@@ -419,14 +365,14 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 			f.SetByte("result", *result)
 		}
 
-		collector.AddOracleVotingCallFinish(f.statsCollector, state, result, fundInt, oracleReward, ownerReward)
+		collector.AddOracleVotingCallFinish(f.statsCollector, oracleVotingStateFinished, result, fundInt, oracleReward, ownerReward)
 		return nil
 	}
 	return errors.New("not enough votes to finish voting")
 }
 
 func (f *OracleVoting) prolongVoting(args ...[]byte) error {
-	if f.GetUint64("state") != 1 {
+	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
 
@@ -471,7 +417,7 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		}
 		epoch := f.env.Epoch()
 		f.SetUint16("epoch", epoch)
-
+		f.SetUint64("network", uint64(f.env.NetworkSize()))
 		if f.statsCollector != nil && f.statsCollector.IsIndexer() {
 			collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, f.env.NetworkSizeFree())
 		}
@@ -480,17 +426,86 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *OracleVoting) Terminate(args ...[]byte) error {
+func (f *OracleVoting) addStake(args ...[]byte) error {
+	if f.ctx.PayAmount() != nil && f.ctx.PayAmount().Sign() > 0 {
+		return f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
+	}
+	return nil
+}
 
-	if f.GetUint64("state") < 1 {
-		return errors.New("contract is not in running state")
+func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {
+
+	switch method {
+	case "proof":
+
+		addr, err := helpers.ExtractAddr(0, args...)
+		if err != nil {
+			return nil, err
+		}
+
+		if f.GetByte("state") != oracleVotingStateStarted {
+			return nil, errors.New("contract is not in running state")
+		}
+
+		duration := f.GetUint64("votingDuration")
+
+		if f.env.BlockNumber()-f.GetUint64("startBlock") >= duration {
+			return nil, errors.New("too late to accept secret vote")
+		}
+
+		seed := f.GetArray("vrfSeed")
+
+		pubKey := f.env.PubKey(addr)
+
+		h := crypto.Hash(append(pubKey, seed...))
+
+		v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
+
+		q := new(big.Float).Quo(v, maxHash)
+
+		committeeSize := f.GetUint64("committeeSize")
+		networkSize := float64(f.env.NetworkSize())
+		if networkSize == 0 {
+			networkSize = 1
+		}
+		if q.Cmp(big.NewFloat(1-float64(committeeSize)/networkSize)) < 0 {
+			return nil, errors.New("invalid proof")
+		}
+		return []byte{1}, nil
+	case "voteHash":
+		vote, err := helpers.ExtractByte(0, args...)
+		if err != nil {
+			return nil, err
+		}
+		salt, err := helpers.ExtractArray(1, args...)
+		if err != nil {
+			return nil, err
+		}
+		hash := crypto.Hash(append(common.ToBytes(vote), salt...))
+		return hash[:], nil
+	case "voteBlock":
+		block := f.GetUint64("startBlock") + f.GetUint64("votingDuration")
+		return common.ToBytes(block), nil
+	default:
+		return nil, errors.New("unknown method")
+	}
+}
+
+func (f *OracleVoting) Terminate(args ...[]byte) (common.Address, error) {
+
+	if f.GetByte("state") == oracleVotingStatePending {
+		return common.Address{}, errors.New("contract is not in running state")
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
 	votingDuration := f.GetUint64("votingDuration")
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
-	oneWeekBlocks := uint64(30240)
-	if duration >= votingDuration+publicVotingDuration+oneWeekBlocks {
+
+	stake := decimal.NewFromBigInt(f.env.ContractStake(f.ctx.ContractAddr()), -18)
+	d, _ := stake.Mul(decimal.NewFromInt(int64(f.env.NetworkSize()))).Div(decimal.NewFromInt(100)).Pow(decimal.NewFromFloat32(1 / 3)).Float64()
+	terminationDays := uint64(math2.Round(d))
+
+	if duration >= votingDuration+publicVotingDuration+terminationDays {
 		balance := f.env.Balance(f.ctx.ContractAddr())
 		var fundInt, ownerReward, oracleReward *big.Int
 		if balance.Sign() > 0 {
@@ -507,13 +522,13 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 			}
 			if ownerReward.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
-					return err
+					return common.Address{}, err
 				}
 			}
 
 			if votedCount == 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance.Sub(balance, ownerReward)); err != nil {
-					return err
+					return common.Address{}, err
 				}
 			} else {
 				oracleReward = math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount))))
@@ -526,13 +541,12 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 					return err != nil
 				})
 				if err != nil {
-					return err
+					return common.Address{}, err
 				}
 			}
 		}
-		f.env.Terminate(f.ctx, f.Owner())
 		collector.AddOracleVotingTermination(f.statsCollector, fundInt, oracleReward, ownerReward)
-		return nil
+		return f.Owner(), nil
 	}
-	return errors.New("voting can not be terminated")
+	return common.Address{}, errors.New("voting can not be terminated")
 }

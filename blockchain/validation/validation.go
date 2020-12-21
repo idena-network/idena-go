@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
@@ -77,6 +78,9 @@ var (
 
 type validator func(appState *appstate.AppState, tx *types.Transaction, txType TxType) error
 
+var appCfg *config.Config
+var cfgInitVersion config.ConsensusVerson
+
 func init() {
 	validators = map[types.TxType]validator{
 		types.SendTx:               validateSendTx,
@@ -94,10 +98,27 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
-		types.DeployContract:       validateDeployContractTx,
-		types.CallContract:         validateCallContractTx,
-		types.TerminateContract:    validateTerminateContractTx,
 	}
+}
+func SetAppConfig(cfg *config.Config) {
+	appCfg = cfg
+}
+
+func getValidator(txType types.TxType) (validator, bool) {
+	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
+		cfgInitVersion = appCfg.Consensus.Version
+		if appCfg.Consensus.EnableContracts {
+			validators[types.DeployContract] = validateDeployContractTx
+			validators[types.CallContract] = validateCallContractTx
+			validators[types.TerminateContract] = validateTerminateContractTx
+		} else {
+			delete(validators, types.DeployContract)
+			delete(validators, types.CallContract)
+			delete(validators, types.TerminateContract)
+		}
+	}
+	v, ok := validators[txType]
+	return v, ok
 }
 
 func checkIfNonNegative(value *big.Int) error {
@@ -162,7 +183,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 		return err
 	}
 
-	validator, ok := validators[tx.Type]
+	validator, ok := getValidator(tx.Type)
 	if !ok {
 		return errors.New("unknown tx type")
 	}

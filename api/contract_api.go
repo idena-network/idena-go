@@ -140,6 +140,7 @@ func (d DynamicArgs) ToSlice() [][]byte {
 
 type TxReceipt struct {
 	Contract common.Address  `json:"contract"`
+	Method   string          `json:"method"`
 	Success  bool            `json:"success"`
 	GasUsed  uint64          `json:"gasUsed"`
 	TxHash   common.Hash     `json:"txHash"`
@@ -258,6 +259,7 @@ func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *
 	return &TxReceipt{
 		Success:  receipt.Success,
 		Error:    err,
+		Method: receipt.Method,
 		Contract: receipt.ContractAddress,
 		TxHash:   receipt.TxHash,
 		GasUsed:  receipt.GasUsed,

@@ -30,7 +30,6 @@ type Env interface {
 	SetValue(ctx CallContext, key []byte, value []byte)
 	GetValue(ctx CallContext, key []byte) []byte
 	RemoveValue(ctx CallContext, key []byte)
-	Deploy(ctx CallContext)
 	Send(ctx CallContext, dest common.Address, amount *big.Int) error
 	MinFeePerGas() *big.Int
 	Balance(address common.Address) *big.Int
@@ -43,11 +42,10 @@ type Env interface {
 	BurnAll(ctx CallContext)
 	ReadContractData(contractAddr common.Address, key []byte) []byte
 	Vrf(msg []byte) ([32]byte, []byte)
-	Terminate(ctx CallContext, dest common.Address)
 	Event(name string, args ...[]byte)
 	Epoch() uint16
 	ContractStake(common.Address) *big.Int
-	MoveToStake(ctx CallContext, reward *big.Int) error
+	MoveToStake(ctx CallContext, amount *big.Int) error
 }
 
 type contractValue struct {
@@ -276,14 +274,7 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	e.addBalance(dest, refund)
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
-	emptySlice := make([]byte, 32)
-	minKey := emptySlice[:]
-	var maxKey []byte
-	for i := 0; i < 32; i++ {
-		maxKey = append(maxKey, 0xFF)
-	}
-
-	e.Iterate(ctx, minKey, maxKey, func(key []byte, value []byte) (stopped bool) {
+	e.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
 		e.RemoveValue(ctx, key)
 		return false
 	})
@@ -371,7 +362,7 @@ func (e *EnvImp) MoveToStake(ctx CallContext, amount *big.Int) error {
 		return errors.New("insufficient funds")
 	}
 	if amount.Sign() < 0 {
-		return errors.New("value must be non-negative")
+		return errors.New("value must be positive")
 	}
 	e.subBalance(ctx.ContractAddr(), amount)
 

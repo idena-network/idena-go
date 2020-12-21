@@ -34,6 +34,9 @@ var (
 		types.BurnTx:               "burn",
 		types.ChangeProfileTx:      "changeProfile",
 		types.DeleteFlipTx:         "deleteFlip",
+		types.DeployContract:       "deployContract",
+		types.CallContract:         "callContract",
+		types.TerminateContract:    "terminateContract",
 	}
 )
 

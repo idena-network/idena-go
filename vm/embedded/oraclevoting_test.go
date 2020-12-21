@@ -224,12 +224,12 @@ func (c *contractTester) createContract(ctx env.CallContext, e env.Env) Contract
 		return NewTimeLock(ctx, e, nil)
 	case OracleVotingContract:
 		return NewOracleVotingContract(ctx, e, nil)
-	case EvidenceLockContract:
+	case OracleLockContract:
 		return NewOracleLock(ctx, e, nil)
-	case RefundableEvidenceLockContract:
-		return NewRefundableEvidenceLock(ctx, e)
+	case RefundableOracleLockContract:
+		return NewRefundableOracleLock(ctx, e, nil)
 	case MultisigContract:
-		return NewMultisig(ctx, e)
+		return NewMultisig(ctx, e, nil)
 	default:
 		return nil
 	}
@@ -283,12 +283,10 @@ func TestOracleVoting_scenario_0(t *testing.T) {
 	builder := createTestContractBuilder(2000)
 	tester := builder.Build()
 	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(5).Deploy()
-
 	require.NoError(t, err)
 
 	caller.StartVoting()
 }
-
 
 func TestFactChecking_Call(t *testing.T) {
 	db := dbm.NewMemDB()
@@ -350,6 +348,7 @@ func TestFactChecking_Call(t *testing.T) {
 	contract := NewOracleVotingContract(ctx, e, nil)
 
 	require.NoError(t, contract.Deploy(attachment.Args...))
+	e.Deploy(ctx)
 	e.Commit()
 	contractAddr := ctx.ContractAddr()
 
@@ -397,7 +396,7 @@ func TestFactChecking_Call(t *testing.T) {
 	fmt.Printf("Start voting gas: %v\n", gas.UsedGas)
 	gas.Reset(-1)
 
-	require.Equal(t, common.ToBytes(uint64(1)), appState.State.GetContractValue(contractAddr, []byte("state")))
+	require.Equal(t, common.ToBytes(byte(1)), appState.State.GetContractValue(contractAddr, []byte("state")))
 	require.Equal(t, big.NewInt(0).Quo(contractBalance, big.NewInt(20)).Bytes(), appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
 
 	seed := types.Seed{}
@@ -553,8 +552,11 @@ func TestFactChecking_Call(t *testing.T) {
 	tx, _ = types.SignTx(tx, key)
 
 	e = env.NewEnvImp(appState, createHeader(4320*3+4+30240, 21), gas, secStore, nil)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
-	require.NoError(t, contract.Terminate(terminateAttach.Args...))
+	termCtx := env.NewCallContextImpl(tx, OracleVotingContract)
+	contract = NewOracleVotingContract(termCtx, e, nil)
+	dest, err := contract.Terminate(terminateAttach.Args...)
+	e.Terminate(termCtx, dest)
+	require.NoError(t, err)
 	e.Commit()
 
 	appState.Commit(nil)
@@ -589,5 +591,4 @@ func Test_minOracleReward(t *testing.T) {
 		f, _ := decimal.NewFromBigInt(minOracleReward(uint64(c.percent*c.network/100), c.network), -18).Float64()
 		require.Equal(t, c.reward, math.Round(f*10000)/10000)
 	}
-
 }
