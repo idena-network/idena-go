@@ -99,7 +99,7 @@ func (e *OracleLock) checkOracleVoting(args ...[]byte) error {
 		return errors.New("voting is not completed")
 	}
 	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(oracleVotingAddr, []byte("result")))
-	if err != nil {
+	if err == nil {
 		e.SetByte("voted", votedValue)
 		e.SetByte("hasVotedValue", 1)
 	}
