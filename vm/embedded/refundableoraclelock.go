@@ -162,7 +162,7 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 
 	var newState byte
 	var amount *big.Int
-	if expected == votedValue && votedValueErr != nil && !successAddr.IsEmpty() {
+	if expected == votedValue && votedValueErr == nil && !successAddr.IsEmpty() {
 		newState = oracleLockUnlockedSuccess
 		e.SetByte("state", newState)
 		amount = e.env.Balance(e.ctx.ContractAddr())
@@ -171,7 +171,7 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 		}
 	}
 
-	if expected != votedValue && votedValueErr != nil && !failAddr.IsEmpty() {
+	if expected != votedValue && votedValueErr == nil && !failAddr.IsEmpty() {
 		newState = oracleLockUnlockedFail
 		e.SetByte("state", newState)
 		amount = e.env.Balance(e.ctx.ContractAddr())
@@ -183,7 +183,7 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 	var refundBlock uint64
 	if expected == votedValue && successAddr.IsEmpty() ||
 		expected != votedValue && failAddr.IsEmpty() ||
-		!oracleVotingExist || votedValueErr == nil {
+		!oracleVotingExist || votedValueErr != nil {
 		newState = oracleLockUnlockedRefund
 		e.SetByte("state", newState)
 		delay := e.GetUint64("refundDelay")
