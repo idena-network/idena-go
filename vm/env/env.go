@@ -35,7 +35,6 @@ type Env interface {
 	Balance(address common.Address) *big.Int
 	BlockSeed() []byte
 	NetworkSize() int
-	NetworkSizeFree() int
 	State(sender common.Address) state.IdentityState
 	PubKey(addr common.Address) []byte
 	Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) bool)
@@ -194,10 +193,6 @@ func (e *EnvImp) BlockSeed() []byte {
 
 func (e *EnvImp) NetworkSize() int {
 	e.gasCounter.AddReadBytesAsGas(5)
-	return e.NetworkSizeFree()
-}
-
-func (e *EnvImp) NetworkSizeFree() int {
 	return e.state.ValidatorsCache.NetworkSize()
 }
 

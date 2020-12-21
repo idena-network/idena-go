@@ -10,8 +10,6 @@ import (
 )
 
 type StatsCollector interface {
-	IsIndexer() bool
-
 	EnableCollecting()
 	CompleteCollecting()
 
@@ -82,7 +80,7 @@ type StatsCollector interface {
 	AddOracleVotingCallVoteProof(voteHash []byte)
 	AddOracleVotingCallVote(vote byte, salt []byte)
 	AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int)
-	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int)
+	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64)
 	AddOracleVotingTermination(fund, oracleReward, ownerReward *big.Int)
 
 	AddOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
@@ -739,11 +737,11 @@ func AddOracleVotingCallFinish(c StatsCollector, state byte, result *byte, fund,
 	c.AddOracleVotingCallFinish(state, result, fund, oracleReward, ownerReward)
 }
 
-func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int) {
+func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
 	// do nothing
 }
 
-func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize uint64, networkSize int) {
+func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
 	if c == nil {
 		return
 	}

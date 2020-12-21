@@ -178,10 +178,7 @@ func (f *OracleVoting) startVoting() error {
 	f.SetArray("vrfSeed", vrfSeed)
 	epoch := f.env.Epoch()
 	f.SetUint16("epoch", epoch)
-
-	if f.statsCollector != nil && f.statsCollector.IsIndexer() {
-		collector.AddOracleVotingCallStart(f.statsCollector, oracleVotingStateStarted, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, f.env.NetworkSizeFree())
-	}
+	collector.AddOracleVotingCallStart(f.statsCollector, oracleVotingStateStarted, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, networkSize)
 	return nil
 }
 
@@ -417,10 +414,9 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		}
 		epoch := f.env.Epoch()
 		f.SetUint16("epoch", epoch)
-		f.SetUint64("network", uint64(f.env.NetworkSize()))
-		if f.statsCollector != nil && f.statsCollector.IsIndexer() {
-			collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, f.env.NetworkSizeFree())
-		}
+		networkSize := uint64(f.env.NetworkSize())
+		f.SetUint64("network", networkSize)
+		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
