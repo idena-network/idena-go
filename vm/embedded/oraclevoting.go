@@ -423,10 +423,14 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 }
 
 func (f *OracleVoting) addStake(args ...[]byte) error {
+	var err error
 	if f.ctx.PayAmount() != nil && f.ctx.PayAmount().Sign() > 0 {
-		return f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
+		err = f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
 	}
-	return nil
+	if err == nil {
+		collector.AddOracleVotingCallAddStake(f.statsCollector)
+	}
+	return err
 }
 
 func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {

@@ -79,12 +79,12 @@ func (e *OracleLock) push(args ...[]byte) error {
 			var dest common.Address
 			dest.SetBytes(e.GetArray("failAddr"))
 			e.env.Send(e.ctx, dest, amount)
-			collector.AddOracleLockCallPush(e.statsCollector, false, votedValue, nil, amount)
+			collector.AddOracleLockCallPush(e.statsCollector, false, votedValue, amount)
 		} else {
 			var dest common.Address
 			dest.SetBytes(e.GetArray("successAddr"))
 			e.env.Send(e.ctx, dest, amount)
-			collector.AddOracleLockCallPush(e.statsCollector, true, votedValue, nil, amount)
+			collector.AddOracleLockCallPush(e.statsCollector, true, votedValue, amount)
 		}
 		return nil
 	}
@@ -103,6 +103,7 @@ func (e *OracleLock) checkOracleVoting(args ...[]byte) error {
 		e.SetByte("voted", votedValue)
 		e.SetByte("hasVotedValue", 1)
 	}
+	collector.AddOracleLockCallCheckOracleVoting(e.statsCollector, votedValue, err)
 	return nil
 }
 
@@ -120,7 +121,9 @@ func (e *OracleLock) Terminate(args ...[]byte) (common.Address, error) {
 		if oracleVotingExist {
 			return common.Address{}, errors.New("oracle voting exists")
 		}
-		return e.Owner(), nil
+		owner := e.Owner()
+		collector.AddOracleLockTermination(e.statsCollector, owner)
+		return owner, nil
 	}
 	if !e.IsOwner() {
 		return common.Address{}, errors.New("sender is not an owner")
@@ -132,6 +135,7 @@ func (e *OracleLock) Terminate(args ...[]byte) (common.Address, error) {
 	if balance.Sign() > 0 {
 		e.env.BurnAll(e.ctx)
 	}
-	collector.AddOracleLockTermination(e.statsCollector, e.Owner())
-	return e.Owner(), nil
+	owner := e.Owner()
+	collector.AddOracleLockTermination(e.statsCollector, owner)
+	return owner, nil
 }

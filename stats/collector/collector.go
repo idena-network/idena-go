@@ -81,11 +81,13 @@ type StatsCollector interface {
 	AddOracleVotingCallVote(vote byte, salt []byte)
 	AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int)
 	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64)
+	AddOracleVotingCallAddStake()
 	AddOracleVotingTermination(fund, oracleReward, ownerReward *big.Int)
 
 	AddOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte, successAddress common.Address,
 		failAddress common.Address)
-	AddOracleLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int)
+	AddOracleLockCallPush(success bool, oracleVotingResult byte, transfer *big.Int)
+	AddOracleLockCallCheckOracleVoting(votedValue byte, err error)
 	AddOracleLockTermination(dest common.Address)
 
 	AddRefundableOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte,
@@ -748,6 +750,17 @@ func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch
 	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize)
 }
 
+func (c *collectorStub) AddOracleVotingCallAddStake() {
+	// do nothing
+}
+
+func AddOracleVotingCallAddStake(c StatsCollector) {
+	if c == nil {
+		return
+	}
+	c.AddOracleVotingCallAddStake()
+}
+
 func (c *collectorStub) AddOracleVotingTermination(fund, oracleReward, ownerReward *big.Int) {
 	// do nothing
 }
@@ -772,15 +785,26 @@ func AddOracleLockDeploy(c StatsCollector, contractAddress common.Address, oracl
 	c.AddOracleLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, failAddress)
 }
 
-func (c *collectorStub) AddOracleLockCallPush(success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
+func (c *collectorStub) AddOracleLockCallPush(success bool, oracleVotingResult byte, transfer *big.Int) {
 	// do nothing
 }
 
-func AddOracleLockCallPush(c StatsCollector, success bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int) {
+func AddOracleLockCallPush(c StatsCollector, success bool, oracleVotingResult byte, transfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddOracleLockCallPush(success, oracleVotingResult, oracleVotingResultErr, transfer)
+	c.AddOracleLockCallPush(success, oracleVotingResult, transfer)
+}
+
+func (c *collectorStub) AddOracleLockCallCheckOracleVoting(votedValue byte, err error) {
+	// do nothing
+}
+
+func AddOracleLockCallCheckOracleVoting(c StatsCollector, votedValue byte, err error) {
+	if c == nil {
+		return
+	}
+	c.AddOracleLockCallCheckOracleVoting(votedValue, err)
 }
 
 func (c *collectorStub) AddOracleLockTermination(dest common.Address) {
