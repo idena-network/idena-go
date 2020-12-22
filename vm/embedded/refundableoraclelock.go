@@ -103,8 +103,8 @@ func (e *RefundableOracleLock) Read(method string, args ...[]byte) ([]byte, erro
 }
 
 func (e *RefundableOracleLock) deposit(args ...[]byte) error {
-	var oracleVotingAddr common.Address
-	oracleVotingAddr.SetBytes(e.GetArray("oracleVoting"))
+
+	oracleVoting := common.BytesToAddress(e.GetArray("oracleVoting"))
 
 	if uint64(e.env.BlockTimeStamp()) > e.GetUint64("depositDeadline") {
 		return errors.New("deposit is late")
@@ -133,7 +133,7 @@ func (e *RefundableOracleLock) deposit(args ...[]byte) error {
 	fee = fee.Mul(decimal.NewFromInt(int64(feeRate))).Div(decimal.NewFromInt(100))
 
 	feeInt := math2.ToInt(fee)
-	err := e.env.Send(e.ctx, oracleVotingAddr, feeInt)
+	err := e.env.Send(e.ctx, oracleVoting, feeInt)
 	if err != nil {
 		return err
 	}
@@ -142,9 +142,8 @@ func (e *RefundableOracleLock) deposit(args ...[]byte) error {
 }
 
 func (e *RefundableOracleLock) push(args ...[]byte) error {
-	var oracleVoting common.Address
-	oracleVoting.SetBytes(e.GetArray("oracleVoting"))
-	oracleVotingExist := e.env.ContractStake(oracleVoting) != nil && e.env.ContractStake(oracleVoting).Sign() > 0
+	oracleVoting := common.BytesToAddress(e.GetArray("oracleVoting"))
+	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
 
 	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("state")))
 	if state != oracleVotingStateFinished && oracleVotingExist {
@@ -162,6 +161,7 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 
 	var newState byte
 	var amount *big.Int
+	var refundBlock uint64
 	if expected == votedValue && votedValueErr == nil && !successAddr.IsEmpty() {
 		newState = oracleLockUnlockedSuccess
 		e.SetByte("state", newState)
@@ -169,21 +169,14 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 		if err := e.env.Send(e.ctx, successAddr, amount); err != nil {
 			return err
 		}
-	}
-
-	if expected != votedValue && votedValueErr == nil && !failAddr.IsEmpty() {
+	} else if expected != votedValue && votedValueErr == nil && !failAddr.IsEmpty() {
 		newState = oracleLockUnlockedFail
 		e.SetByte("state", newState)
 		amount = e.env.Balance(e.ctx.ContractAddr())
 		if err := e.env.Send(e.ctx, failAddr, amount); err != nil {
 			return err
 		}
-	}
-
-	var refundBlock uint64
-	if expected == votedValue && successAddr.IsEmpty() ||
-		expected != votedValue && failAddr.IsEmpty() ||
-		!oracleVotingExist || votedValueErr != nil {
+	} else {
 		newState = oracleLockUnlockedRefund
 		e.SetByte("state", newState)
 		delay := e.GetUint64("refundDelay")

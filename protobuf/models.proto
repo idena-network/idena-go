@@ -490,7 +490,7 @@ message ProtoTxReceipts {
         bytes gasCost = 6;
         bytes txHash = 7;
         repeated ProtoEvent events = 8;
-        string Method = 9;
+        string method = 9;
     }
 
     message ProtoEvent {

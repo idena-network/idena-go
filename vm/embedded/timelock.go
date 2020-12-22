@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
+	"math/big"
 )
 
 type TimeLock struct {
@@ -78,8 +79,12 @@ func (t *TimeLock) Terminate(args ...[]byte) (common.Address, error) {
 		return common.Address{}, errors.New("terminate is locked")
 	}
 	balance := t.env.Balance(t.ctx.ContractAddr())
-	if balance.Sign() > 0 {
+	dust := big.NewInt(0).Mul(t.env.MinFeePerGas(), big.NewInt(100))
+	if balance.Cmp(dust) > 0 {
 		return common.Address{}, errors.New("contract has dna")
+	}
+	if balance.Sign() > 0 {
+		t.env.BurnAll(t.ctx)
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {

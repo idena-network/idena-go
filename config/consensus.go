@@ -128,7 +128,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.UseTxHashIavl = true
 	case ConsensusV3:
 		cfg.EnableContracts = true
-		cfg.Version = ConsensusV2
+		cfg.Version = ConsensusV3
 		cfg.StartActivationDate = time.Date(2020, 12, 24, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0

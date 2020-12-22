@@ -357,7 +357,7 @@ func (e *EnvImp) MoveToStake(ctx CallContext, amount *big.Int) error {
 		return errors.New("insufficient funds")
 	}
 	if amount.Sign() < 0 {
-		return errors.New("value must be positive")
+		return errors.New("value must be non-negative")
 	}
 	e.subBalance(ctx.ContractAddr(), amount)
 

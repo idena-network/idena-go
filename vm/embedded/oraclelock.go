@@ -66,25 +66,26 @@ func (e *OracleLock) Read(method string, args ...[]byte) ([]byte, error) {
 }
 
 func (e *OracleLock) push(args ...[]byte) error {
-	var oracleVotingAddr common.Address
-	oracleVotingAddr.SetBytes(e.GetArray("oracleVotingAddr"))
 
-	expected := e.GetByte("value")
-	hasVotedValue := e.GetByte("hasVotedValue") == 1
-	votedValue := e.GetByte("voted")
+	isOracleVotingFinished := e.GetByte("isOracleVotingFinished ") == 1
 
-	if hasVotedValue {
+	if isOracleVotingFinished {
+
+		expected := e.GetByte("value")
+		hasVotedValue := e.GetByte("hasVotedValue") == 1
+		votedValue := e.GetByte("voted")
 		amount := e.env.Balance(e.ctx.ContractAddr())
-		if expected != votedValue {
-			var dest common.Address
-			dest.SetBytes(e.GetArray("failAddr"))
-			e.env.Send(e.ctx, dest, amount)
-			collector.AddOracleLockCallPush(e.statsCollector, false, votedValue, amount)
-		} else {
+
+		if expected == votedValue && hasVotedValue {
 			var dest common.Address
 			dest.SetBytes(e.GetArray("successAddr"))
 			e.env.Send(e.ctx, dest, amount)
 			collector.AddOracleLockCallPush(e.statsCollector, true, votedValue, amount)
+		} else {
+			var dest common.Address
+			dest.SetBytes(e.GetArray("failAddr"))
+			e.env.Send(e.ctx, dest, amount)
+			collector.AddOracleLockCallPush(e.statsCollector, false, votedValue, amount)
 		}
 		return nil
 	}
@@ -92,28 +93,28 @@ func (e *OracleLock) push(args ...[]byte) error {
 }
 
 func (e *OracleLock) checkOracleVoting(args ...[]byte) error {
-	var oracleVotingAddr common.Address
-	oracleVotingAddr.SetBytes(e.GetArray("oracleVotingAddr"))
-	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVotingAddr, []byte("state")))
+	oracleVoting := common.BytesToAddress(e.GetArray("oracleVotingAddr"))
+	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("state")))
 	if state != oracleVotingStateFinished {
 		return errors.New("voting is not completed")
 	}
-	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(oracleVotingAddr, []byte("result")))
+	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("result")))
 	if err == nil {
 		e.SetByte("voted", votedValue)
 		e.SetByte("hasVotedValue", 1)
 	}
+	e.SetByte("isOracleVotingFinished", 1)
 	collector.AddOracleLockCallCheckOracleVoting(e.statsCollector, votedValue, err)
 	return nil
 }
 
 func (e *OracleLock) Terminate(args ...[]byte) (common.Address, error) {
-	var oracleVoting common.Address
-	oracleVoting.SetBytes(e.GetArray("oracleVotingAddr"))
-	oracleVotingExist := e.env.ContractStake(oracleVoting) != nil && e.env.ContractStake(oracleVoting).Sign() > 0
 
-	hasVotedValue := e.GetByte("hasVotedValue") == 1
-	if hasVotedValue {
+	oracleVoting := common.BytesToAddress(e.GetArray("oracleVotingAddr"))
+	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
+
+	isOracleVotingFinished := e.GetByte("isOracleVotingFinished ") == 1
+	if isOracleVotingFinished {
 		balance := e.env.Balance(e.ctx.ContractAddr())
 		if balance.Sign() > 0 {
 			return common.Address{}, errors.New("contract has dna")

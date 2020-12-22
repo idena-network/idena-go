@@ -224,7 +224,7 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
-	if tx.Amount != nil && tx.Amount.Sign() > 0 {
+	if !common.ZeroOrNil(tx.Amount) {
 		sender, _ := types.Sender(tx)
 		appState.State.SubBalance(sender, tx.Amount)
 		appState.State.AddBalance(*tx.To, tx.Amount)
@@ -259,7 +259,7 @@ func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *
 	return &TxReceipt{
 		Success:  receipt.Success,
 		Error:    err,
-		Method: receipt.Method,
+		Method:   receipt.Method,
 		Contract: receipt.ContractAddress,
 		TxHash:   receipt.TxHash,
 		GasUsed:  receipt.GasUsed,
