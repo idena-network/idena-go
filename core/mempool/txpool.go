@@ -399,6 +399,8 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 			delete(pool.pendingTxs, sender)
 		}
 	}
+
+	pool.statsCollector.RemoveMemPoolTx(transaction)
 }
 
 func (pool *TxPool) movePendingTxsToExecutable() {
@@ -442,7 +444,6 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	for _, tx := range block.Body.Transactions {
 		pool.Remove(tx)
 	}
-	pool.statsCollector.RemoveMemPoolTxs(block.Body.Transactions)
 
 	pool.movePendingTxsToExecutable()
 
@@ -521,7 +522,6 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	for _, tx := range removingTxs {
 		pool.Remove(tx)
 	}
-	pool.statsCollector.RemoveMemPoolTxsMap(removingTxs)
 }
 
 func (pool *TxPool) createBuildingContext() *buildingContext {

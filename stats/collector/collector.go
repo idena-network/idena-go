@@ -110,8 +110,7 @@ type StatsCollector interface {
 
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 
-	RemoveMemPoolTxs(txs []*types.Transaction)
-	RemoveMemPoolTxsMap(map[common.Hash]*types.Transaction)
+	RemoveMemPoolTx(tx *types.Transaction)
 }
 
 type GetBalanceFunc func(address common.Address) *big.Int
@@ -123,19 +122,11 @@ func NewStatsCollector() StatsCollector {
 	return &collectorStub{}
 }
 
-func (c *collectorStub) IsIndexer() bool {
-	return false
-}
-
 func (c *collectorStub) EnableCollecting() {
 	// do nothing
 }
 
-func (c *collectorStub) RemoveMemPoolTxs(txs []*types.Transaction) {
-	// do nothing
-}
-
-func (c *collectorStub) RemoveMemPoolTxsMap(map[common.Hash]*types.Transaction) {
+func (c *collectorStub) RemoveMemPoolTx(tx *types.Transaction) {
 	// do nothing
 }
 
