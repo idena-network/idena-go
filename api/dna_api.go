@@ -606,6 +606,6 @@ func (api *DnaApi) IsValidationReady() bool {
 }
 
 func (api *DnaApi) WordsSeed() hexutil.Bytes {
-	seed := api.baseApi.getAppState().State.FlipWordsSeed()
+	seed := api.baseApi.getReadonlyAppState().State.FlipWordsSeed()
 	return seed[:]
 }
