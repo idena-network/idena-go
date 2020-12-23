@@ -565,7 +565,7 @@ func TestFactChecking_Call(t *testing.T) {
 
 	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
 
-	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(initialBalance.Add(initialBalance, ownerFeeAmount), stakeToBalance).Bytes())
+	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(big.NewInt(0).Add(initialBalance, ownerFeeAmount), stakeToBalance).Bytes())
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 
