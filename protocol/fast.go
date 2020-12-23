@@ -119,15 +119,16 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		fs.loadValidators()
 		return from, err
 	}
+	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
+		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
+	}
 	fs.tryUpgradeConsensus(fs.chain.PreliminaryHead)
 	fs.stateDb, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
 	if err != nil {
 		fs.dropPreliminaries()
 		return fs.preConsuming(head)
 	}
-	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
-		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
-	}
+
 	fs.loadValidators()
 	from = fs.chain.PreliminaryHead.Height() + 1
 	return from, nil
