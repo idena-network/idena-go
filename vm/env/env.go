@@ -8,14 +8,11 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
 	"math/big"
 	"regexp"
 	"sort"
-)
-
-const (
-	maxEnvKeyLength = 32
 )
 
 var (
@@ -33,7 +30,6 @@ type Env interface {
 	SetValue(ctx CallContext, key []byte, value []byte)
 	GetValue(ctx CallContext, key []byte) []byte
 	RemoveValue(ctx CallContext, key []byte)
-	Deploy(ctx CallContext)
 	Send(ctx CallContext, dest common.Address, amount *big.Int) error
 	MinFeePerGas() *big.Int
 	Balance(address common.Address) *big.Int
@@ -45,11 +41,10 @@ type Env interface {
 	BurnAll(ctx CallContext)
 	ReadContractData(contractAddr common.Address, key []byte) []byte
 	Vrf(msg []byte) ([32]byte, []byte)
-	Terminate(ctx CallContext, dest common.Address)
 	Event(name string, args ...[]byte)
 	Epoch() uint16
 	ContractStake(common.Address) *big.Int
-	MoveToStake(ctx CallContext, reward *big.Int) error
+	MoveToStake(ctx CallContext, amount *big.Int) error
 }
 
 type contractValue struct {
@@ -58,10 +53,11 @@ type contractValue struct {
 }
 
 type EnvImp struct {
-	state      *appstate.AppState
-	block      *types.Header
-	gasCounter *GasCounter
-	secStore   *secstore.SecStore
+	state          *appstate.AppState
+	block          *types.Header
+	gasCounter     *GasCounter
+	secStore       *secstore.SecStore
+	statsCollector collector.StatsCollector
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
@@ -71,7 +67,7 @@ type EnvImp struct {
 	contractStakeCache    map[common.Address]*big.Int
 }
 
-func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore) *EnvImp {
+func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore, statsCollector collector.StatsCollector) *EnvImp {
 	return &EnvImp{state: s, block: block, gasCounter: gasCounter, secStore: secStore,
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
 		balancesCache:         map[common.Address]*big.Int{},
@@ -79,6 +75,7 @@ func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter
 		droppedContracts:      map[common.Address]struct{}{},
 		events:                []*types.TxEvent{},
 		contractStakeCache:    map[common.Address]*big.Int{},
+		statsCollector:        statsCollector,
 	}
 }
 
@@ -105,6 +102,7 @@ func (e *EnvImp) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (e *EnvImp) setBalance(address common.Address, amount *big.Int) {
+	collector.AddContractBalanceUpdate(e.statsCollector, address, e.getBalance, amount, e.state)
 	e.balancesCache[address] = amount
 }
 
@@ -124,10 +122,13 @@ func (e *EnvImp) Send(ctx CallContext, dest common.Address, amount *big.Int) err
 }
 
 func (e *EnvImp) Deploy(ctx CallContext) {
-	e.deployedContractCache[ctx.ContractAddr()] = &state.ContractData{
-		Stake:    ctx.PayAmount(),
+	contractAddr := ctx.ContractAddr()
+	stake := ctx.PayAmount()
+	e.deployedContractCache[contractAddr] = &state.ContractData{
+		Stake:    stake,
 		CodeHash: ctx.CodeHash(),
 	}
+	collector.AddContractStake(e.statsCollector, stake)
 	e.gasCounter.AddGas(200)
 }
 
@@ -142,7 +143,7 @@ func (e *EnvImp) BlockNumber() uint64 {
 }
 
 func (e *EnvImp) SetValue(ctx CallContext, key []byte, value []byte) {
-	if len(key) > maxEnvKeyLength {
+	if len(key) > common.MaxContractStoreKeyLength {
 		panic("key is too big")
 	}
 	addr := ctx.ContractAddr()
@@ -234,7 +235,9 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 
 func (e *EnvImp) BurnAll(ctx CallContext) {
 	e.gasCounter.AddReadBytesAsGas(10)
-	e.setBalance(ctx.ContractAddr(), common.Big0)
+	address := ctx.ContractAddr()
+	collector.AddContractBurntCoins(e.statsCollector, address, e.getBalance)
+	e.setBalance(address, common.Big0)
 }
 
 func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byte {
@@ -262,20 +265,16 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	if stake == nil || stake.Sign() == 0 {
 		return
 	}
-	e.addBalance(dest, stake)
+	refund := big.NewInt(0).Quo(stake, big.NewInt(2))
+	e.addBalance(dest, refund)
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
-	emptySlice := make([]byte, 32)
-	minKey := emptySlice[:]
-	var maxKey []byte
-	for i := 0; i < 32; i++ {
-		maxKey = append(maxKey, 0xFF)
-	}
-
-	e.Iterate(ctx, minKey, maxKey, func(key []byte, value []byte) (stopped bool) {
+	e.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
 		e.RemoveValue(ctx, key)
 		return false
 	})
+
+	collector.AddContractTerminationBurntCoins(e.statsCollector, dest, stake, refund)
 }
 
 func (e *EnvImp) Commit() []*types.TxEvent {

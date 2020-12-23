@@ -34,6 +34,9 @@ var (
 		types.BurnTx:               "burn",
 		types.ChangeProfileTx:      "changeProfile",
 		types.DeleteFlipTx:         "deleteFlip",
+		types.DeployContract:       "deployContract",
+		types.CallContract:         "callContract",
+		types.TerminateContract:    "terminateContract",
 	}
 )
 
@@ -239,7 +242,7 @@ func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transaction
 }
 
 func (api *BlockchainApi) FeePerGas() *big.Int {
-	return api.baseApi.getAppState().State.FeePerGas()
+	return api.baseApi.getReadonlyAppState().State.FeePerGas()
 }
 
 func (api *BlockchainApi) SendRawTx(ctx context.Context, bytesTx hexutil.Bytes) (common.Hash, error) {

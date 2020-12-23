@@ -133,7 +133,23 @@ func (chain *Blockchain) Config() *config.Config {
 func (chain *Blockchain) Indexer() *indexer {
 	return chain.indexer
 }
-
+func (chain *Blockchain) tryUpgrade(block *types.Header) {
+	target := chain.upgrader.Target()
+	if target == chain.config.Consensus.Version {
+		return
+	}
+	if block.ProposedHeader != nil && block.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
+		chain.log.Info("Detected upgrade block", "upgrade", block.ProposedHeader.Upgrade)
+		chain.repo.WriteConsensusVersion(nil, block.ProposedHeader.Upgrade)
+		chain.upgrader.CompleteMigration()
+		diff := time.Unix(block.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
+		if diff > 0 {
+			// pause block producing to allow weak machines process state migration on time
+			chain.log.Info("Node goes to sleep", "duration", diff.String())
+			time.Sleep(diff)
+		}
+	}
+}
 func (chain *Blockchain) InitializeChain() error {
 
 	chain.coinBaseAddress = chain.secStore.GetAddress()
@@ -141,6 +157,8 @@ func (chain *Blockchain) InitializeChain() error {
 	head := chain.GetHead()
 	if head != nil {
 		chain.setCurrentHead(head)
+		chain.tryUpgrade(head)
+
 		genesisHeight := uint64(1)
 
 		if chain.config.Network == Testnet {
@@ -382,17 +400,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
-	if block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
-		chain.log.Info("Detected upgrade block", "upgrade", block.Header.ProposedHeader.Upgrade)
-		chain.repo.WriteConsensusVersion(nil, block.Header.ProposedHeader.Upgrade)
-		chain.upgrader.CompleteMigration()
-		diff := time.Unix(block.Header.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
-		if diff > 0 {
-			// pause block producing to allow weak machines process state migration on time
-			chain.log.Info("Node goes to sleep", "duration", diff.String())
-			time.Sleep(diff)
-		}
-	}
+	chain.tryUpgrade(block.Header)
 	if block.Header.Flags().HasFlag(types.NewGenesis) {
 		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
 		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
@@ -856,7 +864,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	totalTips = new(big.Int)
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, block.Header, chain.secStore)
+	vm := vm.NewVmImpl(appState, block.Header, chain.secStore, statsCollector)
 
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
@@ -885,8 +893,8 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, statsCollector collector.StatsCollector) (*big.Int, *types.TxReceipt, error) {
 
-	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
-	defer collector.CompleteBalanceUpdate(statsCollector, appState)
+	collector.BeginApplyingTx(statsCollector, tx, appState)
+	defer collector.CompleteApplyingTx(statsCollector, appState)
 
 	stateDB := appState.State
 
@@ -917,6 +925,9 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	var receipt *types.TxReceipt
 	switch tx.Type {
 	case types.ActivationTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+
 		balance := stateDB.GetBalance(sender)
 		generation, code := stateDB.GeneticCode(sender)
 		balanceToTransfer := new(big.Int).Sub(balance, totalCost)
@@ -946,12 +957,18 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			collector.AddInviteBurntCoins(statsCollector, sender, appState.State.GetStakeBalance(sender), tx)
 		}
 	case types.SendTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		stateDB.AddBalance(*tx.To, tx.AmountOrZero())
 	case types.BurnTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
 	case types.InviteTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		if sender == stateDB.GodAddress() {
 			stateDB.SubGodAddressInvite()
 		} else {
@@ -967,6 +984,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 
 		stateDB.SetInviter(*tx.To, sender, tx.Hash())
 	case types.KillTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, sender)
 		stateDB.SetState(sender, state.Killed)
 		appState.IdentityState.Remove(sender)
@@ -975,6 +994,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		stateDB.AddBalance(sender, stake)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
@@ -990,36 +1011,57 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.AddInvite(sender, 1)
 		}
 	case types.SubmitFlipTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseFlipSubmitAttachment(tx)
 		stateDB.AddFlip(sender, attachment.Cid, attachment.Pair)
 	case types.OnlineStatusTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.ToggleStatusSwitchAddress(sender)
 	case types.ChangeGodAddressTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.State.SetGodAddress(*tx.To)
 	case types.ChangeProfileTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseChangeProfileAttachment(tx)
 		stateDB.SetProfileHash(sender, attachment.Hash)
 	case types.DeleteFlipTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		attachment := attachments.ParseDeleteFlipAttachment(tx)
 		stateDB.DeleteFlip(sender, attachment.Cid)
 	case types.SubmitAnswersHashTx, types.SubmitShortAnswersTx, types.EvidenceTx, types.SubmitLongAnswersTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	case types.DeployContract, types.CallContract, types.TerminateContract:
 		amount := tx.AmountOrZero()
 		if amount.Sign() > 0 && tx.Type == types.CallContract {
+			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 			stateDB.SubBalance(sender, amount)
 			stateDB.AddBalance(*tx.To, amount)
+			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
 		receipt = vm.Run(tx, chain.getGasLimit(appState, tx))
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+
 		if !receipt.Success && tx.Type == types.CallContract {
 			stateDB.AddBalance(sender, amount)
 			stateDB.SubBalance(*tx.To, amount)
 		}
+		if receipt.Success && tx.Type == types.DeployContract {
+			stateDB.SubBalance(sender, amount)
+		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
 		fee = fee.Add(fee, receipt.GasCost)
+		collector.AddTxReceipt(statsCollector, receipt, appState)
 	}
 
 	stateDB.SubBalance(sender, fee)
@@ -1029,6 +1071,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	if senderAccount.Epoch() != tx.Epoch {
 		stateDB.SetEpoch(sender, tx.Epoch)
 	}
+	collector.AddTxFee(statsCollector, fee)
 	collector.AddFeeBurntCoins(statsCollector, sender, fee, chain.config.Consensus.FeeBurnRate, tx)
 
 	return fee, receipt, nil
@@ -1317,7 +1360,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
-	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore)
+	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore, nil)
 	var receipts []*types.TxReceipt
 	var usedGas uint64
 	for _, tx := range txs {
@@ -1933,6 +1976,9 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 		if !header.Flags().HasFlag(types.NewGenesis) {
 			return errors.New("flag NewGenesis is required")
 		}
+	}
+	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0 && header.ProposedHeader.Upgrade != uint32(chain.upgrader.Target()) {
+		return errors.New("unknown consensus upgrade")
 	}
 	//TODO: add proposer's check??
 

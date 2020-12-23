@@ -11,13 +11,13 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
 )
 
 const (
-
 	MaxDeferredTxs = 100
 )
 
@@ -53,13 +53,14 @@ type TxPool struct {
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
 	coinbase         common.Address
+	statsCollector   collector.StatsCollector
 }
 
 func (pool *TxPool) IsSyncing() bool {
 	return pool.isSyncing
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool, statsCollector collector.StatsCollector) *TxPool {
 	pool := &TxPool{
 		all:              newTxMap(-1),
 		executableTxs:    make(map[common.Address]*sortedTxs),
@@ -70,6 +71,7 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempoo
 		appState:         appState,
 		log:              log.New(),
 		bus:              bus,
+		statsCollector:   statsCollector,
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -397,6 +399,8 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 			delete(pool.pendingTxs, sender)
 		}
 	}
+
+	pool.statsCollector.RemoveMemPoolTx(transaction)
 }
 
 func (pool *TxPool) movePendingTxsToExecutable() {

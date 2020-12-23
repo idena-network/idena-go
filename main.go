@@ -76,7 +76,9 @@ func main() {
 			if consVersion <= uint32(cfg.Consensus.Version) {
 				return
 			}
-			config.ApplyConsensusVersion(config.ConsensusVerson(consVersion), cfg.Consensus)
+			for v := cfg.Consensus.Version + 1; v <= config.ConsensusVerson(consVersion); v++ {
+				config.ApplyConsensusVersion(v, cfg.Consensus)
+			}
 			log.Info("Consensus config transformed to", "ver", consVersion)
 		})
 

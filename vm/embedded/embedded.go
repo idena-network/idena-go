@@ -2,6 +2,7 @@ package embedded
 
 import (
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	env2 "github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"math/big"
@@ -10,27 +11,27 @@ import (
 type EmbeddedContractType = common.Hash
 
 var (
-	TimeLockContract               EmbeddedContractType
-	OracleVotingContract           EmbeddedContractType
-	EvidenceLockContract           EmbeddedContractType
-	RefundableEvidenceLockContract EmbeddedContractType
-	MultisigContract               EmbeddedContractType
-	AvailableContracts             map[EmbeddedContractType]struct{}
+	TimeLockContract             EmbeddedContractType
+	OracleVotingContract         EmbeddedContractType
+	OracleLockContract           EmbeddedContractType
+	RefundableOracleLockContract EmbeddedContractType
+	MultisigContract             EmbeddedContractType
+	AvailableContracts           map[EmbeddedContractType]struct{}
 )
 
 func init() {
 	TimeLockContract.SetBytes([]byte{0x1})
 	OracleVotingContract.SetBytes([]byte{0x2})
-	EvidenceLockContract.SetBytes([]byte{0x3})
-	RefundableEvidenceLockContract.SetBytes([]byte{0x4})
+	OracleLockContract.SetBytes([]byte{0x3})
+	RefundableOracleLockContract.SetBytes([]byte{0x4})
 	MultisigContract.SetBytes([]byte{0x5})
 
 	AvailableContracts = map[EmbeddedContractType]struct{}{
-		TimeLockContract:               {},
-		OracleVotingContract:           {},
-		EvidenceLockContract:           {},
-		RefundableEvidenceLockContract: {},
-		MultisigContract:               {},
+		TimeLockContract:             {},
+		OracleVotingContract:         {},
+		OracleLockContract:           {},
+		RefundableOracleLockContract: {},
+		MultisigContract:             {},
 	}
 }
 
@@ -38,14 +39,15 @@ type Contract interface {
 	Deploy(args ...[]byte) error
 	Call(method string, args ...[]byte) error
 	Read(method string, args ...[]byte) ([]byte, error)
-	Terminate(args ...[]byte) error
+	Terminate(args ...[]byte) (stakeDest common.Address, err error)
 }
 
 // base contract with useful common methods
 
 type BaseContract struct {
-	ctx env2.CallContext
-	env env2.Env
+	ctx            env2.CallContext
+	env            env2.Env
+	statsCollector collector.StatsCollector
 }
 
 func (b *BaseContract) SetOwner(address common.Address) {
@@ -57,10 +59,6 @@ func (b *BaseContract) Owner() common.Address {
 	var owner common.Address
 	owner.SetBytes(bytes)
 	return owner
-}
-
-func (b *BaseContract) Deploy(contractType EmbeddedContractType) {
-	b.env.Deploy(b.ctx)
 }
 
 func (b *BaseContract) SetUint64(s string, value uint64) {
@@ -109,7 +107,7 @@ func (b *BaseContract) SetByte(s string, value byte) {
 	b.env.SetValue(b.ctx, []byte(s), []byte{value})
 }
 
-func (b *BaseContract) RemoveValue(s string){
+func (b *BaseContract) RemoveValue(s string) {
 	b.env.RemoveValue(b.ctx, []byte(s))
 }
 
@@ -123,4 +121,8 @@ func (b *BaseContract) GetByte(s string) byte {
 
 func (b *BaseContract) IsOwner() bool {
 	return b.Owner() == b.ctx.Sender()
+}
+
+func (b *BaseContract) CalcPercent(value uint64, percent byte) float64 {
+	return float64(value) * float64(percent) / 100.0
 }

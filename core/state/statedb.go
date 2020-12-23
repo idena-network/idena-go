@@ -40,6 +40,18 @@ const (
 	GeneticCodeSize     = 12
 )
 
+var (
+	contractStoreMinKey = make([]byte, 0)
+	contractStoreMaxKey []byte
+)
+
+func init() {
+	contractStoreMaxKey = make([]byte, common.MaxContractStoreKeyLength)
+	for i := 0; i < len(contractStoreMaxKey); i++ {
+		contractStoreMaxKey[i] = 0xFF
+	}
+}
+
 type StateDB struct {
 	original dbm.DB
 	db       dbm.DB
@@ -1204,44 +1216,36 @@ func (s *StateDB) IterateContractStore(addr common.Address, minKey []byte, maxKe
 	iteratedKeys := make(map[string]struct{})
 
 	if minKey == nil {
-		minKey = make([]byte, 32)
+		minKey = contractStoreMinKey
 	}
 	if maxKey == nil {
-		maxKey = make([]byte, 32)
-		for i := 0; i < len(maxKey); i++ {
-			maxKey[i] = 0xFF
-		}
+		maxKey = contractStoreMaxKey
 	}
 
 	for key, value := range s.contractStoreCache {
 		keyBytes := []byte(key)
 		if (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, minKey)) >= 0) && (bytes.Compare(keyBytes, StateDbKeys.ContractStoreKey(addr, maxKey)) <= 0) {
 			iteratedKeys[key] = struct{}{}
-			if !value.removed && f(keyBytes[21:], value.value) {
+			if !value.removed && f(keyBytes[common.AddressLength+len(contractStorePrefix):], value.value) {
 				return
 			}
 		}
 	}
 
-	s.tree.GetImmutable().IterateRange(StateDbKeys.ContractStoreKey(addr, minKey), StateDbKeys.ContractStoreKey(addr, maxKey), true,
-		func(key []byte, value []byte) (stopped bool) {
+	s.tree.GetImmutable().IterateRangeInclusive(StateDbKeys.ContractStoreKey(addr, minKey), StateDbKeys.ContractStoreKey(addr, maxKey), true,
+		func(key []byte, value []byte, version int64) (stopped bool) {
 
 			if _, ok := iteratedKeys[string(key)]; ok {
 				return false
 			}
 
-			return f(key[21:], value)
+			return f(key[common.AddressLength+len(contractStorePrefix):], value)
 		})
 }
 
 // Iterate over all stored contract data
 func (s *StateDB) IterateContractValues(f func(key []byte, value []byte) bool) {
-	minKey := make([]byte, 32)
-	var maxKey []byte
-	for i := 0; i < 32; i++ {
-		maxKey = append(maxKey, 0xFF)
-	}
-	s.tree.GetImmutable().IterateRange(StateDbKeys.ContractStoreKey(common.MinAddr, minKey), StateDbKeys.ContractStoreKey(common.MaxAddr, maxKey), true,
+	s.tree.GetImmutable().IterateRange(StateDbKeys.ContractStoreKey(common.MinAddr, contractStoreMinKey), StateDbKeys.ContractStoreKey(common.MaxAddr, contractStoreMaxKey), true,
 		func(key []byte, value []byte) (stopped bool) {
 			return f(key, value)
 		})

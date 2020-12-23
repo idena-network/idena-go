@@ -99,6 +99,15 @@ func (fs *fastSync) loadValidators() {
 	fs.validators.Load()
 }
 
+func (fs *fastSync) tryUpgradeConsensus(header *types.Header) {
+	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade == uint32(fs.upgrader.Target()) {
+		fs.log.Info("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
+		fs.prevConfig = fs.upgrader.UpgradeConfigTo(header.ProposedHeader.Upgrade)
+		fs.chain.WritePreliminaryConsensusVersion(header.ProposedHeader.Upgrade)
+		fs.upgrader.MigrateIdentityStateDb()
+	}
+}
+
 func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	if fs.chain.PreliminaryHead == nil {
 		fs.chain.PreliminaryHead = head
@@ -110,14 +119,16 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		fs.loadValidators()
 		return from, err
 	}
+	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
+		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
+	}
+	fs.tryUpgradeConsensus(fs.chain.PreliminaryHead)
 	fs.stateDb, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
 	if err != nil {
 		fs.dropPreliminaries()
 		return fs.preConsuming(head)
 	}
-	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
-		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
-	}
+
 	fs.loadValidators()
 	from = fs.chain.PreliminaryHead.Height() + 1
 	return from, nil
@@ -142,13 +153,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 			fs.pm.BanPeer(b.peerId, err)
 			return b.Header.Height(), err
 		}
-
-		if b.Header.ProposedHeader != nil && b.Header.ProposedHeader.Upgrade == uint32(fs.upgrader.Target()) {
-			fs.log.Info("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
-			fs.prevConfig = fs.upgrader.UpgradeConfigTo(b.Header.ProposedHeader.Upgrade)
-			fs.chain.WritePreliminaryConsensusVersion(b.Header.ProposedHeader.Upgrade)
-			fs.upgrader.MigrateIdentityStateDb()
-		}
+		fs.tryUpgradeConsensus(b.Header)
 
 		if b.Header.Flags().HasFlag(types.NewGenesis) {
 			fs.chain.WritePreliminaryIntermediateGenesis(b.Header.Height())
