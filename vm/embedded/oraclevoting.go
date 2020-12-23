@@ -352,7 +352,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		}
 
 		if ownerReward.Sign() > 0 {
-			if err := f.env.MoveToStake(f.ctx, ownerReward); err != nil {
+			if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
 				return err
 			}
 		}
@@ -502,10 +502,10 @@ func (f *OracleVoting) Terminate(args ...[]byte) (common.Address, error) {
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 
 	stake := decimal.NewFromBigInt(f.env.ContractStake(f.ctx.ContractAddr()), -18)
-	d, _ := stake.Mul(decimal.NewFromInt(int64(f.env.NetworkSize()))).Div(decimal.NewFromInt(100)).Pow(decimal.NewFromFloat32(1 / 3)).Float64()
-	terminationDays := uint64(math2.Round(d))
-
-	if duration >= votingDuration+publicVotingDuration+terminationDays {
+	d, _ := stake.Mul(decimal.NewFromInt(int64(f.env.NetworkSize()))).Div(decimal.NewFromInt(100)).Float64()
+	terminationDays := uint64(math2.Round(math2.Pow(d, 1.0/3)))
+	const blocksInDay = 4320
+	if duration >= votingDuration+publicVotingDuration+terminationDays*blocksInDay {
 		balance := f.env.Balance(f.ctx.ContractAddr())
 		var fundInt, ownerReward, oracleReward *big.Int
 		if balance.Sign() > 0 {
@@ -543,6 +543,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) (common.Address, error) {
 				if err != nil {
 					return common.Address{}, err
 				}
+				f.env.BurnAll(f.ctx)
 			}
 		}
 		collector.AddOracleVotingTermination(f.statsCollector, fundInt, oracleReward, ownerReward)

@@ -328,7 +328,7 @@ func TestFactChecking_Call(t *testing.T) {
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
 
-	deployContractStake := common.DnaBase
+	deployContractStake := big.NewInt(0).Mul(common.DnaBase, big.NewInt(15))
 
 	tx := &types.Transaction{
 		Epoch:        0,
@@ -526,8 +526,8 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 
 	stakeAfterFinish := appState.State.GetContractStake(contractAddr)
-
-	require.Equal(t, 0, big.NewInt(0).Add(deployContractStake, big.NewInt(0).Quo(contractBalance, big.NewInt(int64(100/ownerFee)))).Cmp(stakeAfterFinish))
+	ownerFeeAmount := big.NewInt(0).Quo(contractBalance, big.NewInt(int64(100/ownerFee)))
+	require.Equal(t, deployContractStake.Bytes(), stakeAfterFinish.Bytes())
 
 	fmt.Printf("Finish voting gas: %v\n", gas.UsedGas)
 
@@ -551,7 +551,7 @@ func TestFactChecking_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	e = env.NewEnvImp(appState, createHeader(4320*3+4+30240, 21), gas, secStore, nil)
+	e = env.NewEnvImp(appState, createHeader(4320*2+4+30240, 21), gas, secStore, nil)
 	termCtx := env.NewCallContextImpl(tx, OracleVotingContract)
 	contract = NewOracleVotingContract(termCtx, e, nil)
 	dest, err := contract.Terminate(terminateAttach.Args...)
@@ -565,7 +565,7 @@ func TestFactChecking_Call(t *testing.T) {
 
 	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
 
-	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(initialBalance, stakeToBalance).Bytes())
+	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(initialBalance.Add(initialBalance, ownerFeeAmount), stakeToBalance).Bytes())
 	require.Nil(t, appState.State.GetCodeHash(contractAddr))
 	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
 
