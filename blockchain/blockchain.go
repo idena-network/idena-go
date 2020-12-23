@@ -133,7 +133,23 @@ func (chain *Blockchain) Config() *config.Config {
 func (chain *Blockchain) Indexer() *indexer {
 	return chain.indexer
 }
-
+func (chain *Blockchain) tryUpgrade(block *types.Header) {
+	target := chain.upgrader.Target()
+	if target == chain.config.Consensus.Version {
+		return
+	}
+	if block.ProposedHeader != nil && block.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
+		chain.log.Info("Detected upgrade block", "upgrade", block.ProposedHeader.Upgrade)
+		chain.repo.WriteConsensusVersion(nil, block.ProposedHeader.Upgrade)
+		chain.upgrader.CompleteMigration()
+		diff := time.Unix(block.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
+		if diff > 0 {
+			// pause block producing to allow weak machines process state migration on time
+			chain.log.Info("Node goes to sleep", "duration", diff.String())
+			time.Sleep(diff)
+		}
+	}
+}
 func (chain *Blockchain) InitializeChain() error {
 
 	chain.coinBaseAddress = chain.secStore.GetAddress()
@@ -141,6 +157,8 @@ func (chain *Blockchain) InitializeChain() error {
 	head := chain.GetHead()
 	if head != nil {
 		chain.setCurrentHead(head)
+		chain.tryUpgrade(head)
+
 		genesisHeight := uint64(1)
 
 		if chain.config.Network == Testnet {
@@ -382,17 +400,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if !chain.isSyncing {
 		chain.txpool.ResetTo(block)
 	}
-	if block.Header.ProposedHeader != nil && block.Header.ProposedHeader.Upgrade == uint32(chain.upgrader.Target()) {
-		chain.log.Info("Detected upgrade block", "upgrade", block.Header.ProposedHeader.Upgrade)
-		chain.repo.WriteConsensusVersion(nil, block.Header.ProposedHeader.Upgrade)
-		chain.upgrader.CompleteMigration()
-		diff := time.Unix(block.Header.Time(), 0).Add(chain.config.Consensus.MigrationTimeout).Sub(time.Now().UTC())
-		if diff > 0 {
-			// pause block producing to allow weak machines process state migration on time
-			chain.log.Info("Node goes to sleep", "duration", diff.String())
-			time.Sleep(diff)
-		}
-	}
+	chain.tryUpgrade(block.Header)
 	if block.Header.Flags().HasFlag(types.NewGenesis) {
 		chain.repo.WriteIntermediateGenesis(nil, block.Header.Height())
 		chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
@@ -1968,6 +1976,9 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 		if !header.Flags().HasFlag(types.NewGenesis) {
 			return errors.New("flag NewGenesis is required")
 		}
+	}
+	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0 && header.ProposedHeader.Upgrade != uint32(chain.upgrader.Target()) {
+		return errors.New("unknown consensus upgrade")
 	}
 	//TODO: add proposer's check??
 
