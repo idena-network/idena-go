@@ -41,6 +41,44 @@ type FlipSubmitArgs struct {
 	PairId     uint8          `json:"pairId"`
 }
 
+type RawFlipSubmitArgs struct {
+	Tx                  *hexutil.Bytes `json:"tx"`
+	EncryptedPublicHex  *hexutil.Bytes `json:"encryptedPublicHex"`
+	EncryptedPrivateHex *hexutil.Bytes `json:"encryptedPrivateHex"`
+}
+
+func (api *FlipApi) RawSubmit(args RawFlipSubmitArgs) (FlipSubmitResponse, error) {
+	if args.EncryptedPublicHex == nil || args.EncryptedPrivateHex == nil || args.Tx == nil {
+		return FlipSubmitResponse{}, errors.New("all fields are required")
+	}
+
+	encPublicPart := *args.EncryptedPublicHex
+	encPrivatePart := *args.EncryptedPrivateHex
+
+	tx := new(types.Transaction)
+	err := tx.FromBytes(*args.Tx)
+	if err != nil {
+		return FlipSubmitResponse{}, err
+	}
+
+	flip := &types.Flip{
+		Tx:          tx,
+		PublicPart:  encPublicPart,
+		PrivatePart: encPrivatePart,
+	}
+
+	if err := api.fp.AddNewFlip(flip, true); err != nil {
+		return FlipSubmitResponse{}, err
+	}
+
+	sender, _ := types.Sender(tx)
+	log.Info("Raw flip submitted", "hash", tx.Hash().Hex(), "sender", sender.Hex())
+
+	return FlipSubmitResponse{
+		TxHash: tx.Hash(),
+	}, nil
+}
+
 func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.Hex == nil && args.PublicHex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
@@ -55,7 +93,6 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.PrivateHex != nil {
 		rawPrivatePart = *args.PrivateHex
 	}
-
 	cid, encryptedPublicPart, encryptedPrivatePart, err := api.fp.PrepareFlip(rawPublicPart, rawPrivatePart)
 
 	if err != nil {
