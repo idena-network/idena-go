@@ -80,25 +80,25 @@ func (a DynamicArg) ToBytes() ([]byte, error) {
 	case "byte":
 		i, err := strconv.ParseUint(a.Value, 10, 8)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse byte: \"%v\"", a.Value)
 		}
 		return []byte{byte(i)}, nil
 	case "int8":
 		i, err := strconv.ParseInt(a.Value, 10, 8)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse int8: \"%v\"", a.Value)
 		}
 		return common.ToBytes(i), nil
 	case "uint64":
 		i, err := strconv.ParseUint(a.Value, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse uint64: \"%v\"", a.Value)
 		}
 		return common.ToBytes(i), nil
 	case "int64":
 		i, err := strconv.ParseInt(a.Value, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse int64: \"%v\"", a.Value)
 		}
 		return common.ToBytes(i), nil
 	case "string":
@@ -107,25 +107,25 @@ func (a DynamicArg) ToBytes() ([]byte, error) {
 		v := new(big.Int)
 		_, ok := v.SetString(a.Value, 10)
 		if !ok {
-			return nil, errors.New("cannot parse bigint")
+			return nil, errors.Errorf("cannot parse bigint: \"%v\"", a.Value)
 		}
 		return v.Bytes(), nil
 	case "hex":
 		data, err := hexutil.Decode(a.Value)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse hex: \"%v\"", a.Value)
 		}
 		return data, nil
 	case "dna":
 		d, err := decimal.NewFromString(a.Value)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse dna: \"%v\"", a.Value)
 		}
 		return blockchain.ConvertToInt(d).Bytes(), nil
 	default:
 		data, err := hexutil.Decode(a.Value)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("cannot parse hex: \"%v\"", a.Value)
 		}
 		return data, nil
 	}
