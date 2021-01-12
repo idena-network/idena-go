@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-db"
 	"math/big"
@@ -22,7 +23,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
-	pool := NewTxPool(appState, bus, &config.Mempool{TxPoolQueueSlots: -1, TxPoolAddrQueueLimit: -1})
+	pool := NewTxPool(appState, bus, &config.Mempool{TxPoolQueueSlots: -1, TxPoolAddrQueueLimit: -1}, collector.NewStatsCollector())
 	r := require.New(t)
 
 	key, _ = crypto.GenerateKey()
@@ -168,7 +169,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 func getPool() *TxPool {
 	bus := eventbus.New()
 	appState := appstate.NewAppState(db.NewMemDB(), bus)
-	return NewTxPool(appState, bus, config.GetDefaultMempoolConfig())
+	return NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), collector.NewStatsCollector())
 }
 
 func TestSortedTxs_Remove(t *testing.T) {

@@ -75,48 +75,63 @@ type EventsArgs struct {
 	Contract common.Address `json:"contract"`
 }
 
-func (a DynamicArg) ToBytes() []byte {
+func (a DynamicArg) ToBytes() ([]byte, error) {
 	switch a.Format {
 	case "byte":
+		i, err := strconv.ParseUint(a.Value, 10, 8)
+		if err != nil {
+			return nil, errors.Errorf("cannot parse byte: \"%v\"", a.Value)
+		}
+		return []byte{byte(i)}, nil
+	case "int8":
 		i, err := strconv.ParseInt(a.Value, 10, 8)
 		if err != nil {
-			return nil
+			return nil, errors.Errorf("cannot parse int8: \"%v\"", a.Value)
 		}
-		return []byte{byte(i)}
+		return common.ToBytes(i), nil
 	case "uint64":
+		i, err := strconv.ParseUint(a.Value, 10, 64)
+		if err != nil {
+			return nil, errors.Errorf("cannot parse uint64: \"%v\"", a.Value)
+		}
+		return common.ToBytes(i), nil
+	case "int64":
 		i, err := strconv.ParseInt(a.Value, 10, 64)
 		if err != nil {
-			return nil
+			return nil, errors.Errorf("cannot parse int64: \"%v\"", a.Value)
 		}
-		return common.ToBytes(uint64(i))
+		return common.ToBytes(i), nil
 	case "string":
-		return []byte(a.Value)
+		return []byte(a.Value), nil
 	case "bigint":
 		v := new(big.Int)
-		v.SetString(a.Value, 10)
-		return v.Bytes()
+		_, ok := v.SetString(a.Value, 10)
+		if !ok {
+			return nil, errors.Errorf("cannot parse bigint: \"%v\"", a.Value)
+		}
+		return v.Bytes(), nil
 	case "hex":
 		data, err := hexutil.Decode(a.Value)
 		if err != nil {
-			return nil
+			return nil, errors.Errorf("cannot parse hex: \"%v\"", a.Value)
 		}
-		return data
+		return data, nil
 	case "dna":
 		d, err := decimal.NewFromString(a.Value)
 		if err != nil {
-			return nil
+			return nil, errors.Errorf("cannot parse dna: \"%v\"", a.Value)
 		}
-		return blockchain.ConvertToInt(d).Bytes()
+		return blockchain.ConvertToInt(d).Bytes(), nil
 	default:
 		data, err := hexutil.Decode(a.Value)
 		if err != nil {
-			return nil
+			return nil, errors.Errorf("cannot parse hex: \"%v\"", a.Value)
 		}
-		return data
+		return data, nil
 	}
 }
 
-func (d DynamicArgs) ToSlice() [][]byte {
+func (d DynamicArgs) ToSlice() ([][]byte, error) {
 
 	m := make(map[int]*DynamicArg)
 	maxIndex := -1
@@ -130,16 +145,21 @@ func (d DynamicArgs) ToSlice() [][]byte {
 
 	for i := 0; i <= maxIndex; i++ {
 		if a, ok := m[i]; ok {
-			data = append(data, a.ToBytes())
+			bytes, err := a.ToBytes()
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, bytes)
 		} else {
 			data = append(data, nil)
 		}
 	}
-	return data
+	return data, nil
 }
 
 type TxReceipt struct {
 	Contract common.Address  `json:"contract"`
+	Method   string          `json:"method"`
 	Success  bool            `json:"success"`
 	GasUsed  uint64          `json:"gasUsed"`
 	TxHash   common.Hash     `json:"txHash"`
@@ -162,8 +182,11 @@ func (api *ContractApi) buildDeployContractTx(args DeployArgs) (*types.Transacti
 	if from == (common.Address{}) {
 		from = api.baseApi.getCurrentCoinbase()
 	}
-
-	payload, _ := attachments.CreateDeployContractAttachment(codeHash, args.Args.ToSlice()...).ToBytes()
+	convertedArgs, err := args.Args.ToSlice()
+	if err != nil {
+		return nil, err
+	}
+	payload, _ := attachments.CreateDeployContractAttachment(codeHash, convertedArgs...).ToBytes()
 	return api.baseApi.getSignedTx(from, nil, types.DeployContract, args.Amount,
 		args.MaxFee, decimal.Zero,
 		0, 0,
@@ -176,8 +199,11 @@ func (api *ContractApi) buildCallContractTx(args CallArgs) (*types.Transaction, 
 	if from == (common.Address{}) {
 		from = api.baseApi.getCurrentCoinbase()
 	}
-
-	payload, _ := attachments.CreateCallContractAttachment(args.Method, args.Args.ToSlice()...).ToBytes()
+	convertedArgs, err := args.Args.ToSlice()
+	if err != nil {
+		return nil, err
+	}
+	payload, _ := attachments.CreateCallContractAttachment(args.Method, convertedArgs...).ToBytes()
 	return api.baseApi.getSignedTx(from, &args.Contract, types.CallContract, args.Amount,
 		args.MaxFee, decimal.Zero,
 		0, 0,
@@ -190,8 +216,11 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 	if from == (common.Address{}) {
 		from = api.baseApi.getCurrentCoinbase()
 	}
-
-	payload, _ := attachments.CreateTerminateContractAttachment(args.Args.ToSlice()...).ToBytes()
+	convertedArgs, err := args.Args.ToSlice()
+	if err != nil {
+		return nil, err
+	}
+	payload, _ := attachments.CreateTerminateContractAttachment(convertedArgs...).ToBytes()
 	return api.baseApi.getSignedTx(from, &args.Contract, types.TerminateContract, decimal.Zero,
 		args.MaxFee, decimal.Zero,
 		0, 0,
@@ -199,8 +228,8 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 }
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppStateForCheck()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildDeployContractTx(args)
 	if err != nil {
 		return nil, err
@@ -214,8 +243,8 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 }
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppStateForCheck()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
 		return nil, err
@@ -223,14 +252,20 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
 		return nil, err
 	}
+	if !common.ZeroOrNil(tx.Amount) {
+		sender, _ := types.Sender(tx)
+		appState.State.SubBalance(sender, tx.Amount)
+		appState.State.AddBalance(*tx.To, tx.Amount)
+	}
+
 	r := vm.Run(tx, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
-	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	appState := api.baseApi.getAppStateForCheck()
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildTerminateContractTx(args)
 	if err != nil {
 		return nil, err
@@ -252,6 +287,7 @@ func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *
 	return &TxReceipt{
 		Success:  receipt.Success,
 		Error:    err,
+		Method:   receipt.Method,
 		Contract: receipt.ContractAddress,
 		TxHash:   receipt.TxHash,
 		GasUsed:  receipt.GasUsed,
@@ -293,7 +329,7 @@ func (api *ContractApi) Terminate(ctx context.Context, args TerminateArgs) (comm
 }
 
 func (api *ContractApi) ReadData(contract common.Address, key string, format string) (interface{}, error) {
-	data := api.baseApi.getAppState().State.GetContractValue(contract, []byte(key))
+	data := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, []byte(key))
 	if data == nil {
 		return nil, errors.New("data is nil")
 	}
@@ -301,8 +337,12 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
-	data, err := vm.Read(args.Contract, args.Method, args.Args.ToSlice()...)
+	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc.Head, api.baseApi.secStore, nil)
+	convertedArgs, err := args.Args.ToSlice()
+	if err != nil {
+		return nil, err
+	}
+	data, err := vm.Read(args.Contract, args.Method, convertedArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -310,8 +350,8 @@ func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error)
 }
 
 func (api *ContractApi) GetStake(contract common.Address) interface{} {
-	hash := api.baseApi.getAppState().State.GetCodeHash(contract)
-	stake := api.baseApi.getAppState().State.GetContractStake(contract)
+	hash := api.baseApi.getReadonlyAppState().State.GetCodeHash(contract)
+	stake := api.baseApi.getReadonlyAppState().State.GetContractStake(contract)
 	return struct {
 		Hash  *common.Hash
 		Stake decimal.Decimal

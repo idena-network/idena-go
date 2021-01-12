@@ -126,6 +126,10 @@ func (engine *Engine) ReadonlyAppState() (*appstate.AppState, error) {
 	return s, nil
 }
 
+func (engine *Engine) AppStateForCheck() (*appstate.AppState, error) {
+	return engine.appState.ForCheck(engine.chain.Head.Height())
+}
+
 func (engine *Engine) alignTime() {
 	if engine.prevRoundDuration > engine.cfg.Consensus.MinBlockDistance {
 		return

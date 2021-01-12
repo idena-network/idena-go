@@ -3,10 +3,16 @@ package embedded
 import (
 	"bytes"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"math/big"
+)
+
+const (
+	multisigUninitialized = byte(1)
+	multisigInitialized   = byte(2)
 )
 
 type Multisig struct {
@@ -15,10 +21,11 @@ type Multisig struct {
 	voteAmount  *env.Map
 }
 
-func NewMultisig(ctx env.CallContext, e env.Env) *Multisig {
+func NewMultisig(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *Multisig {
 	return &Multisig{&BaseContract{
-		ctx: ctx,
-		env: e,
+		ctx:            ctx,
+		env:            e,
+		statsCollector: statsCollector,
 	}, env.NewMap([]byte("addr"), e, ctx), env.NewMap([]byte("amount"), e, ctx)}
 }
 
@@ -26,28 +33,27 @@ func (m *Multisig) Deploy(args ...[]byte) error {
 
 	var maxVotes byte
 	var err error
-	if maxVotes, err = helpers.ExtractByte(0, args...); err != nil {
+	maxVotes, err = helpers.ExtractByte(0, args...)
+	if err != nil {
 		return err
-	} else {
-		if maxVotes > 32 || maxVotes < 1 {
-			return errors.New("maxvotes should be in range [1;32]")
-		}
-		m.SetByte("maxVotes", maxVotes)
 	}
-
-	if minVotes, err := helpers.ExtractByte(1, args...); err != nil {
+	if maxVotes > 32 || maxVotes < 1 {
+		return errors.New("maxvotes should be in range [1;32]")
+	}
+	m.SetByte("maxVotes", maxVotes)
+	minVotes, err := helpers.ExtractByte(1, args...)
+	if err != nil {
 		return err
-	} else {
-		if minVotes > maxVotes || minVotes < 1 {
-			return errors.New("minvotes should be in range [1;maxvotes]")
-		}
-		m.SetByte("minVotes", minVotes)
 	}
-
-	m.SetByte("state", 1)
+	if minVotes > maxVotes || minVotes < 1 {
+		return errors.New("minvotes should be in range [1;maxvotes]")
+	}
+	m.SetByte("minVotes", minVotes)
+	state := multisigUninitialized
+	m.SetByte("state", state)
 	m.SetByte("count", 0)
-	m.BaseContract.Deploy(MultisigContract)
 	m.SetOwner(m.ctx.Sender())
+	collector.AddMultisigDeploy(m.statsCollector, m.ctx.ContractAddr(), minVotes, maxVotes, state)
 	return nil
 }
 
@@ -72,7 +78,7 @@ func (m *Multisig) add(args ...[]byte) (err error) {
 	if !m.IsOwner() {
 		return errors.New("sender is not an owner")
 	}
-	if m.GetByte("state") != 1 {
+	if m.GetByte("state") != multisigUninitialized {
 		return errors.New("contract is initialized")
 	}
 
@@ -90,8 +96,12 @@ func (m *Multisig) add(args ...[]byte) (err error) {
 	c := m.GetByte("count") + 1
 	m.SetByte("count", c)
 	if c == m.GetByte("maxVotes") {
-		m.SetByte("state", 2)
+		state := multisigInitialized
+		m.SetByte("state", state)
 		m.RemoveValue("count")
+		collector.AddMultisigCallAdd(m.statsCollector, addr, &state)
+	} else {
+		collector.AddMultisigCallAdd(m.statsCollector, addr, nil)
 	}
 	return nil
 }
@@ -112,12 +122,13 @@ func (m *Multisig) send(args ...[]byte) error {
 
 	m.voteAmount.Set(m.ctx.Sender().Bytes(), amount)
 	m.voteAddress.Set(m.ctx.Sender().Bytes(), dest.Bytes())
+	collector.AddMultisigCallSend(m.statsCollector, dest, amount)
 	return nil
 }
 
 func (m *Multisig) push(args ...[]byte) error {
 
-	if m.GetByte("state") != 2 {
+	if m.GetByte("state") != multisigInitialized {
 		return errors.New("contract is not initialized")
 	}
 
@@ -130,29 +141,19 @@ func (m *Multisig) push(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
-	voteAddressCnt := 0
+	votes := 0
 	m.voteAddress.Iterate(func(key []byte, value []byte) bool {
 		if bytes.Compare(value, dest.Bytes()) == 0 {
-			voteAddressCnt++
+			if bytes.Compare(m.voteAmount.Get(key), amount) == 0 {
+				votes++
+			}
 		}
 		return false
 	})
 
 	minVotes := m.GetByte("minVotes")
-	if voteAddressCnt < int(minVotes) {
-		return errors.New("voteAddressCnt < minVotes")
-	}
-
-	voteAmountCnt := 0
-	m.voteAmount.Iterate(func(key []byte, value []byte) bool {
-		if bytes.Compare(value, amount) == 0 {
-			voteAmountCnt++
-		}
-		return false
-	})
-
-	if voteAmountCnt < int(minVotes) {
-		return errors.New("voteAmountCnt < minVotes")
+	if votes < int(minVotes) {
+		return errors.New("votes < minVotes")
 	}
 
 	if err = m.env.Send(m.ctx, dest, big.NewInt(0).SetBytes(amount)); err != nil {
@@ -163,21 +164,26 @@ func (m *Multisig) push(args ...[]byte) error {
 		m.voteAmount.Set(key, common.Big0.Bytes())
 		return false
 	})
+	collector.AddMultisigCallPush(m.statsCollector, dest, amount, votes, votes)
 	return nil
 }
 
-func (m *Multisig) Terminate(args ...[]byte) error {
+func (m *Multisig) Terminate(args ...[]byte) (common.Address, error) {
 	if !m.IsOwner() {
-		return errors.New("sender is not an owner")
+		return common.Address{}, errors.New("sender is not an owner")
 	}
 	balance := m.env.Balance(m.ctx.ContractAddr())
+	dust := big.NewInt(0).Mul(m.env.MinFeePerGas(), big.NewInt(100))
+	if balance.Cmp(dust) > 0 {
+		return common.Address{}, errors.New("contract has dna")
+	}
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		m.env.BurnAll(m.ctx)
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	m.env.Terminate(m.ctx, dest)
-	return nil
+	collector.AddMultisigTermination(m.statsCollector, dest)
+	return dest, nil
 }

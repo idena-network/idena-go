@@ -61,7 +61,7 @@ func TestNormalizedEpochDuration(t *testing.T) {
 	require.Equal(t, day*6, NormalizedEpochDuration(saturday, 275))
 	require.Equal(t, day*8, NormalizedEpochDuration(saturday, 449))
 	require.Equal(t, day*10, NormalizedEpochDuration(saturday, 1158))
-	require.Equal(t, day*21, NormalizedEpochDuration(saturday, 9441))
+	require.Equal(t, day*15, NormalizedEpochDuration(saturday, 3306))
 	require.Equal(t, day*21, NormalizedEpochDuration(saturday, 24284))
 	require.Equal(t, day*21, NormalizedEpochDuration(saturday, 34700))
 	require.Equal(t, day*28, NormalizedEpochDuration(saturday, 34701))

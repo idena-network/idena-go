@@ -1,15 +1,17 @@
 package env
 
+import "github.com/idena-network/idena-go/common"
+
 type Map struct {
 	env    Env
 	prefix []byte
 	ctx    CallContext
 }
 
-// prefix length should be <=31 or prefix will be truncated
+// prefix length should be less common.MaxContractStoreKeyLength or prefix will be truncated
 func NewMap(prefix []byte, env Env, ctx CallContext) *Map {
-	if len(prefix) >= maxEnvKeyLength {
-		prefix = prefix[:30]
+	if len(prefix) >= common.MaxContractStoreKeyLength {
+		prefix = prefix[:common.MaxContractStoreKeyLength-2]
 	}
 	return &Map{prefix: prefix, env: env, ctx: ctx}
 }
@@ -31,10 +33,9 @@ func (m *Map) Remove(key []byte) {
 }
 
 func (m *Map) Iterate(f func(key []byte, value []byte) bool) {
-	emptySlice := make([]byte, maxEnvKeyLength-len(m.prefix))
-	minKey := append(m.prefix, emptySlice...)
-	maxKey := m.prefix
-	for i := 0; i < maxEnvKeyLength; i++ {
+	minKey := append(m.prefix[:0:0], m.prefix...)
+	maxKey := append(m.prefix[:0:0], m.prefix...)
+	for i := len(m.prefix); i < common.MaxContractStoreKeyLength; i++ {
 		maxKey = append(maxKey, 0xFF)
 	}
 

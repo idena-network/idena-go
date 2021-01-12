@@ -1,33 +1,36 @@
 package embedded
 
 import (
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
+	"math/big"
 )
 
 type TimeLock struct {
 	*BaseContract
 }
 
-func NewTimeLock(ctx env.CallContext, env env.Env) *TimeLock {
+func NewTimeLock(ctx env.CallContext, env env.Env, statsCollector collector.StatsCollector) *TimeLock {
 	return &TimeLock{
 		&BaseContract{
-			ctx: ctx,
-			env: env,
+			ctx:            ctx,
+			env:            env,
+			statsCollector: statsCollector,
 		},
 	}
 }
 
 func (t *TimeLock) Deploy(args ...[]byte) error {
-	if time, err := helpers.ExtractUInt64(0, args...); err != nil {
+	time, err := helpers.ExtractUInt64(0, args...)
+	if err != nil {
 		return err
-	} else {
-		t.SetUint64("timestamp", time)
 	}
-
-	t.BaseContract.Deploy(TimeLockContract)
+	t.SetUint64("timestamp", time)
 	t.SetOwner(t.ctx.Sender())
+	collector.AddTimeLockDeploy(t.statsCollector, t.ctx.ContractAddr(), time)
 	return nil
 }
 
@@ -64,24 +67,29 @@ func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	if err := t.env.Send(t.ctx, dest, amount); err != nil {
 		return err
 	}
+	collector.AddTimeLockCallTransfer(t.statsCollector, dest, amount)
 	return nil
 }
 
-func (t *TimeLock) Terminate(args ...[]byte) error {
+func (t *TimeLock) Terminate(args ...[]byte) (common.Address, error) {
 	if !t.IsOwner() {
-		return errors.New("sender is not an owner")
+		return common.Address{}, errors.New("sender is not an owner")
 	}
 	if uint64(t.env.BlockTimeStamp()) < t.GetUint64("timestamp") {
-		return errors.New("terminate is locked")
+		return common.Address{}, errors.New("terminate is locked")
 	}
 	balance := t.env.Balance(t.ctx.ContractAddr())
+	dust := big.NewInt(0).Mul(t.env.MinFeePerGas(), big.NewInt(100))
+	if balance.Cmp(dust) > 0 {
+		return common.Address{}, errors.New("contract has dna")
+	}
 	if balance.Sign() > 0 {
-		return errors.New("contract has dna")
+		t.env.BurnAll(t.ctx)
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	t.env.Terminate(t.ctx, dest)
-	return nil
+	collector.AddTimeLockTermination(t.statsCollector, dest)
+	return dest, nil
 }
