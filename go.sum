@@ -428,6 +428,7 @@ github.com/ipfs/bbloom v0.0.4/go.mod h1:cS9YprKXpoZ9lT0n/Mw/a6/aFV6DTjTLYHeA+gyq
 github.com/ipfs/fs-repo-migrations v1.6.4 h1:6eYiCIZz/Oh0FfnCmrl8BAc65v5XbhmE+lFQg4hDzRQ=
 github.com/ipfs/fs-repo-migrations v1.6.4 h1:6eYiCIZz/Oh0FfnCmrl8BAc65v5XbhmE+lFQg4hDzRQ=
 github.com/ipfs/fs-repo-migrations v1.6.4/go.mod h1:SIcVc10SBVJDcBfN8sCbREmH0Q1+SWUzgGLInbH+dMQ=
+github.com/ipfs/fs-repo-migrations v1.7.0/go.mod h1:AQI+fJEXvPeJg+DMqwEmt7SMGR9nHLnXuEb0kt479ZE=
 github.com/ipfs/go-bitswap v0.0.3/go.mod h1:jadAZYsP/tcRMl47ZhFxhaNuDQoXawT8iHMg+iFoQbg=
 github.com/ipfs/go-bitswap v0.0.9/go.mod h1:kAPf5qgn2W2DrgAcscZ3HrM9qh4pH+X8Fkk3UPrwvis=
 github.com/ipfs/go-bitswap v0.1.0 h1:28YsHYw9ut6wootnImPXH0WpnU5Dbo3qm6cvQ6e6wYY=
