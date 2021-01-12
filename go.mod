@@ -46,7 +46,7 @@ require (
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/stretchr/testify v1.6.1
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
-	github.com/tendermint/tm-db v0.6.2
+	github.com/tendermint/tm-db v0.6.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/cli v1.22.5
 	github.com/whyrusleeping/go-logging v0.0.1
