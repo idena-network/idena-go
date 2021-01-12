@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -487,4 +488,29 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 	}
 
 	return result
+}
+
+func (api *FlipApi) WordPairs(addr common.Address, vrfHash hexutil.Bytes) []FlipWords {
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
+	var hash [32]byte
+	copy(hash[:], vrfHash[:])
+
+	wordPairs := ceremony.GeneratePairsFromVrfHash(hash, common.WordDictionarySize, identity.GetTotalWordPairsCount())
+
+	usedPairs := mapset.NewSet()
+	for _, v := range identity.Flips {
+		usedPairs.Add(v.Pair)
+	}
+
+	var convertedFlipKeyWordPairs []FlipWords
+	for i := 0; i < len(wordPairs)/2; i++ {
+		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
+			FlipWords{
+				Words: [2]uint32{uint32(wordPairs[i*2]), uint32(wordPairs[i*2+1])},
+				Used:  usedPairs.Contains(uint8(i)),
+				Id:    i,
+			})
+	}
+
+	return convertedFlipKeyWordPairs
 }

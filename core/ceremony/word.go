@@ -8,8 +8,7 @@ import (
 	"math/rand"
 )
 
-func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
-	hash, p := vc.secStore.VrfEvaluate(seed)
+func GeneratePairsFromVrfHash(hash [32]byte, dictionarySize, pairCount int) (nums []int) {
 	rnd := rand.New(rand.NewSource(int64(getWordsRnd(hash))))
 	pairs := mapset.NewSet()
 	for i := 0; i < pairCount; i++ {
@@ -17,6 +16,12 @@ func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCou
 		num1, num2 = nextPair(rnd, dictionarySize, pairCount, pairs)
 		nums = append(nums, num1, num2)
 	}
+	return nums
+}
+
+func (vc *ValidationCeremony) GeneratePairs(seed []byte, dictionarySize, pairCount int) (nums []int, proof []byte) {
+	hash, p := vc.secStore.VrfEvaluate(seed)
+	nums = GeneratePairsFromVrfHash(hash, dictionarySize, pairCount)
 	return nums, p
 }
 
