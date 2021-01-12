@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const TargetVersion = config.ConsensusV2
+const TargetVersion = config.ConsensusV3
 
 type Upgrader struct {
 	config    *config.Config
@@ -59,6 +59,9 @@ func (u *Upgrader) startListening() {
 }
 
 func (u *Upgrader) Target() config.ConsensusVerson {
+	if u.config.Consensus.Version < TargetVersion {
+		return u.config.Consensus.Version + 1
+	}
 	return TargetVersion
 }
 
@@ -141,7 +144,9 @@ func (u *Upgrader) restore() {
 func (u *Upgrader) UpgradeConfigTo(ver uint32) (prev *config.ConsensusConf) {
 	if ver > 0 && ver > uint32(u.config.Consensus.Version) {
 		prevVersion := *u.config.Consensus
-		config.ApplyConsensusVersion(config.ConsensusVerson(ver), u.config.Consensus)
+		for v := u.config.Consensus.Version + 1; v <= config.ConsensusVerson(ver); v++ {
+			config.ApplyConsensusVersion(v, u.config.Consensus)
+		}
 		log.Info("Consensus config transformed to", "ver", ver)
 		return &prevVersion
 	}

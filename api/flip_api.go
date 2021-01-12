@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -151,7 +152,7 @@ type FlipHashesResponse struct {
 }
 
 func (api *FlipApi) isCeremonyCandidate(addr common.Address) bool {
-	identity := api.baseApi.getAppState().State.GetIdentity(addr)
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
 	return state.IsCeremonyCandidate(identity)
 }
 
@@ -168,7 +169,7 @@ func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, err
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
@@ -196,7 +197,7 @@ func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, erro
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
@@ -487,4 +488,29 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 	}
 
 	return result
+}
+
+func (api *FlipApi) WordPairs(addr common.Address, vrfHash hexutil.Bytes) []FlipWords {
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
+	var hash [32]byte
+	copy(hash[:], vrfHash[:])
+
+	wordPairs := ceremony.GeneratePairsFromVrfHash(hash, common.WordDictionarySize, identity.GetTotalWordPairsCount())
+
+	usedPairs := mapset.NewSet()
+	for _, v := range identity.Flips {
+		usedPairs.Add(v.Pair)
+	}
+
+	var convertedFlipKeyWordPairs []FlipWords
+	for i := 0; i < len(wordPairs)/2; i++ {
+		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
+			FlipWords{
+				Words: [2]uint32{uint32(wordPairs[i*2]), uint32(wordPairs[i*2+1])},
+				Used:  usedPairs.Contains(uint8(i)),
+				Id:    i,
+			})
+	}
+
+	return convertedFlipKeyWordPairs
 }

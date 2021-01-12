@@ -37,6 +37,8 @@ const (
 	AddressLength = 20
 
 	Hash128Length = 16
+
+	MaxContractStoreKeyLength = 32
 )
 
 var (
