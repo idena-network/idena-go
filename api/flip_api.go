@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -41,6 +42,44 @@ type FlipSubmitArgs struct {
 	PairId     uint8          `json:"pairId"`
 }
 
+type RawFlipSubmitArgs struct {
+	Tx                  *hexutil.Bytes `json:"tx"`
+	EncryptedPublicHex  *hexutil.Bytes `json:"encryptedPublicHex"`
+	EncryptedPrivateHex *hexutil.Bytes `json:"encryptedPrivateHex"`
+}
+
+func (api *FlipApi) RawSubmit(args RawFlipSubmitArgs) (FlipSubmitResponse, error) {
+	if args.EncryptedPublicHex == nil || args.EncryptedPrivateHex == nil || args.Tx == nil {
+		return FlipSubmitResponse{}, errors.New("all fields are required")
+	}
+
+	encPublicPart := *args.EncryptedPublicHex
+	encPrivatePart := *args.EncryptedPrivateHex
+
+	tx := new(types.Transaction)
+	err := tx.FromBytes(*args.Tx)
+	if err != nil {
+		return FlipSubmitResponse{}, err
+	}
+
+	flip := &types.Flip{
+		Tx:          tx,
+		PublicPart:  encPublicPart,
+		PrivatePart: encPrivatePart,
+	}
+
+	if err := api.fp.AddNewFlip(flip, true); err != nil {
+		return FlipSubmitResponse{}, err
+	}
+
+	sender, _ := types.Sender(tx)
+	log.Info("Raw flip submitted", "hash", tx.Hash().Hex(), "sender", sender.Hex())
+
+	return FlipSubmitResponse{
+		TxHash: tx.Hash(),
+	}, nil
+}
+
 func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.Hex == nil && args.PublicHex == nil {
 		return FlipSubmitResponse{}, errors.New("flip is empty")
@@ -55,7 +94,6 @@ func (api *FlipApi) Submit(args FlipSubmitArgs) (FlipSubmitResponse, error) {
 	if args.PrivateHex != nil {
 		rawPrivatePart = *args.PrivateHex
 	}
-
 	cid, encryptedPublicPart, encryptedPrivatePart, err := api.fp.PrepareFlip(rawPublicPart, rawPrivatePart)
 
 	if err != nil {
@@ -114,7 +152,7 @@ type FlipHashesResponse struct {
 }
 
 func (api *FlipApi) isCeremonyCandidate(addr common.Address) bool {
-	identity := api.baseApi.getAppState().State.GetIdentity(addr)
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
 	return state.IsCeremonyCandidate(identity)
 }
 
@@ -131,7 +169,7 @@ func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, err
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
@@ -159,7 +197,7 @@ func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, erro
 		address = coinbase
 	}
 
-	period := api.baseApi.getAppState().State.ValidationPeriod()
+	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
@@ -450,4 +488,29 @@ func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.A
 	}
 
 	return result
+}
+
+func (api *FlipApi) WordPairs(addr common.Address, vrfHash hexutil.Bytes) []FlipWords {
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(addr)
+	var hash [32]byte
+	copy(hash[:], vrfHash[:])
+
+	wordPairs := ceremony.GeneratePairsFromVrfHash(hash, common.WordDictionarySize, identity.GetTotalWordPairsCount())
+
+	usedPairs := mapset.NewSet()
+	for _, v := range identity.Flips {
+		usedPairs.Add(v.Pair)
+	}
+
+	var convertedFlipKeyWordPairs []FlipWords
+	for i := 0; i < len(wordPairs)/2; i++ {
+		convertedFlipKeyWordPairs = append(convertedFlipKeyWordPairs,
+			FlipWords{
+				Words: [2]uint32{uint32(wordPairs[i*2]), uint32(wordPairs[i*2+1])},
+				Used:  usedPairs.Contains(uint8(i)),
+				Id:    i,
+			})
+	}
+
+	return convertedFlipKeyWordPairs
 }

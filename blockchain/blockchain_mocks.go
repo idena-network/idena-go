@@ -56,7 +56,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 		}
 	}
 
-	txPool := mempool.NewTxPool(appState, bus, cfg.Mempool)
+	txPool := mempool.NewTxPool(appState, bus, cfg.Mempool, collector.NewStatsCollector())
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")
@@ -108,7 +108,7 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	if cfg.OfflineDetection == nil {
 		cfg.OfflineDetection = config.GetDefaultOfflineDetectionConfig()
 	}
-	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig())
+	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), collector.NewStatsCollector())
 	offline := NewOfflineDetector(cfg, db, appState, secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")
@@ -152,7 +152,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 		Blockchain:       &config.BlockchainConfig{},
 		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
 	}
-	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig())
+	txPool := mempool.NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), collector.NewStatsCollector())
 	offline := NewOfflineDetector(cfg, db, appState, chain.secStore, bus)
 	keyStore := keystore.NewKeyStore("./testdata", keystore.StandardScryptN, keystore.StandardScryptP)
 	subManager, _ := subscriptions.NewManager("./testdata2")

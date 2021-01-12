@@ -27,7 +27,7 @@ require (
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
-	github.com/klauspost/compress v1.11.3
+	github.com/klauspost/compress v1.11.4
 	github.com/libp2p/go-libp2p-core v0.6.1
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/libp2p/go-sockaddr v0.1.0 // indirect
@@ -46,7 +46,7 @@ require (
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/stretchr/testify v1.6.1
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
-	github.com/tendermint/tm-db v0.6.2
+	github.com/tendermint/tm-db v0.6.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/cli v1.22.5
 	github.com/whyrusleeping/go-logging v0.0.1

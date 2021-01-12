@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -209,8 +210,23 @@ func (m *ConnManager) CanAcceptStream() bool {
 	return len(m.inboundPeers) < m.cfg.MaxInboundPeers
 }
 
+func (m *ConnManager) MaxOutboundPeers() int {
+	inBoundPeers := len(m.inboundPeers)
+	maxOutbound := m.cfg.MaxOutboundPeers
+	if inBoundPeers >= 4 && inBoundPeers <= 6 {
+		maxOutbound = 4
+	}
+	if inBoundPeers >= 7 && inBoundPeers <= 9 {
+		maxOutbound = 3
+	}
+	if inBoundPeers >= 10 {
+		maxOutbound = 2
+	}
+	return math.MinInt(maxOutbound, m.cfg.MaxOutboundPeers)
+}
+
 func (m *ConnManager) CanDial() bool {
-	return len(m.outboundPeers) < m.cfg.MaxOutboundPeers
+	return len(m.outboundPeers) < m.MaxOutboundPeers()
 }
 
 func (m *ConnManager) GetRandomInboundPeer() peer.ID {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common/eventbus"
 	util "github.com/idena-network/idena-go/common/ulimit"
 	"github.com/idena-network/idena-go/config"
@@ -153,7 +154,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	if err != nil {
 		return nil, err
 	}
-
+	validation.SetAppConfig(config)
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
 	appState := appstate.NewAppState(db, bus)
@@ -164,7 +165,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 
 	votes := pengings.NewVotes(appState, bus, offlineDetector, upgrader)
 
-	txpool := mempool.NewTxPool(appState, bus, config.Mempool)
+	txpool := mempool.NewTxPool(appState, bus, config.Mempool, statsCollector)
 	flipKeyPool := mempool.NewKeysPool(db, appState, bus, secStore)
 
 	subManager, err := subscriptions.NewManager(config.DataDir)

@@ -56,7 +56,7 @@ type Balance struct {
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
-	state := api.baseApi.getAppState()
+	state := api.baseApi.getReadonlyAppState()
 	currentEpoch := state.State.Epoch()
 	nonce, epoch := state.State.GetNonce(address), state.State.GetEpoch(address)
 	if epoch < currentEpoch {
@@ -91,8 +91,8 @@ type SendInviteArgs struct {
 }
 
 type ActivateInviteArgs struct {
-	Key string          `json:"key"`
-	To  *common.Address `json:"to"`
+	Key    string         `json:"key"`
+	PubKey *hexutil.Bytes `json:"pubKey"`
 	BaseTxArgs
 }
 
@@ -144,13 +144,18 @@ func (api *DnaApi) ActivateInvite(ctx context.Context, args ActivateInviteArgs) 
 		}
 		from = crypto.PubkeyToAddress(key.PublicKey)
 	}
-	payload := api.baseApi.secStore.GetPubKey()
-	to := args.To
-	if to == nil {
-		coinbase := api.baseApi.getCurrentCoinbase()
-		to = &coinbase
+
+	var pubKey []byte
+	if args.PubKey != nil {
+		pubKey = *args.PubKey
+	} else {
+		pubKey = api.baseApi.secStore.GetPubKey()
 	}
-	hash, err := api.baseApi.sendTx(ctx, from, to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, payload, key)
+	to, err := crypto.PubKeyBytesToAddress(pubKey)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	hash, err := api.baseApi.sendTx(ctx, from, &to, types.ActivationTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, pubKey, key)
 
 	if err != nil {
 		return common.Hash{}, err
@@ -227,8 +232,8 @@ type Identity struct {
 
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
-	epoch := api.baseApi.getAppState().State.Epoch()
-	api.baseApi.getAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+	epoch := api.baseApi.getReadonlyAppState().State.Epoch()
+	api.baseApi.getReadonlyAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -249,7 +254,7 @@ func (api *DnaApi) Identities() []Identity {
 	})
 
 	for idx := range identities {
-		identities[idx].Online = getIdentityOnlineStatus(api.baseApi.getAppState(), identities[idx].Address)
+		identities[idx].Online = getIdentityOnlineStatus(api.baseApi.getReadonlyAppState(), identities[idx].Address)
 	}
 
 	return identities
@@ -263,8 +268,8 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 	}
 
-	converted := convertIdentity(api.baseApi.getAppState().State.Epoch(), *address, api.baseApi.getAppState().State.GetIdentity(*address), flipKeyWordPairs)
-	converted.Online = getIdentityOnlineStatus(api.baseApi.getAppState(), *address)
+	converted := convertIdentity(api.baseApi.getReadonlyAppState().State.Epoch(), *address, api.baseApi.getReadonlyAppState().State.GetIdentity(*address), flipKeyWordPairs)
+	converted.Online = getIdentityOnlineStatus(api.baseApi.getReadonlyAppState(), *address)
 	return converted
 }
 
@@ -379,7 +384,7 @@ type Epoch struct {
 }
 
 func (api *DnaApi) Epoch() Epoch {
-	s := api.baseApi.getAppState()
+	s := api.baseApi.getReadonlyAppState()
 	var res string
 	switch s.State.ValidationPeriod() {
 	case state.NonePeriod:
@@ -413,7 +418,7 @@ type CeremonyIntervals struct {
 
 func (api *DnaApi) CeremonyIntervals() CeremonyIntervals {
 	cfg := api.bc.Config()
-	networkSize := api.baseApi.getAppState().ValidatorsCache.NetworkSize()
+	networkSize := api.baseApi.getReadonlyAppState().ValidatorsCache.NetworkSize()
 
 	return CeremonyIntervals{
 		FlipLotteryDuration:  cfg.Validation.GetFlipLotteryDuration().Seconds(),
@@ -514,7 +519,7 @@ func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 		coinbase := api.GetCoinbaseAddr()
 		address = &coinbase
 	}
-	identity := api.baseApi.getAppState().State.GetIdentity(*address)
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(*address)
 	if len(identity.ProfileHash) == 0 {
 		return ProfileResponse{}, nil
 	}
@@ -601,6 +606,6 @@ func (api *DnaApi) IsValidationReady() bool {
 }
 
 func (api *DnaApi) WordsSeed() hexutil.Bytes {
-	seed := api.baseApi.getAppState().State.FlipWordsSeed()
+	seed := api.baseApi.getReadonlyAppState().State.FlipWordsSeed()
 	return seed[:]
 }
