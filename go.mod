@@ -6,7 +6,7 @@ require (
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
 	github.com/coreos/go-semver v0.3.0
-	github.com/cosmos/iavl v0.15.0-rc5
+	github.com/cosmos/iavl v0.15.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/deckarep/golang-set v1.7.1
