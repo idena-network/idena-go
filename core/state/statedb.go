@@ -23,6 +23,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
+	"github.com/pkg/errors"
 	"io"
 	"time"
 
@@ -74,8 +75,12 @@ type StateDB struct {
 	lock sync.Mutex
 }
 
-func NewLazy(db dbm.DB) *StateDB {
-	pdb := dbm.NewPrefixDB(db, StateDbKeys.LoadDbPrefix(db))
+func NewLazy(db dbm.DB) (*StateDB, error) {
+	prefix, err := StateDbKeys.LoadDbPrefix(db)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load db prefix")
+	}
+	pdb := dbm.NewPrefixDB(db, prefix)
 	tree := NewMutableTree(pdb)
 	return &StateDB{
 		original:           db,
@@ -86,7 +91,7 @@ func NewLazy(db dbm.DB) *StateDB {
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {

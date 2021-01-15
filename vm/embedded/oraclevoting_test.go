@@ -76,7 +76,7 @@ func (b *contractTesterBuilder) SetInitialOwnerContractBalance(balance *big.Int)
 func (b *contractTesterBuilder) Build() *contractTester {
 
 	db := dbm.NewMemDB()
-	appState := appstate.NewAppState(db, eventbus.New())
+	appState, _ := appstate.NewAppState(db, eventbus.New())
 
 	appState.State.SetFeePerGas(big.NewInt(1))
 	rnd := rand.New(rand.NewSource(1))
@@ -210,8 +210,7 @@ func (c *configurableOracleVotingDeploy) Deploy() (*oracleVotingCaller, error) {
 	if err := c.contractTester.Deploy(c); err != nil {
 		return nil, err
 	}
-	return &oracleVotingCaller{
-	}, nil
+	return &oracleVotingCaller{}, nil
 }
 
 func (c *contractTester) ConfigureDeploy(deployStake *big.Int) *deployContractSwitch {
@@ -290,7 +289,7 @@ func TestOracleVoting_scenario_0(t *testing.T) {
 
 func TestFactChecking_Call(t *testing.T) {
 	db := dbm.NewMemDB()
-	appState := appstate.NewAppState(db, eventbus.New())
+	appState, _ := appstate.NewAppState(db, eventbus.New())
 
 	initialBalance := common.DnaBase
 

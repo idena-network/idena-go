@@ -26,8 +26,12 @@ type IdentityStateDB struct {
 	lock sync.Mutex
 }
 
-func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
-	pdb := dbm.NewPrefixDB(db, IdentityStateDbKeys.LoadDbPrefix(db, false))
+func NewLazyIdentityState(db dbm.DB) (*IdentityStateDB, error) {
+	prefix, err := IdentityStateDbKeys.LoadDbPrefix(db, false)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load db prefix")
+	}
+	pdb := dbm.NewPrefixDB(db, prefix)
 	tree := NewMutableTree(pdb)
 	return &IdentityStateDB{
 		db:                   pdb,
@@ -36,7 +40,7 @@ func NewLazyIdentityState(db dbm.DB) *IdentityStateDB {
 		stateIdentities:      make(map[common.Address]*stateApprovedIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		log:                  log.New(),
-	}
+	}, nil
 }
 
 func (s *IdentityStateDB) ForCheckWithOverwrite(height uint64) (*IdentityStateDB, error) {
@@ -90,7 +94,11 @@ func (s *IdentityStateDB) Readonly(height uint64) (*IdentityStateDB, error) {
 }
 
 func (s *IdentityStateDB) LoadPreliminary(height uint64) (*IdentityStateDB, error) {
-	pdb := dbm.NewPrefixDB(s.original, IdentityStateDbKeys.LoadDbPrefix(s.original, true))
+	prefix, err := IdentityStateDbKeys.LoadDbPrefix(s.original, true)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load db prefix")
+	}
+	pdb := dbm.NewPrefixDB(s.original, prefix)
 	tree := NewMutableTree(pdb)
 	version, err := tree.Load()
 	if err != nil {
@@ -359,7 +367,10 @@ func (s *IdentityStateDB) SaveForcedVersion(height uint64) error {
 
 func (s *IdentityStateDB) SwitchToPreliminary(height uint64) (batch dbm.Batch, dropDb dbm.DB, err error) {
 
-	prefix := IdentityStateDbKeys.LoadDbPrefix(s.original, true)
+	prefix, err := IdentityStateDbKeys.LoadDbPrefix(s.original, true)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to load db prefix")
+	}
 	if prefix == nil {
 		return nil, nil, errors.New("preliminary prefix is not found")
 	}
@@ -380,8 +391,12 @@ func (s *IdentityStateDB) SwitchToPreliminary(height uint64) (batch dbm.Batch, d
 }
 
 func (s *IdentityStateDB) DropPreliminary() {
-	pdb := dbm.NewPrefixDB(s.original, IdentityStateDbKeys.LoadDbPrefix(s.original, true))
-	common.ClearDb(pdb)
+	if prefix, err := IdentityStateDbKeys.LoadDbPrefix(s.original, true); err != nil {
+		s.log.Error("failed to load db prefix", "err", err)
+	} else {
+		pdb := dbm.NewPrefixDB(s.original, prefix)
+		common.ClearDb(pdb)
+	}
 	b := s.original.NewBatch()
 	IdentityStateDbKeys.SaveDbPrefix(b, []byte{}, true)
 	b.WriteSync()

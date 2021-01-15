@@ -13,7 +13,7 @@ import (
 func TestValidatorsCache_Contains(t *testing.T) {
 	require := require.New(t)
 	database := db.NewMemDB()
-	identityStateDB := state.NewLazyIdentityState(database)
+	identityStateDB, _ := state.NewLazyIdentityState(database)
 
 	m := make(map[common.Address]bool)
 
@@ -48,11 +48,10 @@ func TestValidatorsCache_Contains(t *testing.T) {
 	require.Equal(countAll, vCache.NetworkSize())
 }
 
-
 func TestValidatorsCache_Clone(t *testing.T) {
 	require := require.New(t)
 	database := db.NewMemDB()
-	identityStateDB := state.NewLazyIdentityState(database)
+	identityStateDB, _ := state.NewLazyIdentityState(database)
 
 	m := make(map[common.Address]bool)
 
@@ -79,7 +78,6 @@ func TestValidatorsCache_Clone(t *testing.T) {
 	vCache.Load()
 
 	clone := vCache.Clone()
-
 
 	require.Equal(vCache.height, clone.height)
 	require.Equal(vCache.god, clone.god)
