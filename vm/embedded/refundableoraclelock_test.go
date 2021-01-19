@@ -25,7 +25,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	failAddr := common.Address{0x3}
 
 	db := dbm.NewMemDB()
-	appState := appstate.NewAppState(db, eventbus.New())
+	appState, _ := appstate.NewAppState(db, eventbus.New())
 
 	appState.State.DeployContract(oraceVotingAddr, OracleVotingContract, common.DnaBase)
 

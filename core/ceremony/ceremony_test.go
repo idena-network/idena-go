@@ -304,7 +304,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
 
-	cfg =  config.ConsensusVersions[config.ConsensusV2]
+	cfg = config.ConsensusVersions[config.ConsensusV2]
 	cases = []data{
 		{
 			state.Human,
@@ -664,7 +664,7 @@ func Test_determineIdentityBirthday(t *testing.T) {
 
 func Test_applyOnState(t *testing.T) {
 	db := dbm.NewMemDB()
-	appstate := appstate.NewAppState(db, eventbus.New())
+	appstate, _ := appstate.NewAppState(db, eventbus.New())
 
 	addr1 := common.Address{0x1}
 

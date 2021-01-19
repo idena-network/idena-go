@@ -46,7 +46,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 	ctx := NewDeployContextImpl(tx, attachment.CodeHash)
 
 	db := db2.NewMemDB()
-	appState := appstate.NewAppState(db, eventbus.New())
+	appState, _ := appstate.NewAppState(db, eventbus.New())
 
 	secStore := secstore.NewSecStore()
 

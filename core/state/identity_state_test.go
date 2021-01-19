@@ -19,8 +19,8 @@ func TestIdentityStateDB_AddDiff(t *testing.T) {
 	database := db.NewMemDB()
 	database2 := db.NewMemDB()
 
-	stateDb := NewLazyIdentityState(database)
-	stateDb2 := NewLazyIdentityState(database2)
+	stateDb, _ := NewLazyIdentityState(database)
+	stateDb2, _ := NewLazyIdentityState(database2)
 
 	diffs := make([]*IdentityStateDiff, 0)
 
@@ -71,8 +71,8 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	require.Error(t, stateDb.Load(101))
 
-	preliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
-	prefix := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
+	preliminaryPrefix, _ := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix, _ := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.NotNil(t, preliminaryPrefix)
 	require.NotNil(t, prefix)
@@ -87,8 +87,8 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	require.True(t, stateDb.HasVersion(100))
 
-	preliminaryPrefix = IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
-	prefix = IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
+	preliminaryPrefix, _ = IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix, _ = IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.Len(t, preliminaryPrefix, 0)
 	require.NotNil(t, prefix)
@@ -97,7 +97,7 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 func createStateDb() *IdentityStateDB {
 
 	database := db.NewMemDB()
-	stateDb := NewLazyIdentityState(database)
+	stateDb, _ := NewLazyIdentityState(database)
 
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 50; j++ {
@@ -120,14 +120,14 @@ func TestIdentityStateDB_SwitchToPreliminary(t *testing.T) {
 
 	root := preliminary.Root()
 
-	prevVreliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prevVreliminaryPrefix, _ := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
 
 	batch, dropDb, err := stateDb.SwitchToPreliminary(150)
 	require.NoError(t, err)
 	batch.WriteSync()
 	common.ClearDb(dropDb)
-	preliminaryPrefix := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
-	prefix := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
+	preliminaryPrefix, _ := IdentityStateDbKeys.LoadDbPrefix(preliminary.original, true)
+	prefix, _ := IdentityStateDbKeys.LoadDbPrefix(stateDb.original, false)
 
 	require.Len(t, preliminaryPrefix, 0)
 	require.NotNil(t, prefix)
