@@ -124,6 +124,7 @@ func main() {
 			}},
 			Package: "blockchain",
 			Output:  "bindata.go",
+			NoCompress: true,
 		})
 		log.Info("Genesis block generated", "height", genesis, "hash", genesisBlock.Hash())
 		return nil

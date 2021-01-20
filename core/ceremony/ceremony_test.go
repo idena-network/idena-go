@@ -269,7 +269,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Human,
 			common.MinShortScore, 0.1, common.MinHumanTotalScore, 24, false,
-			state.Killed, false, false,
+			state.Suspended, false, false,
 		},
 		{
 			state.Human,
@@ -296,16 +296,6 @@ func Test_determineNewIdentityState(t *testing.T) {
 			common.MinShortScore, common.MinLongScore, common.MinHumanTotalScore, 24, false,
 			state.Human, false, false,
 		},
-	}
-
-	require := require.New(t)
-	cfg := config.ConsensusVersions[config.ConsensusV1]
-	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
-	}
-
-	cfg = config.ConsensusVersions[config.ConsensusV2]
-	cases = []data{
 		{
 			state.Human,
 			0, 0, common.MinHumanTotalScore, 24, false,
@@ -318,8 +308,10 @@ func Test_determineNewIdentityState(t *testing.T) {
 			state.Killed, false, false,
 		},
 	}
+
+	require := require.New(t)
 	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(cfg, state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
 }
 
