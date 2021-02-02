@@ -28,10 +28,7 @@ type DerivableList interface {
 	GetBytes(i int) []byte
 }
 
-func DeriveSha(list DerivableList, useIavl bool) common.Hash {
-	if !useIavl {
-		return common.Hash{}
-	}
+func DeriveSha(list DerivableList) common.Hash {
 	tree, _ := iavl.NewMutableTree(db.NewMemDB(), 1024)
 	for i := 0; i < list.Len(); i++ {
 		key := make([]byte, 4)

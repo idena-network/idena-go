@@ -26,7 +26,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 		ParentHash:     chain.Head.Hash(),
 		Time:           time.Now().UTC().Unix(),
 		ProposerPubKey: chain.pubKey,
-		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{}), true),
+		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
 	}
 
 	block := &types.Block{
@@ -396,7 +396,7 @@ func generateBlock(height uint64, txsCount int) *types.Block {
 	}
 	header := &types.ProposedHeader{
 		Height: height,
-		TxHash: types.DeriveSha(types.Transactions(txs), true),
+		TxHash: types.DeriveSha(types.Transactions(txs)),
 	}
 
 	block := &types.Block{

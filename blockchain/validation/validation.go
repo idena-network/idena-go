@@ -98,6 +98,9 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
+		types.DeployContract:       validateDeployContractTx,
+		types.CallContract:         validateCallContractTx,
+		types.TerminateContract:    validateTerminateContractTx,
 	}
 }
 func SetAppConfig(cfg *config.Config) {
@@ -105,18 +108,6 @@ func SetAppConfig(cfg *config.Config) {
 }
 
 func getValidator(txType types.TxType) (validator, bool) {
-	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
-		cfgInitVersion = appCfg.Consensus.Version
-		if appCfg.Consensus.EnableContracts {
-			validators[types.DeployContract] = validateDeployContractTx
-			validators[types.CallContract] = validateCallContractTx
-			validators[types.TerminateContract] = validateTerminateContractTx
-		} else {
-			delete(validators, types.DeployContract)
-			delete(validators, types.CallContract)
-			delete(validators, types.TerminateContract)
-		}
-	}
 	v, ok := validators[txType]
 	return v, ok
 }
