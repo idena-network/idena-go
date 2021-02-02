@@ -31,38 +31,37 @@ const (
 )
 
 var (
-	NodeAlreadyActivated    = errors.New("node is already in validator set")
-	InvalidSignature        = errors.New("invalid signature")
-	InvalidNonce            = errors.New("invalid nonce")
-	InvalidEpoch            = errors.New("invalid epoch")
-	InvalidAmount           = errors.New("invalid amount")
-	InsufficientFunds       = errors.New("insufficient funds")
-	InsufficientInvites     = errors.New("insufficient invites")
-	RecipientRequired       = errors.New("recipient is required")
-	InvitationIsMissing     = errors.New("invitation is missing")
-	EmptyPayload            = errors.New("payload can't be empty")
-	InvalidEpochTx          = errors.New("invalid epoch tx")
-	InvalidPayload          = errors.New("invalid payload")
-	InvalidRecipient        = errors.New("invalid recipient")
-	EarlyTx                 = errors.New("tx can't be accepted due to wrong period")
-	LateTx                  = errors.New("tx can't be accepted due to validation ceremony")
-	NotCandidate            = errors.New("user is not a candidate")
-	NotIdentity             = errors.New("user is not identity")
-	InsufficientFlips       = errors.New("insufficient flips")
-	IsAlreadyOnline         = errors.New("identity is already online or has pending online status")
-	IsAlreadyOffline        = errors.New("identity is already offline or has pending offline status")
-	DuplicatedFlip          = errors.New("duplicated flip")
-	DuplicatedFlipPair      = errors.New("flip with these words already exists")
-	BigFee                  = errors.New("current fee is greater than tx max fee")
-	InvalidMaxFee           = errors.New("invalid max fee")
-	InvalidSender           = errors.New("invalid sender")
-	FlipIsMissing           = errors.New("flip is missing")
-	DuplicatedTx            = errors.New("duplicated tx")
-	NegativeValue           = errors.New("value must be non-negative")
-	SenderHasDelegatee      = errors.New("sender has delegatee already")
-	IdentityShouldBeOffline = errors.New("identity should be offline")
-	SenderHasNoDelegate     = errors.New("sender has not delegatee")
-	PoolIsTooBig            = errors.New("pool is too big")
+	NodeAlreadyActivated = errors.New("node is already in validator set")
+	InvalidSignature     = errors.New("invalid signature")
+	InvalidNonce         = errors.New("invalid nonce")
+	InvalidEpoch         = errors.New("invalid epoch")
+	InvalidAmount        = errors.New("invalid amount")
+	InsufficientFunds    = errors.New("insufficient funds")
+	InsufficientInvites  = errors.New("insufficient invites")
+	RecipientRequired    = errors.New("recipient is required")
+	InvitationIsMissing  = errors.New("invitation is missing")
+	EmptyPayload         = errors.New("payload can't be empty")
+	InvalidEpochTx       = errors.New("invalid epoch tx")
+	InvalidPayload       = errors.New("invalid payload")
+	InvalidRecipient     = errors.New("invalid recipient")
+	EarlyTx              = errors.New("tx can't be accepted due to wrong period")
+	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
+	NotCandidate         = errors.New("user is not a candidate")
+	NotIdentity          = errors.New("user is not identity")
+	InsufficientFlips    = errors.New("insufficient flips")
+	IsAlreadyOnline      = errors.New("identity is already online or has pending online status")
+	IsAlreadyOffline     = errors.New("identity is already offline or has pending offline status")
+	DuplicatedFlip       = errors.New("duplicated flip")
+	DuplicatedFlipPair   = errors.New("flip with these words already exists")
+	BigFee               = errors.New("current fee is greater than tx max fee")
+	InvalidMaxFee        = errors.New("invalid max fee")
+	InvalidSender        = errors.New("invalid sender")
+	FlipIsMissing        = errors.New("flip is missing")
+	DuplicatedTx         = errors.New("duplicated tx")
+	NegativeValue        = errors.New("value must be non-negative")
+	SenderHasDelegatee   = errors.New("sender has delegatee already")
+	SenderHasNoDelegatee = errors.New("sender has no delegatee")
+	PoolIsTooBig         = errors.New("pool is too big")
 
 	validators map[types.TxType]validator
 )
@@ -112,9 +111,20 @@ func init() {
 }
 func SetAppConfig(cfg *config.Config) {
 	appCfg = cfg
+
 }
 
 func getValidator(txType types.TxType) (validator, bool) {
+	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
+		cfgInitVersion = appCfg.Consensus.Version
+		if appCfg.Consensus.EnablePools {
+			validators[types.DelegateTx] = validateDelegateTx
+			validators[types.UndelegateTx] = validateUndelegateTx
+		} else {
+			delete(validators, types.DelegateTx)
+			delete(validators, types.UndelegateTx)
+		}
+	}
 	v, ok := validators[txType]
 	return v, ok
 }
@@ -502,14 +512,19 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-	if !appState.ValidatorsCache.Contains(sender) {
-		return InvalidRecipient
+	if !appState.ValidatorsCache.Contains(sender) && !appState.ValidatorsCache.IsPool(sender) {
+		return InvalidSender
 	}
 
 	attachment := attachments.ParseOnlineStatusAttachment(tx)
 
 	if attachment == nil {
 		return InvalidPayload
+	}
+
+	identity := appState.State.GetIdentity(sender)
+	if identity.Delegatee != nil {
+		return InvalidSender
 	}
 
 	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(sender)
@@ -704,6 +719,10 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return RecipientRequired
 	}
 
+	if sender == *tx.To {
+		return InvalidRecipient
+	}
+
 	if !common.ZeroOrNil(tx.AmountOrZero()) {
 		return InvalidAmount
 	}
@@ -711,17 +730,17 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return LateTx
 	}
 
-	identity := appState.State.GetIdentity(sender)
+	delegatee := appState.IdentityState.Delegatee(sender)
+	delegationSwitch := appState.State.DelegationSwitch(sender)
 
-	if identity.Delegatee != nil {
-		return SenderHasDelegatee
-	}
-
-	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(sender)
-	isOnline := appState.ValidatorsCache.IsOnlineIdentity(sender)
-
-	if isOnline && !hasPendingStatusSwitch || !isOnline && hasPendingStatusSwitch {
-		return IdentityShouldBeOffline
+	if delegatee == nil {
+		if delegationSwitch != nil && !delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasDelegatee
+		}
+	} else {
+		if delegationSwitch == nil || !delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasDelegatee
+		}
 	}
 
 	return nil
@@ -742,13 +761,21 @@ func validateUndelegateTx(appState *appstate.AppState, tx *types.Transaction, tx
 		return LateTx
 	}
 
-	identity := appState.State.GetIdentity(sender)
+	delegatee := appState.IdentityState.Delegatee(sender)
+	delegationSwitch := appState.State.DelegationSwitch(sender)
 
-	if identity.Delegatee == nil {
-		return SenderHasNoDelegate
+	if delegatee != nil {
+		if delegationSwitch != nil && delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasNoDelegatee
+		}
+	} else {
+		if delegationSwitch == nil || delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasNoDelegatee
+		}
 	}
+
 	const maxFamilyPoolSize = 20
-	if appState.ValidatorsCache.PoolSize(*identity.Delegatee) > maxFamilyPoolSize {
+	if delegatee != nil && appState.ValidatorsCache.PoolSize(*delegatee) > maxFamilyPoolSize {
 		return PoolIsTooBig
 	}
 

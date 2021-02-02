@@ -19,6 +19,8 @@ package math
 import (
 	"bytes"
 	"encoding/hex"
+	"github.com/cockroachdb/apd"
+	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
 )
@@ -318,4 +320,83 @@ func TestExp(t *testing.T) {
 func hex2Bytes(str string) []byte {
 	h, _ := hex.DecodeString(str)
 	return h
+}
+
+func TestPow(t *testing.T) {
+
+	cases := []struct {
+		num      float64
+		n        uint64
+		expected float64
+	}{
+		{
+			2, 3, 8,
+		},
+		{
+			7, 0, 1,
+		}, {
+			0, 0, 1,
+		}, {
+			2, 8, 256,
+		}, {
+			17, 17, 827240261886336764177,
+		},
+	}
+
+	for _, c := range cases {
+		r, _ := Pow(big.NewFloat(c.num), c.n).Float64()
+		require.Equal(t, c.expected, r)
+	}
+}
+
+func TestRoot(t *testing.T) {
+	cases := []struct {
+		num      float64
+		n        uint64
+		expected float64
+	}{
+		{
+			8, 3, 2,
+		},
+		{
+			7, 1, 7,
+		}, {
+			256, 8, 2,
+		}, {
+			827240261886336764177, 17, 17,
+		}, {
+			0.9997, 500, 0.99999939991016204992786560777892,
+		}, {
+			0.9997, 1000, 0.999999699955036,
+		},
+		{
+			0.9997, 100000, 0.9999999969995499,
+		}, {
+			0.99999987, 499, 0.9999999997394789410,
+		}, {
+			2, 137, 1.00507228919474226111910,
+		}, {
+			3457395871232236, 43, 2.298085901213781323417130621988,
+		}, {
+			3457395871232236, 2, 58799624.75417879739515291423973129368246,
+		},
+	}
+
+	d := new(apd.Decimal)
+
+	x, _, _ := apd.NewFromString("3457395871232236")
+	y, _, _ := apd.NewFromString(Div(big.NewFloat(1), big.NewFloat(43)).Text('g', 40))
+	c, err := apd.BaseContext.Pow(d, x, y)
+	t.Log(c, err)
+	t.Log(d.String())
+	for _, c := range cases {
+		r, _ := Root(big.NewFloat(c.num), c.n).Float64()
+		require.Equal(t, c.expected, r)
+	}
+}
+
+func Test_apd(t *testing.T) {
+	bytes := hex2Bytes("e812f6d1b756dbcd198d60b92457258ccb28b62e")
+
+	t.Log(string(bytes))
 }

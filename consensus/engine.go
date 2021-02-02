@@ -484,6 +484,8 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
 
+	necessaryVotesCount -= validators.VotesCountSubtrahend()
+
 	for start := time.Now(); time.Since(start) < timeout; {
 		m := engine.votes.GetVotesOfRound(round)
 		if m != nil {
@@ -504,7 +506,7 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
-					if !validators.Contains(vote.VoterAddr()) {
+					if !validators.Addresses.Contains(vote.VoterAddr()) {
 						return true
 					}
 					if vote.Header.Step != step {

@@ -210,3 +210,72 @@ func Exp(base, exponent *big.Int) *big.Int {
 	}
 	return result
 }
+
+func Pow(a *big.Float, exp uint64) *big.Float {
+
+	z := Zero().SetInt64(1)
+	y := Zero().Set(a)
+	// For each loop, we compute a xⁿ where n is a power of two.
+	for exp > 0 {
+		if exp&1 == 1 {
+			// This bit contributes. Multiply it into the result.
+			z.Mul(z, y)
+		}
+		y.Mul(y, y)
+		exp >>= 1
+	}
+	return z
+}
+
+func Abs(a *big.Float) *big.Float {
+	return Zero().Abs(a)
+}
+
+func New(f float64) *big.Float {
+	r := big.NewFloat(f)
+	r.SetPrec(256)
+	return r
+}
+
+func Div(a, b *big.Float) *big.Float {
+	return Zero().Quo(a, b)
+}
+
+func Zero() *big.Float {
+	r := big.NewFloat(0.0)
+	r.SetPrec(256)
+	return r
+}
+
+func Mul(a, b *big.Float) *big.Float {
+	return Zero().Mul(a, b)
+}
+
+func Add(a, b *big.Float) *big.Float {
+	return Zero().Add(a, b)
+}
+
+func Sub(a, b *big.Float) *big.Float {
+	return Zero().Sub(a, b)
+}
+
+func Lesser(x, y *big.Float) bool {
+	return x.Cmp(y) == -1
+}
+
+func Root(a *big.Float, n uint64) *big.Float {
+	limit := Pow(New(2), 128)
+	n1 := n - 1
+	n1f, rn := New(float64(n1)), Div(New(1.0), New(float64(n)))
+	x, x0 := New(1.0), Zero()
+	for {
+
+		A := Mul(a, Pow( Div(New(1.0), x), n1))
+
+		x0, x = x, Mul(rn, Add(Mul(n1f, x), A))
+		if Lesser(Mul(Abs(Sub(x, x0)), limit), x) {
+			break
+		}
+	}
+	return x
+}

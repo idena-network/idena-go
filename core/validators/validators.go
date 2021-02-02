@@ -17,13 +17,17 @@ import (
 
 type ValidatorsCache struct {
 	identityState    *state.IdentityStateDB
-	validOnlineNodes []common.Address
-	nodesSet         mapset.Set
-	onlineNodesSet   mapset.Set
-	log              log.Logger
-	god              common.Address
-	mutex            sync.Mutex
-	height           uint64
+	sortedValidators []common.Address
+
+	pools       map[common.Address][]common.Address
+	delegations map[common.Address]common.Address
+
+	nodesSet       mapset.Set
+	onlineNodesSet mapset.Set
+	log            log.Logger
+	god            common.Address
+	mutex          sync.Mutex
+	height         uint64
 }
 
 func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.Address) *ValidatorsCache {
@@ -33,6 +37,8 @@ func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.
 		onlineNodesSet: mapset.NewSet(),
 		log:            log.New(),
 		god:            godAddress,
+		pools:          map[common.Address][]common.Address{},
+		delegations:    map[common.Address]common.Address{},
 	}
 }
 
@@ -43,21 +49,43 @@ func (v *ValidatorsCache) Load() {
 	v.loadValidNodes()
 }
 
-func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint8, limit int) mapset.Set {
+func (v *ValidatorsCache) replaceByDelegatee(set mapset.Set) (netSet mapset.Set, votePowers map[common.Address]int) {
+	mapped := mapset.NewSet()
+	votePowers = make(map[common.Address]int)
+	for _, item := range set.ToSlice() {
+		addr := item.(common.Address)
+		if d, ok := v.delegations[addr]; ok {
+			mapped.Add(d)
+			votePowers[d] ++
+		} else {
+			mapped.Add(addr)
+		}
+	}
+	// increment votePowers for pools which address is in original set, those pools are approved identities
+	for addr := range votePowers {
+		if set.Contains(addr) {
+			votePowers[addr] ++
+		}
+	}
+	return mapped, votePowers
+}
+
+func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint8, limit int) *StepValidators {
 
 	set := mapset.NewSet()
 	if v.OnlineSize() == 0 {
 		set.Add(v.god)
-		return set
+		return &StepValidators{Original: set, Addresses: set, Size: 1}
 	}
-	if len(v.validOnlineNodes) == limit {
-		for _, n := range v.validOnlineNodes {
+	if len(v.sortedValidators) == limit {
+		for _, n := range v.sortedValidators {
 			set.Add(n)
 		}
-		return set
+		newSet, votePowers := v.replaceByDelegatee(set)
+		return &StepValidators{Original: set, Addresses: newSet, ExtraVotePowers: votePowers, Size: newSet.Cardinality()}
 	}
 
-	if len(v.validOnlineNodes) < limit {
+	if len(v.sortedValidators) < limit {
 		return nil
 	}
 
@@ -65,13 +93,13 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 	randSeed := binary.LittleEndian.Uint64(rndSeed[:])
 	random := rand.New(rand.NewSource(int64(randSeed)))
 
-	indexes := random.Perm(len(v.validOnlineNodes))
+	indexes := random.Perm(len(v.sortedValidators))
 
 	for i := 0; i < limit; i++ {
-		set.Add(v.validOnlineNodes[indexes[i]])
+		set.Add(v.sortedValidators[indexes[i]])
 	}
-
-	return set
+	newSet, votePowers := v.replaceByDelegatee(set)
+	return &StepValidators{Original: set, Addresses: newSet, ExtraVotePowers: votePowers, Size: newSet.Cardinality()}
 }
 
 func (v *ValidatorsCache) NetworkSize() int {
@@ -112,6 +140,8 @@ func (v *ValidatorsCache) loadValidNodes() {
 	v.nodesSet.Clear()
 	v.onlineNodesSet.Clear()
 
+	var delegators []common.Address
+
 	v.identityState.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
@@ -128,13 +158,34 @@ func (v *ValidatorsCache) loadValidNodes() {
 			v.onlineNodesSet.Add(addr)
 			onlineNodes = append(onlineNodes, addr)
 		}
-
-		v.nodesSet.Add(addr)
+		if data.Delegatee != nil {
+			list, ok := v.pools[*data.Delegatee]
+			if !ok {
+				list = []common.Address{}
+				v.pools[*data.Delegatee] = list
+			}
+			addToSortList(list, addr)
+			delegators = append(delegators, addr)
+			v.delegations[addr] = *data.Delegatee
+		}
+		if data.Approved {
+			v.nodesSet.Add(addr)
+		}
 
 		return false
 	})
 
-	v.validOnlineNodes = sortValidNodes(onlineNodes)
+	var validators []common.Address
+	for _, n := range onlineNodes {
+		if v.nodesSet.Contains(n) {
+			validators = append(validators, n)
+		}
+		if delegators, ok := v.pools[n]; ok {
+			validators = append(validators, delegators...)
+		}
+	}
+
+	v.sortedValidators = sortValidNodes(validators)
 	v.height = v.identityState.Version()
 }
 
@@ -147,7 +198,7 @@ func (v *ValidatorsCache) Clone() *ValidatorsCache {
 		identityState:    v.identityState,
 		god:              v.god,
 		log:              v.log,
-		validOnlineNodes: append(v.validOnlineNodes[:0:0], v.validOnlineNodes...),
+		sortedValidators: append(v.sortedValidators[:0:0], v.sortedValidators...),
 		nodesSet:         v.nodesSet.Clone(),
 		onlineNodesSet:   v.onlineNodesSet.Clone(),
 	}
@@ -158,7 +209,34 @@ func (v *ValidatorsCache) Height() uint64 {
 }
 
 func (v *ValidatorsCache) PoolSize(pool common.Address) int {
-	return 0
+	if set, ok := v.pools[pool]; ok {
+		size := len(set)
+		if v.nodesSet.Contains(pool) {
+			size++
+		}
+		return size
+	}
+	return 1
+}
+
+func (v *ValidatorsCache) IsPool(pool common.Address) bool {
+	_, ok := v.pools[pool]
+	return ok
+}
+
+func (v *ValidatorsCache) FindSubIdentity(pool common.Address, nonce uint32) (common.Address, uint32) {
+	set := v.pools[pool]
+	if v.nodesSet.Contains(pool) {
+		set = append([]common.Address{pool}, set...)
+	}
+	if nonce >= uint32(len(set)) {
+		nonce = 0
+	}
+	return set[nonce], nonce + 1
+}
+
+func (v *ValidatorsCache) Delegator(addr common.Address) common.Address {
+	return v.delegations[addr]
 }
 
 func sortValidNodes(nodes []common.Address) []common.Address {
@@ -166,4 +244,32 @@ func sortValidNodes(nodes []common.Address) []common.Address {
 		return bytes.Compare(nodes[i][:], nodes[j][:]) > 0
 	})
 	return nodes
+}
+
+func addToSortList(list []common.Address, e common.Address) {
+	i := sort.Search(len(list), func(i int) bool {
+		return bytes.Compare(list[i].Bytes(), e.Bytes()) > 0
+	})
+	list = append(list, common.Address{})
+	copy(list[i+1:], list[i:])
+	list[i] = e
+}
+
+type StepValidators struct {
+	Original        mapset.Set
+	Addresses       mapset.Set
+	Size            int
+	ExtraVotePowers map[common.Address]int
+}
+
+func (sv *StepValidators) Contains(addr common.Address) bool {
+	return sv.Addresses.Contains(addr)
+}
+
+func (sv *StepValidators) VotesCountSubtrahend() int {
+	sum := 0
+	for _, v := range sv.ExtraVotePowers {
+		sum += v
+	}
+	return sum - len(sv.ExtraVotePowers)
 }
