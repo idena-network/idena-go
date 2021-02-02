@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/binary"
 	"github.com/idena-network/idena-go/common"
+	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 )
 
@@ -33,18 +34,19 @@ var (
 type stateDbKeys struct {
 }
 
-func (s *stateDbKeys) LoadDbPrefix(db dbm.DB) []byte {
-	p, _ := db.Get(currentStateDbPrefixKey)
+func (s *stateDbKeys) LoadDbPrefix(db dbm.DB) ([]byte, error) {
+	p, err := db.Get(currentStateDbPrefixKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get value")
+	}
 	if p == nil {
 		p = s.BuildDbPrefix(0)
 		b := db.NewBatch()
 		s.SaveDbPrefix(b, p)
-		if err := b.WriteSync(); err != nil {
-			panic(err)
-		}
-		return p
+		err := b.WriteSync()
+		return p, errors.Wrap(err, "failed to write value")
 	}
-	return p
+	return p, nil
 }
 
 func (s *stateDbKeys) SaveDbPrefix(b dbm.Batch, prefix []byte) {
@@ -81,20 +83,23 @@ func (s *stateDbKeys) ContractStoreKey(address common.Address, key []byte) []byt
 type identityStateDbPrefix struct {
 }
 
-func (s *identityStateDbPrefix) LoadDbPrefix(db dbm.DB, preliminary bool) []byte {
+func (s *identityStateDbPrefix) LoadDbPrefix(db dbm.DB, preliminary bool) ([]byte, error) {
 	key := currentIdentityStateDbPrefixKey
 	if preliminary {
 		key = preliminaryIdentityStateDbPrefixKey
 	}
-	p, _ := db.Get(key)
+	p, err := db.Get(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get value")
+	}
 	if p == nil {
 		p = s.buildDbPrefix(0)
 		b := db.NewBatch()
 		s.SaveDbPrefix(b, p, preliminary)
-		b.WriteSync()
-		return p
+		err := b.WriteSync()
+		return p, errors.Wrapf(err, "failed to write value")
 	}
-	return p
+	return p, nil
 }
 
 func (s *identityStateDbPrefix) buildDbPrefix(height uint64) []byte {

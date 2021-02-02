@@ -32,7 +32,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	memdb := db.NewMemDB()
 
-	appState := appstate.NewAppState(memdb, eventbus.New())
+	appState, _ := appstate.NewAppState(memdb, eventbus.New())
 
 	appState.Initialize(0)
 

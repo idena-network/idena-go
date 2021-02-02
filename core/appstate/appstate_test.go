@@ -12,7 +12,7 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	db := db2.NewMemDB()
 	bus := eventbus.New()
 
-	appState := NewAppState(db, bus)
+	appState, _ := NewAppState(db, bus)
 
 	addr := common.Address{}
 	addr2 := common.Address{}
@@ -40,7 +40,7 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	err := forCheck.Commit(nil)
 	require.Nil(t, err)
 
-	appState = NewAppState(db, bus)
+	appState, _ = NewAppState(db, bus)
 
 	appState.Initialize(2)
 

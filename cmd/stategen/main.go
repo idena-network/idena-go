@@ -55,7 +55,10 @@ func main() {
 		if head == nil {
 			return errors.New("head is not found")
 		}
-		appState := appstate.NewAppState(db, eventbus.New())
+		appState, err := appstate.NewAppState(db, eventbus.New())
+		if err != nil {
+			return err
+		}
 		appState.Initialize(head.Height())
 
 		snapshot := &models.ProtoPredefinedState{

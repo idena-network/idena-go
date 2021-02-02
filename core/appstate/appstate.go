@@ -19,15 +19,21 @@ type AppState struct {
 	defaultTree     bool
 }
 
-func NewAppState(db dbm.DB, bus eventbus.Bus) *AppState {
-	stateDb := state.NewLazy(db)
-	identityStateDb := state.NewLazyIdentityState(db)
+func NewAppState(db dbm.DB, bus eventbus.Bus) (*AppState, error) {
+	stateDb, err := state.NewLazy(db)
+	if err != nil {
+		return nil, err
+	}
+	identityStateDb, err := state.NewLazyIdentityState(db)
+	if err != nil {
+		return nil, err
+	}
 	return &AppState{
 		State:         stateDb,
 		IdentityState: identityStateDb,
 		EvidenceMap:   NewEvidenceMap(bus),
 		defaultTree:   true,
-	}
+	}, nil
 }
 func (s *AppState) ForCheck(height uint64) (*AppState, error) {
 	st, err := s.State.ForCheck(height)

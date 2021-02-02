@@ -22,7 +22,7 @@ func createDb(name string) *database.BackedMemDb {
 
 func TestStateDB_Version(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	addr := common.Address{}
@@ -40,8 +40,8 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 	db := createDb("CheckForkValidation")
 	db2 := createDb("CheckForkValidation2")
 
-	stateDb := NewLazy(db)
-	stateDb2 := NewLazy(db2)
+	stateDb, _ := NewLazy(db)
+	stateDb2, _ := NewLazy(db2)
 
 	for i := 0; i < 50; i++ {
 		key, _ := crypto.GenerateKey()
@@ -109,7 +109,7 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 
 	require.Equal(stateDb.Root(), forCheck.Root())
 
-	stateDb2 = NewLazy(db2)
+	stateDb2, _ = NewLazy(db2)
 	stateDb2.Load(100)
 	require.Equal(originalHash, stateDb2.Root())
 
@@ -117,7 +117,7 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 
 func TestStateDB_IterateIdentities(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	const accountsCount = 10001
@@ -159,7 +159,7 @@ func TestStateDB_IterateIdentities(t *testing.T) {
 
 func TestStateDB_AddBalance(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 	require.Equal(t, int64(0), stateDb.Version())
 
 	key, _ := crypto.GenerateKey()
@@ -179,7 +179,7 @@ func TestStateDB_AddBalance(t *testing.T) {
 
 func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -197,7 +197,7 @@ func TestStateDB_GetOrNewIdentityObject(t *testing.T) {
 
 func TestStateGlobal_IncEpoch(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	require.Equal(t, uint16(0), stateDb.Epoch())
 
@@ -212,7 +212,7 @@ func TestStateGlobal_IncEpoch(t *testing.T) {
 
 func TestStateGlobal_VrfProposerThreshold(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	value := 0.95
 
@@ -226,7 +226,7 @@ func TestStateGlobal_VrfProposerThreshold(t *testing.T) {
 
 func TestStateGlobal_EmptyBlocksRatio(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	for i := 0; i < 15; i++ {
 		stateDb.AddBlockBit(false)
@@ -250,7 +250,7 @@ func TestStateGlobal_EmptyBlocksRatio(t *testing.T) {
 
 func TestStateDB_WriteSnapshot(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	stateDb.AddInvite(common.Address{}, 1)
 	stateDb.AddInvite(common.Address{0x1}, 1)
@@ -267,7 +267,7 @@ func TestStateDB_WriteSnapshot(t *testing.T) {
 func TestStateDB_RecoverSnapshot(t *testing.T) {
 	//arrange
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	prevStateDb := stateDb.db
 
@@ -301,7 +301,7 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	stateDb.AddInvite(common.Address{}, 2)
 
 	stateDb.Commit(true)
-	stateDb = NewLazy(database)
+	stateDb, _ = NewLazy(database)
 	stateDb.Load(3)
 	stateDb.tree.Hash()
 
@@ -351,7 +351,7 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 }
 func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	addr := common.Address{0x1}
 	stateDb.SetValidationTxBit(addr, types.SubmitAnswersHashTx)
@@ -402,7 +402,7 @@ func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
 
 func TestStateDB_GetContractValue(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	addr := common.Address{0x1}
 
@@ -420,7 +420,7 @@ func TestStateDB_GetContractValue(t *testing.T) {
 
 func TestStateDB_IterateContractStore(t *testing.T) {
 	database := db.NewMemDB()
-	stateDb := NewLazy(database)
+	stateDb, _ := NewLazy(database)
 
 	stateDb.SetBalance(common.Address{0x1}, common.DnaBase)
 	stateDb.SetFeePerGas(common.DnaBase)

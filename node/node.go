@@ -157,7 +157,11 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	validation.SetAppConfig(config)
 	keyStore := keystore.NewKeyStore(keyStoreDir, keystore.StandardScryptN, keystore.StandardScryptP)
 	secStore := secstore.NewSecStore()
-	appState := appstate.NewAppState(db, bus)
+
+	appState, err := appstate.NewAppState(db, bus)
+	if err != nil {
+		return nil, err
+	}
 
 	offlineDetector := blockchain.NewOfflineDetector(config, db, appState, secStore, bus)
 
@@ -235,7 +239,11 @@ func (node *Node) Start() {
 }
 
 func (node *Node) StartWithHeight(height uint64) {
-	node.secStore.AddKey(crypto.FromECDSA(node.config.NodeKey()))
+	if privateKey, err := node.config.NodeKey(); err != nil {
+		node.log.Crit("Cannot initialize node key", "error", err.Error())
+	} else {
+		node.secStore.AddKey(crypto.FromECDSA(privateKey))
+	}
 
 	if changed, value, err := util.ManageFdLimit(); changed {
 		node.log.Info("Set new fd limit", "value", value)

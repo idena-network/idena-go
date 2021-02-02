@@ -163,14 +163,13 @@ func (chain *Blockchain) InitializeChain() error {
 
 		if chain.config.Network == Testnet {
 			predefinedState, err := readPredefinedState()
-			if err != nil {
-				return err
-			}
-			genesisHeight = predefinedState.Block
-
-			bindataGenesis, err := chain.readBindataGenesis()
 			if err == nil {
-				genesisHeight = bindataGenesis.Height()
+				genesisHeight = predefinedState.Block
+			} else {
+				bindataGenesis, err := chain.readBindataGenesis()
+				if err == nil {
+					genesisHeight = bindataGenesis.Height()
+				}
 			}
 		}
 
@@ -180,7 +179,7 @@ func (chain *Blockchain) InitializeChain() error {
 		}
 
 		intermediateGenesisHeight := chain.repo.ReadIntermediateGenesis()
-		if intermediateGenesisHeight == 0 {
+		if intermediateGenesisHeight == 0 || intermediateGenesisHeight == predefinedGenesis.Height() {
 			chain.genesisInfo = &types.GenesisInfo{Genesis: predefinedGenesis}
 		} else {
 			genesis := chain.GetBlockHeaderByHeight(intermediateGenesisHeight)
@@ -1242,7 +1241,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	}
 
 	header.IpfsHash = bodyCidBytes
-	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs), chain.config.Consensus.UseTxHashIavl)
+	header.TxHash = types.DeriveSha(types.Transactions(filteredTxs))
 	header.TxReceiptsCid = receiptsCidBytes
 
 	block := &types.Block{
@@ -1499,7 +1498,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 
 	var txs = types.Transactions(block.Body.Transactions)
 
-	if types.DeriveSha(txs, chain.config.Consensus.UseTxHashIavl) != block.Header.ProposedHeader.TxHash {
+	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
 		return errors.New("txHash is invalid")
 	}
 

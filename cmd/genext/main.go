@@ -54,13 +54,24 @@ func main() {
 
 		genesisBlock := repo.ReadBlockHeader(genesisBlockHash)
 
-		appState := appstate.NewAppState(db, eventbus.New())
+		appState, err := appstate.NewAppState(db, eventbus.New())
+		if err != nil {
+			return err
+		}
 		if err := appState.Initialize(genesis); err != nil {
 			return err
 		}
 
-		stateDb := dbm.NewPrefixDB(db, state.StateDbKeys.LoadDbPrefix(db))
-		identityStateDb := dbm.NewPrefixDB(db, state.IdentityStateDbKeys.LoadDbPrefix(db, false))
+		prefix, err := state.StateDbKeys.LoadDbPrefix(db)
+		if err != nil {
+			return err
+		}
+		stateDb := dbm.NewPrefixDB(db, prefix)
+		prefix, err = state.IdentityStateDbKeys.LoadDbPrefix(db, false)
+		if err != nil {
+			return err
+		}
+		identityStateDb := dbm.NewPrefixDB(db, prefix)
 
 		if err := os.Mkdir("bindata", 0777); err != nil {
 			return err
@@ -113,6 +124,7 @@ func main() {
 			}},
 			Package: "blockchain",
 			Output:  "bindata.go",
+			NoCompress: true,
 		})
 		log.Info("Genesis block generated", "height", genesis, "hash", genesisBlock.Hash())
 		return nil

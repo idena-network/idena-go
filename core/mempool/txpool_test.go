@@ -18,7 +18,7 @@ import (
 
 func TestTxPool_addDeferredTx(t *testing.T) {
 	bus := eventbus.New()
-	appState := appstate.NewAppState(db.NewMemDB(), bus)
+	appState, _ := appstate.NewAppState(db.NewMemDB(), bus)
 
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()
@@ -168,7 +168,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 
 func getPool() *TxPool {
 	bus := eventbus.New()
-	appState := appstate.NewAppState(db.NewMemDB(), bus)
+	appState, _ := appstate.NewAppState(db.NewMemDB(), bus)
 	return NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), collector.NewStatsCollector())
 }
 

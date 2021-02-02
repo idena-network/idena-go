@@ -11,7 +11,7 @@ func TestNonceCache_Set_And_Get_Nonce(t *testing.T) {
 	require := require.New(t)
 
 	db := dbm.NewMemDB()
-	stateDb := NewLazy(db)
+	stateDb, _ := NewLazy(db)
 	stateDb.IncEpoch()
 	epoch := uint16(1)
 

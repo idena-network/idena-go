@@ -47,7 +47,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	db := db.NewMemDB()
 	bus := eventbus.New()
-	appState := appstate.NewAppState(db, bus)
+	appState, _ := appstate.NewAppState(db, bus)
 
 	if withIdentity {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -102,7 +102,7 @@ func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.P
 func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, key *ecdsa.PrivateKey, cfg *config.Config) (*TestBlockchain, *appstate.AppState) {
 	db := db.NewMemDB()
 	bus := eventbus.New()
-	appState := appstate.NewAppState(db, bus)
+	appState, _ := appstate.NewAppState(db, bus)
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
 	if cfg.OfflineDetection == nil {
@@ -137,7 +137,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	for ; it.Valid(); it.Next() {
 		db.Set(it.Key(), it.Value())
 	}
-	appState := appstate.NewAppState(db, bus)
+	appState, _ := appstate.NewAppState(db, bus)
 	consensusCfg := config.GetDefaultConsensusConfig()
 	consensusCfg.Automine = true
 	cfg := &config.Config{
