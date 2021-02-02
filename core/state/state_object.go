@@ -85,6 +85,13 @@ type stateStatusSwitch struct {
 	onDirty func()
 }
 
+type stateDelegationSwitch struct {
+	data DelegationSwitch
+
+	deleted bool
+	onDirty func()
+}
+
 type ValidationPeriod uint32
 
 const (
@@ -96,7 +103,7 @@ const (
 )
 
 type IdentityStatusSwitch struct {
-	Addresses []common.Address `rlp:"nil"`
+	Addresses []common.Address
 }
 
 func (s *IdentityStatusSwitch) ToBytes() ([]byte, error) {
@@ -118,12 +125,48 @@ func (s *IdentityStatusSwitch) FromBytes(data []byte) error {
 	return nil
 }
 
+type Delegation struct {
+	Delegator common.Address
+	Delegatee common.Address
+}
+
+type DelegationSwitch struct {
+	Delegations []*Delegation
+}
+
+func (s *DelegationSwitch) ToBytes() ([]byte, error) {
+	protoObj := new(models.ProtoStateDelegationSwitch)
+	for idx := range s.Delegations {
+		delegation := s.Delegations[idx]
+		protoObj.Delegations = append(protoObj.Delegations, &models.ProtoStateDelegationSwitch_Delegation{
+			Delegator: delegation.Delegator.Bytes(),
+			Delegatee: delegation.Delegatee.Bytes(),
+		})
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (s *DelegationSwitch) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoStateDelegationSwitch)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	for idx := range protoObj.Delegations {
+		delegation := protoObj.Delegations[idx]
+		s.Delegations = append(s.Delegations, &Delegation{
+			Delegator: common.BytesToAddress(delegation.Delegator),
+			Delegatee: common.BytesToAddress(delegation.Delegatee),
+		})
+	}
+	return nil
+}
+
 type Global struct {
 	Epoch                         uint16
 	NextValidationTime            int64
 	ValidationPeriod              ValidationPeriod
 	GodAddress                    common.Address
-	WordsSeed                     types.Seed `rlp:"nil"`
+	WordsSeed                     types.Seed
 	LastSnapshot                  uint64
 	EpochBlock                    uint64
 	FeePerGas                     *big.Int
@@ -142,7 +185,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		WordsSeed:                     s.WordsSeed[:],
 		LastSnapshot:                  s.LastSnapshot,
 		EpochBlock:                    s.EpochBlock,
-		FeePerGas:                    common.BigIntBytesOrNil(s.FeePerGas),
+		FeePerGas:                     common.BigIntBytesOrNil(s.FeePerGas),
 		VrfProposerThreshold:          s.VrfProposerThreshold,
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
 		GodAddressInvites:             uint32(s.GodAddressInvites),
@@ -253,8 +296,8 @@ type Identity struct {
 	ValidationTxsBits    byte
 	LastValidationStatus ValidationStatusFlag
 	Scores               []byte
-
-	Delegatee *common.Address
+	Delegatee            *common.Address
+	DelegationNonce      uint32
 }
 
 type TxAddr struct {
@@ -279,6 +322,9 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		ValidationStatus: uint32(i.LastValidationStatus),
 		ProfileHash:      i.ProfileHash,
 		Scores:           i.Scores,
+	}
+	if i.Delegatee != nil {
+		protoIdentity.Delegatee = i.Delegatee.Bytes()
 	}
 	for idx := range i.Flips {
 		protoIdentity.Flips = append(protoIdentity.Flips, &models.ProtoStateIdentity_Flip{
@@ -342,6 +388,10 @@ func (i *Identity) FromBytes(data []byte) error {
 			Address: common.BytesToAddress(protoIdentity.Inviter.Address),
 		}
 	}
+	if protoIdentity.Delegatee != nil {
+		addr := common.BytesToAddress(protoIdentity.Delegatee)
+		i.Delegatee = &addr
+	}
 
 	return nil
 }
@@ -369,14 +419,18 @@ func (i *Identity) GetMaximumAvailableFlips() uint8 {
 }
 
 type ApprovedIdentity struct {
-	Approved bool
-	Online   bool
+	Approved  bool
+	Online    bool
+	Delegatee *common.Address
 }
 
 func (s *ApprovedIdentity) ToBytes() ([]byte, error) {
 	protoAnswer := &models.ProtoStateApprovedIdentity{
 		Approved: s.Approved,
 		Online:   s.Online,
+	}
+	if s.Delegatee != nil {
+		protoAnswer.Delegatee = s.Delegatee.Bytes()
 	}
 	return proto.Marshal(protoAnswer)
 }
@@ -388,6 +442,10 @@ func (s *ApprovedIdentity) FromBytes(data []byte) error {
 	}
 	s.Approved = protoIdentity.Approved
 	s.Online = protoIdentity.Online
+	if protoIdentity.Delegatee != nil {
+		d := common.BytesToAddress(protoIdentity.Delegatee)
+		s.Delegatee = &d
+	}
 	return nil
 }
 
@@ -424,6 +482,13 @@ func newGlobalObject(data Global, onDirty func()) *stateGlobal {
 
 func newStatusSwitchObject(data IdentityStatusSwitch, onDirty func()) *stateStatusSwitch {
 	return &stateStatusSwitch{
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
+func newDelegationSwitchObject(data DelegationSwitch, onDirty func()) *stateDelegationSwitch {
+	return &stateDelegationSwitch{
 		data:    data,
 		onDirty: onDirty,
 	}
@@ -813,8 +878,13 @@ func (s *stateIdentity) SetDelegatee(delegatee common.Address) {
 	s.touch()
 }
 
-func (s *stateIdentity) RemoveDelegatee(){
+func (s *stateIdentity) RemoveDelegatee() {
 	s.data.Delegatee = nil
+	s.touch()
+}
+
+func (s *stateIdentity) SetDelegationNonce(nonce uint32) {
+	s.data.DelegationNonce = nonce
 	s.touch()
 }
 
@@ -985,7 +1055,7 @@ func (s *stateApprovedIdentity) Online() bool {
 
 // empty returns whether the account is considered empty.
 func (s *stateApprovedIdentity) empty() bool {
-	return !s.data.Approved
+	return !s.data.Approved && !s.data.Online
 }
 
 func (s *stateApprovedIdentity) touch() {
@@ -1002,6 +1072,16 @@ func (s *stateApprovedIdentity) SetState(approved bool) {
 
 func (s *stateApprovedIdentity) SetOnline(online bool) {
 	s.data.Online = online
+	s.touch()
+}
+
+func (s *stateApprovedIdentity) SetDelegatee(delegatee common.Address) {
+	s.data.Delegatee = &delegatee
+	s.touch()
+}
+
+func (s *stateApprovedIdentity) RemoveDelegatee() {
+	s.data.Delegatee = nil
 	s.touch()
 }
 
@@ -1048,6 +1128,39 @@ func (s *stateStatusSwitch) touch() {
 	if s.onDirty != nil {
 		s.onDirty()
 	}
+}
+
+func (s *stateDelegationSwitch) ToggleDelegation(sender common.Address, delegatee common.Address) {
+	defer s.touch()
+	for i := 0; i < len(s.data.Delegations); i++ {
+		if s.data.Delegations[i].Delegator == sender {
+			s.data.Delegations[i].Delegatee = delegatee
+			return
+		}
+	}
+	s.data.Delegations = append(s.data.Delegations, &Delegation{
+		Delegator: sender,
+		Delegatee: delegatee,
+	})
+}
+
+func (s *stateDelegationSwitch) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
+}
+
+func (s *stateDelegationSwitch) Clear() {
+	s.data.Delegations = []*Delegation{}
+	s.touch()
+}
+func (s *stateDelegationSwitch) DelegationSwitch(sender common.Address) *Delegation {
+	for _, d := range s.data.Delegations {
+		if d.Delegator == sender {
+			return d
+		}
+	}
+	return nil
 }
 
 func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {

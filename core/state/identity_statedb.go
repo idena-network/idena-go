@@ -143,6 +143,7 @@ func (s *IdentityStateDB) Add(identity common.Address) {
 
 func (s *IdentityStateDB) Remove(identity common.Address) {
 	s.GetOrNewIdentityObject(identity).SetState(false)
+	s.GetOrNewIdentityObject(identity).SetOnline(false)
 }
 
 // Commit writes the state to the underlying in-memory trie database.
@@ -318,8 +319,24 @@ func (s *IdentityStateDB) IsOnline(addr common.Address) bool {
 	return false
 }
 
+func (s *IdentityStateDB) Delegatee(addr common.Address) *common.Address {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.data.Delegatee
+	}
+	return nil
+}
+
 func (s *IdentityStateDB) SetOnline(addr common.Address, online bool) {
 	s.GetOrNewIdentityObject(addr).SetOnline(online)
+}
+
+func (s *IdentityStateDB) SetDelegatee(addr common.Address, delegatee common.Address) {
+	s.GetOrNewIdentityObject(addr).SetDelegatee(delegatee)
+}
+
+func (s *IdentityStateDB) RemoveDelegatee(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).RemoveDelegatee()
 }
 
 func (s *IdentityStateDB) ResetTo(height uint64) error {
@@ -423,6 +440,10 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedS
 		stateObj := s.GetOrNewIdentityObject(common.BytesToAddress(identity.Address))
 		stateObj.data.Online = false
 		stateObj.data.Approved = identity.Approved
+		if identity.Delegatee != nil {
+			d := common.BytesToAddress(identity.Delegatee)
+			stateObj.data.Delegatee = &d
+		}
 		stateObj.touch()
 	}
 }

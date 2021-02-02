@@ -42,37 +42,33 @@ type ConsensusConf struct {
 	MinBlockDistance                  time.Duration
 	MaxCommitteeSize                  int
 	StatusSwitchRange                 uint64
+	DelegationSwitchRange             uint64
 	InvitesPercent                    float32
 	MinProposerThreshold              float64
 	UpgradeIntervalBeforeValidation   time.Duration
-	HumanCanFailLongSession           bool
-	UseTxHashIavl                     bool
-	EnableContracts                   bool
+	EnablePools                       bool
 }
 
 type ConsensusVerson uint16
 
 const (
-	// Base consensus parameters
-	ConsensusV1 ConsensusVerson = 1
-	// Allows human fail long session
-	ConsensusV2 ConsensusVerson = 2
 	// Enables contracts
 	ConsensusV3 ConsensusVerson = 3
+	// Enables pools
+	ConsensusV4 ConsensusVerson = 4
 )
 
 var (
-	v1                ConsensusConf
-	v2                ConsensusConf
 	v3                ConsensusConf
+	v4                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
 func init() {
 	ConsensusVersions = map[ConsensusVerson]*ConsensusConf{
 	}
-	v1 = ConsensusConf{
-		Version:                           ConsensusV1,
+	v3 = ConsensusConf{
+		Version:                           ConsensusV3,
 		MaxSteps:                          150,
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
@@ -102,37 +98,26 @@ func init() {
 		MinBlockDistance:                  time.Second * 20,
 		MaxCommitteeSize:                  100,
 		StatusSwitchRange:                 50,
+		DelegationSwitchRange:             50,
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 	}
-	ConsensusVersions[ConsensusV1] = &v1
-	v2 = v1
-	ApplyConsensusVersion(ConsensusV2, &v2)
-	ConsensusVersions[ConsensusV2] = &v2
-
-	v3 = v2
-	ApplyConsensusVersion(ConsensusV3, &v3)
 	ConsensusVersions[ConsensusV3] = &v3
+
+	v4 = v3
+	ApplyConsensusVersion(ConsensusV4, &v4)
+	ConsensusVersions[ConsensusV4] = &v4
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	switch ver {
-	case ConsensusV2:
-		cfg.HumanCanFailLongSession = true
-		cfg.Version = ConsensusV2
-		cfg.StartActivationDate = time.Date(2020, 11, 4, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2020, 11, 11, 0, 0, 0, 0, time.UTC).Unix()
+	case ConsensusV4:
+		cfg.EnablePools = true
+		cfg.Version = ConsensusV4
+		cfg.StartActivationDate = time.Date(2021, 02, 10, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 02, 17, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = false
-		cfg.UseTxHashIavl = true
-	case ConsensusV3:
-		cfg.EnableContracts = true
-		cfg.Version = ConsensusV3
-		cfg.StartActivationDate = time.Date(2020, 12, 24, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC).Unix()
-		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 

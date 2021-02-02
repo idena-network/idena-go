@@ -81,7 +81,7 @@ func TestValidatorsCache_Clone(t *testing.T) {
 
 	require.Equal(vCache.height, clone.height)
 	require.Equal(vCache.god, clone.god)
-	require.Equal(vCache.validOnlineNodes, clone.validOnlineNodes)
+	require.Equal(vCache.sortedValidators, clone.sortedValidators)
 	require.Equal(vCache.onlineNodesSet, clone.onlineNodesSet)
 	require.Equal(vCache.nodesSet, clone.nodesSet)
 	require.False(vCache.onlineNodesSet == clone.onlineNodesSet)
