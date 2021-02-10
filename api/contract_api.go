@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -385,6 +386,14 @@ func (api *ContractApi) Events(args EventsArgs) interface{} {
 		}
 	}
 	return list
+}
+
+func (api *ContractApi) ReadMap(contract common.Address, mapName string, key hexutil.Bytes, format string) (interface{}, error) {
+	data := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, env.FormatMapKey([]byte(mapName), key))
+	if data == nil {
+		return nil, errors.New("data is nil")
+	}
+	return conversion(format, data)
 }
 
 func conversion(convertTo string, data []byte) (interface{}, error) {
