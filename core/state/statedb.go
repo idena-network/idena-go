@@ -1384,6 +1384,18 @@ func (s *StateDB) SetDelegationNonce(addr common.Address, nonce uint32) {
 	s.GetOrNewIdentityObject(addr).SetDelegationNonce(nonce)
 }
 
+func (s *StateDB) Delegatee(addr common.Address) *common.Address {
+	return s.GetOrNewIdentityObject(addr).Delegatee()
+}
+
+func (s *StateDB) SetDelegationEpoch(addr common.Address, epoch uint16) {
+	s.GetOrNewIdentityObject(addr).SetDelegationEpoch(epoch)
+}
+
+func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
+	return s.GetOrNewIdentityObject(addr).DelegationEpoch()
+}
+
 type readCloser struct {
 	r io.Reader
 }

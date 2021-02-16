@@ -700,9 +700,15 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
+				if identity.Delegatee != nil {
+					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
+				}
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
+				if identity.Delegatee != nil {
+					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
+				}
 			case state.Killed, state.Undefined:
 				removeLinksWithInviterAndInvitees(appState.State, addr)
 				appState.State.SetRequiredFlips(addr, 0)
@@ -865,7 +871,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 
 		penaltySource := addr
 		balanceDest := addr
-		if delegator := appState.ValidatorsCache.Delegator(addr);!delegator.IsEmpty(){
+		if delegator := appState.ValidatorsCache.Delegator(addr); !delegator.IsEmpty() {
 			penaltySource = delegator
 			balanceDest = delegator
 		}
@@ -1041,6 +1047,15 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
 			stateDB.AddInvite(sender, 1)
 		}
+	case types.KillDelegatorTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+		stateDB.SetState(*tx.To, state.Killed)
+		appState.IdentityState.Remove(*tx.To)
+		stake := stateDB.GetStakeBalance(*tx.To)
+		stateDB.SubStake(*tx.To, stake)
+		stateDB.AddBalance(sender, stake)
+
 	case types.SubmitFlipTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -1172,7 +1187,7 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 	appState.State.AddBlockBit(block.IsEmpty())
 	currentThreshold := appState.State.VrfProposerThreshold()
 
-	online := float64(appState.ValidatorsCache.OnlineSize())
+	online := float64(appState.ValidatorsCache.ValidatorsSize())
 	if online == 0 {
 		online = 1
 	}
@@ -1220,6 +1235,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 		} else {
 			appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 			appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
+			appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
 			appState.IdentityState.SetOnline(delegation.Delegator, false)
 		}
 	}
@@ -1647,7 +1663,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 			Signature: signature.Signature,
 		}
 
-		if !validators.Addresses.Contains(vote.VoterAddr()) {
+		if !validators.Contains(vote.VoterAddr()) {
 			return errors.New("invalid voter")
 		}
 		if vote.Header.Round != block.Height() {

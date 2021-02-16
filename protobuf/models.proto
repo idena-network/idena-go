@@ -353,6 +353,8 @@ message ProtoStateIdentity {
     bytes profileHash = 17;
     bytes scores = 18;
     bytes delegatee = 19;
+    uint32 delegationNonce = 20;
+    uint32 delegationEpoch = 21;
 }
 
 message ProtoStateGlobal {
@@ -454,6 +456,8 @@ message ProtoPredefinedState {
         bytes profileHash = 18;
         bytes scores = 19;
         bytes delegatee = 20;
+        uint32 delegationNonce = 21;
+        uint32 delegationEpoch = 22;
     }
 
     message ApprovedIdentity {

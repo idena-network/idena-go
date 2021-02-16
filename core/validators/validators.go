@@ -110,6 +110,10 @@ func (v *ValidatorsCache) OnlineSize() int {
 	return v.onlineNodesSet.Cardinality()
 }
 
+func (v *ValidatorsCache) ValidatorsSize() int {
+	return len(v.sortedValidators)
+}
+
 func (v *ValidatorsCache) Contains(addr common.Address) bool {
 	return v.nodesSet.Contains(addr)
 }

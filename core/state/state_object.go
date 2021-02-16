@@ -298,6 +298,7 @@ type Identity struct {
 	Scores               []byte
 	Delegatee            *common.Address
 	DelegationNonce      uint32
+	DelegationEpoch      uint16
 }
 
 type TxAddr struct {
@@ -322,6 +323,8 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		ValidationStatus: uint32(i.LastValidationStatus),
 		ProfileHash:      i.ProfileHash,
 		Scores:           i.Scores,
+		DelegationNonce:  i.DelegationNonce,
+		DelegationEpoch:  uint32(i.DelegationEpoch),
 	}
 	if i.Delegatee != nil {
 		protoIdentity.Delegatee = i.Delegatee.Bytes()
@@ -367,7 +370,8 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.LastValidationStatus = ValidationStatusFlag(protoIdentity.ValidationStatus)
 	i.ProfileHash = protoIdentity.ProfileHash
 	i.Scores = protoIdentity.Scores
-
+	i.DelegationEpoch = uint16(protoIdentity.DelegationEpoch)
+	i.DelegationNonce = protoIdentity.DelegationNonce
 	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
 			Cid:  protoIdentity.Flips[idx].Cid,
@@ -886,6 +890,19 @@ func (s *stateIdentity) RemoveDelegatee() {
 func (s *stateIdentity) SetDelegationNonce(nonce uint32) {
 	s.data.DelegationNonce = nonce
 	s.touch()
+}
+
+func (s *stateIdentity) Delegatee() *common.Address {
+	return s.data.Delegatee
+}
+
+func (s *stateIdentity) SetDelegationEpoch(epoch uint16) {
+	s.data.DelegationEpoch = epoch
+	s.touch()
+}
+
+func (s *stateIdentity) DelegationEpoch() uint16 {
+	return s.data.DelegationEpoch
 }
 
 func (s *stateGlobal) Epoch() uint16 {
