@@ -96,6 +96,16 @@ type ActivateInviteArgs struct {
 	BaseTxArgs
 }
 
+type DelegateTxArgs struct {
+	To *common.Address `json:"to"`
+	BaseTxArgs
+}
+
+type KillDelegatorTxArgs struct {
+	To *common.Address `json:"to"`
+	BaseTxArgs
+}
+
 type Invite struct {
 	Hash     common.Hash    `json:"hash"`
 	Receiver common.Address `json:"receiver"`
@@ -183,6 +193,37 @@ func (api *DnaApi) BecomeOffline(ctx context.Context, args BaseTxArgs) (common.H
 		return common.Hash{}, err
 	}
 
+	return hash, nil
+}
+
+func (api *DnaApi) Delegate(ctx context.Context, args DelegateTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, args.To, types.DelegateTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
+func (api *DnaApi) Undelegate(ctx context.Context, args BaseTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.UndelegateTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return hash, nil
+}
+
+func (api *DnaApi) KillDelegator(ctx context.Context, args KillDelegatorTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, args.To, types.KillDelegatorTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
 	return hash, nil
 }
 
