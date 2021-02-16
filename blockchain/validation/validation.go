@@ -61,7 +61,7 @@ var (
 	NegativeValue        = errors.New("value must be non-negative")
 	SenderHasDelegatee   = errors.New("sender has delegatee already")
 	SenderHasNoDelegatee = errors.New("sender has no delegatee")
-	PoolIsTooBig         = errors.New("pool is too big")
+	WrongEpoch           = errors.New("wrong epoch")
 
 	validators map[types.TxType]validator
 )
@@ -120,9 +120,11 @@ func getValidator(txType types.TxType) (validator, bool) {
 		if appCfg.Consensus.EnablePools {
 			validators[types.DelegateTx] = validateDelegateTx
 			validators[types.UndelegateTx] = validateUndelegateTx
+			validators[types.KillDelegatorTx] = validateKillDelegatorTx
 		} else {
 			delete(validators, types.DelegateTx)
 			delete(validators, types.UndelegateTx)
+			delete(validators, types.KillDelegatorTx)
 		}
 	}
 	v, ok := validators[txType]
@@ -730,7 +732,11 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return LateTx
 	}
 
-	delegatee := appState.IdentityState.Delegatee(sender)
+	if appState.ValidatorsCache.IsPool(sender) {
+		return InvalidSender
+	}
+
+	delegatee := appState.State.Delegatee(sender)
 	delegationSwitch := appState.State.DelegationSwitch(sender)
 
 	if delegatee == nil {
@@ -761,7 +767,7 @@ func validateUndelegateTx(appState *appstate.AppState, tx *types.Transaction, tx
 		return LateTx
 	}
 
-	delegatee := appState.IdentityState.Delegatee(sender)
+	delegatee := appState.State.Delegatee(sender)
 	delegationSwitch := appState.State.DelegationSwitch(sender)
 
 	if delegatee != nil {
@@ -774,10 +780,29 @@ func validateUndelegateTx(appState *appstate.AppState, tx *types.Transaction, tx
 		}
 	}
 
-	const maxFamilyPoolSize = 20
-	if delegatee != nil && appState.ValidatorsCache.PoolSize(*delegatee) > maxFamilyPoolSize {
-		return PoolIsTooBig
+	if appState.State.DelegationEpoch(sender) == appState.State.Epoch() {
+		return WrongEpoch
 	}
 
+	return nil
+}
+
+func validateKillDelegatorTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+	delegatee := appState.State.Delegatee(*tx.To)
+	if delegatee == nil || *delegatee != sender {
+		return InvalidSender
+	}
 	return nil
 }
