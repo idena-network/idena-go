@@ -20,15 +20,15 @@ require (
 	github.com/ipfs/fs-repo-migrations v1.6.4
 	github.com/ipfs/go-blockservice v0.1.4
 	github.com/ipfs/go-cid v0.0.7
-	github.com/ipfs/go-ipfs v0.7.0
-	github.com/ipfs/go-ipfs-config v0.10.0
+	github.com/ipfs/go-ipfs v0.8.0
+	github.com/ipfs/go-ipfs-config v0.12.0
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
 	github.com/klauspost/compress v1.11.7
-	github.com/libp2p/go-libp2p-core v0.6.1
+	github.com/libp2p/go-libp2p-core v0.8.0
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/libp2p/go-sockaddr v0.1.0 // indirect
 	github.com/libp2p/go-yamux v1.4.1
@@ -46,7 +46,7 @@ require (
 	github.com/rjeczalik/notify v0.9.2
 	github.com/rs/cors v1.7.0
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	github.com/tendermint/tm-db v0.6.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
@@ -54,9 +54,9 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
-	golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211
+	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
+	golang.org/x/net v0.0.0-20201021035429-f5854403a974
+	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
