@@ -465,10 +465,10 @@ func (chain *Blockchain) applyBlockAndTxsOnState(
 
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
-	chain.applyNewEpoch(appState, block, statsCollector)
-	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
 	chain.applyStatusSwitch(appState, block)
 	chain.applyDelegationSwitch(appState, block)
+	chain.applyNewEpoch(appState, block, statsCollector)
+	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyNextBlockFee(appState, block, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)

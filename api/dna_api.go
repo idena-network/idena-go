@@ -269,6 +269,9 @@ type Identity struct {
 	Invitees            []state.TxAddr  `json:"invitees"`
 	Penalty             decimal.Decimal `json:"penalty"`
 	LastValidationFlags []string        `json:"lastValidationFlags"`
+	Delegatee           *common.Address `json:"delegatee"`
+	DelegationEpoch     uint16          `json:"delegationEpoch"`
+	DelegationNonce     uint32          `json:"delegationNonce"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -414,6 +417,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Invitees:            invitees,
 		Penalty:             blockchain.ConvertToFloat(data.Penalty),
 		LastValidationFlags: flags,
+		Delegatee:           data.Delegatee,
+		DelegationEpoch:     data.DelegationEpoch,
+		DelegationNonce:     data.DelegationNonce,
 	}
 }
 

@@ -168,6 +168,8 @@ func (s *StateDB) Clear() {
 	s.stateGlobalDirty = false
 	s.stateStatusSwitch = nil
 	s.stateStatusSwitchDirty = false
+	s.stateDelegationSwitch = nil
+	s.stateDelegationSwitchDirty = false
 }
 
 func (s *StateDB) Version() int64 {
@@ -551,6 +553,15 @@ func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) 
 	s.tree.Set(StateDbKeys.StatusSwitchKey(), data)
 }
 
+func (s *StateDB) updateStateDelegationSwitchObject(stateObject *stateDelegationSwitch) {
+	data, err := stateObject.data.ToBytes()
+	if err != nil {
+		panic(fmt.Errorf("can't encode state delegation switch object, %v", err))
+	}
+
+	s.tree.Set(StateDbKeys.DelegationSwitchKey(), data)
+}
+
 // deleteStateAccountObject removes the given object from the state trie.
 func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) {
 	stateObject.deleted = true
@@ -571,6 +582,12 @@ func (s *StateDB) deleteStateStatusSwitchObject(stateObject *stateStatusSwitch) 
 	stateObject.deleted = true
 
 	s.tree.Remove(StateDbKeys.StatusSwitchKey())
+}
+
+func (s *StateDB) deleteStateDelegationSwitchObject(stateObject *stateDelegationSwitch) {
+	stateObject.deleted = true
+
+	s.tree.Remove(StateDbKeys.DelegationSwitchKey())
 }
 
 // Retrieve a state account given my the address. Returns nil if not found.
@@ -949,6 +966,14 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		}
 		s.stateStatusSwitchDirty = false
 	}
+	if s.stateDelegationSwitchDirty {
+		if s.stateDelegationSwitch.empty() {
+			s.deleteStateDelegationSwitchObject(s.stateDelegationSwitch)
+		} else {
+			s.updateStateDelegationSwitchObject(s.stateDelegationSwitch)
+		}
+		s.stateDelegationSwitchDirty = false
+	}
 }
 
 func (s *StateDB) Reset() {
@@ -1208,7 +1233,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 				Address: common.BytesToAddress(identity.Inviter.Address),
 			}
 		}
-		if identity.Delegatee !=nil {
+		if identity.Delegatee != nil {
 			addr := common.BytesToAddress(identity.Delegatee)
 			stateObject.data.Delegatee = &addr
 		}
@@ -1234,8 +1259,6 @@ func (s *StateDB) HasStatusSwitchAddresses(addr common.Address) bool {
 	return statusSwitch.HasAddress(addr)
 }
 
-
-
 func (s *StateDB) StatusSwitchAddresses() []common.Address {
 	statusSwitch := s.GetOrNewStatusSwitchObject()
 	return statusSwitch.Addresses()
@@ -1256,11 +1279,10 @@ func (s *StateDB) ToggleDelegationAddress(sender common.Address, delegatee commo
 	delegationSwitch.ToggleDelegation(sender, delegatee)
 }
 
-func (s *StateDB) DelegationSwitch(sender common.Address) *Delegation{
+func (s *StateDB) DelegationSwitch(sender common.Address) *Delegation {
 	delegationSwitch := s.GetOrNewDelegationSwitchObject()
 	return delegationSwitch.DelegationSwitch(sender)
 }
-
 
 func (s *StateDB) ClearDelegations() {
 	statusSwitch := s.GetOrNewDelegationSwitchObject()

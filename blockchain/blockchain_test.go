@@ -6,13 +6,16 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"testing"
 	"time"
@@ -841,4 +844,39 @@ func Test_ClearDustAccounts(t *testing.T) {
 	require.True(s.State.AccountExists(common.Address{0x5}))
 	require.False(s.State.AccountExists(common.Address{0x7}))
 	require.True(s.State.AccountExists(common.Address{0x8}))
+}
+
+func TestBlockchain_applyOfflinePenalty(t *testing.T) {
+	chain := &Blockchain{
+		config: &config.Config{
+			Consensus: config.GetDefaultConsensusConfig(),
+		},
+	}
+
+	chain.config.Consensus.FinalCommitteeReward = big.NewInt(1)
+	chain.config.Consensus.BlockReward = big.NewInt(3)
+
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	count := byte(10)
+	pool1 := common.Address{0x11}
+
+	for i := byte(1); i <= count; i++ {
+		addr := common.Address{i}
+		appState.IdentityState.Add(addr)
+		appState.IdentityState.SetOnline(addr, true)
+		if i % 3 == 0 { // 3, 6, 9
+			appState.IdentityState.SetDelegatee(addr, pool1)
+		}
+	}
+	appState.Commit(nil)
+	appState.Initialize(1)
+
+	require.True(t, appState.ValidatorsCache.IsPool(pool1))
+
+	chain.applyOfflinePenalty(appState, pool1, nil)
+
+	require.Equal(t, big.NewInt(4 * 3 * 1800 / int64(count)).Bytes(),   appState.State.GetPenalty(pool1).Bytes())
 }
