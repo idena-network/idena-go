@@ -1180,6 +1180,10 @@ func (s *stateDelegationSwitch) DelegationSwitch(sender common.Address) *Delegat
 	return nil
 }
 
+func (s *stateDelegationSwitch) empty() bool {
+	return len(s.data.Delegations) == 0
+}
+
 func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {
 	return f&flag != 0
 }

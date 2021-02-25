@@ -105,6 +105,7 @@ type cacheValue struct {
 	shortFlipPoint           float32
 	birthday                 uint16
 	missed                   bool
+	delegatee                *common.Address
 }
 
 type lottery struct {
@@ -837,8 +838,13 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
+		//TODO :fix indexing
 		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
-		appState.State.AddBalance(addr, addToBalance)
+		addTo := addr
+		if value.delegatee != nil {
+			addTo = *value.delegatee
+		}
+		appState.State.AddBalance(addTo, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
@@ -957,6 +963,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			shortFlipPoint:           shortFlipPoint,
 			birthday:                 identityBirthday,
 			missed:                   missed,
+			delegatee:                identity.Delegatee,
 		}
 
 		epochApplyingValues[addr] = value
@@ -1009,6 +1016,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			shortQualifiedFlipsCount: 0,
 			shortFlipPoint:           0,
 			birthday:                 identityBirthday,
+			delegatee:                identity.Delegatee,
 		}
 		epochApplyingValues[addr] = value
 		identitiesCount += applyOnState(appState, statsCollector, addr, value)

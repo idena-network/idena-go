@@ -19,7 +19,7 @@ type ValidatorsCache struct {
 	identityState    *state.IdentityStateDB
 	sortedValidators []common.Address
 
-	pools       map[common.Address][]common.Address
+	pools       map[common.Address]*sortedAddresses
 	delegations map[common.Address]common.Address
 
 	nodesSet       mapset.Set
@@ -37,7 +37,7 @@ func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.
 		onlineNodesSet: mapset.NewSet(),
 		log:            log.New(),
 		god:            godAddress,
-		pools:          map[common.Address][]common.Address{},
+		pools:          map[common.Address]*sortedAddresses{},
 		delegations:    map[common.Address]common.Address{},
 	}
 }
@@ -49,25 +49,17 @@ func (v *ValidatorsCache) Load() {
 	v.loadValidNodes()
 }
 
-func (v *ValidatorsCache) replaceByDelegatee(set mapset.Set) (netSet mapset.Set, votePowers map[common.Address]int) {
+func (v *ValidatorsCache) replaceByDelegatee(set mapset.Set) (netSet mapset.Set) {
 	mapped := mapset.NewSet()
-	votePowers = make(map[common.Address]int)
 	for _, item := range set.ToSlice() {
 		addr := item.(common.Address)
 		if d, ok := v.delegations[addr]; ok {
 			mapped.Add(d)
-			votePowers[d] ++
 		} else {
 			mapped.Add(addr)
 		}
 	}
-	// increment votePowers for pools which address is in original set, those pools are approved identities
-	for addr := range votePowers {
-		if set.Contains(addr) {
-			votePowers[addr] ++
-		}
-	}
-	return mapped, votePowers
+	return mapped
 }
 
 func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint8, limit int) *StepValidators {
@@ -81,8 +73,8 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 		for _, n := range v.sortedValidators {
 			set.Add(n)
 		}
-		newSet, votePowers := v.replaceByDelegatee(set)
-		return &StepValidators{Original: set, Addresses: newSet, ExtraVotePowers: votePowers, Size: newSet.Cardinality()}
+		newSet := v.replaceByDelegatee(set)
+		return &StepValidators{Original: set, Addresses: newSet, Size: newSet.Cardinality()}
 	}
 
 	if len(v.sortedValidators) < limit {
@@ -98,8 +90,8 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 	for i := 0; i < limit; i++ {
 		set.Add(v.sortedValidators[indexes[i]])
 	}
-	newSet, votePowers := v.replaceByDelegatee(set)
-	return &StepValidators{Original: set, Addresses: newSet, ExtraVotePowers: votePowers, Size: newSet.Cardinality()}
+	newSet := v.replaceByDelegatee(set)
+	return &StepValidators{Original: set, Addresses: newSet, Size: newSet.Cardinality()}
 }
 
 func (v *ValidatorsCache) NetworkSize() int {
@@ -143,7 +135,8 @@ func (v *ValidatorsCache) loadValidNodes() {
 	var onlineNodes []common.Address
 	v.nodesSet.Clear()
 	v.onlineNodesSet.Clear()
-
+	v.delegations = map[common.Address]common.Address{}
+	v.pools = map[common.Address]*sortedAddresses{}
 	var delegators []common.Address
 
 	v.identityState.IterateIdentities(func(key []byte, value []byte) bool {
@@ -165,10 +158,10 @@ func (v *ValidatorsCache) loadValidNodes() {
 		if data.Delegatee != nil {
 			list, ok := v.pools[*data.Delegatee]
 			if !ok {
-				list = []common.Address{}
+				list = &sortedAddresses{list: []common.Address{}}
 				v.pools[*data.Delegatee] = list
 			}
-			addToSortList(list, addr)
+			list.add(addr)
 			delegators = append(delegators, addr)
 			v.delegations[addr] = *data.Delegatee
 		}
@@ -185,7 +178,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 			validators = append(validators, n)
 		}
 		if delegators, ok := v.pools[n]; ok {
-			validators = append(validators, delegators...)
+			validators = append(validators, delegators.list...)
 		}
 	}
 
@@ -205,6 +198,8 @@ func (v *ValidatorsCache) Clone() *ValidatorsCache {
 		sortedValidators: append(v.sortedValidators[:0:0], v.sortedValidators...),
 		nodesSet:         v.nodesSet.Clone(),
 		onlineNodesSet:   v.onlineNodesSet.Clone(),
+		pools:            clonePools(v.pools),
+		delegations:      cloneDelegations(v.delegations),
 	}
 }
 
@@ -214,7 +209,7 @@ func (v *ValidatorsCache) Height() uint64 {
 
 func (v *ValidatorsCache) PoolSize(pool common.Address) int {
 	if set, ok := v.pools[pool]; ok {
-		size := len(set)
+		size := len(set.list)
 		if v.nodesSet.Contains(pool) {
 			size++
 		}
@@ -229,7 +224,7 @@ func (v *ValidatorsCache) IsPool(pool common.Address) bool {
 }
 
 func (v *ValidatorsCache) FindSubIdentity(pool common.Address, nonce uint32) (common.Address, uint32) {
-	set := v.pools[pool]
+	set := v.pools[pool].list
 	if v.nodesSet.Contains(pool) {
 		set = append([]common.Address{pool}, set...)
 	}
@@ -250,20 +245,26 @@ func sortValidNodes(nodes []common.Address) []common.Address {
 	return nodes
 }
 
-func addToSortList(list []common.Address, e common.Address) {
-	i := sort.Search(len(list), func(i int) bool {
-		return bytes.Compare(list[i].Bytes(), e.Bytes()) > 0
-	})
-	list = append(list, common.Address{})
-	copy(list[i+1:], list[i:])
-	list[i] = e
+func clonePools(source map[common.Address]*sortedAddresses) map[common.Address]*sortedAddresses {
+	result := map[common.Address]*sortedAddresses{}
+	for k, v := range source {
+		result[k] = v
+	}
+	return result
+}
+
+func cloneDelegations(source map[common.Address]common.Address) map[common.Address]common.Address {
+	result := map[common.Address]common.Address{}
+	for k, v := range source {
+		result[k] = v
+	}
+	return result
 }
 
 type StepValidators struct {
-	Original        mapset.Set
-	Addresses       mapset.Set
-	Size            int
-	ExtraVotePowers map[common.Address]int
+	Original  mapset.Set
+	Addresses mapset.Set
+	Size      int
 }
 
 func (sv *StepValidators) Contains(addr common.Address) bool {
@@ -271,9 +272,18 @@ func (sv *StepValidators) Contains(addr common.Address) bool {
 }
 
 func (sv *StepValidators) VotesCountSubtrahend() int {
-	sum := 0
-	for _, v := range sv.ExtraVotePowers {
-		sum += v
-	}
-	return sum - len(sv.ExtraVotePowers)
+	return sv.Original.Cardinality() - sv.Size
+}
+
+type sortedAddresses struct {
+	list []common.Address
+}
+
+func (s *sortedAddresses) add(addr common.Address) {
+	i := sort.Search(len(s.list), func(i int) bool {
+		return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) > 0
+	})
+	s.list = append(s.list, common.Address{})
+	copy(s.list[i+1:], s.list[i:])
+	s.list[i] = addr
 }
