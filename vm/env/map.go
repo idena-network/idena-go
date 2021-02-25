@@ -16,8 +16,12 @@ func NewMap(prefix []byte, env Env, ctx CallContext) *Map {
 	return &Map{prefix: prefix, env: env, ctx: ctx}
 }
 
+func FormatMapKey(prefix, key []byte) []byte {
+	return append(prefix, key...)
+}
+
 func (m *Map) formatKey(key []byte) []byte {
-	return append(m.prefix, key...)
+	return FormatMapKey(m.prefix, key)
 }
 
 func (m *Map) Set(key []byte, value []byte) {
