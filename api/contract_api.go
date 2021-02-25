@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -172,6 +173,16 @@ type Event struct {
 	Contract common.Address  `json:"contract"`
 	Event    string          `json:"event"`
 	Args     []hexutil.Bytes `json:"args"`
+}
+
+type MapItem struct {
+	Key   interface{} `json:"key"`
+	Value interface{} `json:"value"`
+}
+
+type IterateMapResponse struct {
+	Items             []*MapItem    `json:"items"`
+	ContinuationToken *hexutil.Bytes `json:"continuationToken"`
 }
 
 func (api *ContractApi) buildDeployContractTx(args DeployArgs) (*types.Transaction, error) {
@@ -385,6 +396,59 @@ func (api *ContractApi) Events(args EventsArgs) interface{} {
 		}
 	}
 	return list
+}
+
+func (api *ContractApi) ReadMap(contract common.Address, mapName string, key hexutil.Bytes, format string) (interface{}, error) {
+	data := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, env.FormatMapKey([]byte(mapName), key))
+	if data == nil {
+		return nil, errors.New("data is nil")
+	}
+	return conversion(format, data)
+}
+
+func (api *ContractApi) IterateMap(contract common.Address, mapName string, continuationToken *hexutil.Bytes, keyFormat, valueFormat string, limit int) (*IterateMapResponse, error) {
+	state := api.baseApi.getReadonlyAppState().State
+
+	minKey := []byte(mapName)
+	maxKey := []byte(mapName)
+	for i := len([]byte(mapName)); i < common.MaxContractStoreKeyLength; i++ {
+		maxKey = append(maxKey, 0xFF)
+	}
+
+	if continuationToken != nil && len(*continuationToken) > 0 {
+		minKey = *continuationToken
+	}
+
+	var items []*MapItem
+	var err error
+	var token hexutil.Bytes
+	prefixLen := len([]byte(mapName))
+	state.IterateContractStore(contract, minKey, maxKey, func(key []byte, value []byte) bool {
+
+		if len(items) >= limit {
+			token = key
+			return true
+		}
+
+		item := new(MapItem)
+		item.Key, err = conversion(keyFormat, key[prefixLen:])
+		if err != nil {
+			return true
+		}
+		item.Value, err = conversion(valueFormat, value)
+		if err != nil {
+			return true
+		}
+		items = append(items, item)
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &IterateMapResponse{
+		Items:             items,
+		ContinuationToken: &token,
+	}, nil
 }
 
 func conversion(convertTo string, data []byte) (interface{}, error) {
