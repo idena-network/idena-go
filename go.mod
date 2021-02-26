@@ -71,6 +71,4 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202101
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
 
-replace github.com/ipfs/fs-repo-migrations/ipfs-10-to-11/_vendor/github.com/ipfs/go-ds-badger => github.com/ipfs/go-ds-badger v0.2.6
-
 go 1.13
