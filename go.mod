@@ -10,19 +10,24 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/deckarep/golang-set v1.7.1
-	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/frankban/quicktest v1.11.1 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
-	github.com/ipfs/fs-repo-migrations v1.6.4
+	github.com/ipfs/fs-repo-migrations v1.7.1
 	github.com/ipfs/go-blockservice v0.1.4
 	github.com/ipfs/go-cid v0.0.7
+	github.com/ipfs/go-datastore v0.4.5
+	github.com/ipfs/go-filestore v0.0.3
 	github.com/ipfs/go-ipfs v0.8.0
+	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-config v0.12.0
+	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipfs-files v0.0.8
+	github.com/ipfs/go-ipfs-pinner v0.1.1
+	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.4

@@ -2,6 +2,7 @@ package ipfs
 
 import (
 	"fmt"
+	"github.com/idena-network/idena-go/ipfs/mg10"
 	gomigrate "github.com/ipfs/fs-repo-migrations/go-migrate"
 	mg7 "github.com/ipfs/fs-repo-migrations/ipfs-7-to-8/migration"
 	mg8 "github.com/ipfs/fs-repo-migrations/ipfs-8-to-9/migration"
@@ -12,9 +13,10 @@ import (
 )
 
 var migrations = map[int]gomigrate.Migration{
-	7: &mg7.Migration{},
-	8: &mg8.Migration{},
-	9: &mg9.Migration{},
+	7:  &mg7.Migration{},
+	8:  &mg8.Migration{},
+	9:  &mg9.Migration{},
+	10: &mg10.Migration{},
 }
 
 func GetVersion(ipfsdir string) (int, error) {
