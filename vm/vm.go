@@ -74,7 +74,12 @@ func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error)
 }
 
 func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, method string, err error) {
-	ctx := env2.NewCallContextImpl(tx, *vm.appState.State.GetCodeHash(*tx.To))
+
+	codeHash := vm.appState.State.GetCodeHash(*tx.To)
+	if codeHash == nil {
+		return common.Address{}, "", errors.New("destination is not a contract")
+	}
+	ctx := env2.NewCallContextImpl(tx, *codeHash)
 	attach := attachments.ParseCallContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), "", errors.New("can't parse attachment")
