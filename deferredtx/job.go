@@ -158,9 +158,6 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 	if err != nil {
 		return err
 	}
-	/*	if err := validation.ValidateTx(j.appState, tx, j.appState.State.FeePerGas(), validation.MempoolTx); err != nil {
-		return err
-	}*/
 
 	readonlyAppState, err := j.appState.Readonly(j.head.Height())
 	if err != nil {
