@@ -19,7 +19,6 @@ package math
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/cockroachdb/apd"
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
@@ -381,14 +380,6 @@ func TestRoot(t *testing.T) {
 			3457395871232236, 2, 58799624.75417879739515291423973129368246,
 		},
 	}
-
-	d := new(apd.Decimal)
-
-	x, _, _ := apd.NewFromString("3457395871232236")
-	y, _, _ := apd.NewFromString(Div(big.NewFloat(1), big.NewFloat(43)).Text('g', 40))
-	c, err := apd.BaseContext.Pow(d, x, y)
-	t.Log(c, err)
-	t.Log(d.String())
 	for _, c := range cases {
 		r, _ := Root(big.NewFloat(c.num), c.n).Float64()
 		require.Equal(t, c.expected, r)
