@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"fmt"
-	"github.com/cockroachdb/apd"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/attachments"
@@ -56,17 +55,9 @@ const (
 )
 
 var (
-	MaxHash             *apd.Decimal
+	MaxHash             *big.Float
 	ParentHashIsInvalid = errors.New("parentHash is invalid")
 	BlockInsertionErr   = errors.New("can't insert block")
-
-	apdContext = apd.Context{
-		MaxExponent: apd.BaseContext.MaxExponent,
-		MinExponent: apd.MinExponent,
-		Precision:   53,
-		Rounding:    apd.BaseContext.Rounding,
-		Traps:       apd.BaseContext.Traps,
-	}
 )
 
 type Blockchain struct {
@@ -100,7 +91,8 @@ func init() {
 	}
 	i := new(big.Int)
 	i.SetBytes(max[:])
-	MaxHash = apd.NewWithBigInt(i, 0)
+	MaxHash = new(big.Float)
+	MaxHash.SetInt(i)
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
@@ -1535,29 +1527,18 @@ func (chain *Blockchain) getProposerData() []byte {
 }
 
 func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier int64) (bool, []byte) {
+
 	hash, proof := chain.secStore.VrfEvaluate(data)
 
-	v := apd.NewWithBigInt(new(big.Int).SetBytes(hash[:]), 0)
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
 
-	q := new(apd.Decimal)
+	q := new(big.Float).Quo(v, MaxHash)
+	vrfThreshold := new(big.Float).SetFloat64(threshold)
 
-	_, err := apdContext.Quo(q, v, MaxHash)
-	if err != nil {
-		panic(err)
-	}
 	if modifier > 1 {
-		modifiedQ := new(apd.Decimal)
-		exp := new(apd.Decimal)
-		apdContext.Quo(exp, apd.New(1, 0), apd.New(modifier, 0))
-		_, err := apdContext.Pow(modifiedQ, q, exp)
-		if err != nil {
-			panic(err)
-		}
-		q = modifiedQ
+		q = math.Root(q, uint64(modifier))
 	}
 
-	vrfThreshold := new(apd.Decimal)
-	vrfThreshold.SetFloat64(threshold)
 	if q.Cmp(vrfThreshold) >= 0 {
 		return true, proof
 	}
@@ -1734,30 +1715,15 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 
 	h, err := verifier.ProofToHash(chain.getProposerData(), proof)
 
-	v := apd.NewWithBigInt(new(big.Int).SetBytes(h[:]), 0)
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
 
-	vrfThreshold := new(apd.Decimal)
-	vrfThreshold.SetFloat64(chain.appState.State.VrfProposerThreshold())
-
-	q := new(apd.Decimal)
-
-	_, err = apdContext.Quo(q, v, MaxHash)
-	if err != nil {
-		panic(err)
-	}
-
+	vrfThreshold := new(big.Float).SetFloat64(chain.appState.State.VrfProposerThreshold())
+	q := new(big.Float).Quo(v, MaxHash)
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)
-
 	modifier := chain.appState.ValidatorsCache.PoolSize(proposerAddr)
+
 	if modifier > 1 {
-		modifiedQ := new(apd.Decimal)
-		exp := new(apd.Decimal)
-		apdContext.Quo(exp, apd.New(1, 0), apd.New(int64(modifier), 0))
-		_, err := apdContext.Pow(modifiedQ, q, exp)
-		if err != nil {
-			panic(err)
-		}
-		q = modifiedQ
+		q = math.Root(q, uint64(modifier))
 	}
 
 	if q.Cmp(vrfThreshold) == -1 {
