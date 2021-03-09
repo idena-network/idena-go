@@ -15,6 +15,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/shopspring/decimal"
 	"io/ioutil"
 	"math/big"
@@ -76,6 +77,21 @@ func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *b
 	return job, nil
 }
 
+func calculateBroadcastBlock(prevBlock uint64, try int) uint64 {
+	add := uint64(1)
+	switch try {
+	case 1:
+		add = 1
+	case 2:
+		add = 2
+	case 3:
+		add = 4
+	default:
+		add = 8
+	}
+	return prevBlock + add
+}
+
 func (j *Job) broadcast() {
 	j.mutex.Lock()
 	defer j.mutex.Unlock()
@@ -88,11 +104,20 @@ func (j *Job) broadcast() {
 			err := j.sendTx(tx)
 			if err != nil {
 				log.Error("error while sending deferred tx", "err", err)
-			}
-			tx.sendTry++
-			if tx.sendTry > 3 || err == nil {
+				tx.sendTry++
+				contractErr, ok := err.(*embedded.ContractError)
+				tryLater := false
+				if ok && contractErr.TryLater() {
+					tryLater = true
+					tx.BroadcastBlock = calculateBroadcastBlock(tx.BroadcastBlock, tx.sendTry)
+				}
+				if !tryLater && tx.sendTry > 3 {
+					tx.removed = true
+				}
+			} else {
 				tx.removed = true
 			}
+
 		}
 		if !tx.removed {
 			newTxs.Txs = append(newTxs.Txs, tx)
@@ -164,7 +189,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 		return err
 	}
 
-	vm := vm.NewVmImpl(readonlyAppState, j.head, j.secStore, nil)
+	vm := vm.NewVmImpl(readonlyAppState, j.head, j.secStore, nil, j.bc.Config())
 	r := vm.Run(tx, -1)
 	if r.Error != nil {
 		return r.Error

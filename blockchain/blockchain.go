@@ -892,7 +892,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	totalTips = new(big.Int)
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, block.Header, chain.secStore, statsCollector)
+	vm := vm.NewVmImpl(appState, block.Header, chain.secStore, statsCollector, chain.config)
 
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
@@ -1476,7 +1476,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
-	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore, nil)
+	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore, nil, chain.config)
 	var receipts []*types.TxReceipt
 	var usedGas uint64
 	for _, tx := range txs {
