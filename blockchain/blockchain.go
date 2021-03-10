@@ -55,7 +55,7 @@ const (
 )
 
 var (
-	MaxHash             *big.Float
+
 	ParentHashIsInvalid = errors.New("parentHash is invalid")
 	BlockInsertionErr   = errors.New("can't insert block")
 )
@@ -82,17 +82,6 @@ type Blockchain struct {
 	upgrader        *upgrade.Upgrader
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
 	isSyncing       bool
-}
-
-func init() {
-	var max [32]byte
-	for i := range max {
-		max[i] = 0xFF
-	}
-	i := new(big.Int)
-	i.SetBytes(max[:])
-	MaxHash = new(big.Float)
-	MaxHash.SetInt(i)
 }
 
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
@@ -475,9 +464,9 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 	statsCollector collector.StatsCollector,
 ) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
-	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyStatusSwitch(appState, block)
 	chain.applyDelegationSwitch(appState, block)
+	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyVrfProposerThreshold(appState, block)
 	diff = appState.Precommit()
@@ -846,7 +835,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		return
 	}
 	totalReward := big.NewInt(0)
-	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Addresses.Cardinality())))
+	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Original.Cardinality())))
 	collector.SetCommitteeRewardShare(statsCollector, totalReward)
 
 	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
@@ -1042,6 +1031,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	case types.KillDelegatorTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
@@ -1529,15 +1519,9 @@ func (chain *Blockchain) getProposerData() []byte {
 func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier int64) (bool, []byte) {
 
 	hash, proof := chain.secStore.VrfEvaluate(data)
+	q := common.HashToFloat(hash, modifier )
 
-	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
-
-	q := new(big.Float).Quo(v, MaxHash)
 	vrfThreshold := new(big.Float).SetFloat64(threshold)
-
-	if modifier > 1 {
-		q = math.Root(q, uint64(modifier))
-	}
 
 	if q.Cmp(vrfThreshold) >= 0 {
 		return true, proof
@@ -1715,16 +1699,11 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 
 	h, err := verifier.ProofToHash(chain.getProposerData(), proof)
 
-	v := new(big.Float).SetInt(new(big.Int).SetBytes(h[:]))
-
 	vrfThreshold := new(big.Float).SetFloat64(chain.appState.State.VrfProposerThreshold())
-	q := new(big.Float).Quo(v, MaxHash)
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)
 	modifier := chain.appState.ValidatorsCache.PoolSize(proposerAddr)
 
-	if modifier > 1 {
-		q = math.Root(q, uint64(modifier))
-	}
+	q := common.HashToFloat(h, int64(modifier))
 
 	if q.Cmp(vrfThreshold) == -1 {
 		return errors.New("Proposer is invalid")

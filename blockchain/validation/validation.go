@@ -105,8 +105,6 @@ func init() {
 		types.DeployContract:       validateDeployContractTx,
 		types.CallContract:         validateCallContractTx,
 		types.TerminateContract:    validateTerminateContractTx,
-		types.DelegateTx:           validateDelegateTx,
-		types.UndelegateTx:         validateUndelegateTx,
 	}
 }
 func SetAppConfig(cfg *config.Config) {
