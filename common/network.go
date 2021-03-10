@@ -4,6 +4,7 @@ import (
 	math2 "github.com/idena-network/idena-go/common/math"
 	"github.com/shopspring/decimal"
 	"math"
+	"math/big"
 	"time"
 )
 
@@ -29,6 +30,19 @@ const (
 	StakeToBalanceCoef  = 0.75
 	LastScoresCount     = 10
 )
+
+var MaxHashFloat *big.Float
+
+func init() {
+	var max [HashLength]byte
+	for i := range max {
+		max[i] = 0xFF
+	}
+	i := new(big.Int)
+	i.SetBytes(max[:])
+	MaxHashFloat = new(big.Float)
+	MaxHashFloat.SetInt(i)
+}
 
 func ShortSessionExtraFlipsCount() uint {
 	return ShortSessionExtraFlips
@@ -102,4 +116,15 @@ func CalculateIdentityScores(scores []byte, totalShortPoints float32, totalShort
 	sumFlips += uint32(addFlips)
 
 	return sumPoints, sumFlips
+}
+
+func HashToFloat(hash [32]byte, modifier int64) *big.Float {
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
+
+	q := new(big.Float).Quo(v, MaxHashFloat)
+
+	if modifier > 1 {
+		q = math2.Root(q, uint64(modifier))
+	}
+	return q
 }

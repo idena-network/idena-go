@@ -8,12 +8,14 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/upgrade"
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -59,6 +61,8 @@ type proposedBlock struct {
 
 type bestHash struct {
 	common.Hash
+	// modified by pool size representation of hash
+	floatValue     *big.Float
 	ProposerPubKey []byte
 }
 
@@ -106,21 +110,30 @@ func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (adde
 			return false, false
 		}
 
-		if !proposals.compareWithBestHash(currentRound, hash) {
-			return false, false
-		}
-
-		pubKey, err := types.ProofProposalPubKey(proposal)
+		pubKeyBytes, err := types.ProofProposalPubKey(proposal)
 		if err != nil {
 			return false, false
 		}
 
-		if err := proposals.chain.ValidateProposerProof(proposal.Proof, pubKey); err != nil {
+		pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+		if err != nil {
+			return false, false
+		}
+
+		proposerAddr := crypto.PubkeyToAddress(*pubKey)
+
+		modifier := proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+
+		if !proposals.compareWithBestHash(currentRound, hash, modifier) {
+			return false, false
+		}
+
+		if err := proposals.chain.ValidateProposerProof(proposal.Proof, pubKeyBytes); err != nil {
 			log.Warn("Failed proposed proof validation", "err", err)
 			return false, false
 		}
 
-		proposals.setBestHash(currentRound, hash, pubKey)
+		proposals.setBestHash(currentRound, hash, pubKeyBytes, modifier)
 
 		return true, false
 	} else if currentRound < proposal.Round && proposal.Round-currentRound < DeferFutureProposalsPeriod {
@@ -214,7 +227,16 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 		}
 		vrfHash := common.Hash(h)
 
-		if !proposals.compareWithBestHash(currentRound, vrfHash) {
+		pubKey, err := crypto.UnmarshalPubkey(block.Header.ProposedHeader.ProposerPubKey)
+		if err != nil {
+			return false, false
+		}
+
+		proposerAddr := crypto.PubkeyToAddress(*pubKey)
+
+		modifier := proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+
+		if !proposals.compareWithBestHash(currentRound, vrfHash, modifier) {
 			return false, false
 		}
 
@@ -248,7 +270,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 		}
 
 		round.Store(block.Hash(), &proposedBlock{proposal: proposal, receivingTime: receivingTime})
-		proposals.setBestHash(currentRound, vrfHash, block.Header.ProposedHeader.ProposerPubKey)
+		proposals.setBestHash(currentRound, vrfHash, block.Header.ProposedHeader.ProposerPubKey, modifier)
 		return true, false
 	} else if currentRound < block.Height() && block.Height()-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
@@ -343,27 +365,30 @@ func (proposals *Proposals) GetBlock(hash common.Hash) *types.Block {
 	return block.(*types.Block)
 }
 
-func (proposals *Proposals) compareWithBestHash(round uint64, hash common.Hash) bool {
+func (proposals *Proposals) compareWithBestHash(round uint64, hash common.Hash, modifier int) bool {
 	proposals.bestProofsMutex.RLock()
 	defer proposals.bestProofsMutex.RUnlock()
+
+	q := common.HashToFloat(hash, int64(modifier))
+
 	if bestHash, ok := proposals.bestProofs[round]; ok {
-		return bytes.Compare(hash[:], bestHash.Hash[:]) >= 0
+		return q.Cmp(bestHash.floatValue) >= 0
 	}
 	return true
 }
 
-func (proposals *Proposals) setBestHash(round uint64, hash common.Hash, proposerPubKey []byte) {
+func (proposals *Proposals) setBestHash(round uint64, hash common.Hash, proposerPubKey []byte, modifier int) {
 	proposals.bestProofsMutex.Lock()
 	defer proposals.bestProofsMutex.Unlock()
 	if stored, ok := proposals.bestProofs[round]; ok {
 		if bytes.Compare(hash[:], stored.Hash[:]) >= 0 {
 			proposals.bestProofs[round] = bestHash{
-				hash, proposerPubKey,
+				hash, common.HashToFloat(hash, int64(modifier)), proposerPubKey,
 			}
 		}
 	} else {
 		proposals.bestProofs[round] = bestHash{
-			hash, proposerPubKey,
+			hash, common.HashToFloat(hash, int64(modifier)), proposerPubKey,
 		}
 	}
 }

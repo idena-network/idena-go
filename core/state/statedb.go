@@ -1270,8 +1270,8 @@ func (s *StateDB) ClearStatusSwitchAddresses() {
 }
 
 func (s *StateDB) ToggleStatusSwitchAddress(sender common.Address) {
-	delegationSwitch := s.GetOrNewStatusSwitchObject()
-	delegationSwitch.ToggleAddress(sender)
+	statusSwitch := s.GetOrNewStatusSwitchObject()
+	statusSwitch.ToggleAddress(sender)
 }
 
 func (s *StateDB) ToggleDelegationAddress(sender common.Address, delegatee common.Address) {
