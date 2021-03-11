@@ -509,7 +509,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	// calculate penalty
 	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(coinbase))
 
-	collector.BeginProposerRewardBalanceUpdate(statsCollector, coinbase, appState)
+	collector.BeginProposerRewardBalanceUpdate(statsCollector, coinbase, stakeDest, appState)
 	// update state
 	appState.State.AddBalance(coinbase, balanceAdd)
 	appState.State.AddStake(stakeDest, stakeAdd)
@@ -521,7 +521,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	collector.AfterAddStake(statsCollector, stakeDest, stake, appState)
 	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
-	collector.AddProposerReward(statsCollector, coinbase, reward, stake)
+	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake)
 
 	chain.rewardFinalCommittee(appState, block, prevBlock, statsCollector)
 }
@@ -869,7 +869,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		// calculate penalty
 		balanceAdd, stakeAdd, penaltySub := calculatePenalty(r, s, appState.State.GetPenalty(penaltySource))
 
-		collector.BeginCommitteeRewardBalanceUpdate(statsCollector, addr, appState)
+		collector.BeginCommitteeRewardBalanceUpdate(statsCollector, balanceDest, addr, appState)
 		// update state
 		appState.State.AddBalance(balanceDest, balanceAdd)
 		appState.State.AddStake(addr, stakeAdd)
@@ -882,7 +882,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		collector.AfterAddStake(statsCollector, addr, s, appState)
 		collector.AfterSubPenalty(statsCollector, penaltySource, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, penaltySource, penaltySub)
-		collector.AddFinalCommitteeReward(statsCollector, addr, r, s)
+		collector.AddFinalCommitteeReward(statsCollector, balanceDest, addr, r, s)
 	}
 }
 
@@ -1103,8 +1103,12 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		fee = fee.Add(fee, receipt.GasCost)
 		collector.AddTxReceipt(statsCollector, receipt, appState)
 	case types.DelegateTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.ToggleDelegationAddress(sender, *tx.To)
 	case types.UndelegateTx:
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.ToggleDelegationAddress(sender, common.EmptyAddress)
 	}
 
