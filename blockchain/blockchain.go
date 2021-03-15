@@ -1644,7 +1644,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		voters.Add(vote.VoterAddr())
 	}
 
-	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final)-validators.VotesCountSubtrahend() {
+	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final)-validators.VotesCountSubtrahend(chain.config.Consensus.AgreementThreshold) {
 		return errors.New("not enough votes")
 	}
 	return nil

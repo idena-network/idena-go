@@ -484,7 +484,7 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
 	}
 
-	necessaryVotesCount -= validators.VotesCountSubtrahend()
+	necessaryVotesCount -= validators.VotesCountSubtrahend(engine.cfg.Consensus.AgreementThreshold)
 
 	for start := time.Now(); time.Since(start) < timeout; {
 		m := engine.votes.GetVotesOfRound(round)

@@ -113,7 +113,7 @@ func TestValidatorsCache_Load(t *testing.T) {
 
 	require.False(stepValidators.Addresses.Contains(pool3))
 	require.Equal(7, stepValidators.Size)
-	require.Equal(5, stepValidators.VotesCountSubtrahend())
+	require.Equal(5, stepValidators.VotesCountSubtrahend(1))
 }
 
 func TestValidatorsCache_Clone(t *testing.T) {

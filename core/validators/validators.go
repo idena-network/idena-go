@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
+	math2 "math"
 	"math/rand"
 	"sort"
 	"sync"
@@ -271,8 +272,9 @@ func (sv *StepValidators) Contains(addr common.Address) bool {
 	return sv.Addresses.Contains(addr)
 }
 
-func (sv *StepValidators) VotesCountSubtrahend() int {
-	return sv.Original.Cardinality() - sv.Size
+func (sv *StepValidators) VotesCountSubtrahend(agreementThreshold float64) int {
+	v := sv.Original.Cardinality() - sv.Size
+	return int(math2.Round(float64(v) * agreementThreshold))
 }
 
 type sortedAddresses struct {
