@@ -107,7 +107,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.Commit(nil)
 
 	validationReward := float32(240) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
-	flipReward := float32(320) / 25
+	flipReward := float32(400) / 25
 	godPayout := float32(100)
 
 	// sum all coefficients
@@ -116,7 +116,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	// auth4: conf.ThirdInvitationRewardCoef (18)
 	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
 	// total: 60
-	invitationReward := float32(5.333333) // 320/60
+	invitationReward := float32(4.0) // 240/60
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteWinnerRewardCoef)
 

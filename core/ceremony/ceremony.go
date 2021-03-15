@@ -953,7 +953,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		incSuccessfulInvites(validationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
 		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationResults)
-		setValidationResultToGoodInviter(validationResults, addr, newIdentityState, identity.Invites)
+		var savedInvites uint8
+		if !vc.config.Consensus.DisableSavedInviteRewards {
+			savedInvites = identity.Invites
+		}
+		setValidationResultToGoodInviter(validationResults, addr, newIdentityState, savedInvites)
 		reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor)
 
 		value := cacheValue{
@@ -1005,9 +1009,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
 		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-		if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
-			if goodInviter, ok := validationResults.GoodInviters[identity.Inviter.Address]; ok {
-				goodInviter.SavedInvites += 1
+		if !vc.config.Consensus.DisableSavedInviteRewards {
+			if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
+				if goodInviter, ok := validationResults.GoodInviters[identity.Inviter.Address]; ok {
+					goodInviter.SavedInvites += 1
+				}
 			}
 		}
 
