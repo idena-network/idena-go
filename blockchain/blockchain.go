@@ -1032,12 +1032,14 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
+		delegatorPrevState := stateDB.GetIdentityState(*tx.To)
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
 		stateDB.SubStake(*tx.To, stake)
-		stateDB.AddBalance(sender, stake)
-
+		if delegatorPrevState.VerifiedOrBetter() {
+			stateDB.AddBalance(sender, stake)
+		}
 	case types.SubmitFlipTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
