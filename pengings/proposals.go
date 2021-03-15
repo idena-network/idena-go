@@ -380,15 +380,17 @@ func (proposals *Proposals) compareWithBestHash(round uint64, hash common.Hash, 
 func (proposals *Proposals) setBestHash(round uint64, hash common.Hash, proposerPubKey []byte, modifier int) {
 	proposals.bestProofsMutex.Lock()
 	defer proposals.bestProofsMutex.Unlock()
+	q := common.HashToFloat(hash, int64(modifier))
+
 	if stored, ok := proposals.bestProofs[round]; ok {
-		if bytes.Compare(hash[:], stored.Hash[:]) >= 0 {
+		if q.Cmp(stored.floatValue) >= 0 {
 			proposals.bestProofs[round] = bestHash{
-				hash, common.HashToFloat(hash, int64(modifier)), proposerPubKey,
+				hash, q, proposerPubKey,
 			}
 		}
 	} else {
 		proposals.bestProofs[round] = bestHash{
-			hash, common.HashToFloat(hash, int64(modifier)), proposerPubKey,
+			hash, q, proposerPubKey,
 		}
 	}
 }
