@@ -11,27 +11,20 @@ import (
 	"math/big"
 )
 
-const (
-	oracleLockLocked          = byte(1)
-	oracleLockUnlockedSuccess = byte(2)
-	oracleLockUnlockedFail    = byte(3)
-	oracleLockUnlockedRefund  = byte(4)
-)
-
-type RefundableOracleLock struct {
+type RefundableOracleLock2 struct {
 	*BaseContract
 	deposits *env.Map
 }
 
-func NewRefundableOracleLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *RefundableOracleLock {
-	return &RefundableOracleLock{&BaseContract{
+func NewRefundableOracleLock2(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *RefundableOracleLock2 {
+	return &RefundableOracleLock2{&BaseContract{
 		ctx:            ctx,
 		env:            e,
 		statsCollector: statsCollector,
 	}, env.NewMap([]byte("deposits"), e, ctx)}
 }
 
-func (e *RefundableOracleLock) Deploy(args ...[]byte) error {
+func (e *RefundableOracleLock2) Deploy(args ...[]byte) error {
 	oracleVoting, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
 		return err
@@ -85,7 +78,7 @@ func (e *RefundableOracleLock) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableOracleLock) Call(method string, args ...[]byte) error {
+func (e *RefundableOracleLock2) Call(method string, args ...[]byte) error {
 	switch method {
 	case "deposit":
 		return e.deposit(args...)
@@ -98,11 +91,11 @@ func (e *RefundableOracleLock) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (e *RefundableOracleLock) Read(method string, args ...[]byte) ([]byte, error) {
+func (e *RefundableOracleLock2) Read(method string, args ...[]byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (e *RefundableOracleLock) deposit(args ...[]byte) error {
+func (e *RefundableOracleLock2) deposit(args ...[]byte) error {
 
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVoting"))
 
@@ -141,7 +134,7 @@ func (e *RefundableOracleLock) deposit(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableOracleLock) push(args ...[]byte) error {
+func (e *RefundableOracleLock2) push(args ...[]byte) error {
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVoting"))
 	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
 
@@ -189,7 +182,7 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableOracleLock) refund(args ...[]byte) error {
+func (e *RefundableOracleLock2) refund(args ...[]byte) error {
 	if e.GetByte("state") != oracleLockUnlockedRefund {
 		return errors.New("state is not unlocked_refund")
 	}
@@ -215,7 +208,9 @@ func (e *RefundableOracleLock) refund(args ...[]byte) error {
 		deposit := big.NewInt(0)
 		deposit.SetBytes(value)
 
-		err = e.env.Send(e.ctx, dest, math2.ToInt(decimal.NewFromBigInt(deposit, 0).Mul(k)))
+		amount := math2.ToInt(decimal.NewFromBigInt(deposit, 0).Mul(k))
+		err = e.env.Send(e.ctx, dest, amount)
+		e.env.Event("refund", dest.Bytes(), amount.Bytes())
 		return err != nil
 	})
 	if err != nil {
@@ -226,7 +221,7 @@ func (e *RefundableOracleLock) refund(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableOracleLock) Terminate(args ...[]byte) (common.Address, error) {
+func (e *RefundableOracleLock2) Terminate(args ...[]byte) (common.Address, error) {
 	if !e.IsOwner() {
 		return common.Address{}, errors.New("sender is not an owner")
 	}
