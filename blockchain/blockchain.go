@@ -55,7 +55,6 @@ const (
 )
 
 var (
-
 	ParentHashIsInvalid = errors.New("parentHash is invalid")
 	BlockInsertionErr   = errors.New("can't insert block")
 )
@@ -447,12 +446,14 @@ func (chain *Blockchain) applyBlockAndTxsOnState(
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block)
-	chain.applyDelegationSwitch(appState, block)
+	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
+	chain.switchPoolsToOffline(appState, undelegations, block)
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyNextBlockFee(appState, block, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
+
 	diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), diff
@@ -465,8 +466,10 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 ) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block)
-	chain.applyDelegationSwitch(appState, block)
+	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
+	chain.switchPoolsToOffline(appState, undelegations, block)
+
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyVrfProposerThreshold(appState, block)
 	diff = appState.Precommit()
@@ -736,6 +739,13 @@ func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollec
 func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Address) {
 	removeLinkWithInviter(stateDB, addr)
 	removeLinkWithInvitees(stateDB, addr)
+}
+
+func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address) {
+	if appState.ValidatorsCache.IsPool(pool) && appState.ValidatorsCache.IsOnlineIdentity(pool) &&
+		appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities) <= 0 {
+		appState.IdentityState.SetOnline(pool, false)
+	}
 }
 
 func removeLinkWithInviter(stateDB *state.StateDB, inviteeAddr common.Address) {
@@ -1201,29 +1211,72 @@ func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *t
 	}
 	addrs := appState.State.StatusSwitchAddresses()
 	for _, addr := range addrs {
-		currentStatus := appState.IdentityState.IsOnline(addr)
-		appState.IdentityState.SetOnline(addr, !currentStatus)
+		isOnline := appState.IdentityState.IsOnline(addr)
+		if isOnline {
+			appState.IdentityState.SetOnline(addr, false)
+			continue
+		}
+		if appState.IdentityState.IsApproved(addr) || appState.ValidatorsCache.IsPool(addr) {
+			appState.IdentityState.SetOnline(addr, true)
+		}
 	}
 	appState.State.ClearStatusSwitchAddresses()
 }
 
-func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, block *types.Block) {
+func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, block *types.Block) (undelegations []*state.Delegation) {
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
 	delegations := appState.State.Delegations()
-	for _, delegation := range delegations {
+
+	newPools := map[common.Address]struct{}{}
+
+	for idx := range delegations {
+		delegation := delegations[idx]
 		if delegation.Delegatee.IsEmpty() {
+			delegatee :=appState.State.Delegatee(delegation.Delegator)
 			appState.IdentityState.RemoveDelegatee(delegation.Delegator)
 			appState.State.RemoveDelegatee(delegation.Delegator)
+			if delegatee!=nil {
+				undelegations = append(undelegations, &state.Delegation{Delegator: delegation.Delegator, Delegatee: *delegatee})
+			}
 		} else {
-			appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
-			appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
-			appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
-			appState.IdentityState.SetOnline(delegation.Delegator, false)
+			_, becamePool := newPools[delegation.Delegator]
+			if appState.State.Delegatee(delegation.Delegatee) == nil && !becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) {
+				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
+				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
+				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
+				appState.IdentityState.SetOnline(delegation.Delegator, false)
+				newPools[delegation.Delegatee] = struct{}{}
+			}
 		}
 	}
 	appState.State.ClearDelegations()
+	return undelegations
+}
+
+func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undelegations []*state.Delegation,   block *types.Block) {
+	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		return
+	}
+	lostPoolNodes := map[common.Address][]common.Address{}
+
+	addToLostPoolNode := func(pool, node common.Address) {
+		list := lostPoolNodes[pool]
+		lostPoolNodes[pool] = append(list, node)
+	}
+
+	for _, addr := range appState.State.CollectKilledDelegators() {
+		identity := appState.State.GetIdentity(addr)
+		addToLostPoolNode(*identity.Delegatee, addr)
+	}
+
+	for _, delegation := range undelegations {
+		addToLostPoolNode(delegation.Delegatee, delegation.Delegator)
+	}
+	for pool, nodes := range lostPoolNodes {
+		switchOnePoolToOffline(appState, pool, nodes)
+	}
 }
 
 func (chain *Blockchain) getTxCost(feePerGas *big.Int, tx *types.Transaction) *big.Int {
@@ -1239,7 +1292,12 @@ func getSeedData(prevBlock *types.Header) []byte {
 func (chain *Blockchain) GetProposerSortition() (bool, []byte) {
 
 	if checkIfProposer(chain.coinBaseAddress, chain.appState) {
-		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold(), int64(chain.appState.ValidatorsCache.PoolSize(chain.coinBaseAddress)))
+
+		modifier := int64(1)
+		if chain.appState.ValidatorsCache.IsPool(chain.coinBaseAddress) {
+			modifier = int64(chain.appState.ValidatorsCache.PoolSize(chain.coinBaseAddress))
+		}
+		return chain.getSortition(chain.getProposerData(), chain.appState.State.VrfProposerThreshold(), modifier)
 	}
 
 	return false, nil
@@ -1358,7 +1416,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.KillDelegatorTx {
 			flags |= types.IdentityUpdate
 		}
 	}
@@ -1521,7 +1579,7 @@ func (chain *Blockchain) getProposerData() []byte {
 func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier int64) (bool, []byte) {
 
 	hash, proof := chain.secStore.VrfEvaluate(data)
-	q := common.HashToFloat(hash, modifier )
+	q := common.HashToFloat(hash, modifier)
 
 	vrfThreshold := new(big.Float).SetFloat64(threshold)
 
@@ -1703,7 +1761,10 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 
 	vrfThreshold := new(big.Float).SetFloat64(chain.appState.State.VrfProposerThreshold())
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)
-	modifier := chain.appState.ValidatorsCache.PoolSize(proposerAddr)
+	modifier := 1
+	if chain.appState.ValidatorsCache.IsPool(proposerAddr) {
+		modifier = chain.appState.ValidatorsCache.PoolSize(proposerAddr)
+	}
 
 	q := common.HashToFloat(h, int64(modifier))
 

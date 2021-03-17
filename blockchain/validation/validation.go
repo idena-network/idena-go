@@ -734,6 +734,10 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return InvalidSender
 	}
 
+	if appState.State.Delegatee(*tx.To) != nil {
+		return InvalidRecipient
+	}
+
 	delegatee := appState.State.Delegatee(sender)
 	delegationSwitch := appState.State.DelegationSwitch(sender)
 

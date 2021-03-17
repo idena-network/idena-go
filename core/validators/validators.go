@@ -216,7 +216,23 @@ func (v *ValidatorsCache) PoolSize(pool common.Address) int {
 		}
 		return size
 	}
-	return 1
+	return 0
+}
+
+func (v *ValidatorsCache) PoolSizeExceptNodes(pool common.Address, exceptNodes []common.Address) int {
+	if set, ok := v.pools[pool]; ok {
+		size := len(set.list)
+		if v.nodesSet.Contains(pool) {
+			size++
+		}
+		for _, exceptNode := range exceptNodes {
+			if set.index(exceptNode) > 0 {
+				size--
+			}
+		}
+		return size
+	}
+	return 0
 }
 
 func (v *ValidatorsCache) IsPool(pool common.Address) bool {
@@ -283,9 +299,22 @@ type sortedAddresses struct {
 
 func (s *sortedAddresses) add(addr common.Address) {
 	i := sort.Search(len(s.list), func(i int) bool {
-		return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) > 0
+		return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) >= 0
 	})
 	s.list = append(s.list, common.Address{})
 	copy(s.list[i+1:], s.list[i:])
 	s.list[i] = addr
+}
+
+func (s *sortedAddresses) index(addr common.Address) int {
+	i := sort.Search(len(s.list), func(i int) bool {
+		return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) >= 0
+	})
+	if i == len(s.list) {
+		return -1
+	}
+	if bytes.Compare(s.list[i].Bytes(), addr.Bytes()) == 0 {
+		return i
+	}
+	return -1
 }

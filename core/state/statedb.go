@@ -1418,6 +1418,18 @@ func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
 	return s.GetOrNewIdentityObject(addr).DelegationEpoch()
 }
 
+func (s *StateDB) CollectKilledDelegators() []common.Address {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	var result []common.Address
+	for _, identity := range s.stateIdentities {
+		if identity.Delegatee() != nil && !identity.State().NewbieOrBetter() {
+			result = append(result, identity.address)
+		}
+	}
+	return result
+}
+
 type readCloser struct {
 	r io.Reader
 }

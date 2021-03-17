@@ -114,6 +114,13 @@ func TestValidatorsCache_Load(t *testing.T) {
 	require.False(stepValidators.Addresses.Contains(pool3))
 	require.Equal(7, stepValidators.Size)
 	require.Equal(5, stepValidators.VotesCountSubtrahend(1))
+
+	identityStateDB.RemoveDelegatee(vCache.pools[pool2].list[0])
+	identityStateDB.RemoveDelegatee(vCache.pools[pool2].list[1])
+	identityStateDB.Commit(false)
+
+	vCache.Load()
+	require.False(vCache.IsPool(pool2))
 }
 
 func TestValidatorsCache_Clone(t *testing.T) {
@@ -153,4 +160,27 @@ func TestValidatorsCache_Clone(t *testing.T) {
 	require.False(vCache.nodesSet == clone.nodesSet)
 	require.Equal(vCache.pools, clone.pools)
 	require.Equal(vCache.delegations, clone.delegations)
+}
+
+func Test_sortedAddresses_index(t *testing.T) {
+	list := &sortedAddresses{list: []common.Address{}}
+
+	list.add(common.Address{0x5})
+	list.add(common.Address{0x2})
+	list.add(common.Address{0x1})
+	list.add(common.Address{0x4})
+	list.add(common.Address{0x3})
+
+	for i := 0; i < 5; i++ {
+		require.Equal(t, common.Address{byte(i + 1)}, list.list[i])
+	}
+
+	for i := 0; i < 5; i++ {
+		require.Equal(t, i, list.index(common.Address{byte(i + 1)}))
+	}
+	require.Equal(t, -1, list.index(common.Address{0x6}))
+
+	list.add(common.Address{0x9})
+
+	require.Equal(t, -1, list.index(common.Address{0x8}))
 }
