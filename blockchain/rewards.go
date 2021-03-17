@@ -206,18 +206,23 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		for _, successfulInvite := range inviter.SuccessfulInvites {
 			totalWeight += getInvitationRewardCoef(successfulInvite.Age, config)
 		}
-		for i := uint8(0); i < inviter.SavedInvites; i++ {
-			addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
+		if !config.DisableSavedInviteRewards {
+			for i := uint8(0); i < inviter.SavedInvites; i++ {
+				addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
+			}
 		}
 	}
 
-	p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
-	savedInvitesWinnersCount := len(addresses) / 2
-	totalWeight += float32(savedInvitesWinnersCount)*config.SavedInviteWinnerRewardCoef + float32(len(p)-savedInvitesWinnersCount)*config.SavedInviteRewardCoef
+	var win map[common.Hash]struct{}
+	if !config.DisableSavedInviteRewards {
+		p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
+		savedInvitesWinnersCount := len(addresses) / 2
+		totalWeight += float32(savedInvitesWinnersCount)*config.SavedInviteWinnerRewardCoef + float32(len(p)-savedInvitesWinnersCount)*config.SavedInviteRewardCoef
 
-	win := make(map[common.Hash]struct{})
-	for i := 0; i < savedInvitesWinnersCount; i++ {
-		win[addresses[p[i]]] = struct{}{}
+		win = make(map[common.Hash]struct{})
+		for i := 0; i < savedInvitesWinnersCount; i++ {
+			win[addresses[p[i]]] = struct{}{}
+		}
 	}
 
 	if totalWeight == 0 {
@@ -254,14 +259,16 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, false)
 			}
 		}
-		for i := uint8(0); i < inviter.SavedInvites; i++ {
-			hash := crypto.Hash(append(addr[:], i))
-			if _, ok := win[hash]; ok {
-				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0, nil, true)
-			} else {
-				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-				addReward(addr, totalReward, isNewbie, 0, nil, false)
+		if !config.DisableSavedInviteRewards {
+			for i := uint8(0); i < inviter.SavedInvites; i++ {
+				hash := crypto.Hash(append(addr[:], i))
+				if _, ok := win[hash]; ok {
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
+					addReward(addr, totalReward, isNewbie, 0, nil, true)
+				} else {
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
+					addReward(addr, totalReward, isNewbie, 0, nil, false)
+				}
 			}
 		}
 	}
