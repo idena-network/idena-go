@@ -122,7 +122,11 @@ func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (adde
 
 		proposerAddr := crypto.PubkeyToAddress(*pubKey)
 
-		modifier := proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+		modifier := 1
+
+		if proposals.appState.ValidatorsCache.IsPool(proposerAddr) {
+			modifier = proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+		}
 
 		if !proposals.compareWithBestHash(currentRound, hash, modifier) {
 			return false, false
@@ -234,7 +238,10 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 
 		proposerAddr := crypto.PubkeyToAddress(*pubKey)
 
-		modifier := proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+		modifier := 1
+		if proposals.appState.ValidatorsCache.IsPool(proposerAddr) {
+			modifier = proposals.appState.ValidatorsCache.PoolSize(proposerAddr)
+		}
 
 		if !proposals.compareWithBestHash(currentRound, vrfHash, modifier) {
 			return false, false
