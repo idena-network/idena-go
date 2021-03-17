@@ -1049,6 +1049,8 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 		stateDB.SubStake(*tx.To, stake)
 		if delegatorPrevState.VerifiedOrBetter() {
 			stateDB.AddBalance(sender, stake)
+		} else {
+			collector.AddKilledBurntCoins(statsCollector, *tx.To, stake)
 		}
 	case types.SubmitFlipTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
