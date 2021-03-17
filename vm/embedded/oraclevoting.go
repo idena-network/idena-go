@@ -451,7 +451,7 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 	epochWithoutGrowth := f.GetByte("no-growth")
 
 	if epochWithoutGrowth >= 3 {
-		errors.New("voting can not be prolonged anymore")
+		return errors.New("voting can not be prolonged anymore")
 	}
 
 	secretVotes := f.getSecretVotesCount()
@@ -587,6 +587,7 @@ func (f *OracleVoting2) Terminate(args ...[]byte) (common.Address, error) {
 					return common.Address{}, err
 				}
 			}
+			collector.AddOracleVotingTermination(f.statsCollector, nil, nil, nil)
 			return f.Owner(), nil
 		}
 
