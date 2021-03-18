@@ -1226,6 +1226,8 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.ValidationTxsBits = byte(identity.ValidationBits)
 		stateObject.data.LastValidationStatus = ValidationStatusFlag(identity.ValidationStatus)
 		stateObject.data.Scores = identity.Scores
+		stateObject.data.DelegationEpoch = uint16(identity.DelegationEpoch)
+		stateObject.data.DelegationNonce = identity.DelegationNonce
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &TxAddr{
