@@ -429,8 +429,8 @@ func TestFactChecking_Call(t *testing.T) {
 	minPayment := big.NewInt(0).SetBytes(appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
 
 	voted := 0
-	for _, key := range identities {
 
+	sendVoteProof := func(key *ecdsa.PrivateKey) {
 		pubBytes := crypto.FromECDSAPub(&key.PublicKey)
 
 		addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -472,13 +472,18 @@ func TestFactChecking_Call(t *testing.T) {
 			e.Reset()
 			require.Error(t, err)
 		} else {
-			voted++
 			e.Commit()
 			appState.State.AddBalance(contractAddr, minPayment)
 			appState.Commit(nil)
 			require.NoError(t, err)
+			if _, ok := votedIdentities[addr]; !ok {
+				voted++
+			}
 			votedIdentities[addr] = struct{}{}
 		}
+	}
+	for _, key := range identities {
+		sendVoteProof(key)
 	}
 	appState.Commit(nil)
 

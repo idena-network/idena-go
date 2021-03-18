@@ -213,7 +213,9 @@ func (f *OracleVoting2) sendVoteProof(args ...[]byte) error {
 		return errors.New("invalid proof")
 	}
 
-	f.setSecretVotesCount(f.getSecretVotesCount() + 1)
+	if f.voteHashes.Get(f.ctx.Sender().Bytes()) == nil {
+		f.setSecretVotesCount(f.getSecretVotesCount() + 1)
+	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
 	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash)
