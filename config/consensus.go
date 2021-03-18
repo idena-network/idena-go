@@ -115,8 +115,8 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV4:
 		cfg.EnablePools = true
 		cfg.Version = ConsensusV4
-		cfg.StartActivationDate = time.Date(2021, 02, 10, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 02, 17, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.StartActivationDate = time.Date(2021, 03, 24, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 03, 29, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
 	}
 }

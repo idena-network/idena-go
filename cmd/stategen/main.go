@@ -153,6 +153,8 @@ func main() {
 				ValidationBits:   uint32(data.ValidationTxsBits),
 				ValidationStatus: uint32(data.LastValidationStatus),
 				Scores:           data.Scores,
+				DelegationNonce:  data.DelegationNonce,
+				DelegationEpoch:  uint32(data.DelegationEpoch),
 			}
 
 			if data.Inviter != nil {

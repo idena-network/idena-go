@@ -18,6 +18,9 @@ import (
 func Test_rewardValidIdentities(t *testing.T) {
 
 	god := common.Address{0x1}
+
+	poolOfAuth1 := common.Address{0x10}
+
 	auth1 := common.Address{0x2}
 	auth2 := common.Address{0x3}
 	auth3 := common.Address{0x4}
@@ -40,6 +43,8 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetGodAddress(god)
 
 	appState.State.SetState(auth1, state.Newbie)
+	appState.State.SetDelegatee(auth1, poolOfAuth1)
+
 	appState.State.SetState(auth2, state.Candidate)
 	appState.State.SetState(auth3, state.Human)
 	appState.State.SetState(auth4, state.Suspended)
@@ -115,7 +120,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.SavedInviteWinnerRewardCoef)
 
-	require.True(t, reward.Cmp(appState.State.GetBalance(auth1)) == 0)
+	require.True(t, reward.Cmp(appState.State.GetBalance(poolOfAuth1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
 	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0), invitationReward*conf.SavedInviteRewardCoef)
