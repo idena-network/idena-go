@@ -77,10 +77,15 @@ type StatsCollector interface {
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte, committeeSize uint64, ownerFee byte)
 	AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
-	AddOracleVotingCallVoteProof(voteHash []byte)
-	AddOracleVotingCallVote(vote byte, salt []byte)
+	AddOracleVotingCallVoteProofOld(voteHash []byte)
+	AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64)
+	AddOracleVotingCallVoteOld(vote byte, salt []byte)
+	AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
+		newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64)
 	AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int)
-	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64)
+	AddOracleVotingCallProlongationOld(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64)
+	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+		newEpochWithoutGrowth *byte, newProlongVoteCount *uint64)
 	AddOracleVotingCallAddStake()
 	AddOracleVotingTermination(fund, oracleReward, ownerReward *big.Int)
 
@@ -695,26 +700,50 @@ func AddOracleVotingCallStart(c StatsCollector, state byte, startBlock uint64, e
 	c.AddOracleVotingCallStart(state, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, networkSize)
 }
 
-func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte) {
+func (c *collectorStub) AddOracleVotingCallVoteProofOld(voteHash []byte) {
 	// do nothing
 }
 
-func AddOracleVotingCallVoteProof(c StatsCollector, voteHash []byte) {
+func AddOracleVotingCallVoteProofOld(c StatsCollector, voteHash []byte) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallVoteProof(voteHash)
+	c.AddOracleVotingCallVoteProofOld(voteHash)
 }
 
-func (c *collectorStub) AddOracleVotingCallVote(vote byte, salt []byte) {
+func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64) {
 	// do nothing
 }
 
-func AddOracleVotingCallVote(c StatsCollector, vote byte, salt []byte) {
+func AddOracleVotingCallVoteProof(c StatsCollector, voteHash []byte, newSecretVotesCount *uint64) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallVote(vote, salt)
+	c.AddOracleVotingCallVoteProof(voteHash, newSecretVotesCount)
+}
+
+func (c *collectorStub) AddOracleVotingCallVoteOld(vote byte, salt []byte) {
+	// do nothing
+}
+
+func AddOracleVotingCallVoteOld(c StatsCollector, vote byte, salt []byte) {
+	if c == nil {
+		return
+	}
+	c.AddOracleVotingCallVoteOld(vote, salt)
+}
+
+func (c *collectorStub) AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
+	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64) {
+	// do nothing
+}
+
+func AddOracleVotingCallVote(c StatsCollector, vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
+	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64) {
+	if c == nil {
+		return
+	}
+	c.AddOracleVotingCallVote(vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes)
 }
 
 func (c *collectorStub) AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int) {
@@ -728,15 +757,28 @@ func AddOracleVotingCallFinish(c StatsCollector, state byte, result *byte, fund,
 	c.AddOracleVotingCallFinish(state, result, fund, oracleReward, ownerReward)
 }
 
-func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
+func (c *collectorStub) AddOracleVotingCallProlongationOld(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
 	// do nothing
 }
 
-func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
+func AddOracleVotingCallProlongationOld(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize)
+	c.AddOracleVotingCallProlongationOld(startBlock, epoch, vrfSeed, committeeSize, networkSize)
+}
+
+func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+	newEpochWithoutGrowth *byte, newProlongVoteCount *uint64) {
+	// do nothing
+}
+
+func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+	newEpochWithoutGrowth *byte, newProlongVoteCount *uint64) {
+	if c == nil {
+		return
+	}
+	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
 }
 
 func (c *collectorStub) AddOracleVotingCallAddStake() {
