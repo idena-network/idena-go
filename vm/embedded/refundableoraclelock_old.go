@@ -145,6 +145,10 @@ func (e *RefundableOracleLock) push(args ...[]byte) error {
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVoting"))
 	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
 
+	if e.GetByte("state") != oracleLockLocked {
+		return errors.New("oracleLock is unlocked already")
+	}
+
 	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("state")))
 	if state != oracleVotingStateFinished && oracleVotingExist {
 		return errors.New("voting is not completed")

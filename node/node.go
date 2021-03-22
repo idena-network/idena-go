@@ -27,6 +27,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/subscriptions"
+	"github.com/idena-network/idena-go/vm"
 	"github.com/pkg/errors"
 	"net"
 	"os"
@@ -190,7 +191,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
 	profileManager := profile.NewProfileManager(ipfsProxy)
 
-	deferJob, err := deferredtx.NewJob(bus, config.DataDir, appState, chain, txpool, keyStore, secStore)
+	deferJob, err := deferredtx.NewJob(bus, config.DataDir, appState, chain, txpool, keyStore, secStore, vm.NewVmImpl)
 	if err != nil {
 		return nil, err
 	}

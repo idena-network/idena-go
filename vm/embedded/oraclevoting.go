@@ -321,12 +321,15 @@ func (f *OracleVoting2) finishVoting(args ...[]byte) error {
 	winnerVotesCnt := uint64(0)
 	winner := byte(0)
 
+	actualVotedCount := uint64(0)
+
 	f.voteOptions.Iterate(func(key []byte, value []byte) bool {
 		cnt, _ := helpers.ExtractUInt64(0, value)
 		if cnt > winnerVotesCnt {
 			winnerVotesCnt = cnt
 			winner = key[0]
 		}
+		actualVotedCount += cnt
 		return false
 	})
 	originalWinners, _ := helpers.ExtractUInt64(0, f.allVotes.Get(common.ToBytes(winner)))
@@ -355,7 +358,7 @@ func (f *OracleVoting2) finishVoting(args ...[]byte) error {
 		fund := decimal.NewFromBigInt(fundInt, 0)
 		winnersCnt := uint64(0)
 
-		if float64(winnerVotesCnt) >= f.CalcPercent(votedCount, winnerThreshold) {
+		if float64(winnerVotesCnt) >= f.CalcPercent(actualVotedCount, winnerThreshold) {
 			result = &winner
 			winnersCnt = originalWinners
 		} else {
@@ -472,7 +475,7 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 			f.SetUint64("startBlock", v)
 			prevVoteCount := f.GetUint64("prolongVoteCount")
 			const noGrowthThreshold = 0.1
-			if (float64(votedCount+secretVotes-prevVoteCount) / float64(prevVoteCount)) < noGrowthThreshold {
+			if (votedCount+secretVotes) == 0 || (float64(votedCount+secretVotes-prevVoteCount)/float64(prevVoteCount)) < noGrowthThreshold {
 				f.SetByte("no-growth", epochWithoutGrowth+1)
 			} else {
 				f.SetByte("no-growth", 0)

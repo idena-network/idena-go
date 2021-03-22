@@ -32,27 +32,29 @@ type Job struct {
 	bus  eventbus.Bus
 	head *types.Header
 
-	txs      *DeferredTxs
-	mutex    sync.Mutex
-	datadir  string
-	bc       *blockchain.Blockchain
-	txpool   mempool.TransactionPool
-	appState *appstate.AppState
-	ks       *keystore.KeyStore
-	secStore *secstore.SecStore
+	txs       *DeferredTxs
+	mutex     sync.Mutex
+	datadir   string
+	bc        *blockchain.Blockchain
+	txpool    mempool.TransactionPool
+	appState  *appstate.AppState
+	ks        *keystore.KeyStore
+	secStore  *secstore.SecStore
+	vmCreator vm.VmCreator
 }
 
 func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *blockchain.Blockchain, txpool mempool.TransactionPool,
-	ks *keystore.KeyStore, secStore *secstore.SecStore) (*Job, error) {
+	ks *keystore.KeyStore, secStore *secstore.SecStore, vmCreator vm.VmCreator) (*Job, error) {
 	job := &Job{
-		bus:      bus,
-		datadir:  datadir,
-		appState: appState,
-		bc:       bc,
-		txpool:   txpool,
-		ks:       ks,
-		secStore: secStore,
-		txs:      new(DeferredTxs),
+		bus:       bus,
+		datadir:   datadir,
+		appState:  appState,
+		bc:        bc,
+		txpool:    txpool,
+		ks:        ks,
+		secStore:  secStore,
+		txs:       new(DeferredTxs),
+		vmCreator: vmCreator,
 	}
 
 	file, err := job.openFile()
@@ -75,21 +77,6 @@ func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *b
 			job.broadcast()
 		})
 	return job, nil
-}
-
-func calculateBroadcastBlock(prevBlock uint64, try int) uint64 {
-	add := uint64(1)
-	switch try {
-	case 1:
-		add = 1
-	case 2:
-		add = 2
-	case 3:
-		add = 4
-	default:
-		add = 8
-	}
-	return prevBlock + add
 }
 
 func (j *Job) broadcast() {
@@ -189,7 +176,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 		return err
 	}
 
-	vm := vm.NewVmImpl(readonlyAppState, j.head, j.secStore, nil, j.bc.Config())
+	vm := j.vmCreator(readonlyAppState, j.head, j.secStore, nil, j.bc.Config())
 	r := vm.Run(tx, -1)
 	if r.Error != nil {
 		return r.Error
@@ -301,4 +288,19 @@ func (d *DeferredTxs) FromBytes(data []byte) error {
 		d.Txs = append(d.Txs, deferredTx)
 	}
 	return nil
+}
+
+func calculateBroadcastBlock(prevBlock uint64, try int) uint64 {
+	add := uint64(1)
+	switch try {
+	case 1:
+		add = 1
+	case 2:
+		add = 2
+	case 3:
+		add = 4
+	default:
+		add = 8
+	}
+	return prevBlock + add
 }

@@ -21,6 +21,7 @@ var (
 
 type VM interface {
 	Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt
+	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
 }
 
 type VmImpl struct {
@@ -31,7 +32,9 @@ type VmImpl struct {
 	cfg            *config.Config
 }
 
-func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) *VmImpl {
+type VmCreator = func(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM
+
+func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM {
 	gasCounter := new(env2.GasCounter)
 	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store, statsCollector), appState: appState, gasCounter: gasCounter,
 		statsCollector: statsCollector, cfg: cfg}
