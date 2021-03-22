@@ -5,6 +5,7 @@ require (
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
+	github.com/cockroachdb/apd v1.1.0
 	github.com/coreos/go-semver v0.3.0
 	github.com/cosmos/iavl v0.15.0-rc5
 	github.com/davecgh/go-spew v1.1.1

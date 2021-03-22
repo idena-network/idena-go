@@ -47,6 +47,7 @@ type ConsensusConf struct {
 	MinProposerThreshold              float64
 	UpgradeIntervalBeforeValidation   time.Duration
 	EnablePools                       bool
+	UpdateContracts                   bool
 }
 
 type ConsensusVerson uint16
@@ -114,11 +115,11 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	switch ver {
 	case ConsensusV4:
 		cfg.EnablePools = true
+		cfg.UpdateContracts = true
 		cfg.Version = ConsensusV4
 		cfg.StartActivationDate = time.Date(2021, 03, 24, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 03, 29, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 

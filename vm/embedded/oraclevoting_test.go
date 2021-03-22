@@ -2,136 +2,15 @@ package embedded
 
 import (
 	"crypto/ecdsa"
-	"fmt"
-	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/eventbus"
-	"github.com/idena-network/idena-go/core/appstate"
-	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/secstore"
-	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	dbm "github.com/tendermint/tm-db"
-	"math"
 	"math/big"
-	"math/rand"
 	"testing"
+	"time"
 )
-
-func getDbSize(db *dbm.MemDB) int {
-	it, _ := db.Iterator(nil, nil)
-	size := 0
-	for ; it.Valid(); it.Next() {
-		size += len(it.Key()) + len(it.Value())
-	}
-	it.Close()
-	return size
-}
-
-func printDbSize(db *dbm.MemDB, descr string) {
-	fmt.Printf("%v: size of memDB=%v (key+value)\n", descr, getDbSize(db))
-}
-
-func createHeader(height uint64, time int64) *types.Header {
-	seed := types.Seed{}
-	seed.SetBytes(common.ToBytes(height))
-	return &types.Header{
-		ProposedHeader: &types.ProposedHeader{
-			BlockSeed: seed,
-			Height:    height,
-			Time:      time,
-		},
-	}
-}
-
-type contractTester struct {
-	db       dbm.DB
-	mainKey  *ecdsa.PrivateKey
-	mainAddr common.Address
-
-	appState *appstate.AppState
-	secStore *secstore.SecStore
-
-	initialOwnerContractBalance *big.Int
-}
-
-type contractTesterBuilder struct {
-	networkSize                 int
-	initialOwnerContractBalance *big.Int
-}
-
-func createTestContractBuilder(networkSize int) *contractTesterBuilder {
-	return &contractTesterBuilder{networkSize: networkSize, initialOwnerContractBalance: common.DnaBase}
-}
-
-func (b *contractTesterBuilder) SetInitialOwnerContractBalance(balance *big.Int) *contractTesterBuilder {
-	b.initialOwnerContractBalance = balance
-	return b
-}
-
-func (b *contractTesterBuilder) Build() *contractTester {
-
-	db := dbm.NewMemDB()
-	appState, _ := appstate.NewAppState(db, eventbus.New())
-
-	appState.State.SetFeePerGas(big.NewInt(1))
-	rnd := rand.New(rand.NewSource(1))
-	key, _ := crypto.GenerateKeyFromSeed(rnd)
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-	appState.State.SetState(addr, state.Newbie)
-	appState.State.SetBalance(addr, b.initialOwnerContractBalance)
-	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-	appState.IdentityState.Add(addr)
-
-	secStore := secstore.NewSecStore()
-
-	var identities []*ecdsa.PrivateKey
-
-	for i := 0; i < b.networkSize-1; i++ {
-		key, _ := crypto.GenerateKeyFromSeed(rnd)
-		identities = append(identities, key)
-		addr := crypto.PubkeyToAddress(key.PublicKey)
-		appState.State.SetState(addr, state.Newbie)
-		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-		appState.IdentityState.Add(addr)
-	}
-	appState.Commit(nil)
-
-	appState.Initialize(1)
-	return &contractTester{
-		db:                          db,
-		appState:                    appState,
-		mainKey:                     key,
-		mainAddr:                    addr,
-		initialOwnerContractBalance: b.initialOwnerContractBalance,
-		secStore:                    secStore,
-	}
-}
-
-type deployContractSwitch struct {
-	contractTester *contractTester
-	deployStake    *big.Int
-}
-
-func (s *deployContractSwitch) OracleVoting() *configurableOracleVotingDeploy {
-	return &configurableOracleVotingDeploy{
-		contractTester: s.contractTester,
-		deployStake:    s.deployStake,
-		fact:           []byte{0x1}, startTime: 10, committeeSize: 100, ownerFee: 0,
-		publicVotingDuration: 30,
-		votingDuration:       30,
-		quorum:               20,
-		winnerThreshold:      51,
-	}
-}
-
-type configurableDeploy interface {
-	Parameters() (contract EmbeddedContractType, deployStake *big.Int, params [][]byte)
-}
 
 type configurableOracleVotingDeploy struct {
 	contractTester *contractTester
@@ -207,64 +86,11 @@ func (c *configurableOracleVotingDeploy) SetOwnerFee(ownerFee byte) *configurabl
 }
 
 func (c *configurableOracleVotingDeploy) Deploy() (*oracleVotingCaller, error) {
-	if err := c.contractTester.Deploy(c); err != nil {
+	var err error
+	if err = c.contractTester.Deploy(c); err != nil {
 		return nil, err
 	}
-	return &oracleVotingCaller{}, nil
-}
-
-func (c *contractTester) ConfigureDeploy(deployStake *big.Int) *deployContractSwitch {
-	return &deployContractSwitch{contractTester: c, deployStake: deployStake}
-}
-
-func (c *contractTester) createContract(ctx env.CallContext, e env.Env) Contract {
-	switch ctx.CodeHash() {
-	case TimeLockContract:
-		return NewTimeLock(ctx, e, nil)
-	case OracleVotingContract:
-		return NewOracleVotingContract(ctx, e, nil)
-	case OracleLockContract:
-		return NewOracleLock(ctx, e, nil)
-	case RefundableOracleLockContract:
-		return NewRefundableOracleLock(ctx, e, nil)
-	case MultisigContract:
-		return NewMultisig(ctx, e, nil)
-	default:
-		return nil
-	}
-}
-
-func (c *contractTester) Deploy(config configurableDeploy) error {
-
-	contractType, deployStake, deployParams := config.Parameters()
-
-	attachment := attachments.CreateDeployContractAttachment(contractType, deployParams...)
-	payload, err := attachment.ToBytes()
-	if err != nil {
-		return err
-	}
-
-	tx := &types.Transaction{
-		Epoch:        0,
-		AccountNonce: 1,
-		Type:         types.DeployContract,
-		Amount:       deployStake,
-		Payload:      payload,
-	}
-	tx, _ = types.SignTx(tx, c.mainKey)
-	ctx := env.NewDeployContextImpl(tx, attachment.CodeHash)
-
-	gas := new(env.GasCounter)
-	gas.Reset(-1)
-
-	// deploy
-	e := env.NewEnvImp(c.appState, createHeader(2, 1), gas, c.secStore, nil)
-
-	return c.createContract(ctx, e).Deploy(attachment.Args...)
-}
-
-func (c *contractTester) Call(contract EmbeddedContractType) {
-
+	return &oracleVotingCaller{c.contractTester}, nil
 }
 
 type oracleVotingCaller struct {
@@ -272,322 +98,540 @@ type oracleVotingCaller struct {
 }
 
 func (c *oracleVotingCaller) StartVoting() error {
-	c.contractTester.Call(OracleVotingContract)
-	return nil
+	return c.contractTester.OwnerCall(OracleVotingContract, "startVoting")
 }
 
-func TestOracleVoting_scenario_0(t *testing.T) {
+func (c *oracleVotingCaller) ReadProof(addr common.Address) ([]byte, error) {
+	return c.contractTester.Read(OracleVotingContract, "proof", addr.Bytes())
+}
+
+func (c *oracleVotingCaller) VoteHash(vote, salt []byte) ([]byte, error) {
+	return c.contractTester.Read(OracleVotingContract, "voteHash", vote, salt)
+}
+
+func (c *oracleVotingCaller) sendVoteProof(key *ecdsa.PrivateKey, vote byte, payment *big.Int) error {
+
+	pubBytes := crypto.FromECDSAPub(&key.PublicKey)
+
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	hash := crypto.Hash(append(pubBytes, c.contractTester.ReadData("vrfSeed")...))
+
+	v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
+
+	q := new(big.Float).Quo(v, maxHash)
+
+	threshold, _ := helpers.ExtractUInt64(0, c.contractTester.ReadData("committeeSize"))
+	shouldBeError := false
+	if q.Cmp(big.NewFloat(1-float64(threshold)/float64(c.contractTester.appState.ValidatorsCache.NetworkSize()))) < 0 {
+		shouldBeError = true
+	}
+	_, err := c.ReadProof(addr)
+	if shouldBeError != (err != nil) {
+		panic("assert failed")
+	}
+
+	voteHash, err := c.VoteHash(common.ToBytes(vote), addr.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	return c.contractTester.Call(key, OracleVotingContract, payment, "sendVoteProof", voteHash)
+}
+
+func (c *oracleVotingCaller) sendVote(key *ecdsa.PrivateKey, vote byte, salt []byte) error {
+	return c.contractTester.Call(key, OracleVotingContract, nil, "sendVote", common.ToBytes(vote), salt)
+}
+
+func (c *oracleVotingCaller) finishVoting() error {
+	return c.contractTester.OwnerCall(OracleVotingContract, "finishVoting")
+}
+
+func (c *oracleVotingCaller) prolong() error {
+	return c.contractTester.OwnerCall(OracleVotingContract, "prolongVoting")
+}
+
+func TestOracleVoting_successScenario(t *testing.T) {
 	deployContractStake := common.DnaBase
 
-	builder := createTestContractBuilder(2000)
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(2000, ownerBalance)
 	tester := builder.Build()
-	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(5).Deploy()
-	require.NoError(t, err)
-
-	caller.StartVoting()
-}
-
-func TestFactChecking_Call(t *testing.T) {
-	db := dbm.NewMemDB()
-	appState, _ := appstate.NewAppState(db, eventbus.New())
-
-	initialBalance := common.DnaBase
-
-	appState.State.SetFeePerGas(big.NewInt(1))
-	rnd := rand.New(rand.NewSource(1))
-	key, _ := crypto.GenerateKeyFromSeed(rnd)
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-	appState.State.SetState(addr, state.Newbie)
-	appState.State.SetBalance(addr, initialBalance)
-	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-	appState.IdentityState.Add(addr)
-
-	secStore := secstore.NewSecStore()
-
-	var identities []*ecdsa.PrivateKey
-
-	for i := 0; i < 2000; i++ {
-		key, _ := crypto.GenerateKeyFromSeed(rnd)
-		identities = append(identities, key)
-		addr := crypto.PubkeyToAddress(key.PublicKey)
-		appState.State.SetState(addr, state.Newbie)
-		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-		appState.IdentityState.Add(addr)
-	}
-	appState.Commit(nil)
-
-	appState.Initialize(1)
-
-	printDbSize(db, "Before contract deploy")
-
 	ownerFee := byte(5)
-
-	attachment := attachments.CreateDeployContractAttachment(OracleVotingContract, []byte{0x1}, common.ToBytes(uint64(10)),
-		nil, nil, nil, nil, nil, nil, common.ToBytes(ownerFee))
-	payload, err := attachment.ToBytes()
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(ownerFee).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
 	require.NoError(t, err)
 
-	deployContractStake := big.NewInt(0).Mul(common.DnaBase, big.NewInt(15))
-
-	tx := &types.Transaction{
-		Epoch:        0,
-		AccountNonce: 1,
-		Type:         types.DeployContract,
-		Amount:       deployContractStake,
-		Payload:      payload,
-	}
-	tx, _ = types.SignTx(tx, key)
-	ctx := env.NewDeployContextImpl(tx, attachment.CodeHash)
-
-	gas := new(env.GasCounter)
-	gas.Reset(-1)
-
-	// deploy
-	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore, nil)
-	contract := NewOracleVotingContract(ctx, e, nil)
-
-	require.NoError(t, contract.Deploy(attachment.Args...))
-	e.Deploy(ctx)
-	e.Commit()
-	contractAddr := ctx.ContractAddr()
-
-	appState.Commit(nil)
-	printDbSize(db, "After contract deploy")
-	fmt.Printf("Deploy gas: %v\n", gas.UsedGas)
-	gas.Reset(-1)
-	// start voting
-
-	callAttach := attachments.CreateCallContractAttachment("startVoting")
-	payload, _ = callAttach.ToBytes()
-	tx = &types.Transaction{
-		Epoch:        0,
-		AccountNonce: 2,
-		To:           &contractAddr,
-		Type:         types.CallContract,
-		Payload:      payload,
-	}
-	tx, _ = types.SignTx(tx, key)
-
-	txNotOwner, _ := types.SignTx(tx, identities[0])
-
-	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(txNotOwner, OracleVotingContract), e, nil)
-
-	require.Error(t, contract.Call("startVoting"))
-	e.Reset()
-	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
-
-	require.Error(t, contract.Call("startVoting"))
-	e.Reset()
-	gas.Reset(-1)
+	caller.contractTester.Commit()
+	caller.contractTester.setHeight(3)
+	caller.contractTester.setTimestamp(30)
+	require.Error(t, caller.StartVoting())
 
 	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(2000))
+	caller.contractTester.SetBalance(contractBalance)
 
-	appState.State.SetBalance(contractAddr, contractBalance)
+	require.NoError(t, caller.StartVoting())
+	caller.contractTester.Commit()
 
-	require.NoError(t, contract.Call("startVoting"))
-	e.Commit()
-
-	appState.Commit(nil)
-	printDbSize(db, "After start voting")
-	fmt.Printf("Start voting gas: %v\n", gas.UsedGas)
-	gas.Reset(-1)
-
-	require.Equal(t, common.ToBytes(byte(1)), appState.State.GetContractValue(contractAddr, []byte("state")))
-	require.Equal(t, big.NewInt(0).Quo(contractBalance, big.NewInt(20)).Bytes(), appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
+	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("state"))
+	require.Equal(t, big.NewInt(0).Quo(contractBalance, big.NewInt(20)).Bytes(), caller.contractTester.ReadData("votingMinPayment"))
 
 	seed := types.Seed{}
 	seed.SetBytes(common.ToBytes(uint64(3)))
-	require.Equal(t, seed.Bytes(), appState.State.GetContractValue(contractAddr, []byte("vrfSeed")))
-	require.Equal(t, common.ToBytes(uint64(100)), appState.State.GetContractValue(contractAddr, []byte("committeeSize")))
+	require.Equal(t, seed.Bytes(), caller.contractTester.ReadData("vrfSeed"))
+	require.Equal(t, common.ToBytes(uint64(100)), caller.contractTester.ReadData("committeeSize"))
 
 	// send proofs
 	winnerVote := byte(1)
 	votedIdentities := map[common.Address]struct{}{}
-	minPayment := big.NewInt(0).SetBytes(appState.State.GetContractValue(contractAddr, []byte("votingMinPayment")))
+	minPayment := big.NewInt(0).SetBytes(caller.contractTester.ReadData("votingMinPayment"))
 
 	voted := 0
-	for _, key := range identities {
 
-		pubBytes := crypto.FromECDSAPub(&key.PublicKey)
+	sendVoteProof := func(key *ecdsa.PrivateKey) {
 
+		caller.contractTester.setHeight(4)
+
+		err = caller.sendVoteProof(key, winnerVote, minPayment)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-
-		hash := crypto.Hash(append(pubBytes, appState.State.GetContractValue(contractAddr, []byte("vrfSeed"))...))
-
-		v := new(big.Float).SetInt(new(big.Int).SetBytes(hash[:]))
-
-		q := new(big.Float).Quo(v, maxHash)
-
-		threshold, _ := helpers.ExtractUInt64(0, appState.State.GetContractValue(contractAddr, []byte("committeeSize")))
-		shouldBeError := false
-		if q.Cmp(big.NewFloat(1-float64(threshold)/float64(appState.ValidatorsCache.NetworkSize()))) < 0 {
-			shouldBeError = true
-		}
-		_, err = contract.Read("proof", addr.Bytes())
-		require.Equal(t, shouldBeError, err != nil)
-
-		salt := addr.Bytes()
-		voteHash, err := contract.Read("voteHash", common.ToBytes(winnerVote), salt)
-		require.Nil(t, err)
-
-		callAttach = attachments.CreateCallContractAttachment("sendVoteProof", voteHash[:])
-		payload, _ = callAttach.ToBytes()
-		tx = &types.Transaction{
-			Epoch:        0,
-			AccountNonce: 2,
-			To:           &contractAddr,
-			Type:         types.CallContract,
-			Payload:      payload,
-			Amount:       minPayment,
-		}
-		tx, _ = types.SignTx(tx, key)
-		gas.Reset(-1)
-		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
-		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
-		err = contract.Call(callAttach.Method, callAttach.Args...)
-		if shouldBeError {
-			e.Reset()
-			require.Error(t, err)
-		} else {
-			voted++
-			e.Commit()
-			appState.State.AddBalance(contractAddr, minPayment)
-			appState.Commit(nil)
+		if err == nil {
+			caller.contractTester.AddBalance(minPayment)
+			caller.contractTester.Commit()
 			require.NoError(t, err)
+			if _, ok := votedIdentities[addr]; !ok {
+				voted++
+			}
 			votedIdentities[addr] = struct{}{}
 		}
 	}
-	appState.Commit(nil)
-
-	printDbSize(db, "After send vote proofs")
-	gas.Reset(-1)
+	for _, key := range caller.contractTester.identities {
+		sendVoteProof(key)
+	}
 
 	//send votes
-
-	for _, key := range identities {
+	for _, key := range caller.contractTester.identities {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 
-		salt := addr.Bytes()
-		callAttach = attachments.CreateCallContractAttachment("sendVote", common.ToBytes(winnerVote), salt)
-		payload, _ = callAttach.ToBytes()
-		tx = &types.Transaction{
-			Epoch:        0,
-			AccountNonce: 2,
-			To:           &contractAddr,
-			Type:         types.CallContract,
-			Payload:      payload,
-		}
-		gas.Reset(-1)
-		tx, _ = types.SignTx(tx, key)
-		e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore, nil)
-		contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
-
-		err := contract.Call(callAttach.Method, callAttach.Args...)
 		if _, ok := votedIdentities[addr]; !ok {
-			e.Reset()
+			continue
+		}
+		caller.contractTester.setHeight(4320 * 2)
+
+		err := caller.sendVote(key, winnerVote, addr.Bytes())
+		if _, ok := votedIdentities[addr]; !ok {
 			require.Error(t, err)
 		} else {
-			e.Commit()
-			appState.Commit(nil)
+			caller.contractTester.Commit()
 			require.NoError(t, err)
 		}
 	}
 
-	appState.Commit(nil)
-	printDbSize(db, "After send open votes")
-	gas.Reset(-1)
-
-	callAttach = attachments.CreateCallContractAttachment("finishVoting")
-	payload, _ = callAttach.ToBytes()
-	tx = &types.Transaction{
-		Epoch:        0,
-		AccountNonce: 2,
-		To:           &contractAddr,
-		Type:         types.CallContract,
-		Payload:      payload,
-	}
-	tx, _ = types.SignTx(tx, key)
-	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4320*2, 21), gas, secStore, nil)
-	contract = NewOracleVotingContract(env.NewCallContextImpl(tx, OracleVotingContract), e, nil)
-
-	require.NoError(t, contract.Call(callAttach.Method, callAttach.Args...))
-	e.Commit()
-	appState.Commit(nil)
-	printDbSize(db, "After finishVoting")
+	require.NoError(t, caller.finishVoting())
+	caller.contractTester.Commit()
 
 	for addr := range votedIdentities {
-		b := appState.State.GetBalance(addr)
+		b := caller.contractTester.appState.State.GetBalance(addr)
 		require.Equal(t, "120652173913043478260", b.String())
 	}
 
-	stakeAfterFinish := appState.State.GetContractStake(contractAddr)
+	stakeAfterFinish := caller.contractTester.ContractStake()
 	ownerFeeAmount := big.NewInt(0).Quo(contractBalance, big.NewInt(int64(100/ownerFee)))
 	require.Equal(t, deployContractStake.Bytes(), stakeAfterFinish.Bytes())
 
-	fmt.Printf("Finish voting gas: %v\n", gas.UsedGas)
-
-	gas.Reset(-1)
-	require.Equal(t, []byte{winnerVote}, appState.State.GetContractValue(contractAddr, []byte("result")))
+	require.Equal(t, []byte{winnerVote}, caller.contractTester.ReadData("result"))
 
 	for addr, _ := range votedIdentities {
-		require.True(t, appState.State.GetBalance(addr).Sign() == 1)
+		require.True(t, caller.contractTester.appState.State.GetBalance(addr).Sign() == 1)
 	}
-	require.True(t, appState.State.GetBalance(contractAddr).Sign() == 0)
+	require.True(t, caller.contractTester.ContractBalance().Sign() == 0)
+
+	caller.contractTester.setHeight(4320*2 + 4 + 30240)
+
+	owner := caller.contractTester.ReadData("owner")
 
 	//terminate
-	terminateAttach := attachments.CreateTerminateContractAttachment()
-	payload, _ = terminateAttach.ToBytes()
-	tx = &types.Transaction{
-		Epoch:        0,
-		AccountNonce: 2,
-		To:           &contractAddr,
-		Type:         types.TerminateContract,
-		Payload:      payload,
-	}
-	tx, _ = types.SignTx(tx, key)
-
-	e = env.NewEnvImp(appState, createHeader(4320*2+4+30240, 21), gas, secStore, nil)
-	termCtx := env.NewCallContextImpl(tx, OracleVotingContract)
-	contract = NewOracleVotingContract(termCtx, e, nil)
-	dest, err := contract.Terminate(terminateAttach.Args...)
-	e.Terminate(termCtx, dest)
+	dest, err := caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
 	require.NoError(t, err)
-	e.Commit()
+	require.Equal(t, owner, dest.Bytes())
 
-	appState.Commit(nil)
-	printDbSize(db, "After terminating")
-	fmt.Printf("Terminating gas: %v\n", gas.UsedGas)
+	caller.contractTester.Commit()
 
 	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
 
-	require.Equal(t, appState.State.GetBalance(addr).Bytes(), big.NewInt(0).Add(big.NewInt(0).Add(initialBalance, ownerFeeAmount), stakeToBalance).Bytes())
-	require.Nil(t, appState.State.GetCodeHash(contractAddr))
-	require.Equal(t, 0, appState.State.GetStakeBalance(contractAddr).Sign())
-
-	require.Nil(t, appState.State.GetContractValue(contractAddr, []byte("vrfSeed")))
+	require.Equal(t, big.NewInt(0).Add(big.NewInt(0).Add(ownerBalance, ownerFeeAmount), stakeToBalance).String(), caller.contractTester.appState.State.GetBalance(dest).String())
+	require.Nil(t, caller.contractTester.CodeHash())
+	require.Nil(t, caller.contractTester.ContractStake())
+	require.Nil(t, caller.contractTester.ReadData("vrfSeed"))
 }
 
-func Test_minOracleReward(t *testing.T) {
+func TestOracleVoting2_Terminate_NotStartedVoting(t *testing.T) {
+	deployContractStake := common.DnaBase
 
-	cases := []struct {
-		percent int
-		network int
-		reward  float64
-	}{
-		{percent: 1, network: 1000, reward: 1.0},
-		{percent: 1, network: 3400, reward: 1.0},
-		{percent: 50, network: 5000, reward: 3.0379},
-		{percent: 50, network: 1000, reward: 2.5428},
-		{percent: 100, network: 1000, reward: 3.0},
-		{percent: 90, network: 100000, reward: 4.8192},
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(2000, ownerBalance)
+	tester := builder.Build()
+	ownerFee := byte(5)
+	startTime := uint64(10)
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(ownerFee).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	timestamp := int64((time.Hour * 24 * 30).Seconds()) - 1 + int64(startTime)
+
+	caller.contractTester.setTimestamp(timestamp)
+
+	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
+	require.Error(t, err)
+
+	timestamp += 2
+	caller.contractTester.setTimestamp(timestamp)
+
+	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
+	require.NoError(t, err)
+}
+
+func TestOracleVoting2_TerminateRefund(t *testing.T) {
+	deployContractStake := common.DnaBase
+
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(2000, ownerBalance)
+	tester := builder.Build()
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(10).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(2000))
+	caller.contractTester.SetBalance(contractBalance)
+	caller.contractTester.setTimestamp(21)
+
+	require.NoError(t, caller.StartVoting())
+	caller.contractTester.Commit()
+
+	caller.contractTester.setHeight(4320*2 + 20)
+
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+
+	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("no-growth"))
+
+	payment := big.NewInt(0).Mul(common.DnaBase, big.NewInt(100))
+
+	var canVoteKeys []*ecdsa.PrivateKey
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, err := caller.ReadProof(addr); err == nil {
+			canVoteKeys = append(canVoteKeys, key)
+		}
 	}
 
-	for _, c := range cases {
-		f, _ := decimal.NewFromBigInt(minOracleReward(uint64(c.percent*c.network/100), c.network), -18).Float64()
-		require.Equal(t, c.reward, math.Round(f*10000)/10000)
+	sendVoteProof := func(key *ecdsa.PrivateKey, vote byte) {
+		caller.contractTester.setHeight(4320*2 + 22)
+
+		err = caller.sendVoteProof(key, vote, payment)
+		if err == nil {
+			caller.contractTester.AddBalance(payment)
+			caller.contractTester.Commit()
+			require.NoError(t, err)
+		}
 	}
+
+	for i := 0; i < 5; i++ {
+		sendVoteProof(canVoteKeys[i], 1)
+	}
+	for i := 5; i < 10; i++ {
+		sendVoteProof(canVoteKeys[i], 2)
+	}
+
+	//send votes
+	for i := 0; i < 5; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+
+		caller.contractTester.setHeight(4320*3 + 22)
+
+		err := caller.sendVote(canVoteKeys[i], 1, addr.Bytes())
+		require.Equal(t, "quorum is not reachable", err.Error())
+	}
+
+	caller.contractTester.setHeight(4320*2 + 20)
+	require.Error(t, caller.prolong())
+
+	caller.contractTester.setHeight(4320*4 + 20)
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+	require.Equal(t, common.ToBytes(byte(0)), caller.contractTester.ReadData("no-growth"))
+
+	caller.contractTester.setHeight(4320*6 + 20)
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("no-growth"))
+
+	caller.contractTester.setHeight(4320*8 + 20)
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+	require.Equal(t, common.ToBytes(byte(2)), caller.contractTester.ReadData("no-growth"))
+
+	caller.contractTester.setHeight(4320*10 + 20)
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+	require.Equal(t, common.ToBytes(byte(3)), caller.contractTester.ReadData("no-growth"))
+
+	caller.contractTester.setHeight(4320*12 + 20)
+	require.Error(t, caller.prolong())
+
+	caller.contractTester.setHeight(4320*12 + 4320*7 + 20)
+	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
+	caller.contractTester.Commit()
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		require.Equal(t, big.NewInt(0).Mul(common.DnaBase, big.NewInt(280)).String(), caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+
+	require.Nil(t, caller.contractTester.CodeHash())
+	require.Nil(t, caller.contractTester.ContractStake())
+	require.Nil(t, caller.contractTester.ReadData("result"))
+	require.Equal(t, 0, caller.contractTester.ContractBalance().Sign())
+}
+
+func TestOracleVoting2_Refund_No_Winner(t *testing.T) {
+	deployContractStake := common.DnaBase
+
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(2000, ownerBalance)
+	tester := builder.Build()
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(0).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).SetWinnerThreshold(66).Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(2000))
+	caller.contractTester.SetBalance(contractBalance)
+	caller.contractTester.setTimestamp(21)
+
+	require.NoError(t, caller.StartVoting())
+	caller.contractTester.Commit()
+
+	caller.contractTester.setHeight(4320*2 + 20)
+
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+
+	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("no-growth"))
+
+	payment := big.NewInt(0).Mul(common.DnaBase, big.NewInt(100))
+
+	var canVoteKeys []*ecdsa.PrivateKey
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, err := caller.ReadProof(addr); err == nil {
+			canVoteKeys = append(canVoteKeys, key)
+		}
+	}
+
+	sendVoteProof := func(key *ecdsa.PrivateKey, vote byte) error {
+		err = caller.sendVoteProof(key, vote, payment)
+		if err == nil {
+			caller.contractTester.AddBalance(payment)
+			caller.contractTester.Commit()
+			require.NoError(t, err)
+		}
+		return err
+	}
+	caller.contractTester.setHeight(4320*2 + 22)
+	for i := 0; i < 10; i++ {
+		vote := byte(1)
+		if i%2 == 0 {
+			vote = 2
+		}
+		require.NoError(t, sendVoteProof(canVoteKeys[i], vote))
+	}
+
+	caller.contractTester.setHeight(4320*4 + 20)
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+	require.Equal(t, common.ToBytes(byte(0)), caller.contractTester.ReadData("no-growth"))
+
+	caller.contractTester.setHeight(4320*4 + 21)
+
+	var newCanVoteKeys []*ecdsa.PrivateKey
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, err := caller.ReadProof(addr); err == nil {
+			newCanVoteKeys = append(newCanVoteKeys, key)
+		}
+	}
+
+	for i := 10; i < 22; i++ {
+		vote := byte(1)
+		if i%2 == 0 {
+			vote = 2
+		}
+		require.NoError(t, sendVoteProof(newCanVoteKeys[i], vote))
+	}
+
+	//send votes
+	for i := 0; i < 10; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		caller.contractTester.setHeight(4320*5 + 22)
+		vote := byte(1)
+		if i%2 == 0 {
+			vote = 2
+		}
+		err = caller.sendVote(canVoteKeys[i], vote, addr.Bytes())
+		caller.contractTester.Commit()
+		require.NoError(t, err)
+	}
+
+	for i := 10; i < 19; i++ {
+		addr := crypto.PubkeyToAddress(newCanVoteKeys[i].PublicKey)
+		caller.contractTester.setHeight(4320*5 + 22)
+		vote := byte(1)
+		if i%2 == 0 {
+			vote = 2
+		}
+		require.NoError(t, caller.sendVote(newCanVoteKeys[i], vote, addr.Bytes()))
+		caller.contractTester.Commit()
+	}
+	caller.contractTester.setHeight(4320*6 + 22)
+
+	require.NoError(t, caller.finishVoting())
+	caller.contractTester.Commit()
+
+	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
+	require.Nil(t, caller.contractTester.ReadData("result"))
+
+	balance, _ := big.NewInt(0).SetString("221052631578947368421", 10) // ((2000 + (10+12) * payment) / 19 )*10^18
+
+	for i := 0; i < 10; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		require.Equal(t, balance.String(), caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+
+	for i := 10; i < 19; i++ {
+		addr := crypto.PubkeyToAddress(newCanVoteKeys[i].PublicKey)
+		require.Equal(t, balance.String(), caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+
+	for i := 19; i < 22; i++ {
+		addr := crypto.PubkeyToAddress(newCanVoteKeys[i].PublicKey)
+		require.Equal(t, "0", caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+}
+
+func TestOracleVoting_RewardPools(t *testing.T) {
+	deployContractStake := common.DnaBase
+
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(2000, ownerBalance)
+	tester := builder.Build()
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(0).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).SetWinnerThreshold(66).Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+	payment := big.NewInt(0).Mul(common.DnaBase, big.NewInt(200))
+
+	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(3000))
+	caller.contractTester.SetBalance(contractBalance)
+	caller.contractTester.setTimestamp(21)
+
+	require.NoError(t, caller.StartVoting())
+	caller.contractTester.Commit()
+
+	var canVoteKeys []*ecdsa.PrivateKey
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, err := caller.ReadProof(addr); err == nil {
+			canVoteKeys = append(canVoteKeys, key)
+		}
+	}
+
+	sendVoteProof := func(key *ecdsa.PrivateKey, vote byte) error {
+		err = caller.sendVoteProof(key, vote, payment)
+		if err == nil {
+			caller.contractTester.AddBalance(payment)
+			caller.contractTester.Commit()
+			require.NoError(t, err)
+		}
+		return err
+	}
+
+	caller.contractTester.setHeight(22)
+	for i := 0; i < 30; i++ {
+		vote := byte(1)
+		if i < 14 {
+			vote = 2
+		}
+		require.NoError(t, sendVoteProof(canVoteKeys[i], vote))
+	}
+
+	pool1 := common.Address{0x1}
+	pool2 := common.Address{0x2}
+
+	for i := 0; i < 15; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		caller.contractTester.appState.State.SetDelegatee(addr, pool1)
+		caller.contractTester.appState.IdentityState.SetDelegatee(addr, pool1)
+	}
+
+	for i := 15; i < 20; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		caller.contractTester.appState.State.SetDelegatee(addr, pool2)
+		caller.contractTester.appState.IdentityState.SetDelegatee(addr, pool2)
+	}
+	caller.contractTester.appState.Commit(nil)
+
+	caller.contractTester.setHeight(4320 + 22)
+
+	//send votes
+	for i := 0; i < 30; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		vote := byte(1)
+		if i < 14 {
+			vote = 2
+		}
+		err = caller.sendVote(canVoteKeys[i], vote, addr.Bytes())
+		caller.contractTester.Commit()
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, common.ToBytes(uint64(30)), caller.contractTester.ReadData("votedCount"))
+
+	caller.contractTester.setHeight(4320*2 + 22)
+
+	require.NoError(t, caller.finishVoting())
+	caller.contractTester.Commit()
+
+	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
+	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("result"))
+
+	for i := 0; i < 20; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		require.Equal(t, "0", caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+
+	balance, _ := big.NewInt(0).SetString("562500000000000000000", 10) // ((200 * 30) + 3000) / 16 * 10^18
+
+	require.Equal(t, balance.String(), caller.contractTester.appState.State.GetBalance(pool1).String())
+
+	for i := 20; i < 30; i++ {
+		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
+		require.Equal(t, balance.String(), caller.contractTester.appState.State.GetBalance(addr).String())
+	}
+
+	require.Equal(t, big.NewInt(0).Mul(balance, big.NewInt(5)).String(), caller.contractTester.appState.State.GetBalance(pool2).String())
 }

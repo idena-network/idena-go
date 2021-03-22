@@ -45,6 +45,7 @@ type Env interface {
 	Epoch() uint16
 	ContractStake(common.Address) *big.Int
 	MoveToStake(ctx CallContext, amount *big.Int) error
+	Delegatee(addr common.Address) *common.Address
 }
 
 type contractValue struct {
@@ -204,6 +205,11 @@ func (e *EnvImp) State(sender common.Address) state.IdentityState {
 func (e *EnvImp) PubKey(addr common.Address) []byte {
 	e.gasCounter.AddReadBytesAsGas(10)
 	return e.state.State.GetIdentity(addr).PubKey
+}
+
+func (e *EnvImp) Delegatee(addr common.Address) *common.Address {
+	e.gasCounter.AddReadBytesAsGas(10)
+	return e.state.State.Delegatee(addr)
 }
 
 func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) (stopped bool)) {

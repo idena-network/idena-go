@@ -218,3 +218,11 @@ func (chain *TestBlockchain) CommitState() *TestBlockchain {
 	chain.addCert(block)
 	return chain
 }
+
+func (chain *TestBlockchain) SecStore() *secstore.SecStore {
+	return chain.secStore
+}
+
+func (chain *TestBlockchain) Bus() eventbus.Bus {
+	return chain.bus
+}

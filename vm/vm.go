@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
@@ -20,6 +21,7 @@ var (
 
 type VM interface {
 	Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt
+	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
 }
 
 type VmImpl struct {
@@ -27,12 +29,15 @@ type VmImpl struct {
 	appState       *appstate.AppState
 	gasCounter     *env2.GasCounter
 	statsCollector collector.StatsCollector
+	cfg            *config.Config
 }
 
-func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector) *VmImpl {
+type VmCreator = func(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM
+
+func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM {
 	gasCounter := new(env2.GasCounter)
 	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store, statsCollector), appState: appState, gasCounter: gasCounter,
-		statsCollector: statsCollector}
+		statsCollector: statsCollector, cfg: cfg}
 }
 
 func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
@@ -40,10 +45,19 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
+		if vm.cfg.Consensus.UpdateContracts {
+			return embedded.NewOracleVotingContract2(ctx, vm.env, vm.statsCollector)
+		}
 		return embedded.NewOracleVotingContract(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleLockContract:
+		if vm.cfg.Consensus.UpdateContracts {
+			return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
+		}
 		return embedded.NewOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableOracleLockContract:
+		if vm.cfg.Consensus.UpdateContracts {
+			return embedded.NewRefundableOracleLock2(ctx, vm.env, vm.statsCollector)
+		}
 		return embedded.NewRefundableOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.MultisigContract:
 		return embedded.NewMultisig(ctx, vm.env, vm.statsCollector)

@@ -8,19 +8,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-type OracleLock2 struct {
+type OracleLock struct {
 	*BaseContract
 }
 
-func NewOracleLock2(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleLock2 {
-	return &OracleLock2{&BaseContract{
+func NewOracleLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleLock {
+	return &OracleLock{&BaseContract{
 		ctx:            ctx,
 		env:            e,
 		statsCollector: statsCollector,
 	}}
 }
 
-func (e *OracleLock2) Deploy(args ...[]byte) error {
+func (e *OracleLock) Deploy(args ...[]byte) error {
 	oracleVotingAddr, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func (e *OracleLock2) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func (e *OracleLock2) Call(method string, args ...[]byte) error {
+func (e *OracleLock) Call(method string, args ...[]byte) error {
 	switch method {
 	case "push":
 		return e.push(args...)
@@ -61,13 +61,13 @@ func (e *OracleLock2) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (e *OracleLock2) Read(method string, args ...[]byte) ([]byte, error) {
+func (e *OracleLock) Read(method string, args ...[]byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (e *OracleLock2) push(args ...[]byte) error {
+func (e *OracleLock) push(args ...[]byte) error {
 
-	isOracleVotingFinished := e.GetByte("isOracleVotingFinished") == 1
+	isOracleVotingFinished := e.GetByte("isOracleVotingFinished ") == 1
 
 	if isOracleVotingFinished {
 
@@ -92,7 +92,7 @@ func (e *OracleLock2) push(args ...[]byte) error {
 	return errors.New("oracle value is nil")
 }
 
-func (e *OracleLock2) checkOracleVoting(args ...[]byte) error {
+func (e *OracleLock) checkOracleVoting(args ...[]byte) error {
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVotingAddr"))
 	state, _ := helpers.ExtractByte(0, e.env.ReadContractData(oracleVoting, []byte("state")))
 	if state != oracleVotingStateFinished {
@@ -108,7 +108,7 @@ func (e *OracleLock2) checkOracleVoting(args ...[]byte) error {
 	return nil
 }
 
-func (e *OracleLock2) Terminate(args ...[]byte) (common.Address, error) {
+func (e *OracleLock) Terminate(args ...[]byte) (common.Address, error) {
 
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVotingAddr"))
 	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
