@@ -172,9 +172,12 @@ func (e *RefundableOracleLock2) push(args ...[]byte) error {
 	} else {
 		newState = oracleLockUnlockedRefund
 		e.SetByte("state", newState)
-		delay := e.GetUint64("refundDelay")
-		refundBlock = e.env.BlockNumber() + delay
-		e.SetUint64("refundBlock", refundBlock)
+
+		if e.GetUint64("refundBlock") == 0 {
+			delay := e.GetUint64("refundDelay")
+			refundBlock = e.env.BlockNumber() + delay
+			e.SetUint64("refundBlock", refundBlock)
+		}
 	}
 
 	collector.AddRefundableOracleLockCallPush(e.statsCollector, newState, oracleVotingExist, votedValue, votedValueErr, amount, refundBlock)
