@@ -118,6 +118,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.StartActivationDate = time.Date(2021, 03, 24, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 03, 29, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 
