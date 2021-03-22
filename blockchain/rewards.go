@@ -69,7 +69,11 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
 				reward, stake := splitReward(math.ToInt(totalReward), identity.State == state.Newbie, config)
 				collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
-				appState.State.AddBalance(addr, reward)
+				rewardDest := addr
+				if identity.Delegatee != nil {
+					rewardDest = *identity.Delegatee
+				}
+				appState.State.AddBalance(rewardDest, reward)
 				appState.State.AddStake(addr, stake)
 				collector.CompleteBalanceUpdate(statsCollector, appState)
 				collector.AddMintedCoins(statsCollector, reward)
@@ -133,7 +137,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(weight))
 		reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
 		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
-		appState.State.AddBalance(addr, reward)
+		rewardDest := addr
+		if delegatee := appState.State.Delegatee(addr); delegatee != nil {
+			rewardDest = *delegatee
+		}
+		appState.State.AddBalance(rewardDest, reward)
 		appState.State.AddStake(addr, stake)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, reward)
@@ -149,7 +157,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		for _, reporter := range reporters {
 			reward, stake := splitReward(math.ToInt(totalReward), reporter.NewIdentityState == uint8(state.Newbie), config)
 			collector.BeginEpochRewardBalanceUpdate(statsCollector, reporter.Address, appState)
-			appState.State.AddBalance(reporter.Address, reward)
+			rewardDest := reporter.Address
+			if delegatee := appState.State.Delegatee(reporter.Address); delegatee != nil {
+				rewardDest = *delegatee
+			}
+			appState.State.AddBalance(rewardDest, reward)
 			appState.State.AddStake(reporter.Address, stake)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, reward)
@@ -218,7 +230,11 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
 		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, appState)
-		appState.State.AddBalance(addr, reward)
+		rewardDest := addr
+		if delegatee := appState.State.Delegatee(addr); delegatee != nil {
+			rewardDest = *delegatee
+		}
+		appState.State.AddBalance(rewardDest, reward)
 		appState.State.AddStake(addr, stake)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, reward)

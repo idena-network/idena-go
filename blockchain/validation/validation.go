@@ -59,7 +59,11 @@ var (
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
 	NegativeValue        = errors.New("value must be non-negative")
-	validators           map[types.TxType]validator
+	SenderHasDelegatee   = errors.New("sender has delegatee already")
+	SenderHasNoDelegatee = errors.New("sender has no delegatee")
+	WrongEpoch           = errors.New("wrong epoch")
+
+	validators map[types.TxType]validator
 )
 
 var (
@@ -105,9 +109,22 @@ func init() {
 }
 func SetAppConfig(cfg *config.Config) {
 	appCfg = cfg
+
 }
 
 func getValidator(txType types.TxType) (validator, bool) {
+	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
+		cfgInitVersion = appCfg.Consensus.Version
+		if appCfg.Consensus.EnablePools {
+			validators[types.DelegateTx] = validateDelegateTx
+			validators[types.UndelegateTx] = validateUndelegateTx
+			validators[types.KillDelegatorTx] = validateKillDelegatorTx
+		} else {
+			delete(validators, types.DelegateTx)
+			delete(validators, types.UndelegateTx)
+			delete(validators, types.KillDelegatorTx)
+		}
+	}
 	v, ok := validators[txType]
 	return v, ok
 }
@@ -495,14 +512,19 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-	if !appState.ValidatorsCache.Contains(sender) {
-		return InvalidRecipient
+	if !appState.ValidatorsCache.Contains(sender) && !appState.ValidatorsCache.IsPool(sender) {
+		return InvalidSender
 	}
 
 	attachment := attachments.ParseOnlineStatusAttachment(tx)
 
 	if attachment == nil {
 		return InvalidPayload
+	}
+
+	identity := appState.State.GetIdentity(sender)
+	if identity.Delegatee != nil {
+		return InvalidSender
 	}
 
 	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(sender)
@@ -688,5 +710,101 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidPayload
 	}
 
+	return nil
+}
+
+func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	if sender == *tx.To {
+		return InvalidRecipient
+	}
+
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+
+	if appState.ValidatorsCache.IsPool(sender) {
+		return InvalidSender
+	}
+
+	if appState.State.Delegatee(*tx.To) != nil {
+		return InvalidRecipient
+	}
+
+	delegatee := appState.State.Delegatee(sender)
+	delegationSwitch := appState.State.DelegationSwitch(sender)
+
+	if delegatee == nil {
+		if delegationSwitch != nil && !delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasDelegatee
+		}
+	} else {
+		if delegationSwitch == nil || !delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasDelegatee
+		}
+	}
+
+	return nil
+}
+
+func validateUndelegateTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
+	}
+
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+
+	delegatee := appState.State.Delegatee(sender)
+	delegationSwitch := appState.State.DelegationSwitch(sender)
+
+	if delegatee != nil {
+		if delegationSwitch != nil && delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasNoDelegatee
+		}
+	} else {
+		if delegationSwitch == nil || delegationSwitch.Delegatee.IsEmpty() {
+			return SenderHasNoDelegatee
+		}
+	}
+
+	if appState.State.DelegationEpoch(sender) == appState.State.Epoch() {
+		return WrongEpoch
+	}
+
+	return nil
+}
+
+func validateKillDelegatorTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	sender, _ := types.Sender(tx)
+
+	if tx.To == nil || *tx.To == (common.Address{}) {
+		return RecipientRequired
+	}
+
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
+	}
+	delegatee := appState.State.Delegatee(*tx.To)
+	if delegatee == nil || *delegatee != sender {
+		return InvalidSender
+	}
 	return nil
 }

@@ -24,6 +24,7 @@ var (
 	globalKey           = []byte{0x3}
 	statusSwitchKey     = []byte{0x4}
 	contractStorePrefix = []byte{0x5}
+	delegationSwitchKey = []byte{0x6}
 )
 
 var (
@@ -74,6 +75,10 @@ func (s *stateDbKeys) GlobalKey() []byte {
 
 func (s *stateDbKeys) StatusSwitchKey() []byte {
 	return statusSwitchKey
+}
+
+func (s *stateDbKeys) DelegationSwitchKey() []byte {
+	return delegationSwitchKey
 }
 
 func (s *stateDbKeys) ContractStoreKey(address common.Address, key []byte) []byte {

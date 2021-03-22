@@ -96,6 +96,16 @@ type ActivateInviteArgs struct {
 	BaseTxArgs
 }
 
+type DelegateTxArgs struct {
+	To *common.Address `json:"to"`
+	BaseTxArgs
+}
+
+type KillDelegatorTxArgs struct {
+	To *common.Address `json:"to"`
+	BaseTxArgs
+}
+
 type Invite struct {
 	Hash     common.Hash    `json:"hash"`
 	Receiver common.Address `json:"receiver"`
@@ -186,6 +196,37 @@ func (api *DnaApi) BecomeOffline(ctx context.Context, args BaseTxArgs) (common.H
 	return hash, nil
 }
 
+func (api *DnaApi) Delegate(ctx context.Context, args DelegateTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, args.To, types.DelegateTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return hash, nil
+}
+
+func (api *DnaApi) Undelegate(ctx context.Context, args BaseTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.UndelegateTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return hash, nil
+}
+
+func (api *DnaApi) KillDelegator(ctx context.Context, args KillDelegatorTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	hash, err := api.baseApi.sendTx(ctx, from, args.To, types.KillDelegatorTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return hash, nil
+}
+
 func (api *DnaApi) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
 
 	var payload []byte
@@ -228,12 +269,19 @@ type Identity struct {
 	Invitees            []state.TxAddr  `json:"invitees"`
 	Penalty             decimal.Decimal `json:"penalty"`
 	LastValidationFlags []string        `json:"lastValidationFlags"`
+	Delegatee           *common.Address `json:"delegatee"`
+	DelegationEpoch     uint16          `json:"delegationEpoch"`
+	DelegationNonce     uint32          `json:"delegationNonce"`
+	IsPool              bool            `json:"isPool"`
 }
 
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
-	epoch := api.baseApi.getReadonlyAppState().State.Epoch()
-	api.baseApi.getReadonlyAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+
+	appState := api.baseApi.getReadonlyAppState()
+
+	epoch := appState.State.Epoch()
+	appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -248,7 +296,7 @@ func (api *DnaApi) Identities() []Identity {
 		if addr == api.GetCoinbaseAddr() {
 			flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 		}
-		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs))
+		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs, appState.ValidatorsCache.IsPool(addr)))
 
 		return false
 	})
@@ -268,8 +316,9 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 	}
 
-	converted := convertIdentity(api.baseApi.getReadonlyAppState().State.Epoch(), *address, api.baseApi.getReadonlyAppState().State.GetIdentity(*address), flipKeyWordPairs)
-	converted.Online = getIdentityOnlineStatus(api.baseApi.getReadonlyAppState(), *address)
+	appState := api.baseApi.getReadonlyAppState()
+	converted := convertIdentity(appState.State.Epoch(), *address, appState.State.GetIdentity(*address), flipKeyWordPairs, appState.ValidatorsCache.IsPool(*address))
+	converted.Online = getIdentityOnlineStatus(appState, *address)
 	return converted
 }
 
@@ -283,7 +332,7 @@ func getIdentityOnlineStatus(state *appstate.AppState, addr common.Address) bool
 	}
 }
 
-func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {
+func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int, isPool bool) Identity {
 	var s string
 	switch data.State {
 	case state.Invite:
@@ -373,6 +422,10 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Invitees:            invitees,
 		Penalty:             blockchain.ConvertToFloat(data.Penalty),
 		LastValidationFlags: flags,
+		Delegatee:           data.Delegatee,
+		DelegationEpoch:     data.DelegationEpoch,
+		DelegationNonce:     data.DelegationNonce,
+		IsPool:              isPool,
 	}
 }
 

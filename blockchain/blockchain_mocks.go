@@ -203,3 +203,18 @@ func (chain *TestBlockchain) GenerateEmptyBlocks(count int) *TestBlockchain {
 	}
 	return chain
 }
+
+func (chain *TestBlockchain) CommitState() *TestBlockchain {
+	if chain.Head.EmptyBlockHeader != nil {
+		chain.Head.EmptyBlockHeader.Height++
+	} else {
+		chain.Head.ProposedHeader.Height++
+	}
+	block := chain.GenerateEmptyBlock()
+	err := chain.AddBlock(block, nil, collector.NewStatsCollector())
+	if err != nil {
+		panic(err)
+	}
+	chain.addCert(block)
+	return chain
+}

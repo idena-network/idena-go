@@ -659,7 +659,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate, _ := appstate.NewAppState(db, eventbus.New())
 
 	addr1 := common.Address{0x1}
-
+	delegatee := common.Address{0x2}
 	appstate.State.SetState(addr1, state.Newbie)
 	appstate.State.AddStake(addr1, big.NewInt(100))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
@@ -671,13 +671,15 @@ func Test_applyOnState(t *testing.T) {
 		shortFlipPoint:           1,
 		shortQualifiedFlipsCount: 2,
 		state:                    state.Verified,
+		delegatee:                &delegatee,
 	})
 	identity := appstate.State.GetIdentity(addr1)
 	require.Equal(t, 1, identities)
 	require.Equal(t, state.Verified, identity.State)
 	require.Equal(t, uint16(3), identity.Birthday)
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
-	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(85)) == 0)
+	require.True(t, appstate.State.GetBalance(delegatee).Cmp(big.NewInt(75)) == 0)
+	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(10)) == 0)
 	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) == 0)
 
 	applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{

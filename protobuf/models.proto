@@ -352,6 +352,9 @@ message ProtoStateIdentity {
     uint32 validationStatus = 16;
     bytes profileHash = 17;
     bytes scores = 18;
+    bytes delegatee = 19;
+    uint32 delegationNonce = 20;
+    uint32 delegationEpoch = 21;
 }
 
 message ProtoStateGlobal {
@@ -372,10 +375,20 @@ message ProtoStateGlobal {
 message ProtoStateApprovedIdentity {
     bool approved = 1;
     bool online = 2;
+    bytes delegatee = 3;
 }
 
 message ProtoStateIdentityStatusSwitch {
     repeated bytes addresses = 1;
+}
+
+message ProtoStateDelegationSwitch {
+
+    message Delegation {
+        bytes delegator = 1;
+        bytes delegatee = 2;
+    }
+    repeated Delegation delegations = 1;
 }
 
 message ProtoPredefinedState {
@@ -442,12 +455,16 @@ message ProtoPredefinedState {
         uint32 validationStatus = 17;
         bytes profileHash = 18;
         bytes scores = 19;
+        bytes delegatee = 20;
+        uint32 delegationNonce = 21;
+        uint32 delegationEpoch = 22;
     }
 
     message ApprovedIdentity {
         bytes address = 1;
         bool approved = 2;
         bool online = 3;
+        bytes delegatee = 4;
     }
 
     message ContractKeyValue{

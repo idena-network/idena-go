@@ -1,18 +1,22 @@
 package blockchain
 
 import (
+	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
+	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	dbm "github.com/tendermint/tm-db"
 	"math/big"
 	"testing"
 	"time"
@@ -841,4 +845,157 @@ func Test_ClearDustAccounts(t *testing.T) {
 	require.True(s.State.AccountExists(common.Address{0x5}))
 	require.False(s.State.AccountExists(common.Address{0x7}))
 	require.True(s.State.AccountExists(common.Address{0x8}))
+}
+
+func TestBlockchain_applyOfflinePenalty(t *testing.T) {
+	chain := &Blockchain{
+		config: &config.Config{
+			Consensus: config.GetDefaultConsensusConfig(),
+		},
+	}
+
+	chain.config.Consensus.FinalCommitteeReward = big.NewInt(1)
+	chain.config.Consensus.BlockReward = big.NewInt(3)
+
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	count := byte(10)
+	pool1 := common.Address{0x11}
+
+	for i := byte(1); i <= count; i++ {
+		addr := common.Address{i}
+		appState.IdentityState.Add(addr)
+		appState.IdentityState.SetOnline(addr, true)
+		if i%3 == 0 { // 3, 6, 9
+			appState.IdentityState.SetDelegatee(addr, pool1)
+		}
+	}
+	appState.Commit(nil)
+	appState.Initialize(1)
+
+	require.True(t, appState.ValidatorsCache.IsPool(pool1))
+
+	chain.applyOfflinePenalty(appState, pool1, nil)
+
+	require.Equal(t, big.NewInt(4*3*1800/int64(count)).Bytes(), appState.State.GetPenalty(pool1).Bytes())
+}
+
+func Test_Delegation(t *testing.T) {
+	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, config.ConsensusVersions[config.ConsensusV4], &config.ValidationConfig{}, nil, -1, -1, 0, 0)
+
+	coinbase := crypto.PubkeyToAddress(coinbaseKey.PublicKey)
+
+	appState.State.SetState(coinbase, state.Verified)
+	appState.State.SetNextValidationTime(time.Date(2099, 01, 01, 00, 00, 00, 0, time.UTC))
+	appState.IdentityState.Add(coinbase)
+	appState.IdentityState.SetOnline(coinbase, true)
+
+	keys := []*ecdsa.PrivateKey{}
+	addrs := []common.Address{}
+	for i := 0; i < 5; i++ {
+		key, _ := crypto.GenerateKey()
+		keys = append(keys, key)
+
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+
+		addrs = append(addrs, addr)
+		appState.State.SetState(addr, state.Newbie)
+		appState.IdentityState.Add(addr)
+		appState.IdentityState.SetOnline(addr, true)
+		appState.State.SetBalance(addr, big.NewInt(0).Mul(big.NewInt(1000), common.DnaBase))
+	}
+
+	appState.IdentityState.SetOnline(addrs[3], false)
+
+	validation.SetAppConfig(chain.config)
+
+	pool1 := common.Address{0x1}
+	pool2 := common.Address{0x2}
+
+	pool3Key, _ := crypto.GenerateKey()
+	pool3 := crypto.PubkeyToAddress(pool3Key.PublicKey)
+
+	appState.State.SetBalance(pool3, big.NewInt(0).Mul(big.NewInt(1000), common.DnaBase))
+
+	appState.State.SetState(pool3, state.Newbie)
+	appState.IdentityState.Add(pool3)
+	appState.IdentityState.SetOnline(pool3, true)
+
+	appState.Commit(nil)
+	appState.ValidatorsCache.Load()
+	chain.CommitState()
+
+	addTx := func(key *ecdsa.PrivateKey, txType types.TxType, nonce uint32, epoch uint16, to *common.Address, payload []byte) error {
+		tx := &types.Transaction{
+			Type:         txType,
+			AccountNonce: nonce,
+			To:           to,
+			Epoch:        epoch,
+			MaxFee:       new(big.Int).Mul(big.NewInt(50), common.DnaBase),
+			Payload:      payload,
+		}
+		signedTx, _ := types.SignTx(tx, key)
+		return txpool.Add(signedTx)
+	}
+
+	require.NoError(t, addTx(keys[0], types.DelegateTx, 1, 0, &pool1, nil))
+	require.NoError(t, addTx(keys[1], types.DelegateTx, 1, 0, &pool2, nil))
+	require.NoError(t, addTx(keys[2], types.DelegateTx, 1, 0, &pool2, nil))
+	require.NoError(t, addTx(keys[3], types.DelegateTx, 1, 0, &pool3, nil))
+
+	chain.GenerateBlocks(1)
+	require.ErrorIs(t, validation.InvalidRecipient, addTx(pool3Key, types.DelegateTx, 1, 0, &pool3, nil))
+	require.NoError(t, addTx(pool3Key, types.DelegateTx, 1, 0, &pool2, nil))
+
+	chain.GenerateBlocks(1)
+
+	require.Len(t, appState.State.Delegations(), 5)
+
+	require.NoError(t, addTx(keys[0], types.OnlineStatusTx, 2, 0, nil, attachments.CreateOnlineStatusAttachment(false)))
+	require.NoError(t, addTx(keys[3], types.OnlineStatusTx, 2, 0, nil, attachments.CreateOnlineStatusAttachment(true)))
+
+	chain.GenerateBlocks(1)
+	chain.GenerateEmptyBlocks(50)
+
+	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(addrs[0]))
+	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(addrs[1]))
+	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(addrs[2]))
+	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(addrs[3]))
+
+	require.Len(t, appState.State.Delegations(), 0)
+	require.Nil(t, appState.State.Delegatee(pool3))
+	require.Equal(t, 1, appState.ValidatorsCache.PoolSize(pool1))
+	require.Equal(t, 2, appState.ValidatorsCache.PoolSize(pool2))
+	require.Equal(t, 2, appState.ValidatorsCache.PoolSize(pool3))
+
+	attachments.CreateOnlineStatusAttachment(false)
+
+	addr3 := crypto.PubkeyToAddress(keys[3].PublicKey)
+	require.NoError(t, addTx(pool3Key, types.KillDelegatorTx, 2, 0, &addr3, nil))
+	chain.GenerateBlocks(1)
+
+	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool3))
+	require.False(t, appState.ValidatorsCache.IsPool(pool3))
+	require.True(t, appState.ValidatorsCache.IsOnlineIdentity(pool3))
+
+	require.ErrorIs(t, validation.WrongEpoch, addTx(keys[1], types.UndelegateTx, 2, 0, nil, nil))
+
+	appState.State.SetGlobalEpoch(1)
+	appState.Commit(nil)
+	chain.CommitState()
+
+	require.NoError(t, addTx(keys[1], types.UndelegateTx, 1, 1, nil, nil))
+	require.NoError(t, addTx(keys[2], types.UndelegateTx, 1, 1, nil, nil))
+
+	chain.GenerateBlocks(1)
+	require.Len(t, appState.State.Delegations(), 2)
+
+	chain.GenerateBlocks(50)
+	require.Len(t, appState.State.Delegations(), 0)
+
+	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool2))
+	require.False(t, appState.ValidatorsCache.IsPool(pool2))
+	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(pool2))
 }

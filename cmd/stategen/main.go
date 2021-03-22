@@ -153,6 +153,8 @@ func main() {
 				ValidationBits:   uint32(data.ValidationTxsBits),
 				ValidationStatus: uint32(data.LastValidationStatus),
 				Scores:           data.Scores,
+				DelegationNonce:  data.DelegationNonce,
+				DelegationEpoch:  uint32(data.DelegationEpoch),
 			}
 
 			if data.Inviter != nil {
@@ -160,6 +162,9 @@ func main() {
 					Hash:    data.Inviter.TxHash[:],
 					Address: data.Inviter.Address[:],
 				}
+			}
+			if data.Delegatee != nil {
+				identity.Delegatee = data.Delegatee.Bytes()
 			}
 			for idx := range data.Invitees {
 				identity.Invitees = append(identity.Invitees, &models.ProtoPredefinedState_Identity_TxAddr{
@@ -192,11 +197,15 @@ func main() {
 				log.Error(err.Error())
 				return false
 			}
-			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, &models.ProtoPredefinedState_ApprovedIdentity{
+			identity := &models.ProtoPredefinedState_ApprovedIdentity{
 				Address:  addr[:],
 				Approved: data.Approved,
 				Online:   false,
-			})
+			}
+			if data.Delegatee != nil {
+				identity.Delegatee = data.Delegatee.Bytes()
+			}
+			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, identity)
 			return false
 		})
 
