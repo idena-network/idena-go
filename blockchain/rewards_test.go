@@ -32,6 +32,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
+	config.ApplyConsensusVersion(config.ConsensusV4, conf)
 
 	memdb := db.NewMemDB()
 
