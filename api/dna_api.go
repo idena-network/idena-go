@@ -272,12 +272,16 @@ type Identity struct {
 	Delegatee           *common.Address `json:"delegatee"`
 	DelegationEpoch     uint16          `json:"delegationEpoch"`
 	DelegationNonce     uint32          `json:"delegationNonce"`
+	IsPool              bool            `json:"isPool"`
 }
 
 func (api *DnaApi) Identities() []Identity {
 	var identities []Identity
-	epoch := api.baseApi.getReadonlyAppState().State.Epoch()
-	api.baseApi.getReadonlyAppState().State.IterateIdentities(func(key []byte, value []byte) bool {
+
+	appState := api.baseApi.getReadonlyAppState()
+
+	epoch := appState.State.Epoch()
+	appState.State.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
 			return true
 		}
@@ -292,7 +296,7 @@ func (api *DnaApi) Identities() []Identity {
 		if addr == api.GetCoinbaseAddr() {
 			flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 		}
-		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs))
+		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs, appState.ValidatorsCache.IsPool(addr)))
 
 		return false
 	})
@@ -312,8 +316,9 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 		flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 	}
 
-	converted := convertIdentity(api.baseApi.getReadonlyAppState().State.Epoch(), *address, api.baseApi.getReadonlyAppState().State.GetIdentity(*address), flipKeyWordPairs)
-	converted.Online = getIdentityOnlineStatus(api.baseApi.getReadonlyAppState(), *address)
+	appState := api.baseApi.getReadonlyAppState()
+	converted := convertIdentity(appState.State.Epoch(), *address, appState.State.GetIdentity(*address), flipKeyWordPairs, appState.ValidatorsCache.IsPool(*address))
+	converted.Online = getIdentityOnlineStatus(appState, *address)
 	return converted
 }
 
@@ -327,7 +332,7 @@ func getIdentityOnlineStatus(state *appstate.AppState, addr common.Address) bool
 	}
 }
 
-func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int) Identity {
+func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int, isPool bool) Identity {
 	var s string
 	switch data.State {
 	case state.Invite:
@@ -420,6 +425,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Delegatee:           data.Delegatee,
 		DelegationEpoch:     data.DelegationEpoch,
 		DelegationNonce:     data.DelegationNonce,
+		IsPool:              isPool,
 	}
 }
 
