@@ -296,14 +296,10 @@ func (api *DnaApi) Identities() []Identity {
 		if addr == api.GetCoinbaseAddr() {
 			flipKeyWordPairs = api.ceremony.FlipKeyWordPairs()
 		}
-		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs, appState.ValidatorsCache.IsPool(addr)))
+		identities = append(identities, convertIdentity(epoch, addr, data, flipKeyWordPairs, appState))
 
 		return false
 	})
-
-	for idx := range identities {
-		identities[idx].Online = getIdentityOnlineStatus(api.baseApi.getReadonlyAppState(), identities[idx].Address)
-	}
 
 	return identities
 }
@@ -317,22 +313,10 @@ func (api *DnaApi) Identity(address *common.Address) Identity {
 	}
 
 	appState := api.baseApi.getReadonlyAppState()
-	converted := convertIdentity(appState.State.Epoch(), *address, appState.State.GetIdentity(*address), flipKeyWordPairs, appState.ValidatorsCache.IsPool(*address))
-	converted.Online = getIdentityOnlineStatus(appState, *address)
-	return converted
+	return convertIdentity(appState.State.Epoch(), *address, appState.State.GetIdentity(*address), flipKeyWordPairs, appState)
 }
 
-func getIdentityOnlineStatus(state *appstate.AppState, addr common.Address) bool {
-	isOnline := state.ValidatorsCache.IsOnlineIdentity(addr)
-	hasPendingStatusSwitch := state.State.HasStatusSwitchAddresses(addr)
-	if hasPendingStatusSwitch {
-		return !isOnline
-	} else {
-		return isOnline
-	}
-}
-
-func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int, isPool bool) Identity {
+func convertIdentity(currentEpoch uint16, address common.Address, data state.Identity, flipKeyWordPairs []int, appState *appstate.AppState) Identity {
 	var s string
 	switch data.State {
 	case state.Invite:
@@ -402,6 +386,22 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 
 	totalPoints, totalFlips := common.CalculateIdentityScores(data.Scores, data.GetShortFlipPoints(), data.QualifiedFlips)
 
+	isOnline := appState.ValidatorsCache.IsOnlineIdentity(address)
+	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(address)
+	if hasPendingStatusSwitch {
+		isOnline = !isOnline
+	}
+
+	delegatee := data.Delegatee
+	switchDelegation := appState.State.DelegationSwitch(address)
+	if switchDelegation != nil {
+		if switchDelegation.Delegatee.IsEmpty() {
+			delegatee = nil
+		} else {
+			delegatee = &switchDelegation.Delegatee
+		}
+	}
+
 	return Identity{
 		Address:             address,
 		State:               s,
@@ -422,10 +422,11 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Invitees:            invitees,
 		Penalty:             blockchain.ConvertToFloat(data.Penalty),
 		LastValidationFlags: flags,
-		Delegatee:           data.Delegatee,
+		Delegatee:           delegatee,
 		DelegationEpoch:     data.DelegationEpoch,
 		DelegationNonce:     data.DelegationNonce,
-		IsPool:              isPool,
+		Online:              isOnline,
+		IsPool:              appState.ValidatorsCache.IsPool(address),
 	}
 }
 
