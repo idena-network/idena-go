@@ -74,7 +74,7 @@ func (d *DefaultPushTracker) RegisterPull(hash common.Hash128) {
 }
 
 func (d *DefaultPushTracker) AddPendingPush(id peer.ID, hash common.Hash128) {
-	if d.holder.Has(hash) || len(d.pendingPushes.list) > maxPendingPushes {
+	if d.holder.Has(hash) || d.pendingPushes.Len() > maxPendingPushes {
 		return
 	}
 	d.ppMutex.Lock()
@@ -97,11 +97,11 @@ func (d *DefaultPushTracker) Run() {
 // infinity loop for processing pending pushes
 func (d *DefaultPushTracker) loop() {
 	for {
-		if len(d.pendingPushes.list) == 0 {
+		if d.pendingPushes.Len() == 0 {
 			time.Sleep(time.Millisecond * 100)
 			continue
 		}
-		obj := d.pendingPushes.list[0]
+		obj := d.pendingPushes.Peek(0)
 		since := time.Now().Sub(obj.time)
 		if since < d.pullDelay {
 			time.Sleep(d.pullDelay - since)
@@ -147,6 +147,7 @@ func (d *DefaultPushTracker) gc() {
 
 type sortedPendingPushes struct {
 	list []pendingRequestTime
+	lock sync.Mutex
 }
 
 func newSortedPendingPushes() *sortedPendingPushes {
@@ -154,18 +155,31 @@ func newSortedPendingPushes() *sortedPendingPushes {
 }
 
 func (s *sortedPendingPushes) Add(req pendingRequestTime) {
+	s.lock.Lock()
+
 	i := sort.Search(len(s.list), func(i int) bool {
 		return s.list[i].time.After(req.time)
 	})
 	s.list = append(s.list, pendingRequestTime{})
 	copy(s.list[i+1:], s.list[i:])
 	s.list[i] = req
+
+	s.lock.Unlock()
+}
+
+func (s *sortedPendingPushes) Len() int {
+	s.lock.Lock()
+	l := len(s.list)
+	s.lock.Unlock()
+	return l
 }
 
 func (s *sortedPendingPushes) Remove(i int) {
+	s.lock.Lock()
 	copy(s.list[i:], s.list[i+1:])
 	s.list[len(s.list)-1] = pendingRequestTime{}
 	s.list = s.list[:len(s.list)-1]
+	s.lock.Unlock()
 }
 
 func (s *sortedPendingPushes) MoveWithNewTime(i int, newTime time.Time) {
@@ -175,4 +189,10 @@ func (s *sortedPendingPushes) MoveWithNewTime(i int, newTime time.Time) {
 	}
 	s.Remove(i)
 	s.Add(copy)
+}
+
+func (s *sortedPendingPushes) Peek(i int) pendingRequestTime {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.list[i]
 }

@@ -160,10 +160,12 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	ctx, cancel := context.WithCancel(context.Background())
 
 	lastLoad := time.Now()
-	done := false
+	lock := sync.Mutex{}
 	logLevels := []float32{0.15, 0.3, 0.5, 0.75}
 	onLoading := func(size, read int64) {
+		lock.Lock()
 		lastLoad = time.Now()
+		lock.Unlock()
 		if size > 0 && len(logLevels) > 0 && float32(read)/float32(size) >= logLevels[0] {
 			m.log.Info("Snapshot loading", "progress", fmt.Sprintf("%v%%", logLevels[0]*100))
 			logLevels = logLevels[1:]
@@ -173,18 +175,29 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
+	//done := false
+	done := make(chan struct{})
 
 	go func() {
 		loadToErr = m.ipfs.LoadTo(snapshot.Cid, file, ctx, onLoading)
 		wg.Done()
-		done = true
+		close(done)
 	}()
 
 	go func() {
-		for !done {
-			time.Sleep(1 * time.Second)
-			if time.Now().Sub(lastLoad) > time.Minute {
-				cancel()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				time.Sleep(1 * time.Second)
+				lock.Lock()
+				idleDuration := time.Now().Sub(lastLoad)
+				lock.Unlock()
+				if idleDuration > time.Minute {
+					cancel()
+				}
+
 			}
 		}
 	}()

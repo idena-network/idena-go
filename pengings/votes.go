@@ -24,6 +24,7 @@ type Votes struct {
 	knownVotes      mapset.Set
 	state           *appstate.AppState
 	head            *types.Header
+	headMutex       sync.RWMutex
 	bus             eventbus.Bus
 	offlineDetector *blockchain.OfflineDetector
 	upgrade         *upgrade.Upgrader
@@ -42,7 +43,9 @@ func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *block
 	v.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
 			newBlockEvent := e.(*events.NewBlockEvent)
+			v.headMutex.Lock()
 			v.head = newBlockEvent.Block.Header
+			v.headMutex.Unlock()
 		})
 	return v
 }
@@ -52,14 +55,17 @@ func (votes *Votes) Initialize(head *types.Header) {
 }
 
 func (votes *Votes) AddVote(vote *types.Vote) bool {
+	votes.headMutex.RLock()
+	head := votes.head
+	votes.headMutex.RUnlock()
 
-	minRound := votes.head.Height() - VotesLag
+	minRound := head.Height() - VotesLag
 
-	if votes.head.Height() > VotesLag && vote.Header.Round < minRound {
+	if head.Height() > VotesLag && vote.Header.Round < minRound {
 		return false
 	}
 
-	if votes.head.Height() < vote.Header.Round && vote.Header.Round-votes.head.Height() > PropagateFutureVotesPeriod {
+	if head.Height() < vote.Header.Round && vote.Header.Round-head.Height() > PropagateFutureVotesPeriod {
 		return false
 	}
 

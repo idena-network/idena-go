@@ -1779,7 +1779,8 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 }
 
 func (chain *Blockchain) Round() uint64 {
-	return chain.Head.Height() + 1
+	head:= chain.Head
+	return head.Height() +1
 }
 func (chain *Blockchain) WriteFinalConsensus(hash common.Hash) {
 	chain.repo.WriteFinalConsensus(hash)
