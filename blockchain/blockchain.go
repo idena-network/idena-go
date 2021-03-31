@@ -32,7 +32,6 @@ import (
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
-	"github.com/idena-network/idena-go/vm/embedded"
 	cid2 "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
@@ -1235,10 +1234,10 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 	for idx := range delegations {
 		delegation := delegations[idx]
 		if delegation.Delegatee.IsEmpty() {
-			delegatee :=appState.State.Delegatee(delegation.Delegator)
+			delegatee := appState.State.Delegatee(delegation.Delegator)
 			appState.IdentityState.RemoveDelegatee(delegation.Delegator)
 			appState.State.RemoveDelegatee(delegation.Delegator)
-			if delegatee!=nil {
+			if delegatee != nil {
 				undelegations = append(undelegations, &state.Delegation{Delegator: delegation.Delegator, Delegatee: *delegatee})
 			}
 		} else {
@@ -1256,7 +1255,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 	return undelegations
 }
 
-func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undelegations []*state.Delegation,   block *types.Block) {
+func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undelegations []*state.Delegation, block *types.Block) {
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
