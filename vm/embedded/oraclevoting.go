@@ -38,6 +38,7 @@ func NewOracleVotingContract2(ctx env.CallContext, e env.Env, statsCollector col
 		env.NewMap([]byte("allVotes"), e, ctx),
 	}
 }
+const FinishVotingMethod = "finishVoting"
 
 func (f *OracleVoting2) Call(method string, args ...[]byte) error {
 	switch method {
@@ -47,7 +48,7 @@ func (f *OracleVoting2) Call(method string, args ...[]byte) error {
 		return f.sendVoteProof(args...)
 	case "sendVote":
 		return f.sendVote(args...)
-	case "finishVoting":
+	case FinishVotingMethod:
 		return f.finishVoting(args...)
 	case "prolongVoting":
 		return f.prolongVoting(args...)
