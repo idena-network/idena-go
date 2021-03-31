@@ -1484,12 +1484,6 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			continue
 		}
-		if tx.Type == types.CallContract {
-			attachment := attachments.ParseCallContractAttachment(tx)
-			if attachment!=nil && attachment.Method == embedded.FinishVotingMethod {
-				continue
-			}
-		}
 		if f, r, err := chain.ApplyTxOnState(appState, vm, tx, nil); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
