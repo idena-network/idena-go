@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -316,6 +317,10 @@ func (api *ContractApi) Deploy(ctx context.Context, args DeployArgs) (common.Has
 }
 
 func (api *ContractApi) Call(ctx context.Context, args CallArgs) (common.Hash, error) {
+	if args.Method == embedded.FinishVotingMethod {
+		return common.Hash{}, errors.New("finishVoting is temporary disabled")
+	}
+
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
 		return common.Hash{}, err
