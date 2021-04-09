@@ -42,7 +42,7 @@ type TransactionPool interface {
 
 type TxPool struct {
 	knownDeferredTxs mapset.Set
-	deferredTxs      []*types.Transaction
+	deferredTxs      chan *types.Transaction
 	all              *txMap
 	executableTxs    map[common.Address]*sortedTxs
 	pendingTxs       map[common.Address]*txMap
@@ -54,11 +54,14 @@ type TxPool struct {
 	head             *types.Header
 	bus              eventbus.Bus
 	isSyncing        bool //indicates about blockchain's syncing
+	isSyncingLock    sync.RWMutex
 	coinbase         common.Address
 	statsCollector   collector.StatsCollector
 }
 
 func (pool *TxPool) IsSyncing() bool {
+	pool.isSyncingLock.RLock()
+	defer pool.isSyncingLock.RUnlock()
 	return pool.isSyncing
 }
 
@@ -74,6 +77,7 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempoo
 		log:              log.New(),
 		bus:              bus,
 		statsCollector:   statsCollector,
+		deferredTxs:      make(chan *types.Transaction, MaxDeferredTxs),
 	}
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
@@ -98,10 +102,17 @@ func (pool *TxPool) addDeferredTx(tx *types.Transaction) {
 	if pool.knownDeferredTxs.Contains(tx.Hash()) {
 		return
 	}
-	pool.deferredTxs = append(pool.deferredTxs, tx)
-	if len(pool.deferredTxs) > MaxDeferredTxs {
-		pool.deferredTxs[0] = nil
-		pool.deferredTxs = pool.deferredTxs[1:]
+	select {
+	case pool.deferredTxs <- tx:
+	default:
+		select {
+		case <-pool.deferredTxs:
+		default:
+		}
+		select {
+		case pool.deferredTxs <- tx:
+		default:
+		}
 	}
 	pool.knownDeferredTxs.Add(tx.Hash())
 }
@@ -196,7 +207,7 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 
 		sender, _ := types.Sender(tx)
 
-		if pool.isSyncing && sender != pool.coinbase {
+		if pool.IsSyncing() && sender != pool.coinbase {
 			pool.addDeferredTx(tx)
 
 			if _, ok := priorityTypes[tx.Type]; ok {
@@ -225,7 +236,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 		}
 	}
 
-	if pool.isSyncing && sender != pool.coinbase {
+	if pool.IsSyncing() && sender != pool.coinbase {
 		pool.addDeferredTx(tx)
 
 		if _, ok := priorityTypes[tx.Type]; ok {
@@ -576,16 +587,27 @@ func (pool *TxPool) createBuildingContext() *buildingContext {
 }
 
 func (pool *TxPool) StartSync() {
+	pool.isSyncingLock.Lock()
 	pool.isSyncing = true
+	pool.isSyncingLock.Unlock()
 }
 
 func (pool *TxPool) StopSync(block *types.Block) {
+	pool.isSyncingLock.Lock()
 	pool.isSyncing = false
+	pool.isSyncingLock.Unlock()
+
 	pool.ResetTo(block)
-	for _, tx := range pool.deferredTxs {
-		pool.Add(tx)
+
+loop:
+	for {
+		select {
+		case tx := <-pool.deferredTxs:
+			pool.Add(tx)
+		default:
+			break loop
+		}
 	}
-	pool.deferredTxs = make([]*types.Transaction, 0)
 	pool.knownDeferredTxs.Clear()
 }
 

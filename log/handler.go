@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-stack/stack"
 )
@@ -73,14 +74,14 @@ func FileHandler(path string, fmtr Format) (Handler, error) {
 // countingWriter wraps a WriteCloser object in order to count the written bytes.
 type countingWriter struct {
 	w     io.WriteCloser // the wrapped object
-	count uint           // number of bytes written
+	count uint32         // number of bytes written
 }
 
 // Write increments the byte counter by the number of bytes written.
 // Implements the WriteCloser interface.
 func (w *countingWriter) Write(p []byte) (n int, err error) {
 	n, err = w.w.Write(p)
-	w.count += uint(n)
+	atomic.AddUint32(&w.count, uint32(n))
 	return n, err
 }
 
@@ -123,13 +124,13 @@ func prepFile(path string) (*countingWriter, error) {
 	if err = f.Truncate(ns); err != nil {
 		return nil, err
 	}
-	return &countingWriter{w: f, count: uint(ns)}, nil
+	return &countingWriter{w: f, count: uint32(ns)}, nil
 }
 
 // RotatingFileHandler returns a handler which writes log records to file chunks
 // at the given path. When a file's size reaches the limit, the handler creates
 // a new file named after the timestamp of the first log record it will contain.
-func RotatingFileHandler(path string, limit uint, formatter Format) (Handler, error) {
+func RotatingFileHandler(path string, limit uint32, formatter Format) (Handler, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
@@ -138,11 +139,12 @@ func RotatingFileHandler(path string, limit uint, formatter Format) (Handler, er
 	if err != nil {
 		return nil, err
 	}
-	counter := &countingWriter{w: f, count: uint(fi.Size())}
+	counter := &countingWriter{w: f, count: uint32(fi.Size())}
 	h := StreamHandler(counter, formatter)
 	var mu sync.Mutex
 	return FuncHandler(func(r *Record) error {
-		if counter.count > limit {
+		size := atomic.LoadUint32(&counter.count)
+		if size > limit {
 			mu.Lock()
 			if counter.count > limit {
 				counter.Close()

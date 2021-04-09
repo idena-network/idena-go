@@ -170,6 +170,7 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 
 	node, err := core.NewNode(ctx, getNodeConfig(dataDir))
 	if err != nil {
+		cancelCtx()
 		return nil, nil, func() {}, err
 	}
 	return node, ctx, cancelCtx, nil
@@ -178,7 +179,11 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 func (p *ipfsProxy) gc() {
 	for {
 		time.Sleep(GcPeriod)
-		if time.Since(p.lastGcCancel) < GcPeriod {
+
+		p.gcMutex.RLock()
+		t := p.lastGcCancel
+		p.gcMutex.RUnlock()
+		if time.Since(t) < GcPeriod {
 			continue
 		}
 		p.gcMutex.Lock()
@@ -189,17 +194,23 @@ func (p *ipfsProxy) gc() {
 			p.log.Debug("ipfs gc error", "err", err)
 		}
 		cancel()
+		p.gcMutex.Lock()
 		p.gcCancel = nil
 		p.lastGcCancel = time.Now()
+		p.gcMutex.Unlock()
 	}
 }
 
 func (p *ipfsProxy) cancelGc() {
+	p.gcMutex.Lock()
 	p.lastGcCancel = time.Now()
 	cancelFunc := p.gcCancel
+	p.gcMutex.Unlock()
 	if cancelFunc != nil {
 		cancelFunc()
+		p.gcMutex.Lock()
 		p.gcCancel = nil
+		p.gcMutex.Unlock()
 	}
 }
 
@@ -287,9 +298,7 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 		return EmptyCid, nil
 	}
 
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
@@ -331,9 +340,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -374,9 +381,7 @@ func (p *ipfsProxy) get(path path.Path, dataType DataType) ([]byte, error) {
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -432,9 +437,7 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -466,9 +469,7 @@ func (p *ipfsProxy) Pin(key []byte) error {
 		return err
 	}
 
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -494,10 +495,7 @@ func (p *ipfsProxy) Unpin(key []byte) error {
 	if err != nil {
 		return err
 	}
-
-	p.gcMutex.RLock()
 	p.cancelGc()
-	defer p.gcMutex.RUnlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
