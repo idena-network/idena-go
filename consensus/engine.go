@@ -57,6 +57,8 @@ type Engine struct {
 	prevRoundDuration time.Duration
 	avgTimeDiffs      []decimal.Decimal
 	timeDrift         time.Duration
+	timeDriftMutex    sync.Mutex
+
 	synced            bool
 	nextBlockDetector *nextBlockDetector
 	upgrader          *upgrade.Upgrader
@@ -140,11 +142,13 @@ func (engine *Engine) alignTime() {
 	if len(engine.avgTimeDiffs) > 0 {
 		f, _ := decimal.Avg(engine.avgTimeDiffs[0], engine.avgTimeDiffs[1:]...).Float64()
 		offset = time.Duration(f * float64(time.Second))
+		engine.timeDriftMutex.Lock()
 		if (offset < 0 && engine.timeDrift < 0 || offset > 0 && engine.timeDrift > 0) && math2.Abs(float64(engine.timeDrift-offset)) < float64(time.Second*2) {
 			offset = (offset + engine.timeDrift) / 2
 		} else {
 			offset = 0
 		}
+		engine.timeDriftMutex.Unlock()
 	}
 	correctedNow := now.Add(-offset)
 	headTime := time.Unix(engine.chain.Head.Time(), 0)
@@ -566,7 +570,9 @@ func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Blo
 func (engine *Engine) ntpTimeDriftUpdate() {
 	for {
 		if drift, err := protocol.SntpDrift(3); err == nil {
+			engine.timeDriftMutex.Lock()
 			engine.timeDrift = drift
+			engine.timeDriftMutex.Unlock()
 		}
 		time.Sleep(time.Minute)
 	}

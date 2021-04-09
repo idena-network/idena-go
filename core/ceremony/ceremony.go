@@ -88,7 +88,6 @@ type ValidationCeremony struct {
 type flipWordsInfo struct {
 	pairs []int
 	proof []byte
-	rnd   uint64
 	pool  *sync.Map
 }
 
