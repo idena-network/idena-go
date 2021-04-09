@@ -85,10 +85,35 @@ type NodeCtx struct {
 
 type ceremonyChecker struct {
 	appState *appstate.AppState
+	chain    *blockchain.Blockchain
+
+	readonlyHeight uint64
+	readonlyState  *appstate.AppState
+	stateMutex     sync.RWMutex
 }
 
 func (checker *ceremonyChecker) IsRunning() bool {
-	return checker.appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	head := checker.chain.Head.Height()
+	checker.stateMutex.RLock()
+	if checker.readonlyHeight == head {
+		isRunning := checker.readonlyState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+		checker.stateMutex.RUnlock()
+		return isRunning
+	}
+	checker.stateMutex.RUnlock()
+
+	checker.stateMutex.Lock()
+	defer checker.stateMutex.Unlock()
+	if checker.readonlyHeight == head {
+		return checker.readonlyState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	}
+	appState, _ := checker.appState.Readonly(checker.chain.Head.Height())
+	if appState != nil {
+		checker.readonlyHeight = checker.chain.Head.Height()
+		checker.readonlyState = appState
+		return appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	}
+	return false
 }
 
 func StartMobileNode(path string, cfg string) string {
@@ -183,6 +208,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	flipper := flip.NewFlipper(db, ipfsProxy, flipKeyPool, txpool, secStore, appState, bus)
 	pm := protocol.NewIdenaGossipHandler(ipfsProxy.Host(), config.P2P, chain, proposals, votes, txpool, flipper, bus, flipKeyPool, appVersion, &ceremonyChecker{
 		appState: appState,
+		chain:    chain,
 	})
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore, upgrader)

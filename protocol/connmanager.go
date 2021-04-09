@@ -207,6 +207,8 @@ func (m *ConnManager) RemoveConnection(conn network.Conn) {
 }
 
 func (m *ConnManager) CanAcceptStream() bool {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
 	return len(m.inboundPeers) < m.cfg.MaxInboundPeers
 }
 
@@ -226,6 +228,8 @@ func (m *ConnManager) MaxOutboundPeers() int {
 }
 
 func (m *ConnManager) CanDial() bool {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
 	return len(m.outboundPeers) < m.MaxOutboundPeers()
 }
 
