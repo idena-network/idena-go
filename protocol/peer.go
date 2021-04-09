@@ -16,6 +16,8 @@ import (
 	"github.com/pkg/errors"
 	"math"
 	"math/rand"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,14 +42,34 @@ const (
 	s2Compression compression = 1
 )
 
+type syncHeight struct {
+	value uint64
+	lock  sync.RWMutex
+}
+
+func (s *syncHeight) Store(value uint64) {
+	s.lock.Lock()
+	if value > s.value {
+		s.value = value
+	}
+	s.lock.Unlock()
+}
+
+func (s *syncHeight) Read() uint64 {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.value
+}
+
 type protoPeer struct {
 	id                   peer.ID
 	prettyId             string
 	stream               network.Stream
 	rw                   msgio.ReadWriteCloser
 	maxDelayMs           int
-	knownHeight          uint64
-	potentialHeight      uint64
+	knownHeight          *syncHeight
+	potentialHeight      *syncHeight
+	manifestLock         sync.Mutex
 	manifest             *snapshot.Manifest
 	queuedRequests       chan *request
 	highPriorityRequests chan *request
@@ -58,10 +80,10 @@ type protoPeer struct {
 	timeouts             int
 	log                  log.Logger
 	createdAt            time.Time
-	transportErr         error
+	transportErr         chan error
 	peers                uint32
 	metrics              *metricCollector
-	skippedRequestsCount int
+	skippedRequestsCount uint32
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -84,6 +106,9 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		log:                  log.New("id", prettyId),
 		createdAt:            time.Now().UTC(),
 		metrics:              metrics,
+		transportErr:         make(chan error, 1),
+		knownHeight:          &syncHeight{},
+		potentialHeight:      &syncHeight{},
 	}
 	return p
 }
@@ -102,10 +127,10 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 	} else {
 		select {
 		case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
-			p.skippedRequestsCount = 0
+			atomic.StoreUint32(&p.skippedRequestsCount, 0)
 		case <-p.finished:
 		default:
-			p.skippedRequestsCount++
+			atomic.AddUint32(&p.skippedRequestsCount, 1)
 			if p.skippedRequestsCount > queuedRequestsSize/2 {
 				p.log.Error("skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
 				p.disconnect()
@@ -131,7 +156,10 @@ func (p *protoPeer) broadcast() {
 		case err := <-ch:
 			if err != nil {
 				p.log.Error("error while writing to stream", "err", err)
-				p.transportErr = err
+				select {
+				case p.transportErr <- err:
+				default:
+				}
 				return err
 			}
 		case <-timer.C:
@@ -265,7 +293,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *typ
 			return errors.New("handshake timeout")
 		}
 	}
-	p.knownHeight = handShake.Height
+	p.knownHeight.Store(handShake.Height)
 	p.peers = handShake.Peers
 	return nil
 }
@@ -298,7 +326,10 @@ func (p *protoPeer) ReadMsg() (*Msg, error) {
 	compressedMsg, err := p.rw.ReadMsg()
 	defer p.rw.ReleaseMsg(compressedMsg)
 	if err != nil {
-		p.transportErr = err
+		select {
+		case p.transportErr <- err:
+		default:
+		}
 		return nil, err
 	}
 	duration := time.Since(startTime)
@@ -364,15 +395,15 @@ func msgKey(data []byte) string {
 }
 
 func (p *protoPeer) setHeight(newHeight uint64) {
-	if newHeight > p.knownHeight {
-		p.knownHeight = newHeight
+	if newHeight > p.knownHeight.Read() {
+		p.knownHeight.Store(newHeight)
 	}
 	p.setPotentialHeight(newHeight)
 }
 
 func (p *protoPeer) setPotentialHeight(newHeight uint64) {
-	if newHeight > p.potentialHeight {
-		p.potentialHeight = newHeight
+	if newHeight > p.potentialHeight.Read() {
+		p.potentialHeight.Store(newHeight)
 	}
 }
 
@@ -397,4 +428,10 @@ func (p *protoPeer) ID() string {
 
 func (p *protoPeer) RemoteAddr() string {
 	return p.stream.Conn().RemoteMultiaddr().String()
+}
+
+func (p *protoPeer) Manifest() *snapshot.Manifest {
+	p.manifestLock.Lock()
+	defer p.manifestLock.Unlock()
+	return p.manifest
 }

@@ -124,7 +124,7 @@ func getLogFileHandler(cfg *config.Config, logFileSize int) (log.Handler, error)
 		}
 	}
 
-	fileHandler, _ := log.RotatingFileHandler(filepath.Join(path, "output.log"), uint(logFileSize*1024), log.TerminalFormat(false))
+	fileHandler, _ := log.RotatingFileHandler(filepath.Join(path, "output.log"), uint32(logFileSize*1024), log.TerminalFormat(false))
 
 	return fileHandler, nil
 }

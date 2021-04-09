@@ -318,7 +318,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := manifest.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+		p.manifestLock.Lock()
 		p.manifest = manifest
+		p.manifestLock.Unlock()
 	case FlipKeysPackage:
 		keysPackage := new(types.PrivateFlipKeysPackage)
 		if err := keysPackage.FromBytes(msg.Payload); err != nil {
@@ -436,7 +438,14 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	}
 	close(peer.term)
 	peer.disconnect()
-	h.connManager.Disconnected(peerId, peer.transportErr)
+
+	var err error
+	select {
+	case err = <-peer.transportErr:
+	default:
+	}
+
+	h.connManager.Disconnected(peerId, err)
 	h.host.ConnManager().UntagPeer(peerId, "idena")
 
 	h.log.Info("Peer disconnected", "id", peerId.Pretty())
@@ -572,7 +581,7 @@ func (h *IdenaGossipHandler) GetKnownHeights() map[peer.ID]uint64 {
 		return nil
 	}
 	for _, peer := range peers {
-		result[peer.id] = peer.knownHeight
+		result[peer.id] = peer.knownHeight.Read()
 	}
 	return result
 }
@@ -584,8 +593,9 @@ func (h *IdenaGossipHandler) GetKnownManifests() map[peer.ID]*snapshot.Manifest 
 		return result
 	}
 	for _, peer := range peers {
-		if peer.manifest != nil {
-			result[peer.id] = peer.manifest
+		manifest := peer.Manifest()
+		if manifest != nil {
+			result[peer.id] = manifest
 		}
 	}
 	return result
@@ -805,7 +815,7 @@ func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {
 	var result []peer.ID
 	for _, p := range h.peers.Peers() {
-		if p.potentialHeight >= round {
+		if p.potentialHeight.Read() >= round {
 			result = append(result, p.id)
 		}
 	}
@@ -813,10 +823,10 @@ func (h *IdenaGossipHandler) PotentialForwardPeers(round uint64) []peer.ID {
 }
 
 func (h *IdenaGossipHandler) HasPeers() bool {
-	return len(h.peers.peers) > 0
+	return h.peers.Len() > 0
 }
 func (h *IdenaGossipHandler) PeersCount() int {
-	return len(h.peers.peers)
+	return h.peers.Len()
 }
 func (h *IdenaGossipHandler) Peers() []*protoPeer {
 	return h.peers.Peers()
@@ -826,7 +836,7 @@ func (h *IdenaGossipHandler) PeerHeights() []uint64 {
 	result := make([]uint64, 0)
 	peers := h.peers.Peers()
 	for _, peer := range peers {
-		result = append(result, peer.knownHeight)
+		result = append(result, peer.knownHeight.Read())
 	}
 	return result
 }
