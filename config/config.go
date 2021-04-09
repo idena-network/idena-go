@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -134,7 +135,7 @@ func (c *Config) SetApiKey() error {
 	if c.RPC.APIKey == "" {
 		apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
 		data, _ := ioutil.ReadFile(apiKeyFile)
-		key := string(data)
+		key := strings.TrimSpace(string(data))
 		if key == "" {
 			randomKey, _ := crypto.GenerateKey()
 			key = hex.EncodeToString(crypto.FromECDSA(randomKey)[:16])
