@@ -608,13 +608,21 @@ func TestOracleVoting_RewardPools(t *testing.T) {
 		caller.contractTester.Commit()
 		require.NoError(t, err)
 	}
-
 	require.Equal(t, common.ToBytes(uint64(30)), caller.contractTester.ReadData("votedCount"))
 
 	caller.contractTester.setHeight(4320*2 + 22)
 
 	require.NoError(t, caller.finishVoting())
-	caller.contractTester.Commit()
+
+	events := caller.contractTester.env.Commit()
+	caller.contractTester.appState.Reset()
+
+	require.NoError(t, caller.finishVoting())
+	events2 := caller.contractTester.env.Commit()
+
+	require.Equal(t, events, events2)
+	caller.contractTester.appState.Commit(nil)
+
 
 	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
 	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("result"))

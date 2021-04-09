@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"math/big"
 	"regexp"
-	"sort"
 )
 
 var (
@@ -284,27 +283,8 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 }
 
 func (e *EnvImp) Commit() []*types.TxEvent {
-
-	var contracts []common.Address
-	for contract := range e.contractStoreCache {
-		contracts = append(contracts, contract)
-	}
-	sort.SliceStable(contracts, func(i, j int) bool {
-		return bytes.Compare(contracts[i].Bytes(), contracts[j].Bytes()) == 1
-	})
-
-	for _, contract := range contracts {
-		cache := e.contractStoreCache[contract]
-
-		var keys []string
-		for k := range cache {
-			keys = append(keys, k)
-		}
-		sort.SliceStable(keys, func(i, j int) bool {
-			return keys[i] > keys[j]
-		})
-		for _, k := range keys {
-			v := cache[k]
+	for contract, cache := range e.contractStoreCache {
+		for k, v := range cache {
 			if v.removed {
 				e.state.State.RemoveContractValue(contract, []byte(k))
 			} else {

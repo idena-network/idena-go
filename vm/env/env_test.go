@@ -111,14 +111,14 @@ func TestEnvImp_basicMethods(t *testing.T) {
 		return false
 	})
 
-	env.Event("test1", []byte{0x1})
+	env.Event("test1", []byte{0x1}, []byte{0x2})
 	env.Event("test2", []byte{0x2})
 
 	events := env.Commit()
 	env.Reset()
 	require.Len(t, events, 2)
 	require.Equal(t, events[0].EventName, "test1")
-	require.Equal(t, events[0].Data, [][]byte{{0x1}})
+	require.Equal(t, events[0].Data, [][]byte{{0x1}, {0x2}})
 	require.Equal(t, events[1].EventName, "test2")
 	require.Equal(t, events[1].Data, [][]byte{{0x2}})
 
