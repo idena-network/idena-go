@@ -49,6 +49,7 @@ type ConsensusConf struct {
 	EnablePools                       bool
 	UpdateContracts                   bool
 	DisableSavedInviteRewards         bool
+	FixPoolRewardEvents               bool
 }
 
 type ConsensusVerson uint16
@@ -58,11 +59,15 @@ const (
 	ConsensusV3 ConsensusVerson = 3
 	// Enables pools
 	ConsensusV4 ConsensusVerson = 4
+
+	// Enables events sorting
+	ConsensusV5 ConsensusVerson = 5
 )
 
 var (
 	v3                ConsensusConf
 	v4                ConsensusConf
+	v5                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -109,6 +114,10 @@ func init() {
 	v4 = v3
 	ApplyConsensusVersion(ConsensusV4, &v4)
 	ConsensusVersions[ConsensusV4] = &v4
+
+	v5 = v4
+	ApplyConsensusVersion(ConsensusV5, &v5)
+	ConsensusVersions[ConsensusV5] = &v5
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -123,6 +132,13 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.StartActivationDate = time.Date(2021, 03, 24, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 03, 29, 0, 0, 0, 0, time.UTC).Unix()
 		cfg.MigrationTimeout = 0
+	case ConsensusV5:
+		cfg.FixPoolRewardEvents = true
+		cfg.Version = ConsensusV5
+		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.StartActivationDate = time.Date(2021, 04, 20, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 04, 27, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

@@ -46,7 +46,8 @@ type TxPool struct {
 	all              *txMap
 	executableTxs    map[common.Address]*sortedTxs
 	pendingTxs       map[common.Address]*txMap
-	cfg              *config.Mempool
+	mempoolCfg       *config.Mempool
+	cfg              *config.Config
 	txSubscription   chan *types.Transaction
 	mutex            *sync.Mutex
 	appState         *appstate.AppState
@@ -65,12 +66,13 @@ func (pool *TxPool) IsSyncing() bool {
 	return pool.isSyncing
 }
 
-func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Mempool, statsCollector collector.StatsCollector) *TxPool {
+func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config, statsCollector collector.StatsCollector) *TxPool {
 	pool := &TxPool{
 		all:              newTxMap(-1),
 		executableTxs:    make(map[common.Address]*sortedTxs),
 		pendingTxs:       make(map[common.Address]*txMap),
 		knownDeferredTxs: mapset.NewSet(),
+		mempoolCfg:       cfg.Mempool,
 		cfg:              cfg,
 		mutex:            &sync.Mutex{},
 		appState:         appState,
@@ -164,11 +166,11 @@ func (pool *TxPool) checkPriorityTxLimits(tx *types.Transaction) error {
 
 func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 	var totalLimit = 0
-	if pool.cfg.TxPoolExecutableSlots < 0 || pool.cfg.TxPoolQueueSlots < 0 {
+	if pool.mempoolCfg.TxPoolExecutableSlots < 0 || pool.mempoolCfg.TxPoolQueueSlots < 0 {
 		totalLimit = -1
 	} else {
-		totalLimit = pool.cfg.TxPoolExecutableSlots*pool.cfg.TxPoolAddrExecutableLimit +
-			pool.cfg.TxPoolQueueSlots*pool.cfg.TxPoolAddrQueueLimit
+		totalLimit = pool.mempoolCfg.TxPoolExecutableSlots*pool.mempoolCfg.TxPoolAddrExecutableLimit +
+			pool.mempoolCfg.TxPoolQueueSlots*pool.mempoolCfg.TxPoolAddrQueueLimit
 	}
 	if totalLimit > 0 && len(pool.all.txs) >= totalLimit {
 		return errors.New("tx queue max size reached")
@@ -182,7 +184,7 @@ func (pool *TxPool) checkRegularTxLimits(tx *types.Transaction) error {
 					return MempoolFullError
 				}
 			}
-			if pool.cfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+			if pool.mempoolCfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.mempoolCfg.TxPoolQueueSlots {
 				return MempoolFullError
 			}
 		}
@@ -229,7 +231,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 
 	sender, _ := types.Sender(tx)
 
-	if tx.Type == types.CallContract {
+	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContract {
 		attachment := attachments.ParseCallContractAttachment(tx)
 		if attachment != nil && attachment.Method == embedded.FinishVotingMethod {
 			return errors.New("finishVoting is temporary disabled")
@@ -299,10 +301,10 @@ func (pool *TxPool) putToPending(tx *types.Transaction) error {
 	sender, _ := types.Sender(tx)
 	set, ok := pool.pendingTxs[sender]
 	if !ok {
-		if pool.cfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.cfg.TxPoolQueueSlots {
+		if pool.mempoolCfg.TxPoolQueueSlots > 0 && len(pool.pendingTxs) >= pool.mempoolCfg.TxPoolQueueSlots {
 			return MempoolFullError
 		}
-		set = newTxMap(pool.cfg.TxPoolAddrQueueLimit)
+		set = newTxMap(pool.mempoolCfg.TxPoolAddrQueueLimit)
 	}
 	err := set.Add(tx)
 	if err == nil {
@@ -317,7 +319,7 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 
 	executable, ok := pool.executableTxs[sender]
 	if !ok {
-		executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
+		executable = newSortedTxs(pool.mempoolCfg.TxPoolAddrExecutableLimit)
 	}
 
 	isExecutable := true
@@ -429,7 +431,7 @@ func (pool *TxPool) movePendingTxsToExecutable() {
 	for sender, pending := range pool.pendingTxs {
 		executable, ok := pool.executableTxs[sender]
 		if !ok {
-			executable = newSortedTxs(pool.cfg.TxPoolAddrExecutableLimit)
+			executable = newSortedTxs(pool.mempoolCfg.TxPoolAddrExecutableLimit)
 		}
 
 		for _, tx := range pending.Sorted() {
