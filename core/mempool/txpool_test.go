@@ -23,7 +23,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	secStore := secstore.NewSecStore()
 	secStore.AddKey(crypto.FromECDSA(key))
-	pool := NewTxPool(appState, bus, &config.Mempool{TxPoolQueueSlots: -1, TxPoolAddrQueueLimit: -1}, collector.NewStatsCollector())
+	pool := NewTxPool(appState, bus, &config.Config{Mempool: &config.Mempool{TxPoolQueueSlots: -1, TxPoolAddrQueueLimit: -1}, Consensus: config.GetDefaultConsensusConfig()}, collector.NewStatsCollector())
 	r := require.New(t)
 
 	key, _ = crypto.GenerateKey()
@@ -169,7 +169,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 func getPool() *TxPool {
 	bus := eventbus.New()
 	appState, _ := appstate.NewAppState(db.NewMemDB(), bus)
-	return NewTxPool(appState, bus, config.GetDefaultMempoolConfig(), collector.NewStatsCollector())
+	return NewTxPool(appState, bus, &config.Config{Mempool: config.GetDefaultMempoolConfig(), Consensus: config.GetDefaultConsensusConfig()}, collector.NewStatsCollector())
 }
 
 func TestSortedTxs_Remove(t *testing.T) {

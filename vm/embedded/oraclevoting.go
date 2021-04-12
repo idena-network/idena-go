@@ -393,7 +393,7 @@ func (f *OracleVoting3) finishVoting(args ...[]byte) error {
 			return err
 		}
 
-		var pools []common.Address
+		pools := make([]common.Address, 0, len(poolRewards))
 		for pool := range poolRewards {
 			pools = append(pools, pool)
 		}
