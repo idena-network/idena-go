@@ -106,6 +106,11 @@ type KillDelegatorTxArgs struct {
 	BaseTxArgs
 }
 
+type StoreToIpfsTxArgs struct {
+	Cid string `json:"cid"`
+	BaseTxArgs
+}
+
 type Invite struct {
 	Hash     common.Hash    `json:"hash"`
 	Receiver common.Address `json:"receiver"`
@@ -220,6 +225,25 @@ func (api *DnaApi) Undelegate(ctx context.Context, args BaseTxArgs) (common.Hash
 func (api *DnaApi) KillDelegator(ctx context.Context, args KillDelegatorTxArgs) (common.Hash, error) {
 	from := api.baseApi.getCurrentCoinbase()
 	hash, err := api.baseApi.sendTx(ctx, from, args.To, types.KillDelegatorTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, nil, nil)
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return hash, nil
+}
+
+func (api *DnaApi) StoreToIpfs(ctx context.Context, args StoreToIpfsTxArgs) (common.Hash, error) {
+	from := api.baseApi.getCurrentCoinbase()
+	c, err := cid.Decode(args.Cid)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	data, err := api.baseApi.ipfs.Get(c.Bytes(), 0)
+	if err != nil || len(data) == 0 {
+		return common.Hash{}, errors.New("cannot read ipfs content from local storage")
+	}
+
+	hash, err := api.baseApi.sendTx(ctx, from, nil, types.StoreToIpfsTx, decimal.Zero, decimal.Zero, decimal.Zero, args.Nonce, args.Epoch, attachments.CreateStoreToIpfsAttachment(c.Bytes(), uint32(len(data))), nil)
 
 	if err != nil {
 		return common.Hash{}, err

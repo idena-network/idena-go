@@ -28,12 +28,13 @@ const (
 	BurnTx               uint16 = 0xC
 	ChangeProfileTx      uint16 = 0xD
 	DeleteFlipTx         uint16 = 0xE
-	DeployContract       uint16 = 0xF
-	CallContract         uint16 = 0x10
-	TerminateContract    uint16 = 0x11
+	DeployContractTx     uint16 = 0xF
+	CallContractTx       uint16 = 0x10
+	TerminateContractTx  uint16 = 0x11
 	DelegateTx           uint16 = 0x12
 	UndelegateTx         uint16 = 0x13
 	KillDelegatorTx      uint16 = 0x14
+	StoreToIpfsTx        uint16 = 0x15
 )
 
 const (

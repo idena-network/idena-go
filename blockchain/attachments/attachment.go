@@ -432,3 +432,46 @@ func ParseTerminateContractAttachment(tx *types.Transaction) *TerminateContractA
 	}
 	return attachment
 }
+
+type StoreToIpfsAttachment struct {
+	Cid  []byte
+	Size uint32
+}
+
+func CreateStoreToIpfsAttachment(cid []byte, size uint32) []byte {
+	attach := &StoreToIpfsAttachment{
+		Cid:  cid,
+		Size: size,
+	}
+	data, _ := attach.ToBytes()
+	return data
+}
+
+func (t *StoreToIpfsAttachment) ToBytes() ([]byte, error) {
+	protoAttachment := &models.ProtoStoreToIpfsAttachment{
+		Cid:  t.Cid,
+		Size: t.Size,
+	}
+	return proto.Marshal(protoAttachment)
+}
+
+func (t *StoreToIpfsAttachment) FromBytes(data []byte) error {
+	protoAttachment := new(models.ProtoStoreToIpfsAttachment)
+	if err := proto.Unmarshal(data, protoAttachment); err != nil {
+		return err
+	}
+	t.Cid = protoAttachment.Cid
+	t.Size = protoAttachment.Size
+	return nil
+}
+
+func ParseStoreToIpfsAttachment(tx *types.Transaction) *StoreToIpfsAttachment {
+	if len(tx.Payload) == 0 {
+		return nil
+	}
+	attachment := new(StoreToIpfsAttachment)
+	if err := attachment.FromBytes(tx.Payload); err != nil {
+		return nil
+	}
+	return attachment
+}

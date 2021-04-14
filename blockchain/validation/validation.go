@@ -74,9 +74,9 @@ var (
 	}
 
 	contractTxs = map[types.TxType]struct{}{
-		types.CallContract:      {},
-		types.DeployContract:    {},
-		types.TerminateContract: {},
+		types.CallContractTx:      {},
+		types.DeployContractTx:    {},
+		types.TerminateContractTx: {},
 	}
 )
 
@@ -102,14 +102,13 @@ func init() {
 		types.BurnTx:               validateBurnTx,
 		types.ChangeProfileTx:      validateChangeProfileTx,
 		types.DeleteFlipTx:         validateDeleteFlipTx,
-		types.DeployContract:       validateDeployContractTx,
-		types.CallContract:         validateCallContractTx,
-		types.TerminateContract:    validateTerminateContractTx,
+		types.DeployContractTx:     validateDeployContractTx,
+		types.CallContractTx:       validateCallContractTx,
+		types.TerminateContractTx:  validateTerminateContractTx,
 	}
 }
 func SetAppConfig(cfg *config.Config) {
 	appCfg = cfg
-
 }
 
 func getValidator(txType types.TxType) (validator, bool) {
@@ -123,6 +122,11 @@ func getValidator(txType types.TxType) (validator, bool) {
 			delete(validators, types.DelegateTx)
 			delete(validators, types.UndelegateTx)
 			delete(validators, types.KillDelegatorTx)
+		}
+		if appCfg.Consensus.EnableStoreToIpfsTx {
+			validators[types.StoreToIpfsTx] = validateStoreToIpfsTx
+		} else {
+			delete(validators, types.StoreToIpfsTx)
 		}
 	}
 	v, ok := validators[txType]
@@ -805,6 +809,27 @@ func validateKillDelegatorTx(appState *appstate.AppState, tx *types.Transaction,
 	delegatee := appState.State.Delegatee(*tx.To)
 	if delegatee == nil || *delegatee != sender {
 		return InvalidSender
+	}
+	return nil
+}
+
+func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	if tx.To != nil {
+		return InvalidRecipient
+	}
+
+	if !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
+	}
+
+	attachment := attachments.ParseStoreToIpfsAttachment(tx)
+	if attachment == nil || attachment.Cid == nil{
+		return InvalidPayload
+	}
+
+	_, err := cid.Cast(attachment.Cid)
+	if err != nil {
+		return err
 	}
 	return nil
 }

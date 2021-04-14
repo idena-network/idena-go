@@ -496,6 +496,10 @@ message ProtoTerminateContractAttachment {
     repeated bytes args = 1;
 }
 
+message ProtoStoreToIpfsAttachment {
+    bytes cid = 1;
+    uint32 size = 2;
+}
 
 message ProtoTxReceipts {
     message ProtoTxReceipt {

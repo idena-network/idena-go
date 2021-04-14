@@ -198,7 +198,7 @@ func (api *ContractApi) buildDeployContractTx(args DeployArgs) (*types.Transacti
 		return nil, err
 	}
 	payload, _ := attachments.CreateDeployContractAttachment(codeHash, convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, nil, types.DeployContract, args.Amount,
+	return api.baseApi.getSignedTx(from, nil, types.DeployContractTx, args.Amount,
 		args.MaxFee, decimal.Zero,
 		0, 0,
 		payload, nil)
@@ -215,7 +215,7 @@ func (api *ContractApi) buildCallContractTx(args CallArgs) (*types.Transaction, 
 		return nil, err
 	}
 	payload, _ := attachments.CreateCallContractAttachment(args.Method, convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, &args.Contract, types.CallContract, args.Amount,
+	return api.baseApi.getSignedTx(from, &args.Contract, types.CallContractTx, args.Amount,
 		args.MaxFee, decimal.Zero,
 		0, 0,
 		payload, nil)
@@ -232,7 +232,7 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 		return nil, err
 	}
 	payload, _ := attachments.CreateTerminateContractAttachment(convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, &args.Contract, types.TerminateContract, decimal.Zero,
+	return api.baseApi.getSignedTx(from, &args.Contract, types.TerminateContractTx, decimal.Zero,
 		args.MaxFee, decimal.Zero,
 		0, 0,
 		payload, nil)

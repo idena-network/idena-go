@@ -38,7 +38,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 	tx := &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
-		Type:         types.DeployContract,
+		Type:         types.DeployContractTx,
 		Amount:       common.DnaBase,
 		Payload:      payload,
 	}
@@ -136,7 +136,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 		Epoch:        0,
 		AccountNonce: 2,
 		To:           &contract,
-		Type:         types.TerminateContract,
+		Type:         types.TerminateContractTx,
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)

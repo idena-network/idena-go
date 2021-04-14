@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/events"
@@ -53,10 +54,11 @@ const (
 type DataType = uint32
 
 const (
-	Block     DataType = 1
-	Flip      DataType = 2
-	Profile   DataType = 3
-	TxReceipt DataType = 3
+	Block      DataType = 1
+	Flip       DataType = 2
+	Profile    DataType = 3
+	TxReceipt  DataType = 3
+	CustomData DataType = 4
 )
 
 var (
@@ -87,8 +89,8 @@ type Proxy interface {
 	AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error)
 	Host() core2.Host
 	ShouldPin(dataType DataType) bool
+	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
 }
-
 type ipfsProxy struct {
 	node                 *core.IpfsNode
 	log                  log.Logger
@@ -288,6 +290,8 @@ func (p *ipfsProxy) maxSize(dataType DataType) int64 {
 		return common.MaxFlipSize
 	case Profile:
 		return common.MaxProfileSize
+	case CustomData:
+		return common.MaxCustomDataSize
 	default:
 		return -1
 	}
@@ -374,10 +378,25 @@ func (p *ipfsProxy) Get(key []byte, dataType DataType) ([]byte, error) {
 	if c == EmptyCid {
 		return []byte{}, nil
 	}
-	return p.get(path.IpfsPath(c), dataType)
+	return p.get(path.IpfsPath(c), dataType, 0)
 }
 
-func (p *ipfsProxy) get(path path.Path, dataType DataType) ([]byte, error) {
+func (p *ipfsProxy) GetWithSizeLimit(key []byte, dataType DataType, maxSize int64) ([]byte, error) {
+	if len(key) == 0 {
+		return []byte{}, nil
+	}
+	c, err := cid.Cast(key)
+	if err != nil {
+		return nil, err
+	}
+	if c == EmptyCid {
+		return []byte{}, nil
+	}
+
+	return p.get(path.IpfsPath(c), dataType, maxSize)
+}
+
+func (p *ipfsProxy) get(path path.Path, dataType DataType, maxSize int64) ([]byte, error) {
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
@@ -401,7 +420,15 @@ func (p *ipfsProxy) get(path path.Path, dataType DataType) ([]byte, error) {
 	file := files.ToFile(f)
 	defer file.Close()
 
-	maxSize := p.maxSize(dataType)
+	if maxSize == 0 {
+		maxSize = p.maxSize(dataType)
+	} else {
+		dataTypeMaxSize := p.maxSize(dataType)
+		if dataTypeMaxSize > 0 {
+			maxSize = int64(math.MinInt(int(maxSize), int(dataTypeMaxSize)))
+		}
+	}
+
 	if maxSize > 0 {
 		size, err := file.Size()
 		if err != nil {
@@ -729,6 +756,8 @@ type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
 
+
+
 func (i *memoryIpfs) ShouldPin(dataType DataType) bool {
 	return true
 }
@@ -767,6 +796,10 @@ func (i *memoryIpfs) Get(key []byte, dataType DataType) ([]byte, error) {
 		return v, nil
 	}
 	return nil, errors.New("not found")
+}
+
+func (i *memoryIpfs) GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error) {
+	panic("implement me")
 }
 
 func (*memoryIpfs) Pin(key []byte) error {
