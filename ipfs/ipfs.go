@@ -57,8 +57,8 @@ const (
 	Block      DataType = 1
 	Flip       DataType = 2
 	Profile    DataType = 3
-	TxReceipt  DataType = 3
-	CustomData DataType = 4
+	TxReceipt  DataType = 4
+	CustomData DataType = 5
 )
 
 var (
