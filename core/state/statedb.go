@@ -221,6 +221,11 @@ func (s *StateDB) EpochBlock() uint64 {
 	return stateObject.data.EpochBlock
 }
 
+func (s *StateDB) PrevEpochBlocks() []uint64 {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.PrevEpochBlocks
+}
+
 func (s *StateDB) LastSnapshot() uint64 {
 	stateObject := s.GetOrNewGlobalObject()
 	return stateObject.data.LastSnapshot
@@ -367,11 +372,11 @@ func (s *StateDB) AddNewScore(address common.Address, score byte) {
 	s.GetOrNewIdentityObject(address).AddNewScore(score)
 }
 
-func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash) {
-	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress, txHash)
+func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash, epochHeight uint32) {
+	s.GetOrNewIdentityObject(address).SetInviter(inviterAddress, txHash, epochHeight)
 }
 
-func (s *StateDB) GetInviter(address common.Address) *TxAddr {
+func (s *StateDB) GetInviter(address common.Address) *Inviter {
 	return s.GetOrNewIdentityObject(address).GetInviter()
 }
 
@@ -461,6 +466,10 @@ func (s *StateDB) EmptyBlocksCount() int {
 
 func (s *StateDB) SetEpochBlock(height uint64) {
 	s.GetOrNewGlobalObject().SetEpochBlock(height)
+}
+
+func (s *StateDB) AddPrevEpochBlock(height uint64) {
+	s.GetOrNewGlobalObject().AddPrevEpochBlock(height)
 }
 
 func (s *StateDB) ValidationPeriod() ValidationPeriod {
@@ -1169,6 +1178,7 @@ func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject.data.LastSnapshot = state.Global.LastSnapshot
 	stateObject.data.NextValidationTime = state.Global.NextValidationTime
 	stateObject.data.EpochBlock = state.Global.EpochBlock
+	stateObject.data.PrevEpochBlocks = state.Global.PrevEpochBlocks
 	stateObject.data.FeePerGas = common.BigIntOrNil(state.Global.FeePerGas)
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
@@ -1230,9 +1240,10 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.DelegationNonce = identity.DelegationNonce
 
 		if identity.Inviter != nil {
-			stateObject.data.Inviter = &TxAddr{
-				TxHash:  common.BytesToHash(identity.Inviter.Hash),
-				Address: common.BytesToAddress(identity.Inviter.Address),
+			stateObject.data.Inviter = &Inviter{
+				TxHash:      common.BytesToHash(identity.Inviter.Hash),
+				Address:     common.BytesToAddress(identity.Inviter.Address),
+				EpochHeight: identity.Inviter.EpochHeight,
 			}
 		}
 		if identity.Delegatee != nil {

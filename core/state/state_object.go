@@ -169,6 +169,7 @@ type Global struct {
 	WordsSeed                     types.Seed
 	LastSnapshot                  uint64
 	EpochBlock                    uint64
+	PrevEpochBlocks               []uint64
 	FeePerGas                     *big.Int
 	VrfProposerThreshold          uint64
 	EmptyBlocksBits               *big.Int
@@ -185,6 +186,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		WordsSeed:                     s.WordsSeed[:],
 		LastSnapshot:                  s.LastSnapshot,
 		EpochBlock:                    s.EpochBlock,
+		PrevEpochBlocks:               s.PrevEpochBlocks,
 		FeePerGas:                     common.BigIntBytesOrNil(s.FeePerGas),
 		VrfProposerThreshold:          s.VrfProposerThreshold,
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
@@ -207,6 +209,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.WordsSeed = types.BytesToSeed(protoGlobal.WordsSeed)
 	s.LastSnapshot = protoGlobal.LastSnapshot
 	s.EpochBlock = protoGlobal.EpochBlock
+	s.PrevEpochBlocks = protoGlobal.PrevEpochBlocks
 	s.FeePerGas = common.BigIntOrNil(protoGlobal.FeePerGas)
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
@@ -291,7 +294,7 @@ type Identity struct {
 	Generation           uint32
 	Code                 []byte
 	Invitees             []TxAddr
-	Inviter              *TxAddr
+	Inviter              *Inviter
 	Penalty              *big.Int
 	ValidationTxsBits    byte
 	LastValidationStatus ValidationStatusFlag
@@ -304,6 +307,12 @@ type Identity struct {
 type TxAddr struct {
 	TxHash  common.Hash
 	Address common.Address
+}
+
+type Inviter struct {
+	TxHash      common.Hash
+	Address     common.Address
+	EpochHeight uint32
 }
 
 func (i *Identity) ToBytes() ([]byte, error) {
@@ -342,9 +351,10 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		})
 	}
 	if i.Inviter != nil {
-		protoIdentity.Inviter = &models.ProtoStateIdentity_TxAddr{
-			Hash:    i.Inviter.TxHash[:],
-			Address: i.Inviter.Address[:],
+		protoIdentity.Inviter = &models.ProtoStateIdentity_Inviter{
+			Hash:        i.Inviter.TxHash[:],
+			Address:     i.Inviter.Address[:],
+			EpochHeight: i.Inviter.EpochHeight,
 		}
 	}
 	return proto.Marshal(protoIdentity)
@@ -387,9 +397,10 @@ func (i *Identity) FromBytes(data []byte) error {
 	}
 
 	if protoIdentity.Inviter != nil {
-		i.Inviter = &TxAddr{
-			TxHash:  common.BytesToHash(protoIdentity.Inviter.Hash),
-			Address: common.BytesToAddress(protoIdentity.Inviter.Address),
+		i.Inviter = &Inviter{
+			TxHash:      common.BytesToHash(protoIdentity.Inviter.Hash),
+			Address:     common.BytesToAddress(protoIdentity.Inviter.Address),
+			EpochHeight: protoIdentity.Inviter.EpochHeight,
 		}
 	}
 	if protoIdentity.Delegatee != nil {
@@ -768,15 +779,16 @@ func (s *stateIdentity) ClearFlips() {
 	s.touch()
 }
 
-func (s *stateIdentity) SetInviter(address common.Address, txHash common.Hash) {
-	s.data.Inviter = &TxAddr{
-		TxHash:  txHash,
-		Address: address,
+func (s *stateIdentity) SetInviter(address common.Address, txHash common.Hash, epochHeight uint32) {
+	s.data.Inviter = &Inviter{
+		TxHash:      txHash,
+		Address:     address,
+		EpochHeight: epochHeight,
 	}
 	s.touch()
 }
 
-func (s *stateIdentity) GetInviter() *TxAddr {
+func (s *stateIdentity) GetInviter() *Inviter {
 	return s.data.Inviter
 }
 
@@ -1020,6 +1032,19 @@ func (s *stateGlobal) SetEpochBlock(height uint64) {
 
 func (s *stateGlobal) EpochBlock() uint64 {
 	return s.data.EpochBlock
+}
+
+func (s *stateGlobal) AddPrevEpochBlock(height uint64) {
+	if len(s.data.PrevEpochBlocks) == common.PrevEpochBlocksCount {
+		s.data.PrevEpochBlocks = append(s.data.PrevEpochBlocks[1:], height)
+	} else {
+		s.data.PrevEpochBlocks = append(s.data.PrevEpochBlocks, height)
+	}
+	s.touch()
+}
+
+func (s *stateGlobal) PrevEpochBlocks() []uint64 {
+	return s.data.PrevEpochBlocks
 }
 
 func (s *stateGlobal) SetFeePerGas(fee *big.Int) {

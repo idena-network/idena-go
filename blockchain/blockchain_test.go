@@ -92,7 +92,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.ApplyTxOnState(chain.appState, nil, signed, false,nil)
+	chain.ApplyTxOnState(chain.appState, nil, signed, false, 0, nil)
 
 	require.Equal(t, uint8(0), stateDb.GetInvites(addr))
 	require.Equal(t, state.Invite, stateDb.GetIdentityState(receiver))
@@ -124,7 +124,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 	signed, _ := types.SignTx(tx, key)
 
-	chain.ApplyTxOnState(chain.appState, nil, signed, false, nil)
+	chain.ApplyTxOnState(chain.appState, nil, signed, false, 0, nil)
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(sender))
 	require.Equal(t, 0, big.NewInt(0).Cmp(appState.State.GetBalance(sender)))
 
@@ -186,7 +186,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	fee = fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
 
 	require.NoError(validation.ValidateTx(chain.appState, signed3, fee2.MinFeePerGas, validation.InBlockTx))
-	chain.ApplyTxOnState(chain.appState, nil, signed3, false,nil)
+	chain.ApplyTxOnState(chain.appState, nil, signed3, false, 0, nil)
 
 	require.Equal(big.NewInt(0), fee)
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
@@ -225,7 +225,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	require.Nil(validation.ValidateTx(chain.appState, signedTx1, fee2.MinFeePerGas, validation.InBlockTx))
 	require.Nil(validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
 
-	_, _, err := chain.ApplyTxOnState(chain.appState, nil, signedTx1,false, nil)
+	_, _, err := chain.ApplyTxOnState(chain.appState, nil, signedTx1, false, 0, nil)
 
 	require.Nil(err)
 	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
@@ -239,8 +239,8 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	invitee := tests.GetRandAddr()
 	anotherInvitee := tests.GetRandAddr()
 
-	appState.State.SetInviter(invitee, inviter, common.Hash{})
-	appState.State.SetInviter(anotherInvitee, inviter, common.Hash{})
+	appState.State.SetInviter(invitee, inviter, common.Hash{}, 10)
+	appState.State.SetInviter(anotherInvitee, inviter, common.Hash{}, 20)
 	appState.State.AddInvitee(inviter, invitee, common.Hash{})
 	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
 
@@ -279,7 +279,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
 
-	chain.ApplyTxOnState(chain.appState, nil, signedTx3,false, nil)
+	chain.ApplyTxOnState(chain.appState, nil, signedTx3, false, 0, nil)
 
 	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
@@ -459,7 +459,7 @@ func Test_ApplyBurnTx(t *testing.T) {
 	expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, nil, signedTx,false,  nil)
+	chain.ApplyTxOnState(appState, nil, signedTx, false, 0, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
@@ -497,7 +497,7 @@ func Test_DeleteFlipTx(t *testing.T) {
 	expectedBalance := big.NewInt(999_990)
 	expectedBalance.Sub(expectedBalance, fee)
 
-	chain.ApplyTxOnState(appState, nil, signedTx, false,nil)
+	chain.ApplyTxOnState(appState, nil, signedTx, false, 0, nil)
 
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))

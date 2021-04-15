@@ -2,7 +2,6 @@ syntax = "proto3";
 package models;
 
 //protoc --go_opt=paths=source_relative --go_out=./ ./protobuf/*.proto
-
 message ProtoTransaction {
     message Data {
         uint32 nonce = 1;
@@ -334,6 +333,12 @@ message ProtoStateIdentity {
         bytes address = 2;
     }
 
+    message Inviter {
+        bytes hash = 1;
+        bytes address = 2;
+        uint32 epochHeight = 3;
+    }
+
     bytes stake = 1;
     uint32 invites = 2;
     uint32 birthday = 3;
@@ -346,7 +351,7 @@ message ProtoStateIdentity {
     uint32 generation = 10;
     bytes code = 11;
     repeated TxAddr invitees = 12;
-    TxAddr inviter = 13;
+    Inviter inviter = 13;
     bytes penalty = 14;
     uint32 validationBits = 15;
     uint32 validationStatus = 16;
@@ -370,6 +375,7 @@ message ProtoStateGlobal {
     bytes emptyBlocksBits = 10;
     uint32 godAddressInvites = 11;
     uint32 blocksCntWithoutCeremonialTxs = 12;
+    repeated uint64 prevEpochBlocks = 13;
 }
 
 message ProtoStateApprovedIdentity {
@@ -406,6 +412,7 @@ message ProtoPredefinedState {
         bytes emptyBlocksBits = 10;
         uint32 godAddressInvites = 11;
         uint32 blocksCntWithoutCeremonialTxs = 12;
+        repeated uint64 prevEpochBlocks = 13;
     }
 
     message StatusSwitch {
@@ -436,6 +443,12 @@ message ProtoPredefinedState {
             bytes address = 2;
         }
 
+        message Inviter {
+            bytes hash = 1;
+            bytes address = 2;
+            uint32 epochHeight = 3;
+        }
+
         bytes address = 1;
         bytes stake = 2;
         uint32 invites = 3;
@@ -449,7 +462,7 @@ message ProtoPredefinedState {
         uint32 generation = 11;
         bytes code = 12;
         repeated TxAddr invitees = 13;
-        TxAddr inviter = 14;
+        Inviter inviter = 14;
         bytes penalty = 15;
         uint32 validationBits = 16;
         uint32 validationStatus = 17;

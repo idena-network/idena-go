@@ -568,28 +568,28 @@ func Test_incSuccessfulInvites(t *testing.T) {
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Verified,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: god,
 		},
 	}, 0, state.Newbie, epoch)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: badAuth,
 		},
 	}, 5, state.Newbie, epoch)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: god,
 		},
 	}, 5, state.Newbie, epoch)
@@ -597,7 +597,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	// 4th validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Newbie,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 2, state.Newbie, epoch)
@@ -605,7 +605,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	// 4th validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Newbie,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 2, state.Verified, epoch)
@@ -613,7 +613,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	// 3rd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Newbie,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 3, state.Newbie, epoch)
@@ -621,7 +621,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	// 2nd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Newbie,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 4, state.Newbie, epoch)
@@ -629,7 +629,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	// 3rd validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Newbie,
-		Inviter: &state.TxAddr{
+		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 3, state.Verified, epoch)

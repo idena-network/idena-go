@@ -76,6 +76,7 @@ func main() {
 			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
 			Epoch:                         uint32(globalObject.Epoch()),
 			EpochBlock:                    globalObject.EpochBlock(),
+			PrevEpochBlocks:               globalObject.PrevEpochBlocks(),
 			FeePerGas:                     common.BigIntBytesOrNil(globalObject.FeePerGas()),
 			VrfProposerThreshold:          globalObject.VrfProposerThresholdRaw(),
 			EmptyBlocksBits:               common.BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
@@ -158,9 +159,10 @@ func main() {
 			}
 
 			if data.Inviter != nil {
-				identity.Inviter = &models.ProtoPredefinedState_Identity_TxAddr{
-					Hash:    data.Inviter.TxHash[:],
-					Address: data.Inviter.Address[:],
+				identity.Inviter = &models.ProtoPredefinedState_Identity_Inviter{
+					Hash:        data.Inviter.TxHash[:],
+					Address:     data.Inviter.Address[:],
+					EpochHeight: data.Inviter.EpochHeight,
 				}
 			}
 			if data.Delegatee != nil {

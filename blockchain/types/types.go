@@ -1339,8 +1339,9 @@ type InviterValidationResult struct {
 }
 
 type SuccessfulInvite struct {
-	Age    uint16
-	TxHash common.Hash
+	Age         uint16
+	TxHash      common.Hash
+	EpochHeight uint32
 }
 
 type AuthorResults struct {
