@@ -155,7 +155,7 @@ func (c *contractTester) Deploy(config configurableDeploy) error {
 	tx := &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
-		Type:         types.DeployContract,
+		Type:         types.DeployContractTx,
 		Amount:       deployStake,
 		Payload:      payload,
 	}
@@ -181,7 +181,7 @@ func (c *contractTester) Call(key *ecdsa.PrivateKey, contract EmbeddedContractTy
 		Epoch:        0,
 		AccountNonce: 2,
 		To:           &c.contractAddr,
-		Type:         types.CallContract,
+		Type:         types.CallContractTx,
 		Payload:      payload,
 		Amount:       payment,
 	}
@@ -203,7 +203,7 @@ func (c *contractTester) Terminate(key *ecdsa.PrivateKey, contract EmbeddedContr
 		Epoch:        0,
 		AccountNonce: 2,
 		To:           &c.contractAddr,
-		Type:         types.TerminateContract,
+		Type:         types.TerminateContractTx,
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)

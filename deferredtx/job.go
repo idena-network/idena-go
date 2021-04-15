@@ -195,7 +195,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 }
 
 func (j *Job) getSignedTx(dtx *DeferredTx, maxFee decimal.Decimal) (*types.Transaction, error) {
-	tx := blockchain.BuildTx(j.appState, dtx.From, dtx.To, types.CallContract, blockchain.ConvertToFloat(dtx.Amount), maxFee, blockchain.ConvertToFloat(dtx.Tips),
+	tx := blockchain.BuildTx(j.appState, dtx.From, dtx.To, types.CallContractTx, blockchain.ConvertToFloat(dtx.Amount), maxFee, blockchain.ConvertToFloat(dtx.Tips),
 		0, 0, dtx.Payload)
 	var signedTx *types.Transaction
 	var err error

@@ -141,7 +141,7 @@ func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err err
 }
 
 func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
-	if tx.Type != types.CallContract && tx.Type != types.DeployContract && tx.Type != types.TerminateContract {
+	if tx.Type != types.CallContractTx && tx.Type != types.DeployContractTx && tx.Type != types.TerminateContractTx {
 		return &types.TxReceipt{Success: false, Error: UnexpectedTx}
 	}
 
@@ -152,12 +152,12 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 	var contractAddr common.Address
 	var method string
 	switch tx.Type {
-	case types.DeployContract:
+	case types.DeployContractTx:
 		method = "deploy"
 		contractAddr, err = vm.deploy(tx)
-	case types.CallContract:
+	case types.CallContractTx:
 		contractAddr, method, err = vm.call(tx)
-	case types.TerminateContract:
+	case types.TerminateContractTx:
 		method = "terminate"
 		contractAddr, err = vm.terminate(tx)
 	}

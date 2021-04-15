@@ -36,5 +36,5 @@ func (api *IpfsApi) Get(cid string) (hexutil.Bytes, error) {
 	if err != nil {
 		return nil, err
 	}
-	return api.ipfsProxy.Get(c.Bytes(), 0)
+	return api.ipfsProxy.Get(c.Bytes(), ipfs.CustomData)
 }

@@ -231,7 +231,7 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 
 	sender, _ := types.Sender(tx)
 
-	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContract {
+	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContractTx {
 		attachment := attachments.ParseCallContractAttachment(tx)
 		if attachment != nil && attachment.Method == embedded.FinishVotingMethod {
 			return errors.New("finishVoting is temporary disabled")

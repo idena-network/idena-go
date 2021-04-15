@@ -13,6 +13,10 @@ const (
 	SignatureAdditionalSize = 67
 
 	deleteFlipTxAdditionalSize = 1024 * 120
+
+	StoreToIpfsFeeCoef = float32(0.2)
+
+	storeToIpfsAdditionalSize = common.MaxCustomDataSize
 )
 
 var (
@@ -75,6 +79,16 @@ func getTxSizeForFee(tx *types.Transaction) int {
 	}
 	if tx.Type == types.DeleteFlipTx {
 		size += deleteFlipTxAdditionalSize
+	}
+	if tx.Type == types.StoreToIpfsTx {
+		attachment := attachments.ParseStoreToIpfsAttachment(tx)
+		if attachment != nil {
+			additionalSize := attachment.Size
+			if additionalSize == 0 {
+				additionalSize = storeToIpfsAdditionalSize
+			}
+			size += int(float32(additionalSize) * StoreToIpfsFeeCoef)
+		}
 	}
 	return size
 }

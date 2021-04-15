@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/consensus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
@@ -22,6 +23,7 @@ type BaseApi struct {
 	txpool   *mempool.TxPool
 	ks       *keystore.KeyStore
 	secStore *secstore.SecStore
+	ipfs     ipfs.Proxy
 }
 
 type BaseTxArgs struct {
@@ -29,8 +31,8 @@ type BaseTxArgs struct {
 	Epoch uint16 `json:"epoch"`
 }
 
-func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore, secStore *secstore.SecStore) *BaseApi {
-	return &BaseApi{engine, txpool, ks, secStore}
+func NewBaseApi(engine *consensus.Engine, txpool *mempool.TxPool, ks *keystore.KeyStore, secStore *secstore.SecStore, ipfs ipfs.Proxy) *BaseApi {
+	return &BaseApi{engine, txpool, ks, secStore, ipfs}
 }
 
 func (api *BaseApi) getReadonlyAppState() *appstate.AppState {
