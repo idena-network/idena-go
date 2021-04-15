@@ -86,6 +86,14 @@ type Blockchain struct {
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
 }
 
+type txExecutionContext struct {
+	appState       *appstate.AppState
+	vm             vm.VM
+	blockInsertion bool
+	height         uint64
+	statsCollector collector.StatsCollector
+}
+
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
 	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
@@ -102,7 +110,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		indexer:         newBlockchainIndexer(db, bus, config, keyStore),
 		subManager:      subManager,
 		upgrader:        upgrader,
-		ipfsLoadQueue:   make(chan  *attachments.StoreToIpfsAttachment, 100),
+		ipfsLoadQueue:   make(chan *attachments.StoreToIpfsAttachment, 100),
 	}
 }
 
@@ -916,7 +924,14 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			return nil, nil, nil, 0, err
 		}
-		if usedFee, receipt, err := chain.ApplyTxOnState(appState, vm, tx, blockInsertion, block.Height(), statsCollector); err != nil {
+		context := &txExecutionContext{
+			appState:       appState,
+			vm:             vm,
+			blockInsertion: blockInsertion,
+			height:         block.Height(),
+			statsCollector: statsCollector,
+		}
+		if usedFee, receipt, err := chain.ApplyTxOnState(tx, context); err != nil {
 			return nil, nil, nil, 0, err
 		} else {
 			gas := uint64(fee.CalculateGas(tx))
@@ -936,7 +951,10 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	return totalFee, totalTips, receipts, usedGas, nil
 }
 
-func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, blockInsertion bool, height uint64, statsCollector collector.StatsCollector) (*big.Int, *types.TxReceipt, error) {
+func (chain *Blockchain) ApplyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, error) {
+
+	statsCollector := context.statsCollector
+	appState := context.appState
 
 	collector.BeginApplyingTx(statsCollector, tx, appState)
 	defer collector.CompleteApplyingTx(statsCollector, appState)
@@ -994,7 +1012,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			if inviter.Address == stateDB.GodAddress() || stateDB.GetIdentityState(inviter.Address).VerifiedOrBetter() {
 				var epochBlock uint32
 				if chain.config.Consensus.EncourageEarlyInvitations {
-					epochBlock = uint32(height - appState.State.EpochBlock())
+					epochBlock = uint32(context.height - appState.State.EpochBlock())
 				}
 				stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
 				stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash, epochBlock)
@@ -1106,7 +1124,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 			stateDB.AddBalance(*tx.To, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
-		receipt = vm.Run(tx, chain.getGasLimit(appState, tx))
+		receipt = context.vm.Run(tx, chain.getGasLimit(appState, tx))
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
@@ -1128,7 +1146,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	case types.UndelegateTx:
 		stateDB.ToggleDelegationAddress(sender, common.EmptyAddress)
 	case types.StoreToIpfsTx:
-		if blockInsertion && rand.Float32() > StoreToIpfsThreshold {
+		if context.blockInsertion && rand.Float32() > StoreToIpfsThreshold {
 			attachment := attachments.ParseStoreToIpfsAttachment(tx)
 			select {
 			case chain.ipfsLoadQueue <- attachment:
@@ -1512,7 +1530,8 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			continue
 		}
-		if f, r, err := chain.ApplyTxOnState(appState, vm, tx, false, header.Height ,nil); err == nil {
+		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
+		if f, r, err := chain.ApplyTxOnState(tx, context); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
 				receipts = append(receipts, r)
@@ -1651,7 +1670,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var err error
 	var receipts types.TxReceipts
 	var usedGas uint64
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, false,nil); err != nil {
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, false, nil); err != nil {
 		return err
 	}
 
@@ -2337,7 +2356,7 @@ func (chain *Blockchain) ipfsLoad() {
 		if err == nil {
 			c, _ := cid2.Cast(item.Cid)
 			chain.log.Debug("content loaded to local ipfs", "item", c.String())
-		} else{
+		} else {
 			chain.log.Debug("error while loading ipfs content", "err", err)
 		}
 	}
