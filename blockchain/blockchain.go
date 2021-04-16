@@ -102,7 +102,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		indexer:         newBlockchainIndexer(db, bus, config, keyStore),
 		subManager:      subManager,
 		upgrader:        upgrader,
-		ipfsLoadQueue:   make(chan  *attachments.StoreToIpfsAttachment, 100),
+		ipfsLoadQueue:   make(chan *attachments.StoreToIpfsAttachment, 100),
 	}
 }
 
@@ -783,6 +783,8 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 		}
 		if !has {
 			appState.State.IncBlocksCntWithoutCeremonialTxs()
+		} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
+			appState.State.ResetBlocksCntWithoutCeremonialTxs()
 		}
 	}
 
@@ -1496,7 +1498,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			continue
 		}
-		if f, r, err := chain.ApplyTxOnState(appState, vm, tx, false,nil); err == nil {
+		if f, r, err := chain.ApplyTxOnState(appState, vm, tx, false, nil); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
 				receipts = append(receipts, r)
@@ -1635,7 +1637,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var err error
 	var receipts types.TxReceipts
 	var usedGas uint64
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, false,nil); err != nil {
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, false, nil); err != nil {
 		return err
 	}
 
@@ -2321,7 +2323,7 @@ func (chain *Blockchain) ipfsLoad() {
 		if err == nil {
 			c, _ := cid2.Cast(item.Cid)
 			chain.log.Debug("content loaded to local ipfs", "item", c.String())
-		} else{
+		} else {
 			chain.log.Debug("error while loading ipfs content", "err", err)
 		}
 	}
