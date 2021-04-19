@@ -86,6 +86,13 @@ type Blockchain struct {
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
 }
 
+type txsExecutionContext struct {
+	appState       *appstate.AppState
+	header         *types.Header
+	blockInsertion bool
+	statsCollector collector.StatsCollector
+}
+
 type txExecutionContext struct {
 	appState       *appstate.AppState
 	vm             vm.VM
@@ -448,7 +455,13 @@ func (chain *Blockchain) applyBlockAndTxsOnState(
 ) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, receipts types.TxReceipts, err error) {
 	var totalFee, totalTips *big.Int
 	var usedGas uint64
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(appState, block, true, statsCollector); err != nil {
+	txsContext := &txsExecutionContext{
+		appState:       appState,
+		header:         block.Header,
+		blockInsertion: true,
+		statsCollector: statsCollector,
+	}
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
 		return
 	}
 
@@ -911,27 +924,28 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	}
 }
 
-func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Block, blockInsertion bool,
-	statsCollector collector.StatsCollector) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, usedGas uint64, err error) {
+func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, usedGas uint64, err error) {
 	totalFee = new(big.Int)
 	totalTips = new(big.Int)
+	appState := context.appState
+	header := context.header
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, block.Header, chain.secStore, statsCollector, chain.config)
+	vm := vm.NewVmImpl(appState, header, chain.secStore, context.statsCollector, chain.config)
 
-	for i := 0; i < len(block.Body.Transactions); i++ {
-		tx := block.Body.Transactions[i]
+	for i := 0; i < len(txs); i++ {
+		tx := txs[i]
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			return nil, nil, nil, 0, err
 		}
-		context := &txExecutionContext{
+		txContext := &txExecutionContext{
 			appState:       appState,
 			vm:             vm,
-			blockInsertion: blockInsertion,
-			height:         block.Height(),
-			statsCollector: statsCollector,
+			blockInsertion: context.blockInsertion,
+			height:         header.Height(),
+			statsCollector: context.statsCollector,
 		}
-		if usedFee, receipt, err := chain.ApplyTxOnState(tx, context); err != nil {
+		if usedFee, receipt, err := chain.applyTxOnState(tx, txContext); err != nil {
 			return nil, nil, nil, 0, err
 		} else {
 			gas := uint64(fee.CalculateGas(tx))
@@ -951,7 +965,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	return totalFee, totalTips, receipts, usedGas, nil
 }
 
-func (chain *Blockchain) ApplyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, error) {
+func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, error) {
 
 	statsCollector := context.statsCollector
 	appState := context.appState
@@ -1531,7 +1545,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			continue
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
-		if f, r, err := chain.ApplyTxOnState(tx, context); err == nil {
+		if f, r, err := chain.applyTxOnState(tx, context); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
 				receipts = append(receipts, r)
@@ -1670,7 +1684,11 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var err error
 	var receipts types.TxReceipts
 	var usedGas uint64
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(checkState, block, false, nil); err != nil {
+	txsContext := &txsExecutionContext{
+		appState: checkState,
+		header:   block.Header,
+	}
+	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
 		return err
 	}
 
