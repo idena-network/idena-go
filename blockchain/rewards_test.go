@@ -33,6 +33,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
 	config.ApplyConsensusVersion(config.ConsensusV4, conf)
+	config.ApplyConsensusVersion(config.ConsensusV5, conf)
 
 	memdb := db.NewMemDB()
 
@@ -61,12 +62,12 @@ func Test_rewardValidIdentities(t *testing.T) {
 			failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
 		},
 		GoodInviters: map[common.Address]*types.InviterValidationResult{
-			auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
+			auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
 			auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
 			auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
-			auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}}}},
-			failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}}}},
-			god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}}, {2, common.Hash{}}, {3, common.Hash{}}}, PayInvitationReward: true},
+			auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
+			failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
+			god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
 		},
 		ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
 			100: {
@@ -103,7 +104,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &validationResults, 100, types.Seed{1}, nil)
+	rewardValidIdentities(appState, conf, &validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
 
 	appState.Commit(nil)
 
@@ -185,4 +186,60 @@ func Test_splitReward(t *testing.T) {
 
 	require.True(t, big.NewInt(20).Cmp(reward) == 0)
 	require.True(t, big.NewInt(80).Cmp(stake) == 0)
+}
+
+func Test_getInvitationRewardCoef(t *testing.T) {
+	consensusConf := &config.ConsensusConf{}
+	consensusConf.FirstInvitationRewardCoef = 1.0
+	consensusConf.SecondInvitationRewardCoef = 2.0
+	consensusConf.ThirdInvitationRewardCoef = 4.0
+
+	var coef float32
+
+	coef = getInvitationRewardCoef(0, 0, []uint32{}, consensusConf)
+	require.Zero(t, coef)
+
+	coef = getInvitationRewardCoef(1, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(1.0), coef)
+
+	coef = getInvitationRewardCoef(2, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(2.0), coef)
+
+	coef = getInvitationRewardCoef(3, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(4.0), coef)
+
+	coef = getInvitationRewardCoef(4, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(0.0), coef)
+
+	coef = getInvitationRewardCoef(1, 0, []uint32{90}, consensusConf)
+	require.Equal(t, float32(1.0), coef)
+
+	coef = getInvitationRewardCoef(1, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(1.0), coef)
+
+	consensusConf.EncourageEarlyInvitations = true
+
+	coef = getInvitationRewardCoef(1, 0, []uint32{90}, consensusConf)
+	require.Equal(t, float32(1.0), coef)
+
+	coef = getInvitationRewardCoef(1, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(0.5), coef)
+
+	coef = getInvitationRewardCoef(2, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(2.0), coef)
+
+	coef = getInvitationRewardCoef(2, 70, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(1.7599), coef)
+
+	coef = getInvitationRewardCoef(3, 192, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(4.0), coef)
+
+	coef = getInvitationRewardCoef(3, 192, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(2.301307), coef)
+
+	coef = getInvitationRewardCoef(3, 200, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(2.0), coef)
+
+	coef = getInvitationRewardCoef(3, 1000, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(2.0), coef)
 }

@@ -52,6 +52,7 @@ type ConsensusConf struct {
 	FixPoolRewardEvents               bool
 	EnableStoreToIpfsTx               bool
 	ResetBlocksWithoutCeremonialTxs   bool
+	EncourageEarlyInvitations         bool
 }
 
 type ConsensusVerson uint16
@@ -138,6 +139,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.FixPoolRewardEvents = true
 		cfg.EnableStoreToIpfsTx = true
 		cfg.ResetBlocksWithoutCeremonialTxs = true
+		cfg.EncourageEarlyInvitations = true
 		cfg.Version = ConsensusV5
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
