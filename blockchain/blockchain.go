@@ -816,6 +816,8 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 		}
 		if !has {
 			appState.State.IncBlocksCntWithoutCeremonialTxs()
+		} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
+			appState.State.ResetBlocksCntWithoutCeremonialTxs()
 		}
 	}
 
