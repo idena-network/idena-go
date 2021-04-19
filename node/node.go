@@ -382,7 +382,7 @@ func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, e
 // apis returns the collection of RPC descriptors this node offers.
 func (node *Node) apis() []rpc.API {
 
-	baseApi := api.NewBaseApi(node.consensusEngine, node.txpool, node.keyStore, node.secStore)
+	baseApi := api.NewBaseApi(node.consensusEngine, node.txpool, node.keyStore, node.secStore, node.ipfsProxy)
 
 	return []rpc.API{
 		{

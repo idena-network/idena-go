@@ -28,7 +28,7 @@ type StatsCollector interface {
 	AddFlipsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, flipsToReward []*types.FlipToReward)
 	AddReportedFlipsReward(balanceDest, stakeDest common.Address, flipIdx int, balance, stake *big.Int)
 	AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16, txHash *common.Hash,
-		isSavedInviteWinner bool)
+		epochHeight uint32, isSavedInviteWinner bool)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 
@@ -268,16 +268,16 @@ func AddReportedFlipsReward(c StatsCollector, balanceDest, stakeDest common.Addr
 }
 
 func (c *collectorStub) AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16,
-	txHash *common.Hash, isSavedInviteWinner bool) {
+	txHash *common.Hash, epochHeight uint32, isSavedInviteWinner bool) {
 	// do nothing
 }
 
 func AddInvitationsReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16,
-	txHash *common.Hash, isSavedInviteWinner bool) {
+	txHash *common.Hash, epochHeight uint32, isSavedInviteWinner bool) {
 	if c == nil {
 		return
 	}
-	c.AddInvitationsReward(balanceDest, stakeDest, balance, stake, age, txHash, isSavedInviteWinner)
+	c.AddInvitationsReward(balanceDest, stakeDest, balance, stake, age, txHash, epochHeight, isSavedInviteWinner)
 }
 
 func (c *collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int) {

@@ -50,6 +50,9 @@ type ConsensusConf struct {
 	UpdateContracts                   bool
 	DisableSavedInviteRewards         bool
 	FixPoolRewardEvents               bool
+	EnableStoreToIpfsTx               bool
+	ResetBlocksWithoutCeremonialTxs   bool
+	EncourageEarlyInvitations         bool
 }
 
 type ConsensusVerson uint16
@@ -134,11 +137,14 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.MigrationTimeout = 0
 	case ConsensusV5:
 		cfg.FixPoolRewardEvents = true
+		cfg.EnableStoreToIpfsTx = true
+		cfg.ResetBlocksWithoutCeremonialTxs = true
+		cfg.EncourageEarlyInvitations = true
 		cfg.Version = ConsensusV5
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
-		cfg.StartActivationDate = time.Date(2021, 04, 20, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 04, 27, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.StartActivationDate = time.Date(2021, 04, 27, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 05, 4, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

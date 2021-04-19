@@ -20,10 +20,11 @@ import (
 )
 
 func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
-	blocks uint64, seed types.Seed, statsCollector collector.StatsCollector) {
+	epochDurations []uint32, seed types.Seed, statsCollector collector.StatsCollector) {
 
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
-	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(blocks)))
+	currentEpochDuration := epochDurations[len(epochDurations)-1]
+	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(currentEpochDuration)))
 
 	collector.SetValidationResults(statsCollector, validationResults)
 	collector.SetTotalReward(statsCollector, totalReward)
@@ -33,7 +34,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
 	addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addFlipReward(appState, config, validationResults, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, validationResults, totalRewardD, seed, statsCollector)
+	addInvitationReward(appState, config, validationResults, totalRewardD, seed, epochDurations, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
@@ -172,21 +173,31 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	}
 }
 
-func getInvitationRewardCoef(age uint16, config *config.ConsensusConf) float32 {
+func getInvitationRewardCoef(age uint16, epochHeight uint32, epochDurations []uint32, config *config.ConsensusConf) float32 {
+	var baseCoef float32
 	switch age {
 	case 1:
-		return config.FirstInvitationRewardCoef
+		baseCoef = config.FirstInvitationRewardCoef
 	case 2:
-		return config.SecondInvitationRewardCoef
+		baseCoef = config.SecondInvitationRewardCoef
 	case 3:
-		return config.ThirdInvitationRewardCoef
+		baseCoef = config.ThirdInvitationRewardCoef
 	default:
 		return 0
 	}
+	if !config.EncourageEarlyInvitations || len(epochDurations) < int(age) {
+		return baseCoef
+	}
+	epochDuration := epochDurations[len(epochDurations)-int(age)]
+	if epochDuration == 0 {
+		return baseCoef
+	}
+	t := math2.Min(float64(epochHeight)/float64(epochDuration), 1.0)
+	return baseCoef * float32(1-math2.Pow(t, 4)*0.5)
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
-	totalReward decimal.Decimal, seed types.Seed, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, seed types.Seed, epochDurations []uint32, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
 	addAddress := func(data []common.Hash, elem common.Hash) []common.Hash {
@@ -204,7 +215,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			continue
 		}
 		for _, successfulInvite := range inviter.SuccessfulInvites {
-			totalWeight += getInvitationRewardCoef(successfulInvite.Age, config)
+			totalWeight += getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config)
 		}
 		if !config.DisableSavedInviteRewards {
 			for i := uint8(0); i < inviter.SavedInvites; i++ {
@@ -232,7 +243,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD), math.ToInt(invitationRewardShare))
 
 	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, txHash *common.Hash,
-		isSavedInviteWinner bool) {
+		epochHeight uint32, isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
 		rewardDest := addr
 		if delegatee := appState.State.Delegatee(addr); delegatee != nil {
@@ -244,7 +255,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, reward)
 		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddInvitationsReward(statsCollector, rewardDest, addr, reward, stake, age, txHash, isSavedInviteWinner)
+		collector.AddInvitationsReward(statsCollector, rewardDest, addr, reward, stake, age, txHash, epochHeight, isSavedInviteWinner)
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
@@ -254,9 +265,9 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		}
 		isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
 		for _, successfulInvite := range inviter.SuccessfulInvites {
-			if weight := getInvitationRewardCoef(successfulInvite.Age, config); weight > 0 {
+			if weight := getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, false)
+				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 			}
 		}
 		if !config.DisableSavedInviteRewards {
@@ -264,10 +275,10 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				hash := crypto.Hash(append(addr[:], i))
 				if _, ok := win[hash]; ok {
 					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-					addReward(addr, totalReward, isNewbie, 0, nil, true)
+					addReward(addr, totalReward, isNewbie, 0, nil, 0, true)
 				} else {
 					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-					addReward(addr, totalReward, isNewbie, 0, nil, false)
+					addReward(addr, totalReward, isNewbie, 0, nil, 0, false)
 				}
 			}
 		}

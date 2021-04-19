@@ -34,12 +34,13 @@ var (
 		types.BurnTx:               "burn",
 		types.ChangeProfileTx:      "changeProfile",
 		types.DeleteFlipTx:         "deleteFlip",
-		types.DeployContract:       "deployContract",
-		types.CallContract:         "callContract",
-		types.TerminateContract:    "terminateContract",
+		types.DeployContractTx:     "deployContract",
+		types.CallContractTx:       "callContract",
+		types.TerminateContractTx:  "terminateContract",
 		types.DelegateTx:           "delegate",
 		types.UndelegateTx:         "undelegate",
 		types.KillDelegatorTx:      "killDelegator",
+		types.StoreToIpfsTx:        "storeToIpfs",
 	}
 )
 

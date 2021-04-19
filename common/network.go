@@ -16,19 +16,21 @@ const (
 	WordDictionarySize = 3300
 	WordPairsPerFlip   = 3
 
-	MaxFlipSize    = 1024 * 600
-	MaxProfileSize = 1024 * 1024
+	MaxFlipSize       = 1024 * 600
+	MaxProfileSize    = 1024 * 1024
+	MaxCustomDataSize = 1024 * 1024
 )
 
 const (
-	MinTotalScore       = 0.75
-	MinShortScore       = 0.6
-	MinLongScore        = 0.75
-	MinHumanTotalScore  = 0.92
-	MinFlipsForVerified = 13
-	MinFlipsForHuman    = 24
-	StakeToBalanceCoef  = 0.75
-	LastScoresCount     = 10
+	MinTotalScore        = 0.75
+	MinShortScore        = 0.6
+	MinLongScore         = 0.75
+	MinHumanTotalScore   = 0.92
+	MinFlipsForVerified  = 13
+	MinFlipsForHuman     = 24
+	StakeToBalanceCoef   = 0.75
+	LastScoresCount      = 10
+	PrevEpochBlocksCount = 2
 )
 
 var MaxHashFloat *big.Float

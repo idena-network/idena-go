@@ -63,7 +63,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	tx := &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
-		Type:         types.DeployContract,
+		Type:         types.DeployContractTx,
 		Amount:       common.DnaBase,
 		Payload:      payload,
 	}
@@ -94,7 +94,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 		tx := &types.Transaction{
 			Epoch:        0,
 			AccountNonce: 1,
-			Type:         types.CallContract,
+			Type:         types.CallContractTx,
 			To:           &contractAddr,
 			Amount:       common.DnaBase,
 			Payload:      payload,
@@ -126,7 +126,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	tx = &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
-		Type:         types.CallContract,
+		Type:         types.CallContractTx,
 		To:           &contractAddr,
 		Amount:       common.DnaBase,
 		Payload:      payload,
@@ -145,7 +145,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	tx = &types.Transaction{
 		Epoch:        0,
 		AccountNonce: 1,
-		Type:         types.CallContract,
+		Type:         types.CallContractTx,
 		To:           &contractAddr,
 		Amount:       common.DnaBase,
 		Payload:      payload,

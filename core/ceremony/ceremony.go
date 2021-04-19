@@ -1075,8 +1075,9 @@ func incSuccessfulInvites(validationResults *types.ValidationResults, god common
 		return
 	}
 	goodInviter.SuccessfulInvites = append(goodInviter.SuccessfulInvites, &types.SuccessfulInvite{
-		Age:    newAge,
-		TxHash: invitee.Inviter.TxHash,
+		Age:         newAge,
+		TxHash:      invitee.Inviter.TxHash,
+		EpochHeight: invitee.Inviter.EpochHeight,
 	})
 	if invitee.Inviter.Address == god {
 		goodInviter.PayInvitationReward = true
