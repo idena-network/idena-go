@@ -19,12 +19,13 @@ var (
 	preliminaryStateDbPrefixBytes = []byte{0x3}
 
 	//state db prefixes and keys
-	addressPrefix       = []byte{0x1}
-	identityPrefix      = []byte{0x2}
-	globalKey           = []byte{0x3}
-	statusSwitchKey     = []byte{0x4}
-	contractStorePrefix = []byte{0x5}
-	delegationSwitchKey = []byte{0x6}
+	addressPrefix            = []byte{0x1}
+	identityPrefix           = []byte{0x2}
+	globalKey                = []byte{0x3}
+	statusSwitchKey          = []byte{0x4}
+	contractStorePrefix      = []byte{0x5}
+	delegationSwitchKey      = []byte{0x6}
+	delayedOfflinePenaltyKey = []byte{0x7}
 )
 
 var (
@@ -79,6 +80,10 @@ func (s *stateDbKeys) StatusSwitchKey() []byte {
 
 func (s *stateDbKeys) DelegationSwitchKey() []byte {
 	return delegationSwitchKey
+}
+
+func (s *stateDbKeys) DelayedOfflinePenaltyKey() []byte {
+	return delayedOfflinePenaltyKey
 }
 
 func (s *stateDbKeys) ContractStoreKey(address common.Address, key []byte) []byte {
