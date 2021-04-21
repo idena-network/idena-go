@@ -53,6 +53,7 @@ type ConsensusConf struct {
 	EnableStoreToIpfsTx               bool
 	ResetBlocksWithoutCeremonialTxs   bool
 	EncourageEarlyInvitations         bool
+	EnableDelayedOfflinePenalty       bool
 }
 
 type ConsensusVerson uint16
@@ -140,6 +141,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EnableStoreToIpfsTx = true
 		cfg.ResetBlocksWithoutCeremonialTxs = true
 		cfg.EncourageEarlyInvitations = true
+		cfg.EnableDelayedOfflinePenalty = true
 		cfg.Version = ConsensusV5
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true

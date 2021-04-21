@@ -415,6 +415,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	if hasPendingStatusSwitch {
 		isOnline = !isOnline
 	}
+	if appState.State.HasDelayedOfflinePenalty(address) {
+		isOnline = false
+	}
 
 	delegatee := data.Delegatee
 	switchDelegation := appState.State.DelegationSwitch(address)

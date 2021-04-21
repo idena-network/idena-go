@@ -74,6 +74,9 @@ type StateDB struct {
 	stateDelegationSwitch      *stateDelegationSwitch
 	stateDelegationSwitchDirty bool
 
+	stateDelayedOfflinePenalties      *stateDelayedOfflinePenalties
+	stateDelayedOfflinePenaltiesDirty bool
+
 	log  log.Logger
 	lock sync.Mutex
 }
@@ -170,6 +173,8 @@ func (s *StateDB) Clear() {
 	s.stateStatusSwitchDirty = false
 	s.stateDelegationSwitch = nil
 	s.stateDelegationSwitchDirty = false
+	s.stateDelayedOfflinePenalties = nil
+	s.stateDelayedOfflinePenaltiesDirty = false
 }
 
 func (s *StateDB) Version() int64 {
@@ -571,6 +576,15 @@ func (s *StateDB) updateStateDelegationSwitchObject(stateObject *stateDelegation
 	s.tree.Set(StateDbKeys.DelegationSwitchKey(), data)
 }
 
+func (s *StateDB) updateStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) {
+	data, err := stateObject.data.ToBytes()
+	if err != nil {
+		panic(fmt.Errorf("can't encode state delayed offline penalty object, %v", err))
+	}
+
+	s.tree.Set(StateDbKeys.DelayedOfflinePenaltyKey(), data)
+}
+
 // deleteStateAccountObject removes the given object from the state trie.
 func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) {
 	stateObject.deleted = true
@@ -597,6 +611,13 @@ func (s *StateDB) deleteStateDelegationSwitchObject(stateObject *stateDelegation
 	stateObject.deleted = true
 
 	s.tree.Remove(StateDbKeys.DelegationSwitchKey())
+}
+
+
+func (s *StateDB) deleteStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) {
+	stateObject.deleted = true
+
+	s.tree.Remove(StateDbKeys.DelayedOfflinePenaltyKey())
 }
 
 // Retrieve a state account given my the address. Returns nil if not found.
@@ -729,6 +750,32 @@ func (s *StateDB) getStateDelegationSwitch() (stateObject *stateDelegationSwitch
 	return obj
 }
 
+
+func (s *StateDB) getStateDelayedOfflinePenalty() (stateObject *stateDelayedOfflinePenalties) {
+	// Prefer 'live' objects.
+	if obj := s.stateDelayedOfflinePenalties; obj != nil {
+		if obj.deleted {
+			return nil
+		}
+		return obj
+	}
+
+	// Load the object from the database.
+	_, enc := s.tree.Get(StateDbKeys.DelayedOfflinePenaltyKey())
+	if len(enc) == 0 {
+		return nil
+	}
+	var data DelayedPenalties
+	if err := data.FromBytes(enc); err != nil {
+		s.log.Error("Failed to decode state delayed offline penalty object", "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newDelayedOfflinePenaltiesObject(data, s.MarkStateDelayedOfflinePenaltyObjectDirty)
+	s.setStateDelayedOfflinePenaltyObject(obj)
+	return obj
+}
+
 func (s *StateDB) setStateAccountObject(object *stateAccount) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -762,6 +809,13 @@ func (s *StateDB) setStateDelegationSwitchObject(object *stateDelegationSwitch) 
 	defer s.lock.Unlock()
 
 	s.stateDelegationSwitch = object
+}
+
+func (s *StateDB) setStateDelayedOfflinePenaltyObject(object *stateDelayedOfflinePenalties) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateDelayedOfflinePenalties = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -807,6 +861,14 @@ func (s *StateDB) GetOrNewDelegationSwitchObject() *stateDelegationSwitch {
 	return stateObject
 }
 
+func (s *StateDB) GetOrNewDelayedOfflinePenaltyObject() *stateDelayedOfflinePenalties {
+	stateObject := s.getStateDelayedOfflinePenalty()
+	if stateObject == nil || stateObject.deleted {
+		stateObject = s.createDelayedOfflinePenalty()
+	}
+	return stateObject
+}
+
 // MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
 func (s *StateDB) MarkStateAccountObjectDirty(addr common.Address) {
@@ -848,6 +910,13 @@ func (s *StateDB) MarkStateDelegationSwitchObjectDirty() {
 	s.stateDelegationSwitchDirty = true
 }
 
+func (s *StateDB) MarkStateDelayedOfflinePenaltyObjectDirty() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateDelayedOfflinePenaltiesDirty = true
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
 	newobj = newAccountObject(addr, Account{}, s.MarkStateAccountObjectDirty)
@@ -882,6 +951,13 @@ func (s *StateDB) createDelegationSwitch() *stateDelegationSwitch {
 	stateObject := newDelegationSwitchObject(DelegationSwitch{}, s.MarkStateDelegationSwitchObjectDirty)
 	stateObject.touch()
 	s.setStateDelegationSwitchObject(stateObject)
+	return stateObject
+}
+
+func (s *StateDB) createDelayedOfflinePenalty() *stateDelayedOfflinePenalties {
+	stateObject := newDelayedOfflinePenaltiesObject(DelayedPenalties{}, s.MarkStateDelayedOfflinePenaltyObjectDirty)
+	stateObject.touch()
+	s.setStateDelayedOfflinePenaltyObject(stateObject)
 	return stateObject
 }
 
@@ -982,6 +1058,15 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 			s.updateStateDelegationSwitchObject(s.stateDelegationSwitch)
 		}
 		s.stateDelegationSwitchDirty = false
+	}
+
+	if s.stateDelayedOfflinePenaltiesDirty {
+		if s.stateDelayedOfflinePenalties.empty() {
+			s.deleteStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties)
+		} else {
+			s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties)
+		}
+		s.stateDelayedOfflinePenaltiesDirty = false
 	}
 }
 
@@ -1441,6 +1526,26 @@ func (s *StateDB) CollectKilledDelegators() []common.Address {
 		}
 	}
 	return result
+}
+
+func (s *StateDB) AddDelayedPenalty(addr common.Address) {
+	s.GetOrNewDelayedOfflinePenaltyObject().Add(addr)
+}
+
+func (s *StateDB) DelayedOfflinePenalties() []common.Address {
+	return s.GetOrNewDelayedOfflinePenaltyObject().data.Identities
+}
+
+func (s *StateDB) ClearDelayedOfflinePenalties() {
+	s.GetOrNewDelayedOfflinePenaltyObject().Clear()
+}
+
+func (s *StateDB) HasDelayedOfflinePenalty(addr common.Address) bool {
+	return s.GetOrNewDelayedOfflinePenaltyObject().Has(addr)
+}
+
+func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
+	s.GetOrNewDelayedOfflinePenaltyObject().Remove(addr)
 }
 
 type readCloser struct {

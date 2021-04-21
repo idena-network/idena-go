@@ -530,7 +530,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg := config.ConsensusVersions[config.ConsensusV5]
 	consensusCfg.Automine = true
 	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
@@ -616,6 +616,38 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 
 	chain.GenerateBlocks(70)
 	require.Equal(uint64(100), chain.Head.Height())
+
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err = chain.txpool.Add(tx)
+	require.Nil(err)
+
+	// switch status to online
+	chain.GenerateBlocks(10)
+
+	require.True(state.IdentityState.IsOnline(addr))
+	state.State.AddDelayedPenalty(common.Address{0x2})
+	state.State.AddDelayedPenalty(addr)
+	state.State.AddDelayedPenalty(common.Address{0x3})
+	state.Commit(nil)
+	chain.CommitState()
+
+	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
+	err = chain.txpool.Add(tx)
+	require.Nil(err)
+	chain.GenerateBlocks(1)
+
+	require.Equal([]common.Address{{0x2}, {0x3}}, state.State.DelayedOfflinePenalties())
+	require.True(state.IdentityState.IsOnline(addr))
+	require.Zero(len(state.State.StatusSwitchAddresses()))
+
+	state.State.AddDelayedPenalty(addr)
+	state.Commit(nil)
+	chain.CommitState()
+	chain.GenerateBlocks(10)
+
+	require.False(state.IdentityState.IsOnline(addr))
+	require.True(state.State.GetPenalty(addr).Sign() > 0)
+	require.Len(state.State.DelayedOfflinePenalties(), 0)
 }
 
 func Test_ApplySubmitCeremonyTxs(t *testing.T) {

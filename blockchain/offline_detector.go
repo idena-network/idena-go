@@ -137,7 +137,7 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 		if addr == nil {
 			return errors.New("offline addr should be filled if Offline* flag is set")
 		}
-		if !dt.appState.ValidatorsCache.IsOnlineIdentity(*addr) {
+		if !dt.appState.ValidatorsCache.IsOnlineIdentity(*addr) || dt.appState.State.HasDelayedOfflinePenalty(*addr) {
 			return errors.New("offline voting works only for online identities")
 		}
 		if dt.appState.State.ValidationPeriod() != state.NonePeriod {
@@ -189,6 +189,9 @@ func (dt *OfflineDetector) ProposeOffline(head *types.Header) (*common.Address, 
 	for v := range onlineNodesSet.Iter() {
 		if addr, ok := v.(common.Address); ok {
 			if addr == dt.selfAddress {
+				continue
+			}
+			if dt.appState.State.HasDelayedOfflinePenalty(addr) {
 				continue
 			}
 			shouldBecomeOffline := false
