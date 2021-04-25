@@ -462,13 +462,14 @@ func (f *OracleVoting3) prolongVoting(args ...[]byte) error {
 
 	noWinnerVotes := float64(winnerVotesCnt) < f.CalcPercent(committeeSize, winnerThreshold)
 	noQuorum := float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum)
-	if f.env.Epoch() != f.GetUint16("epoch") ||
-		duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum ||
-		duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum) {
+
+	noWinnerAfterPublicVoting := duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum
+	noConsensusAfterSecretVoting := duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum)
+	if f.env.Epoch() != f.GetUint16("epoch") || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
 		var startBlock *uint64
-		if duration >= votingDuration+publicVotingDuration {
+		if noWinnerAfterPublicVoting || noConsensusAfterSecretVoting {
 			v := f.env.BlockNumber()
 			startBlock = &v
 			f.SetUint64("startBlock", v)
