@@ -52,20 +52,22 @@ func (k *txKeeper) persist() error {
 func (k *txKeeper) Load() {
 	file, err := k.openFile()
 	defer file.Close()
-	if err == nil {
-		data, err := ioutil.ReadAll(file)
-		if err == nil {
-			list := []hexutil.Bytes{}
-			if err := json.Unmarshal(data, &list); err != nil {
-				log.Warn("cannot parse txs.json", "err", err)
-			}
-			k.mutex.Lock()
-			for _, hex := range list {
-				k.txs[crypto.Hash(hex)] = hex
-			}
-			k.mutex.Unlock()
-		}
+	if err != nil {
+		return
 	}
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return
+	}
+	list := []hexutil.Bytes{}
+	if err := json.Unmarshal(data, &list); err != nil {
+		log.Warn("cannot parse txs.json", "err", err)
+	}
+	k.mutex.Lock()
+	for _, hex := range list {
+		k.txs[crypto.Hash(hex)] = hex
+	}
+	k.mutex.Unlock()
 }
 
 func (k *txKeeper) openFile() (file *os.File, err error) {
@@ -109,8 +111,9 @@ func (k *txKeeper) List() []*types.Transaction {
 	var result []*types.Transaction
 	for _, hex := range k.txs {
 		tx := new(types.Transaction)
-		tx.FromBytes(hex)
-		result = append(result, tx)
+		if err := tx.FromBytes(hex); err == nil {
+			result = append(result, tx)
+		}
 	}
 	return result
 }

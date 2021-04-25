@@ -813,7 +813,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 		vc.epochDb.WriteOwnTx(txType, txBytes)
 	}
 
-	err := vc.mempool.Add(signedTx)
+	err := vc.mempool.AddInternalTx(signedTx)
 
 	if err != nil {
 		if !vc.epochDb.HasSuccessfulOwnTx(signedTx.Hash()) {

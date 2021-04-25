@@ -22,10 +22,15 @@ func NewAsyncTxPool(txPool *TxPool) *AsyncTxPool {
 	return pool
 }
 
-func (pool *AsyncTxPool) Add(tx *types.Transaction) error {
-	select {
-	case pool.queue <- tx:
-	default:
+func (pool *AsyncTxPool) AddInternalTx(tx *types.Transaction) error {
+	panic("not implemented")
+}
+func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
+	for _, tx := range txs {
+		select {
+		case pool.queue <- tx:
+		default:
+		}
 	}
 	return nil
 }
@@ -49,6 +54,6 @@ func (pool *AsyncTxPool) loop() {
 				break batchLoop
 			}
 		}
-		pool.txPool.AddTxs(batch)
+		pool.txPool.AddExternalTxs(batch...)
 	}
 }

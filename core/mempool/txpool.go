@@ -35,7 +35,8 @@ var (
 )
 
 type TransactionPool interface {
-	Add(tx *types.Transaction) error
+	AddInternalTx(tx *types.Transaction) error
+	AddExternalTxs(txs ...*types.Transaction) error
 	GetPendingTransaction() []*types.Transaction
 	IsSyncing() bool
 }
@@ -103,7 +104,7 @@ func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useT
 		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
 		pool.txKeeper.Load()
 		for _, tx := range pool.txKeeper.List() {
-			if err := pool.Add(tx); err != nil {
+			if err := pool.AddInternalTx(tx); err != nil {
 				pool.txKeeper.RemoveTx(tx.Hash())
 			}
 		}
@@ -208,12 +209,12 @@ func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState,
 	return validation.ValidateTx(appState, tx, minFeePerGas, txType)
 }
 
-func (pool *TxPool) AddTxs(txs []*types.Transaction) {
+func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	appState, err := pool.appState.Readonly(pool.head.Height())
 
 	if err != nil {
 		pool.log.Warn("txpool: failed to create readonly appState", "err", err)
-		return
+		return err
 	}
 	for _, tx := range txs {
 
@@ -233,11 +234,14 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 			continue
 		}
 
-		pool.add(tx, appState)
+		if err = pool.add(tx, appState); err != nil && len(txs) == 1 {
+			return err
+		}
 	}
+	return nil
 }
 
-func (pool *TxPool) Add(tx *types.Transaction) error {
+func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 
 	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContractTx {
 		attachment := attachments.ParseCallContractAttachment(tx)
@@ -622,7 +626,7 @@ loop:
 	for {
 		select {
 		case tx := <-pool.deferredTxs:
-			pool.Add(tx)
+			pool.AddInternalTx(tx)
 		default:
 			break loop
 		}
@@ -630,7 +634,7 @@ loop:
 	pool.knownDeferredTxs.Clear()
 	if pool.txKeeper != nil {
 		for _, tx := range pool.txKeeper.List() {
-			pool.Add(tx)
+			pool.AddInternalTx(tx)
 		}
 	}
 }

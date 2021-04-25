@@ -48,7 +48,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	tx, err := types.SignTx(tx, key)
 	r.NoError(err)
 
-	err = pool.Add(tx)
+	err = pool.AddInternalTx(tx)
 	r.NoError(err)
 	r.Len(pool.deferredTxs, 1)
 	r.True(pool.knownDeferredTxs.Contains(tx.Hash()))
@@ -105,16 +105,16 @@ func TestTxPool_ResetTo(t *testing.T) {
 
 	for i := 0; i < 255; i++ {
 		for j := 0; j < 35; j++ {
-			require.NoError(t, pool.Add(getTx(keys[i])))
+			require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 		}
 	}
 	for i := 255; i < 1024; i++ {
 		for j := 0; j < 32; j++ {
-			require.NoError(t, pool.Add(getTx(keys[i])))
+			require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 		}
 	}
 	for i := 1023; i < 1200; i++ {
-		require.NoError(t, pool.Add(getTx(keys[i])))
+		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
 	allTxsCount := len(pool.all.txs)
 
@@ -297,7 +297,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 
 	for i := 0; i < 300; i++ {
 
-		require.NoError(t, pool.Add(getTx(keys[i])))
+		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
 	require.Len(t, pool.txKeeper.txs, 300)
 	prevPool := pool
