@@ -2,7 +2,7 @@ package mempool
 
 import "github.com/idena-network/idena-go/blockchain/types"
 
-const batchSize = 10
+const batchSize = 1000
 
 type AsyncTxPool struct {
 	txPool *TxPool

@@ -65,7 +65,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
-	txPool.Initialize(chain.Head, secStore.GetAddress())
+	txPool.Initialize(chain.Head, secStore.GetAddress(), false)
 
 	return &TestBlockchain{db, chain}, appState, txPool, key
 }
@@ -122,7 +122,7 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 
 	result := &TestBlockchain{db, chain}
 	result.GenerateBlocks(blocksCount).GenerateEmptyBlocks(emptyBlocksCount)
-	txPool.Initialize(chain.Head, secStore.GetAddress())
+	txPool.Initialize(chain.Head, secStore.GetAddress(), false)
 	return result, appState
 }
 

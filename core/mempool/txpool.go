@@ -58,6 +58,7 @@ type TxPool struct {
 	isSyncingLock    sync.RWMutex
 	coinbase         common.Address
 	statsCollector   collector.StatsCollector
+	txKeeper         *txKeeper
 }
 
 func (pool *TxPool) IsSyncing() bool {
@@ -95,9 +96,18 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 	return pool
 }
 
-func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
+func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useTxKeeper bool) {
 	pool.head = head
 	pool.coinbase = coinbase
+	if useTxKeeper {
+		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
+		pool.txKeeper.Load()
+		for _, tx := range pool.txKeeper.List() {
+			if err := pool.Add(tx); err != nil {
+				pool.txKeeper.RemoveTx(tx.Hash())
+			}
+		}
+	}
 }
 
 func (pool *TxPool) addDeferredTx(tx *types.Transaction) {
@@ -229,8 +239,6 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 
 func (pool *TxPool) Add(tx *types.Transaction) error {
 
-	sender, _ := types.Sender(tx)
-
 	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContractTx {
 		attachment := attachments.ParseCallContractAttachment(tx)
 		if attachment != nil && attachment.Method == embedded.FinishVotingMethod {
@@ -238,13 +246,15 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 		}
 	}
 
-	if pool.IsSyncing() && sender != pool.coinbase {
+	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
-
+		if pool.txKeeper != nil {
+			pool.txKeeper.AddTx(tx)
+		}
 		if _, ok := priorityTypes[tx.Type]; ok {
 			pool.bus.Publish(&events.NewTxEvent{
 				Tx:       tx,
-				Own:      sender == pool.coinbase,
+				Own:      true,
 				Deferred: true,
 			})
 		}
@@ -256,7 +266,12 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 	if err != nil {
 		return errors.WithMessage(err, "tx can't be validated")
 	}
-	return pool.add(tx, appState)
+	if err = pool.add(tx, appState); err == nil {
+		if pool.txKeeper != nil {
+			pool.txKeeper.AddTx(tx)
+		}
+	}
+	return err
 }
 
 func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) error {
@@ -405,7 +420,9 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
 	pool.all.Remove(transaction.Hash())
-
+	if pool.txKeeper != nil {
+		pool.txKeeper.RemoveTx(transaction.Hash())
+	}
 	sender, _ := types.Sender(transaction)
 
 	if executable, ok := pool.executableTxs[sender]; ok {
@@ -611,6 +628,11 @@ loop:
 		}
 	}
 	pool.knownDeferredTxs.Clear()
+	if pool.txKeeper != nil {
+		for _, tx := range pool.txKeeper.List() {
+			pool.Add(tx)
+		}
+	}
 }
 
 var (
