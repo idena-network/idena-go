@@ -256,12 +256,16 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 			pool.txKeeper.AddTx(tx)
 		}
 		if _, ok := priorityTypes[tx.Type]; ok {
-			pool.bus.Publish(&events.NewTxEvent{
-				Tx:       tx,
-				Own:      true,
-				Deferred: true,
-			})
+			appState, _ := pool.appState.Readonly(pool.head.Height())
+			if err := pool.add(tx, appState); err != nil {
+				pool.bus.Publish(&events.NewTxEvent{
+					Tx:       tx,
+					Own:      true,
+					Deferred: true,
+				})
+			}
 		}
+
 		return nil
 	}
 
