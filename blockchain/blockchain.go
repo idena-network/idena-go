@@ -472,6 +472,7 @@ func (chain *Blockchain) applyBlockAndTxsOnState(
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block)
+	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
@@ -492,6 +493,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 ) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block)
+	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
@@ -853,26 +855,52 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	}
 }
 
+func (chain *Blockchain) calculatePenalty(appState *appstate.AppState, addr common.Address) *big.Int {
+	networkSize := appState.ValidatorsCache.NetworkSize()
+	totalBlockReward := new(big.Int).Add(chain.config.Consensus.FinalCommitteeReward, chain.config.Consensus.BlockReward)
+	totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
+	coins := decimal.NewFromBigInt(totalPenalty, 0)
+	res := coins.Div(decimal.New(int64(networkSize), 0))
+
+	if appState.ValidatorsCache.IsPool(addr) {
+		res = res.Mul(decimal.New(int64(appState.ValidatorsCache.PoolSize(addr)), 0))
+	}
+	return math.ToInt(res)
+}
+
 func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr common.Address,
 	statsCollector collector.StatsCollector) {
 	networkSize := appState.ValidatorsCache.NetworkSize()
 
 	if networkSize > 0 {
-		totalBlockReward := new(big.Int).Add(chain.config.Consensus.FinalCommitteeReward, chain.config.Consensus.BlockReward)
-		totalPenalty := new(big.Int).Mul(totalBlockReward, big.NewInt(chain.config.Consensus.OfflinePenaltyBlocksCount))
-		coins := decimal.NewFromBigInt(totalPenalty, 0)
-		res := coins.Div(decimal.New(int64(networkSize), 0))
+		if chain.config.Consensus.EnableDelayedOfflinePenalty {
+			appState.State.AddDelayedPenalty(addr)
+			return
+		}
 		collector.BeforeSetPenalty(statsCollector, addr, appState)
 		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-
-		if appState.ValidatorsCache.IsPool(addr) {
-			res = res.Mul(decimal.New(int64(appState.ValidatorsCache.PoolSize(addr)), 0))
-		}
-		appState.State.SetPenalty(addr, math.ToInt(res))
+		appState.State.SetPenalty(addr, chain.calculatePenalty(appState, addr))
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
-
 	appState.IdentityState.SetOnline(addr, false)
+}
+
+func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) {
+	if !chain.config.Consensus.EnableDelayedOfflinePenalty {
+		return
+	}
+	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		return
+	}
+	identities := appState.State.DelayedOfflinePenalties()
+	for _, addr := range identities {
+		collector.BeforeSetPenalty(statsCollector, addr, appState)
+		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
+		appState.State.SetPenalty(addr, chain.calculatePenalty(appState, addr))
+		collector.CompleteBalanceUpdate(statsCollector, appState)
+		appState.IdentityState.SetOnline(addr, false)
+	}
+	appState.State.ClearDelayedOfflinePenalties()
 }
 
 func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header,
@@ -1115,7 +1143,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	case types.OnlineStatusTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
-		stateDB.ToggleStatusSwitchAddress(sender)
+		if stateDB.HasDelayedOfflinePenalty(sender) {
+			stateDB.RemoveDelayedOfflinePenalty(sender)
+		} else {
+			stateDB.ToggleStatusSwitchAddress(sender)
+		}
 	case types.ChangeGodAddressTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -1522,11 +1554,12 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.Snapshot
 	}
 
-	if block.Header.Flags().HasFlag(types.OfflineCommit) {
+	if !chain.config.Consensus.EnableDelayedOfflinePenalty && block.Header.Flags().HasFlag(types.OfflineCommit) {
 		flags |= types.IdentityUpdate
 	}
 
-	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && len(appState.State.StatusSwitchAddresses()) > 0 {
+	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && (len(appState.State.StatusSwitchAddresses()) > 0 ||
+		len(appState.State.DelayedOfflinePenalties()) > 0) {
 		flags |= types.IdentityUpdate
 	}
 

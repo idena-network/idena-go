@@ -532,10 +532,11 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	}
 
 	hasPendingStatusSwitch := appState.State.HasStatusSwitchAddresses(sender)
+	hasDelayedOfflinePenalty := appState.State.HasDelayedOfflinePenalty(sender)
 	isOnline := appState.ValidatorsCache.IsOnlineIdentity(sender)
 	isOffline := !isOnline
 
-	if attachment.Online && (isOnline && !hasPendingStatusSwitch || isOffline && hasPendingStatusSwitch) {
+	if attachment.Online && (isOnline && !hasPendingStatusSwitch && !hasDelayedOfflinePenalty || isOffline && hasPendingStatusSwitch) {
 		return IsAlreadyOnline
 	}
 	if !attachment.Online && (isOffline && !hasPendingStatusSwitch || isOnline && hasPendingStatusSwitch) {
@@ -823,7 +824,7 @@ func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, t
 	}
 
 	attachment := attachments.ParseStoreToIpfsAttachment(tx)
-	if attachment == nil || attachment.Cid == nil{
+	if attachment == nil || attachment.Cid == nil {
 		return InvalidPayload
 	}
 

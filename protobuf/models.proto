@@ -397,6 +397,9 @@ message ProtoStateDelegationSwitch {
     }
     repeated Delegation delegations = 1;
 }
+message ProtoStateDelayedPenalties {
+    repeated bytes identities = 1;
+}
 
 message ProtoPredefinedState {
 

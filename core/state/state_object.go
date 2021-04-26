@@ -92,6 +92,12 @@ type stateDelegationSwitch struct {
 	onDirty func()
 }
 
+type stateDelayedOfflinePenalties struct {
+	data    DelayedPenalties
+	deleted bool
+	onDirty func()
+}
+
 type ValidationPeriod uint32
 
 const (
@@ -157,6 +163,31 @@ func (s *DelegationSwitch) FromBytes(data []byte) error {
 			Delegator: common.BytesToAddress(delegation.Delegator),
 			Delegatee: common.BytesToAddress(delegation.Delegatee),
 		})
+	}
+	return nil
+}
+
+type DelayedPenalties struct {
+	Identities []common.Address
+}
+
+func (dp *DelayedPenalties) ToBytes() ([]byte, error) {
+	protoObj := new(models.ProtoStateDelayedPenalties)
+	for idx := range dp.Identities {
+		addr := dp.Identities[idx]
+		protoObj.Identities = append(protoObj.Identities, addr.Bytes())
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (dp *DelayedPenalties) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoStateDelayedPenalties)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	for idx := range protoObj.Identities {
+		addr := protoObj.Identities[idx]
+		dp.Identities = append(dp.Identities, common.BytesToAddress(addr))
 	}
 	return nil
 }
@@ -504,6 +535,13 @@ func newStatusSwitchObject(data IdentityStatusSwitch, onDirty func()) *stateStat
 
 func newDelegationSwitchObject(data DelegationSwitch, onDirty func()) *stateDelegationSwitch {
 	return &stateDelegationSwitch{
+		data:    data,
+		onDirty: onDirty,
+	}
+}
+
+func newDelayedOfflinePenaltiesObject(data DelayedPenalties, onDirty func()) *stateDelayedOfflinePenalties {
+	return &stateDelayedOfflinePenalties{
 		data:    data,
 		onDirty: onDirty,
 	}
@@ -1216,4 +1254,43 @@ func (f ValidationStatusFlag) HasFlag(flag ValidationStatusFlag) bool {
 type contractStoreValue struct {
 	value   []byte
 	removed bool
+}
+
+func (s *stateDelayedOfflinePenalties) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
+}
+
+func (s *stateDelayedOfflinePenalties) empty() bool {
+	return len(s.data.Identities) == 0
+}
+
+func (s *stateDelayedOfflinePenalties) Clear() {
+	s.data.Identities = []common.Address{}
+	s.touch()
+}
+
+func (s *stateDelayedOfflinePenalties) Add(addr common.Address) {
+	s.data.Identities = append(s.data.Identities, addr)
+	s.touch()
+}
+
+func (s *stateDelayedOfflinePenalties) Has(addr common.Address) bool {
+	for _, item := range s.data.Identities {
+		if item == addr {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *stateDelayedOfflinePenalties) Remove(addr common.Address) {
+	defer s.touch()
+	for i := 0; i < len(s.data.Identities); i++ {
+		if s.data.Identities[i] == addr {
+			s.data.Identities = append(s.data.Identities[:i], s.data.Identities[i+1:]...)
+			return
+		}
+	}
 }
