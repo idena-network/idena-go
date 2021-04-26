@@ -32,11 +32,11 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 
 	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
 
-	require.NoError(t, pool.Add(GetTx(3, 0, key1)))
-	require.NoError(t, pool.Add(GetTx(1, 0, key1)))
-	require.NoError(t, pool.Add(GetTx(2, 0, key1)))
-	require.NoError(t, pool.Add(GetTx(6, 0, key2)))
-	require.NoError(t, pool.Add(GetTx(5, 0, key2)))
+	require.NoError(t, pool.AddInternalTx(GetTx(3, 0, key1)))
+	require.NoError(t, pool.AddInternalTx(GetTx(1, 0, key1)))
+	require.NoError(t, pool.AddInternalTx(GetTx(2, 0, key1)))
+	require.NoError(t, pool.AddInternalTx(GetTx(6, 0, key2)))
+	require.NoError(t, pool.AddInternalTx(GetTx(5, 0, key2)))
 
 	result := pool.BuildBlockTransactions()
 
@@ -49,12 +49,12 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	app.State.IncEpoch()
 	app.Commit(nil)
 
-	pool.Add(GetTx(3, 0, key1))
-	pool.Add(GetTx(1, 0, key1))
-	pool.Add(GetTx(2, 0, key1))
-	pool.Add(GetTx(6, 1, key2))
-	pool.Add(GetTx(5, 1, key2))
-	pool.Add(GetTx(1, 1, key2))
+	pool.AddInternalTx(GetTx(3, 0, key1))
+	pool.AddInternalTx(GetTx(1, 0, key1))
+	pool.AddInternalTx(GetTx(2, 0, key1))
+	pool.AddInternalTx(GetTx(6, 1, key2))
+	pool.AddInternalTx(GetTx(5, 1, key2))
+	pool.AddInternalTx(GetTx(1, 1, key2))
 
 	result = pool.BuildBlockTransactions()
 
@@ -86,7 +86,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 	pool.ResetTo(block)
 
 	for _, key := range keys {
-		require.NoError(t, pool.Add(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+		require.NoError(t, pool.AddInternalTx(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 	}
 
 	result := pool.BuildBlockTransactions()
@@ -109,35 +109,35 @@ func TestTxPool_TxLimits(t *testing.T) {
 	_, _, pool, _ := newBlockchain(true, alloc, 1, 2, 1, 1)
 
 	tx := GetTx(1, 0, key1)
-	err := pool.Add(tx)
+	err := pool.AddInternalTx(tx)
 	require.Nil(t, err)
 
 	tx2 := GetTx(2, 0, key1)
-	err = pool.Add(tx2)
+	err = pool.AddInternalTx(tx2)
 	require.Nil(t, err)
 
-	err = pool.Add(GetTx(3, 2, key1))
+	err = pool.AddInternalTx(GetTx(3, 2, key1))
 	require.NotNil(t, err)
 
-	err = pool.Add(GetTx(1, 0, key2))
+	err = pool.AddInternalTx(GetTx(1, 0, key2))
 	require.Nil(t, err)
 
 	// total limit
-	err = pool.Add(GetTx(5, 4, key2))
+	err = pool.AddInternalTx(GetTx(5, 4, key2))
 	require.NotNil(t, err)
 
 	// remove unknown tx
 	pool.Remove(GetTx(1, 2, key2))
-	err = pool.Add(GetTx(6, 5, key2))
+	err = pool.AddInternalTx(GetTx(6, 5, key2))
 	require.NotNil(t, err)
 
 	pool.Remove(tx)
-	err = pool.Add(GetTx(2, 0, key2))
+	err = pool.AddInternalTx(GetTx(2, 0, key2))
 	require.NotNil(t, err)
 
 	pool.Remove(tx2)
 
-	err = pool.Add(GetTx(2, 0, key2))
+	err = pool.AddInternalTx(GetTx(2, 0, key2))
 	require.Nil(t, err)
 }
 
@@ -162,10 +162,10 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	chain.Head.ProposedHeader.Height++
 
 	app.Commit(nil)
-	err := pool.Add(GetTx(1, 1, key))
+	err := pool.AddInternalTx(GetTx(1, 1, key))
 	require.NoError(t, err)
 
-	err = pool.Add(GetTx(1, 0, key))
+	err = pool.AddInternalTx(GetTx(1, 0, key))
 	require.Error(t, err)
 }
 
@@ -193,55 +193,55 @@ func TestTxPool_ResetTo(t *testing.T) {
 	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -11, -1)
 
 	tx1 := GetTypesTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
-	err := pool.Add(tx1)
+	err := pool.AddInternalTx(tx1)
 	require.NoError(err)
 
 	tx2 := GetTypesTxWithAmount(2, 1, key, types.SendTx, getAmount(60))
-	err = pool.Add(tx2)
+	err = pool.AddInternalTx(tx2)
 	require.NoError(err)
 
 	// will be removed because of balance
 	tx3 := GetTypesTxWithAmount(3, 1, key, types.SendTx, getAmount(70))
-	err = pool.Add(tx3)
+	err = pool.AddInternalTx(tx3)
 	require.NoError(err)
 
 	// will be removed because of nonce hole
 	tx4 := GetTypesTxWithAmount(4, 1, key, types.SendTx, getAmount(20))
-	err = pool.Add(tx4)
+	err = pool.AddInternalTx(tx4)
 	require.NoError(err)
 
 	tx5 := GetTypesTxWithAmount(1, 1, key2, types.SendTx, getAmount(15))
-	err = pool.Add(tx5)
+	err = pool.AddInternalTx(tx5)
 	require.NoError(err)
 
 	// will be removed because of past epoch
 	tx6 := GetTypesTxWithAmount(2, 0, key2, types.SendTx, getAmount(15))
-	err = pool.Add(tx6)
+	err = pool.AddInternalTx(tx6)
 	require.NoError(err)
 
 	// will be removed because mined
 	tx7 := GetTypesTxWithAmount(1, 0, key2, types.SendTx, getAmount(15))
-	err = pool.Add(tx7)
+	err = pool.AddInternalTx(tx7)
 	require.NoError(err)
 
 	// will be removed because of bad nonce
 	tx8 := GetTypesTxWithAmount(5, 1, key3, types.SendTx, getAmount(1))
-	err = pool.Add(tx8)
+	err = pool.AddInternalTx(tx8)
 	require.NoError(err)
 
 	// will be saved
 	tx9 := GetTypesTxWithAmount(6, 1, key3, types.SendTx, getAmount(1))
-	err = pool.Add(tx9)
+	err = pool.AddInternalTx(tx9)
 	require.NoError(err)
 
 	// will be removed because of balance
 	tx10 := GetTypesTxWithAmount(7, 1, key3, types.SendTx, getAmount(100))
-	err = pool.Add(tx10)
+	err = pool.AddInternalTx(tx10)
 	require.NoError(err)
 
 	// will be removed because of nonce hole
 	tx11 := GetTypesTxWithAmount(8, 1, key3, types.SendTx, getAmount(1))
-	err = pool.Add(tx11)
+	err = pool.AddInternalTx(tx11)
 	require.NoError(err)
 
 	app.State.SetNonce(addr3, 5)
@@ -310,55 +310,55 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	addressIndex := 0
 	// Prev epoch
 	app.State.SetEpoch(addresses[addressIndex], 0)
-	require.Error(pool.Add(GetTypedTx(1, 0, keys[addressIndex], types.SendTx)))
+	require.Error(pool.AddInternalTx(GetTypedTx(1, 0, keys[addressIndex], types.SendTx)))
 
 	// Current epoch and wrong start nonce
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
 
 	// Priority tx after size limit
 	addressIndex++
 	for i := 0; i < 4000; i++ {
-		require.NoError(pool.Add(GetTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx)))
+		require.NoError(pool.AddInternalTx(GetTypedTx(uint32(i+1), 1, keys[addressIndex], types.SendTx)))
 	}
-	require.NoError(pool.Add(GetTypedTx(4002, 1, keys[addressIndex], types.EvidenceTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(4002, 1, keys[addressIndex], types.EvidenceTx)))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 3)
-	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 4)
-	require.NoError(pool.Add(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(7, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(5, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(7, 1, keys[addressIndex], types.SendTx)))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 2)
-	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx)))
-	require.NoError(pool.Add(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetFullTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
-	require.NoError(pool.Add(GetTypedTx(6, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(8, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetFullTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetTypedTx(6, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(8, 1, keys[addressIndex], types.SendTx)))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	app.State.SetNonce(addresses[addressIndex], 1)
-	require.NoError(pool.Add(GetTypedTx(2, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetFullTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetTypedTx(2, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetFullTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
-	require.NoError(pool.Add(GetTypedTx(1, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.Add(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetTypedTx(1, 1, keys[addressIndex], types.SendTx)))
+	require.NoError(pool.AddInternalTx(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
 
 	// when
 	result := pool.BuildBlockTransactions()

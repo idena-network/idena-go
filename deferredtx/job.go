@@ -191,7 +191,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 	if err != nil {
 		return err
 	}
-	return j.txpool.Add(tx)
+	return j.txpool.AddInternalTx(tx)
 }
 
 func (j *Job) getSignedTx(dtx *DeferredTx, maxFee decimal.Decimal) (*types.Transaction, error) {

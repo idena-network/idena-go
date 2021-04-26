@@ -35,9 +35,12 @@ type fakeTxPool struct {
 	counter int
 }
 
-func (f *fakeTxPool) Add(tx *types.Transaction) error {
+func (f *fakeTxPool) AddInternalTx(tx *types.Transaction) error {
 	f.counter++
 	return nil
+}
+func (f *fakeTxPool) AddExternalTxs(txs ...*types.Transaction) error {
+	panic("implement me")
 }
 
 func (f fakeTxPool) GetPendingTransaction() []*types.Transaction {
@@ -50,7 +53,7 @@ func (f fakeTxPool) IsSyncing() bool {
 
 func TestJob_tryLater(t *testing.T) {
 
-	fakeVmError =  embedded.NewContractError("", true)
+	fakeVmError = embedded.NewContractError("", true)
 	chain, appState, _, _ := blockchain.NewTestBlockchain(false, nil)
 	os.RemoveAll("test")
 
