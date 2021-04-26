@@ -54,6 +54,7 @@ type ConsensusConf struct {
 	ResetBlocksWithoutCeremonialTxs   bool
 	EncourageEarlyInvitations         bool
 	EnableDelayedOfflinePenalty       bool
+	BurnInviteeStake                  bool
 }
 
 type ConsensusVerson uint16
@@ -142,6 +143,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.ResetBlocksWithoutCeremonialTxs = true
 		cfg.EncourageEarlyInvitations = true
 		cfg.EnableDelayedOfflinePenalty = true
+		cfg.BurnInviteeStake = true
 		cfg.Version = ConsensusV5
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
