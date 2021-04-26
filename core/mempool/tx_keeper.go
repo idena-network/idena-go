@@ -29,10 +29,10 @@ func NewTxKeeper(datadir string) *txKeeper {
 
 func (k *txKeeper) persist() error {
 	file, err := k.openFile()
-	defer file.Close()
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	var list []hexutil.Bytes
 	for _, d := range k.txs {
 		list = append(list, d)
@@ -108,6 +108,8 @@ func (k *txKeeper) RemoveTx(hash common.Hash) {
 }
 
 func (k *txKeeper) List() []*types.Transaction {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
 	var result []*types.Transaction
 	for _, hex := range k.txs {
 		tx := new(types.Transaction)
