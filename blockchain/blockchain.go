@@ -1120,7 +1120,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			}
 			stateDB.AddBalance(sender, stakeToTransfer)
 			stateDB.SubStake(*tx.To, stake)
-			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake)
+			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake, stakeToTransfer)
 		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {

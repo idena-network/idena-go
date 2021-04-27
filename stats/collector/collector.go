@@ -50,7 +50,7 @@ type StatsCollector interface {
 
 	AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int)
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
-	AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int)
+	AddKillInviteeTxStakeTransfer(tx *types.Transaction, stake, stakeToTransfer *big.Int)
 
 	BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState)
 	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
@@ -462,15 +462,15 @@ func AddKillTxStakeTransfer(c StatsCollector, tx *types.Transaction, amount *big
 	c.AddKillTxStakeTransfer(tx, amount)
 }
 
-func (c *collectorStub) AddKillInviteeTxStakeTransfer(tx *types.Transaction, amount *big.Int) {
+func (c *collectorStub) AddKillInviteeTxStakeTransfer(tx *types.Transaction, stake, stakeToTransfer *big.Int) {
 	// do nothing
 }
 
-func AddKillInviteeTxStakeTransfer(c StatsCollector, tx *types.Transaction, amount *big.Int) {
+func AddKillInviteeTxStakeTransfer(c StatsCollector, tx *types.Transaction, stake, stakeToTransfer *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddKillInviteeTxStakeTransfer(tx, amount)
+	c.AddKillInviteeTxStakeTransfer(tx, stake, stakeToTransfer)
 }
 
 func (c *collectorStub) BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState) {
