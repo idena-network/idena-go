@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/core/mempool"
 	"github.com/idena-network/idena-go/ipfs"
+	"github.com/idena-network/idena-go/keywords"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/ipfs/go-cid"
@@ -407,4 +408,8 @@ func convertToBlock(block *types.Block) *Block {
 		Flags:        flags,
 		OfflineAddr:  block.Header.OfflineAddr(),
 	}
+}
+
+func (api *BlockchainApi) KeyWord(index int) (keywords.Keyword, error) {
+	return keywords.Get(index)
 }

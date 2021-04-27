@@ -64,3 +64,4 @@ testdata2
 *.db
 config.json
 /config2.json
+own-mempool-txs

@@ -174,8 +174,12 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	if local {
 		log.Info("Sending new flip tx", "hash", flip.Tx.Hash().Hex(), "nonce", flip.Tx.AccountNonce, "epoch", flip.Tx.Epoch)
 	}
-
-	if err := fp.txpool.Add(flip.Tx); err != nil && err != mempool.DuplicateTxError {
+	if local {
+		err = fp.txpool.AddInternalTx(flip.Tx)
+	} else {
+		err = fp.txpool.AddExternalTxs(flip.Tx)
+	}
+	if err != nil && err != mempool.DuplicateTxError {
 		return err
 	}
 	return err

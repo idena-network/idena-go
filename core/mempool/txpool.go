@@ -35,7 +35,8 @@ var (
 )
 
 type TransactionPool interface {
-	Add(tx *types.Transaction) error
+	AddInternalTx(tx *types.Transaction) error
+	AddExternalTxs(txs ...*types.Transaction) error
 	GetPendingTransaction() []*types.Transaction
 	IsSyncing() bool
 }
@@ -58,6 +59,7 @@ type TxPool struct {
 	isSyncingLock    sync.RWMutex
 	coinbase         common.Address
 	statsCollector   collector.StatsCollector
+	txKeeper         *txKeeper
 }
 
 func (pool *TxPool) IsSyncing() bool {
@@ -95,9 +97,18 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 	return pool
 }
 
-func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address) {
+func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useTxKeeper bool) {
 	pool.head = head
 	pool.coinbase = coinbase
+	if useTxKeeper {
+		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
+		pool.txKeeper.Load()
+		for _, tx := range pool.txKeeper.List() {
+			if err := pool.AddInternalTx(tx); err != nil {
+				pool.txKeeper.RemoveTx(tx.Hash())
+			}
+		}
+	}
 }
 
 func (pool *TxPool) addDeferredTx(tx *types.Transaction) {
@@ -198,12 +209,12 @@ func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState,
 	return validation.ValidateTx(appState, tx, minFeePerGas, txType)
 }
 
-func (pool *TxPool) AddTxs(txs []*types.Transaction) {
+func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	appState, err := pool.appState.Readonly(pool.head.Height())
 
 	if err != nil {
 		pool.log.Warn("txpool: failed to create readonly appState", "err", err)
-		return
+		return err
 	}
 	for _, tx := range txs {
 
@@ -223,13 +234,14 @@ func (pool *TxPool) AddTxs(txs []*types.Transaction) {
 			continue
 		}
 
-		pool.add(tx, appState)
+		if err = pool.add(tx, appState); err != nil && len(txs) == 1 {
+			return err
+		}
 	}
+	return nil
 }
 
-func (pool *TxPool) Add(tx *types.Transaction) error {
-
-	sender, _ := types.Sender(tx)
+func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 
 	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContractTx {
 		attachment := attachments.ParseCallContractAttachment(tx)
@@ -238,16 +250,22 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 		}
 	}
 
-	if pool.IsSyncing() && sender != pool.coinbase {
+	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
-
-		if _, ok := priorityTypes[tx.Type]; ok {
-			pool.bus.Publish(&events.NewTxEvent{
-				Tx:       tx,
-				Own:      sender == pool.coinbase,
-				Deferred: true,
-			})
+		if pool.txKeeper != nil {
+			pool.txKeeper.AddTx(tx)
 		}
+		if _, ok := priorityTypes[tx.Type]; ok {
+			appState, _ := pool.appState.Readonly(pool.head.Height())
+			if err := pool.add(tx, appState); err != nil {
+				pool.bus.Publish(&events.NewTxEvent{
+					Tx:       tx,
+					Own:      true,
+					Deferred: true,
+				})
+			}
+		}
+
 		return nil
 	}
 
@@ -256,7 +274,12 @@ func (pool *TxPool) Add(tx *types.Transaction) error {
 	if err != nil {
 		return errors.WithMessage(err, "tx can't be validated")
 	}
-	return pool.add(tx, appState)
+	if err = pool.add(tx, appState); err == nil {
+		if pool.txKeeper != nil {
+			pool.txKeeper.AddTx(tx)
+		}
+	}
+	return err
 }
 
 func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) error {
@@ -405,7 +428,9 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
 	pool.all.Remove(transaction.Hash())
-
+	if pool.txKeeper != nil {
+		pool.txKeeper.RemoveTx(transaction.Hash())
+	}
 	sender, _ := types.Sender(transaction)
 
 	if executable, ok := pool.executableTxs[sender]; ok {
@@ -605,12 +630,17 @@ loop:
 	for {
 		select {
 		case tx := <-pool.deferredTxs:
-			pool.Add(tx)
+			pool.AddInternalTx(tx)
 		default:
 			break loop
 		}
 	}
 	pool.knownDeferredTxs.Clear()
+	if pool.txKeeper != nil {
+		for _, tx := range pool.txKeeper.List() {
+			pool.AddInternalTx(tx)
+		}
+	}
 }
 
 var (

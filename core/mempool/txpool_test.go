@@ -48,7 +48,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	tx, err := types.SignTx(tx, key)
 	r.NoError(err)
 
-	err = pool.Add(tx)
+	err = pool.AddInternalTx(tx)
 	r.NoError(err)
 	r.Len(pool.deferredTxs, 1)
 	r.True(pool.knownDeferredTxs.Contains(tx.Hash()))
@@ -105,16 +105,16 @@ func TestTxPool_ResetTo(t *testing.T) {
 
 	for i := 0; i < 255; i++ {
 		for j := 0; j < 35; j++ {
-			require.NoError(t, pool.Add(getTx(keys[i])))
+			require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 		}
 	}
 	for i := 255; i < 1024; i++ {
 		for j := 0; j < 32; j++ {
-			require.NoError(t, pool.Add(getTx(keys[i])))
+			require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 		}
 	}
 	for i := 1023; i < 1200; i++ {
-		require.NoError(t, pool.Add(getTx(keys[i])))
+		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
 	allTxsCount := len(pool.all.txs)
 
@@ -257,4 +257,68 @@ func TestTxMap_Sorted(t *testing.T) {
 
 	sorted = txMap.Sorted()
 	require.Equal(t, uint32(4), sorted[3].AccountNonce)
+}
+
+func TestTxPool_AddWithTxKeeper(t *testing.T) {
+	pool := getPool()
+
+	keys := make([]*ecdsa.PrivateKey, 0)
+
+	for i := 0; i < 300; i++ {
+		key, _ := crypto.GenerateKey()
+		address := crypto.PubkeyToAddress(key.PublicKey)
+		keys = append(keys, key)
+		pool.appState.State.SetBalance(address, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
+	}
+
+	pool.appState.Commit(nil)
+	pool.appState.Initialize(1)
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 1,
+		},
+	}, common.Address{0x1}, true)
+	getTx := func(key *ecdsa.PrivateKey) *types.Transaction {
+		address := crypto.PubkeyToAddress(key.PublicKey)
+
+		nonce := pool.appState.NonceCache.GetNonce(address, 0)
+
+		tx := &types.Transaction{
+			AccountNonce: nonce + 1,
+			To:           &address,
+			Epoch:        0,
+			Type:         types.SendTx,
+			Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
+		}
+
+		tx, _ = types.SignTx(tx, key)
+		return tx
+	}
+
+	for i := 0; i < 300; i++ {
+
+		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
+	}
+	require.Len(t, pool.txKeeper.txs, 300)
+	prevPool := pool
+
+	pool = getPool()
+	pool.appState = prevPool.appState
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 1,
+		},
+	}, common.Address{0x1}, true)
+	require.Len(t, pool.txKeeper.txs, 300)
+	require.Len(t, pool.all.txs, 300)
+
+	for _, tx := range pool.all.txs {
+		pool.Remove(tx)
+	}
+	require.Len(t, pool.txKeeper.txs, 0)
+	require.Len(t, pool.all.txs, 0)
+
+	txKeeper := NewTxKeeper(pool.cfg.DataDir)
+	txKeeper.Load()
+	require.Len(t, pool.txKeeper.txs, 0)
 }

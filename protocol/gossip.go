@@ -264,7 +264,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return nil
 		}
 		p.markPayload(msg.Payload)
-		h.txpool.Add(tx)
+		h.txpool.AddExternalTxs(tx)
 	case GetBlockByHash:
 		query := new(models.ProtoGetBlockByHashRequest)
 		if err := proto.Unmarshal(msg.Payload, query); err != nil {

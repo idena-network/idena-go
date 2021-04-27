@@ -1112,10 +1112,15 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		if inviteePrevState == state.Newbie {
-			stakeToTransfer := stateDB.GetStakeBalance(*tx.To)
+			stake := stateDB.GetStakeBalance(*tx.To)
+			stakeToTransfer := big.NewInt(0).Set(stake)
+			if chain.config.Consensus.BurnInviteeStake {
+				// 1/6 of stake moves to balance, rest burns
+				stakeToTransfer.Div(stake, big.NewInt(6))
+			}
 			stateDB.AddBalance(sender, stakeToTransfer)
-			stateDB.SubStake(*tx.To, stakeToTransfer)
-			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stakeToTransfer)
+			stateDB.SubStake(*tx.To, stake)
+			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake)
 		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
 			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
