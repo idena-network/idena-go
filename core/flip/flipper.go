@@ -182,7 +182,7 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	if err != nil && err != mempool.DuplicateTxError {
 		return err
 	}
-	return err
+	return nil
 }
 
 func (fp *Flipper) AddNewFlip(flip *types.Flip, local bool) error {
