@@ -38,6 +38,7 @@ func NewOracleVotingContract2(ctx env.CallContext, e env.Env, statsCollector col
 		env.NewMap([]byte("allVotes"), e, ctx),
 	}
 }
+
 const FinishVotingMethod = "finishVoting"
 
 func (f *OracleVoting2) Call(method string, args ...[]byte) error {
@@ -214,12 +215,15 @@ func (f *OracleVoting2) sendVoteProof(args ...[]byte) error {
 		return errors.New("invalid proof")
 	}
 
+	var newSecretVotesCount *uint64
 	if f.voteHashes.Get(f.ctx.Sender().Bytes()) == nil {
-		f.setSecretVotesCount(f.getSecretVotesCount() + 1)
+		v := f.getSecretVotesCount() + 1
+		f.setSecretVotesCount(v)
+		newSecretVotesCount = &v
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
-	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash)
+	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount)
 
 	return nil
 }
@@ -271,30 +275,34 @@ func (f *OracleVoting2) sendVote(args ...[]byte) error {
 	f.votes.Set(f.ctx.Sender().Bytes(), common.ToBytes(vote))
 	f.voteHashes.Remove(f.ctx.Sender().Bytes())
 	secretVotesCount := f.getSecretVotesCount()
+	var newSecretVotesCount *uint64
 	if secretVotesCount > 0 {
-		f.setSecretVotesCount(secretVotesCount - 1)
+		v := secretVotesCount - 1
+		newSecretVotesCount = &v
+		f.setSecretVotesCount(v)
 	}
 
-	var changeVoteOptions = func(vote byte, diff int64) {
+	var changeVoteOptions = func(vote byte, diff int64) uint64 {
 		cnt, _ := helpers.ExtractUInt64(0, f.voteOptions.Get(common.ToBytes(vote)))
 		if diff >= 0 || cnt > 0 {
 			cnt = uint64(int64(cnt) + diff)
 		}
 		f.voteOptions.Set(common.ToBytes(vote), common.ToBytes(cnt))
+		return cnt
 	}
 
 	cnt, _ := helpers.ExtractUInt64(0, f.allVotes.Get(common.ToBytes(vote)))
-	f.allVotes.Set(common.ToBytes(vote), common.ToBytes(cnt+1))
+	newOptionAllVotes := cnt + 1
+	f.allVotes.Set(common.ToBytes(vote), common.ToBytes(newOptionAllVotes))
 
 	c := f.GetUint64("votedCount") + 1
 	f.SetUint64("votedCount", c)
 
-	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt)
-
 	delegatee := f.env.Delegatee(f.ctx.Sender())
 
 	if delegatee == nil {
-		changeVoteOptions(vote, 1)
+		newOptionVotes := changeVoteOptions(vote, 1)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil)
 		return nil
 	}
 
@@ -302,14 +310,19 @@ func (f *OracleVoting2) sendVote(args ...[]byte) error {
 	f.poolVotes.Set(delegatee.Bytes(), common.ToBytes(vote))
 
 	if prevPoolVote == nil {
-		changeVoteOptions(vote, 1)
+		newOptionVotes := changeVoteOptions(vote, 1)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil)
 		return nil
 	}
+	var newOptionVotes, newPrevOptionVotes *uint64
 	if bytes.Compare(prevPoolVote, common.ToBytes(vote)) != 0 {
 		prevVote, _ := helpers.ExtractByte(0, prevPoolVote)
-		changeVoteOptions(prevVote, -1)
-		changeVoteOptions(vote, 1)
+		v1 := changeVoteOptions(prevVote, -1)
+		newPrevOptionVotes = &v1
+		v2 := changeVoteOptions(vote, 1)
+		newOptionVotes = &v2
 	}
+	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes)
 	return nil
 }
 
@@ -464,6 +477,8 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 
 	noWinnerVotes := float64(winnerVotesCnt) < f.CalcPercent(committeeSize, winnerThreshold)
 	noQuorum := float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum)
+	var newEpochWithoutGrowth *byte
+	var newProlongVoteCount *uint64
 	if f.env.Epoch() != f.GetUint16("epoch") ||
 		duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum ||
 		duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum) {
@@ -477,17 +492,23 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 			prevVoteCount := f.GetUint64("prolongVoteCount")
 			const noGrowthThreshold = 0.1
 			if (votedCount+secretVotes) == 0 || (float64(votedCount+secretVotes-prevVoteCount)/float64(prevVoteCount)) < noGrowthThreshold {
-				f.SetByte("no-growth", epochWithoutGrowth+1)
+				v := epochWithoutGrowth + 1
+				f.SetByte("no-growth", v)
+				newEpochWithoutGrowth = &v
 			} else {
-				f.SetByte("no-growth", 0)
+				v := byte(0)
+				f.SetByte("no-growth", v)
+				newEpochWithoutGrowth = &v
 			}
-			f.SetUint64("prolongVoteCount", votedCount+secretVotes)
+			allVotes := votedCount + secretVotes
+			f.SetUint64("prolongVoteCount", allVotes)
+			newProlongVoteCount = &allVotes
 		}
 		epoch := f.env.Epoch()
 		f.SetUint16("epoch", epoch)
 		networkSize := uint64(f.env.NetworkSize())
 		f.SetUint64("network", networkSize)
-		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize)
+		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
