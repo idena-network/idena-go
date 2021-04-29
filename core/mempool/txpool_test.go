@@ -35,6 +35,13 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	appState.State.SetBalance(address, balance)
 	appState.Commit(nil)
 	appState.Initialize(0)
+	pool.Initialize(
+		&types.Header{
+			EmptyBlockHeader: &types.EmptyBlockHeader{
+				Height: 0,
+			},
+		}, common.Address{0x1}, false,
+	)
 	pool.StartSync()
 
 	tx := &types.Transaction{
@@ -56,7 +63,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	pool.StopSync(&types.Block{
 		Header: &types.Header{
 			EmptyBlockHeader: &types.EmptyBlockHeader{
-				Height: 0,
+				Height: 1,
 			},
 		},
 		Body: &types.Body{},
