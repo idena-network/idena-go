@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	core "github.com/libp2p/go-libp2p-core"
@@ -31,10 +32,15 @@ type ConnManager struct {
 	inboundPeers  map[peer.ID]struct{}
 	outboundPeers map[peer.ID]struct{}
 
+	inboundOwnShardPeers map[peer.ID]struct{}
+	outboundOwnShardPeers map[peer.ID]struct{}
+
 	peerMutex sync.RWMutex
 	connMutex sync.Mutex
 	host      core.Host
 	cfg       config.P2P
+
+	shardId common.ShardId
 }
 
 func NewConnManager(host core.Host, cfg config.P2P) *ConnManager {
@@ -45,13 +51,13 @@ func NewConnManager(host core.Host, cfg config.P2P) *ConnManager {
 		activeConnections: make(map[peer.ID]network.Conn),
 		inboundPeers:      make(map[peer.ID]struct{}),
 		outboundPeers:     make(map[peer.ID]struct{}),
-
-		discTimes:  make(map[peer.ID]time.Time),
-		resetTimes: make(map[peer.ID]time.Time),
+		discTimes:         make(map[peer.ID]time.Time),
+		resetTimes:        make(map[peer.ID]time.Time),
 	}
 }
 
 func (m *ConnManager) CanConnect(id peer.ID) bool {
+
 	if m.bannedPeers.Contains(id) {
 		return false
 	}
@@ -63,7 +69,7 @@ func (m *ConnManager) CanConnect(id peer.ID) bool {
 	return true
 }
 
-func (m *ConnManager) Connected(id peer.ID, inbound bool) {
+func (m *ConnManager) Connected(id peer.ID, inbound bool, shardId common.ShardId) {
 	m.peerMutex.Lock()
 	defer m.peerMutex.Unlock()
 	if inbound {
@@ -71,6 +77,10 @@ func (m *ConnManager) Connected(id peer.ID, inbound bool) {
 	} else {
 		m.outboundPeers[id] = struct{}{}
 	}
+}
+
+func (m *ConnManager) SetShardId(shard common.ShardId) {
+	m.shardId = shard
 }
 
 func (m *ConnManager) Disconnected(id peer.ID, reason error) {

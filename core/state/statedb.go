@@ -1572,6 +1572,10 @@ func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 	s.GetOrNewDelayedOfflinePenaltyObject().Remove(addr)
 }
 
+func (s *StateDB) ShardId(address common.Address) common.ShardId{
+	return s.GetOrNewIdentityObject(address).ShardId()
+}
+
 type readCloser struct {
 	r io.Reader
 }

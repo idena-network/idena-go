@@ -143,6 +143,10 @@ func (h *IdenaGossipHandler) Start() {
 		setHandler()
 	})
 
+	if !h.cfg.Multishard {
+		h.connManager.SetShardId(h.bcn.CoinbaseShard())
+	}
+
 	go h.broadcastLoop()
 	go h.checkTime()
 	go h.background()
@@ -411,7 +415,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		return nil, err
 	}
 	h.peers.Register(peer)
-	h.connManager.Connected(peer.id, inbound)
+	h.connManager.Connected(peer.id, inbound, peer.shardId)
 	h.host.ConnManager().TagPeer(peer.id, "idena", IdenaProtocolWeight)
 
 	go h.runListening(peer)

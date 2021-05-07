@@ -206,6 +206,7 @@ type Global struct {
 	EmptyBlocksBits               *big.Int
 	GodAddressInvites             uint16
 	BlocksCntWithoutCeremonialTxs byte
+	ShardsNum                     uint32
 }
 
 func (s *Global) ToBytes() ([]byte, error) {
@@ -333,6 +334,7 @@ type Identity struct {
 	Delegatee            *common.Address
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
+	ShardId              common.ShardId
 }
 
 type TxAddr struct {
@@ -953,6 +955,10 @@ func (s *stateIdentity) SetDelegationEpoch(epoch uint16) {
 
 func (s *stateIdentity) DelegationEpoch() uint16 {
 	return s.data.DelegationEpoch
+}
+
+func (s *stateIdentity) ShardId() common.ShardId {
+	return s.data.ShardId
 }
 
 func (s *stateGlobal) Epoch() uint16 {

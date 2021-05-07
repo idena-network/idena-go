@@ -404,3 +404,7 @@ func BytesToHash128(b []byte) Hash128 {
 	h.SetBytes(b)
 	return h
 }
+
+type ShardId uint32
+
+var MultiShard ShardId = 0
