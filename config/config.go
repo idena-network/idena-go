@@ -238,9 +238,11 @@ func getDefaultConfig(dataDir string) *Config {
 		DataDir: dataDir,
 		Network: 0x1, // testnet
 		P2P: P2P{
-			MaxInboundPeers:  DefaultMaxInboundPeers,
-			MaxOutboundPeers: DefaultMaxOutboundPeers,
-			DisableMetrics:   false,
+			MaxInboundPeers:          DefaultMaxInboundNotOwnShardPeers,
+			MaxOutboundPeers:         DefaultMaxOutboundNotOwnShardPeers,
+			MaxInboundOwnShardPeers:  DefaultMaxInboundOwnShardPeers,
+			MaxOutboundOwnShardPeers: DefaultMaxOutboundOwnShardPeers,
+			DisableMetrics:           false,
 		},
 		Consensus: GetDefaultConsensusConfig(),
 		RPC:       rpc.GetDefaultRPCConfig(DefaultRpcHost, DefaultRpcPort),

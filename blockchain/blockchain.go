@@ -2429,3 +2429,7 @@ func (chain *Blockchain) ipfsLoad() {
 		}
 	}
 }
+
+func (chain *Blockchain) CoinbaseShard() common.ShardId {
+	return chain.appState.State.ShardId(chain.coinBaseAddress)
+}

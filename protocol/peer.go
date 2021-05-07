@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
@@ -85,6 +86,7 @@ type protoPeer struct {
 	peers                uint32
 	metrics              *metricCollector
 	skippedRequestsCount uint32
+	shardId              common.ShardId
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -299,6 +301,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *typ
 	}
 	p.knownHeight.Store(handShake.Height)
 	p.peers = handShake.Peers
+	p.shardId = handShake.ShardId
 	return nil
 }
 

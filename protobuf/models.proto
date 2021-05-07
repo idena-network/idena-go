@@ -117,6 +117,7 @@ message ProtoHandshake {
     string appVersion = 5;
     uint32 peers = 6;
     bytes oldGenesis = 7;
+    uint32 shardId = 8;
 }
 
 message ProtoMsg {
