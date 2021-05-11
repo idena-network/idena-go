@@ -152,9 +152,6 @@ func (dt *OfflineDetector) ValidateBlock(head *types.Header, block *types.Block)
 			if !head.Flags().HasFlag(types.OfflinePropose) || *prevAddr != *addr {
 				return errors.New("no offline proposal found")
 			}
-			if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
-				return errors.New("if OfflineCommit is set, IdentityUpdate should be set too")
-			}
 
 			if !dt.verifyOfflineProposing(block.Header.ParentHash()) {
 				return errors.New(fmt.Sprintf("addr %v should not be set offline, block %v", addr.Hex(), block.Hash().Hex()))
