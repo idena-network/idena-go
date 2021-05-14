@@ -877,9 +877,10 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 			appState.State.AddDelayedPenalty(addr)
 			return
 		}
-		collector.BeforeSetPenalty(statsCollector, addr, appState)
+		amount := chain.calculatePenalty(appState, addr)
+		collector.BeforeSetPenalty(statsCollector, addr, amount, appState)
 		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenalty(addr, chain.calculatePenalty(appState, addr))
+		appState.State.SetPenalty(addr, amount)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 	}
 	appState.IdentityState.SetOnline(addr, false)
@@ -894,9 +895,10 @@ func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppStat
 	}
 	identities := appState.State.DelayedOfflinePenalties()
 	for _, addr := range identities {
-		collector.BeforeSetPenalty(statsCollector, addr, appState)
+		amount := chain.calculatePenalty(appState, addr)
+		collector.BeforeSetPenalty(statsCollector, addr, amount, appState)
 		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenalty(addr, chain.calculatePenalty(appState, addr))
+		appState.State.SetPenalty(addr, amount)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.IdentityState.SetOnline(addr, false)
 	}

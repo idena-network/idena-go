@@ -37,7 +37,7 @@ type StatsCollector interface {
 
 	AfterSubPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState)
 	BeforeClearPenalty(addr common.Address, appState *appstate.AppState)
-	BeforeSetPenalty(addr common.Address, appState *appstate.AppState)
+	BeforeSetPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState)
 
 	AddMintedCoins(amount *big.Int)
 	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
@@ -350,15 +350,15 @@ func BeforeClearPenalty(c StatsCollector, addr common.Address, appState *appstat
 	c.BeforeClearPenalty(addr, appState)
 }
 
-func (c *collectorStub) BeforeSetPenalty(addr common.Address, appState *appstate.AppState) {
+func (c *collectorStub) BeforeSetPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState) {
 	// do nothing
 }
 
-func BeforeSetPenalty(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+func BeforeSetPenalty(c StatsCollector, addr common.Address, amount *big.Int, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.BeforeSetPenalty(addr, appState)
+	c.BeforeSetPenalty(addr, amount, appState)
 }
 
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {
