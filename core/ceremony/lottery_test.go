@@ -139,11 +139,8 @@ func Test_FillAuthorsQueue(t *testing.T) {
 
 func makeCandidates(authors int) []*candidate {
 	res := make([]*candidate, 0)
-	b := random.GetRandomBytes(12)
 	for i := 0; i < authors; i++ {
 		res = append(res, &candidate{
-			Code:       b,
-			Generation: 0,
 		})
 	}
 	return res
@@ -173,8 +170,6 @@ func makeCandidatesWithFlips(seed []byte, candidatesCount int, authorsCount int,
 			}
 		}
 		res = append(res, &candidate{
-			Code:       random.GetRandomBytes(12),
-			Generation: 0,
 			IsAuthor:   isAuthor,
 		})
 	}

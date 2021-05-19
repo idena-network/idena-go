@@ -22,6 +22,7 @@ import (
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"strings"
@@ -65,6 +66,7 @@ type IdenaGossipHandler struct {
 	metrics         *metricCollector
 	ceremonyChecker CeremonyChecker
 	connManager     *ConnManager
+	pubsub          *pubsub.PubSub
 }
 
 type metricCollector struct {
@@ -73,9 +75,10 @@ type metricCollector struct {
 	compress       func(code uint64, size int)
 }
 
-func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string, ceremonyChecker CeremonyChecker) *IdenaGossipHandler {
+func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string, ceremonyChecker CeremonyChecker) *IdenaGossipHandler {
 	handler := &IdenaGossipHandler{
 		host:                host,
+		pubsub:              pubsub,
 		cfg:                 cfg,
 		bcn:                 chain,
 		peers:               newPeerSet(),
@@ -140,6 +143,7 @@ func (h *IdenaGossipHandler) Start() {
 	h.bus.Subscribe(events.IpfsPortChangedEventId, func(e eventbus.Event) {
 		portChangedEvent := e.(*events.IpfsPortChangedEvent)
 		h.host = portChangedEvent.Host
+		h.pubsub = portChangedEvent.PubSub
 		setHandler()
 	})
 
@@ -150,6 +154,7 @@ func (h *IdenaGossipHandler) Start() {
 	go h.broadcastLoop()
 	go h.checkTime()
 	go h.background()
+	go h.watchShardSubscription()
 }
 
 func (h *IdenaGossipHandler) background() {
@@ -380,7 +385,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 }
 
 func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
-	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && h.connManager.CanAcceptStream() {
+	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && (h.connManager.CanAcceptStream() || h.connManager.NeedInboundOwnShardPeers()) {
 		h.runPeer(stream, true)
 	}
 }
@@ -414,6 +419,37 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		}
 		return nil, err
 	}
+
+	canConnect := false
+	shouldDisconnectAnotherPeer := false
+	if inbound {
+		if h.connManager.IsFromOwnShards(peer.shardId) {
+			canConnect = h.connManager.NeedInboundOwnShardPeers()
+			shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream() && canConnect
+		} else {
+			canConnect = h.connManager.CanAcceptStream()
+		}
+	} else {
+		if h.connManager.IsFromOwnShards(peer.shardId) {
+			canConnect = h.connManager.NeedOutboundOwnShardPeers()
+			shouldDisconnectAnotherPeer = !h.connManager.CanDial() && canConnect
+		} else {
+			canConnect = h.connManager.CanDial()
+		}
+	}
+
+	if !canConnect {
+		peer.disconnect()
+		return nil, errors.Errorf("no slots for shard=%v", peer.shardId)
+	}
+	if shouldDisconnectAnotherPeer {
+		peerId := h.connManager.GetRandomPeerFromAnotherShard(inbound)
+		peer := h.peers.Peer(peerId)
+		if peer != nil {
+			peer.disconnect()
+		}
+	}
+
 	h.peers.Register(peer)
 	h.connManager.Connected(peer.id, inbound, peer.shardId)
 	h.host.ConnManager().TagPeer(peer.id, "idena", IdenaProtocolWeight)
@@ -457,7 +493,7 @@ func (h *IdenaGossipHandler) dialPeers() {
 	go func() {
 		attempts := make(map[peer.ID]struct{})
 		for i := 0; i < 5; i++ {
-			if !h.connManager.CanDial() {
+			if !h.connManager.CanDial() && !h.connManager.NeedOutboundOwnShardPeers() {
 				return
 			}
 			stream, err := h.connManager.DialRandomPeer()
@@ -882,4 +918,26 @@ func (h *IdenaGossipHandler) WrongTime() bool {
 
 func (h *IdenaGossipHandler) IsConnected(id peer.ID) bool {
 	return h.peers.Peer(id) != nil
+}
+
+func (h *IdenaGossipHandler) watchShardSubscription() {
+	for {
+		time.Sleep(time.Second * 10)
+		topics := h.pubsub.GetTopics()
+		if len(topics) > 0 {
+			ownTopic := ""
+			ownShard := h.bcn.CoinbaseShard()
+			if ownShard != common.MultiShard {
+				ownTopic = fmt.Sprintf("shard-%v", ownShard)
+			}
+			for _, t := range topics {
+				if t != ownTopic {
+					topic, _ := h.pubsub.Join(t)
+					if topic != nil {
+						topic.Close()
+					}
+				}
+			}
+		}
+	}
 }

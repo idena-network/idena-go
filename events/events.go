@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/libp2p/go-libp2p-core"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 const (
@@ -69,7 +70,8 @@ func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
 }
 
 type IpfsPortChangedEvent struct {
-	Host core.Host
+	Host   core.Host
+	PubSub *pubsub.PubSub
 }
 
 func (i IpfsPortChangedEvent) EventID() eventbus.EventID {

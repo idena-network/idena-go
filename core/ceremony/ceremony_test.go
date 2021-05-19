@@ -349,7 +349,7 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	approvedAddr := candidates[1].Address
 	app.State.SetRequiredFlips(approvedAddr, 3)
 
-	vc.candidates = candidates
+	vc.shardCandidates = candidates
 	vc.flipsData = &flipsData{
 		allFlips:       flips,
 		flipsPerAuthor: flipsPerAuthor,
