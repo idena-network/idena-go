@@ -1131,6 +1131,10 @@ func (s *stateGlobal) ResetBlocksCntWithoutCeremonialTxs() {
 	s.touch()
 }
 
+func (s *stateGlobal) ShardsNum() uint32 {
+	return s.data.ShardsNum
+}
+
 func (s *stateApprovedIdentity) Address() common.Address {
 	return s.address
 }

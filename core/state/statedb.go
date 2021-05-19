@@ -1584,10 +1584,18 @@ func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 	s.GetOrNewDelayedOfflinePenaltyObject().Remove(addr)
 }
 
-func (s *StateDB) ShardId(address common.Address) common.ShardId{
+func (s *StateDB) ShardId(address common.Address) common.ShardId {
 	return s.GetOrNewIdentityObject(address).ShardId()
 }func (s *StateDB) HasVersion(h uint64) bool {
 	return s.tree.ExistVersion(int64(h))
+}
+
+func (s *StateDB) ShardsNum() uint32 {
+	num := s.GetOrNewGlobalObject().ShardsNum()
+	if num == 0 {
+		num++
+	}
+	return num
 }
 
 type readCloser struct {

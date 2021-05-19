@@ -3,6 +3,7 @@ package ceremony
 import (
 	"container/list"
 	"encoding/binary"
+	"github.com/idena-network/idena-go/common"
 	"math/rand"
 )
 
@@ -10,24 +11,50 @@ const (
 	CandidatesPerAuthor = 13
 )
 
-func GetAuthorsDistribution(candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
-	if len(candidates) == 0 {
-		return make(map[int][]int), make(map[int][]int)
+type shardAuthors struct {
+	authorsPerCandidate map[int][]int
+	candidatesPerAuthor map[int][]int
+}
+
+type flipDistribution struct {
+	shortFlipsPerCandidate [][]int
+	longFlipsPerCandidate [][]int
+}
+
+func GetAuthorsDistribution(shards map[common.ShardId]*candidatesOfShard, seed []byte, shortFlipsCount int) map[common.ShardId]*shardAuthors {
+
+	shardLotteries := make(map[common.ShardId]*shardAuthors)
+
+	for shardId, shard := range shards {
+		if len(shard.candidates) == 0 {
+			shardLotteries[shardId] = &shardAuthors{
+				authorsPerCandidate: make(map[int][]int),
+				candidatesPerAuthor: make(map[int][]int),
+			}
+			continue
+		}
+
+		authors := getAuthorsIndexes(shard.candidates)
+
+		if len(authors) == 0 {
+			shardLotteries[shardId] = &shardAuthors{
+				authorsPerCandidate: make(map[int][]int),
+				candidatesPerAuthor: make(map[int][]int),
+			}
+			continue
+		}
+
+		authorsPerCandidate, candidatesPerAuthor := getFirstAuthorsDistribution(authors, shard.candidates, seed, shortFlipsCount)
+
+		if len(authors) > 7 {
+			authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(seed, shard.candidates, authorsPerCandidate, candidatesPerAuthor)
+		}
+		shardLotteries[shardId] = &shardAuthors{
+			authorsPerCandidate: authorsPerCandidate,
+			candidatesPerAuthor: candidatesPerAuthor,
+		}
 	}
-
-	authors := getAuthorsIndexes(candidates)
-
-	if len(authors) == 0 {
-		return make(map[int][]int), make(map[int][]int)
-	}
-
-	authorsPerCandidate, candidatesPerAuthor = getFirstAuthorsDistribution(authors, candidates, seed, shortFlipsCount)
-
-	if len(authors) > 7 {
-		authorsPerCandidate, candidatesPerAuthor = appendAdditionalCandidates(seed, candidates, authorsPerCandidate, candidatesPerAuthor)
-	}
-
-	return authorsPerCandidate, candidatesPerAuthor
+	return shardLotteries
 }
 
 func getFirstAuthorsDistribution(authorsIndexes []int, candidates []*candidate, seed []byte, shortFlipsCount int) (authorsPerCandidate map[int][]int, candidatesPerAuthor map[int][]int) {
@@ -103,7 +130,7 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 	return authorsPerCandidate, candidatesPerAuthor
 }
 
-func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
+func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) map[common.ShardId]*flipDistribution {
 	distinct := func(arr []int) []int {
 		m := make(map[int]struct{})
 		var output []int

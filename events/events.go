@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"time"
 )
 
@@ -72,7 +73,8 @@ func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
 }
 
 type IpfsPortChangedEvent struct {
-	Host core.Host
+	Host   core.Host
+	PubSub *pubsub.PubSub
 }
 
 func (i IpfsPortChangedEvent) EventID() eventbus.EventID {
