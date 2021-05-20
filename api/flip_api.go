@@ -168,8 +168,8 @@ func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, err
 	} else {
 		address = coinbase
 	}
-
-	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
+	appState := api.baseApi.getReadonlyAppState()
+	period := appState.State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery and ShortSession periods")
@@ -179,7 +179,7 @@ func (api *FlipApi) ShortHashes(addr *common.Address) ([]FlipHashesResponse, err
 		return nil, errors.Errorf("0x%x address is not a ceremony candidate", address)
 	}
 
-	flips := api.ceremony.GetShortFlipsToSolve(address)
+	flips := api.ceremony.GetShortFlipsToSolve(address, appState.State.ShardId(address))
 
 	return prepareHashes(api.ceremony, flips, true, address == coinbase)
 }
@@ -196,8 +196,8 @@ func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, erro
 	} else {
 		address = coinbase
 	}
-
-	period := api.baseApi.getReadonlyAppState().State.ValidationPeriod()
+	appState := api.baseApi.getReadonlyAppState()
+	period := appState.State.ValidationPeriod()
 
 	if period != state.FlipLotteryPeriod && period != state.ShortSessionPeriod && period != state.LongSessionPeriod {
 		return nil, errors.New("this method is available during FlipLottery, ShortSession and LongSession periods")
@@ -207,7 +207,7 @@ func (api *FlipApi) LongHashes(addr *common.Address) ([]FlipHashesResponse, erro
 		return nil, errors.Errorf("0x%x address is not a ceremony candidate", address)
 	}
 
-	flips := api.ceremony.GetLongFlipsToSolve(address)
+	flips := api.ceremony.GetLongFlipsToSolve(address, appState.State.ShardId(address))
 
 	return prepareHashes(api.ceremony, flips, false, address == coinbase)
 }
@@ -388,7 +388,7 @@ func (api *FlipApi) SubmitShortAnswers(args SubmitAnswersArgs) (SubmitAnswersRes
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flips := api.ceremony.GetShortFlipsToSolve(api.baseApi.getCurrentCoinbase())
+	flips := api.ceremony.GetShortFlipsToSolve(api.baseApi.getCurrentCoinbase(), api.baseApi.getCoinbaseShard())
 
 	answers := prepareAnswers(args.Answers, flips, true)
 
@@ -411,7 +411,7 @@ func (api *FlipApi) SubmitLongAnswers(args SubmitAnswersArgs) (SubmitAnswersResp
 		return SubmitAnswersResponse{}, errors.New("coinbase address is not a ceremony candidate")
 	}
 
-	flips := api.ceremony.GetLongFlipsToSolve(api.baseApi.getCurrentCoinbase())
+	flips := api.ceremony.GetLongFlipsToSolve(api.baseApi.getCurrentCoinbase(), api.baseApi.getCoinbaseShard())
 
 	answers := prepareAnswers(args.Answers, flips, false)
 

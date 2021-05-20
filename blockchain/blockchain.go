@@ -81,7 +81,7 @@ type Blockchain struct {
 	bus             eventbus.Bus
 	subManager      *subscriptions.Manager
 	upgrader        *upgrade.Upgrader
-	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
+	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, map[common.ShardId]*types.ValidationResults, bool)
 	isSyncing       bool
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
 }
@@ -128,7 +128,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, map[common.ShardId]*types.ValidationResults, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -596,21 +596,22 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
-func calculateNewIdentityStatusFlags(validationResults *types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
+func calculateNewIdentityStatusFlags(validationResults map[common.ShardId]*types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
 	m := make(map[common.Address]state.ValidationStatusFlag)
-	for addr, item := range validationResults.AuthorResults {
-		var status state.ValidationStatusFlag
-		if item.HasOneReportedFlip {
-			status |= state.AtLeastOneFlipReported
+	for _, validationResult := range validationResults {
+		for addr, item := range validationResult.AuthorResults {
+			var status state.ValidationStatusFlag
+			if item.HasOneReportedFlip {
+				status |= state.AtLeastOneFlipReported
+			}
+			if item.HasOneNotQualifiedFlip {
+				status |= state.AtLeastOneFlipNotQualified
+			}
+			if item.AllFlipsNotQualified {
+				status |= state.AllFlipsNotQualified
+			}
+			m[addr] = status
 		}
-		if item.HasOneNotQualifiedFlip {
-			status |= state.AtLeastOneFlipNotQualified
-		}
-		if item.AllFlipsNotQualified {
-			status |= state.AllFlipsNotQualified
-		}
-
-		m[addr] = status
 	}
 	return m
 }
@@ -676,7 +677,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 }
 
 func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
-	validationResults *types.ValidationResults, statsCollector collector.StatsCollector) {
+	validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
