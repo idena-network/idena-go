@@ -255,7 +255,7 @@ func (api *FlipApi) Get(hash string) (FlipResponse, error) {
 	}
 	cidBytes := c.Bytes()
 
-	publicPart, privatePart, err := api.ceremony.GetDecryptedFlip(cidBytes)
+	publicPart, privatePart, err := api.ceremony.GetDecryptedFlip(cidBytes, api.baseApi.secStore.GetAddress())
 
 	if err != nil {
 		return FlipResponse{}, err

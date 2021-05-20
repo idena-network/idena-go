@@ -86,6 +86,7 @@ type NodeCtx struct {
 	PendingProofs   *sync.Map
 	ProposerByRound pengings.ProposerByRound
 	Upgrader        *upgrade.Upgrader
+	SecStore        *secstore.SecStore
 }
 
 type ceremonyChecker struct {
@@ -258,6 +259,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		PendingProofs:   pendingProofs,
 		ProposerByRound: proposals.ProposerByRound,
 		Upgrader:        upgrader,
+		SecStore:        secStore,
 	}, nil
 }
 
