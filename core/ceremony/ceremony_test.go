@@ -360,7 +360,7 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	approvedCandidates.Add(approvedAddr)
 
 	// when
-	result := vc.getNotApprovedFlips(approvedCandidates)
+	result := vc.getNotApprovedFlips(approvedCandidates, 0)
 
 	// then
 	r := require.New(t)
@@ -493,7 +493,7 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporters.addReport(21, reporter1)
 	reporters.addReport(21, reporter2)
 
-	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters)
+	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0)
 
 	require.Contains(t, bad, auth2)
 	require.Contains(t, bad, auth3)

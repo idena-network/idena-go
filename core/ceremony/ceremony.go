@@ -61,7 +61,6 @@ type ValidationCeremony struct {
 	shortSessionStarted      bool
 	shardCandidates          map[common.ShardId]*candidatesOfShard
 	candidateIndexes         map[common.Address]int
-	nonCandidates            []common.Address
 	mutex                    sync.Mutex
 	epochDb                  *database.EpochDb
 	qualification            *qualification
@@ -81,7 +80,6 @@ type ValidationCeremony struct {
 	shardLotteries           map[common.ShardId]*shardAuthors
 	newTxQueue               chan *types.Transaction
 	lottery                  *lottery
-	flipsData                *flipsData
 	allFlipsIsLoading        bool
 }
 
@@ -94,7 +92,7 @@ type flipWordsInfo struct {
 type epochApplyingCache struct {
 	epochApplyingResult map[common.Address]cacheValue
 	validationFailed    bool
-	validationResults   *types.ValidationResults
+	validationResults   map[common.ShardId]*types.ValidationResults
 }
 
 type cacheValue struct {
@@ -110,16 +108,6 @@ type cacheValue struct {
 type lottery struct {
 	finished bool
 	wg       sync.WaitGroup
-}
-
-type flipsData struct {
-	allFlips               [][]byte
-	flipsPerAuthor         map[int][][]byte
-	flipAuthorMap          map[string]common.Address
-	shortFlipsPerCandidate [][]int
-	longFlipsPerCandidate  [][]int
-	shortFlipsToSolve      map[common.Address][][]byte
-	longFlipsToSolve       map[common.Address][][]byte
 }
 
 type blockHandler func(block *types.Block)
@@ -145,10 +133,6 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 		newTxQueue:         make(chan *types.Transaction, 10000),
 		flipWordsInfo:      &flipWordsInfo{pool: &sync.Map{}},
 		lottery:            &lottery{},
-		flipsData: &flipsData{
-			shortFlipsToSolve: make(map[common.Address][][]byte),
-			longFlipsToSolve:  make(map[common.Address][][]byte),
-		},
 	}
 
 	vc.blockHandlers = map[state.ValidationPeriod]blockHandler{
@@ -207,9 +191,14 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) isCandidate() bool {
+func (vc *ValidationCeremony) isParticipant() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
 	return state.IsCeremonyCandidate(identity)
+}
+
+func (vc *ValidationCeremony) isCandidate() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return identity.State == state.Candidate
 }
 
 func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState) bool {
@@ -220,12 +209,18 @@ func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState
 func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address, shardId common.ShardId) [][]byte {
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
-	if data, ok := vc.flipsData.shortFlipsToSolve[address]; ok {
+
+	shard, ok := vc.shardCandidates[shardId]
+	if !ok {
+		return nil
+	}
+
+	if data, ok := shard.shortFlipsToSolve[address]; ok {
 		return data
 	}
-	data := getFlipsToSolve(address, vc.shardCandidates[shardId].candidates, vc.flipsData.shortFlipsPerCandidate, vc.flipsData.allFlips)
+	data := getFlipsToSolve(address, shard.candidates, shard.shortFlipsPerCandidate, shard.flips)
 	if data != nil {
-		vc.flipsData.shortFlipsToSolve[address] = data
+		shard.shortFlipsToSolve[address] = data
 	}
 	return data
 }
@@ -233,12 +228,18 @@ func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address, shard
 func (vc *ValidationCeremony) GetLongFlipsToSolve(address common.Address, shardId common.ShardId) [][]byte {
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
-	if data, ok := vc.flipsData.longFlipsToSolve[address]; ok {
+
+	shard, ok := vc.shardCandidates[shardId]
+	if !ok {
+		return nil
+	}
+
+	if data, ok := shard.longFlipsToSolve[address]; ok {
 		return data
 	}
-	data := getFlipsToSolve(address, vc.shardCandidates[shardId].candidates, vc.flipsData.longFlipsPerCandidate, vc.flipsData.allFlips)
+	data := getFlipsToSolve(address, shard.candidates, shard.longFlipsPerCandidate, shard.flips)
 	if data != nil {
-		vc.flipsData.longFlipsToSolve[address] = data
+		shard.longFlipsToSolve[address] = data
 	}
 	return data
 }
@@ -364,10 +365,6 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.shardLotteries = nil
 	vc.flipWordsInfo = &flipWordsInfo{pool: &sync.Map{}}
 	vc.lottery = &lottery{}
-	vc.flipsData = &flipsData{
-		shortFlipsToSolve: make(map[common.Address][][]byte),
-		longFlipsToSolve:  make(map[common.Address][][]byte),
-	}
 	vc.allFlipsIsLoading = false
 }
 
@@ -486,7 +483,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		return
 	}
 
-	vc.shardCandidates, vc.nonCandidates = vc.getCandidatesAndFlips()
+	vc.shardCandidates = vc.getCandidatesAndFlips()
 
 	//cache indexes for fast searching
 	m := make(map[common.Address]int)
@@ -499,7 +496,11 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 
 	shortFlipsCount := int(common.ShortSessionFlipsCount() + common.ShortSessionExtraFlipsCount())
 	vc.shardLotteries = GetAuthorsDistribution(vc.shardCandidates, seed, shortFlipsCount)
-	vc.flipsData.shortFlipsPerCandidate, vc.flipsData.longFlipsPerCandidate = GetFlipsDistribution(len(vc.shardCandidates), vc.authorsPerCandidate, vc.flipsData.flipsPerAuthor, vc.flipsData.allFlips, seed, shortFlipsCount)
+
+	for shardId := range vc.shardCandidates {
+		shard := vc.shardCandidates[shardId]
+		shard.shortFlipsPerCandidate, shard.longFlipsPerCandidate = GetFlipsDistribution(len(shard.candidates), vc.shardLotteries[shardId].authorsPerCandidate, shard.flipsPerAuthor, shard.flips, seed, shortFlipsCount)
+	}
 
 	coinbase := vc.secStore.GetAddress()
 	shortToSolve := vc.GetShortFlipsToSolve(coinbase, vc.appState.State.ShardId(coinbase))
@@ -516,7 +517,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 
 	if len(vc.shardCandidates) == 1 && len(vc.shardCandidates[0].candidates) < 100 {
 		var addrs []string
-		for _, c := range vc.getCandidatesAddresses() {
+		for _, c := range vc.getCandidatesAddresses(0) {
 			addrs = append(addrs, c.Hex())
 		}
 		vc.logInfoWithInteraction("Ceremony candidates", "addresses", addrs)
@@ -618,17 +619,19 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() (map[common.ShardId]*candidatesOfShard, []common.Address) {
-	nonCandidates := make([]common.Address, 0)
+func (vc *ValidationCeremony) getCandidatesAndFlips() map[common.ShardId]*candidatesOfShard {
 
 	candidatesDistibution := make(map[common.ShardId]*candidatesOfShard)
 	shardsNum := vc.appState.State.ShardsNum()
 	for i := uint32(0); i < shardsNum; i++ {
 		candidatesDistibution[common.ShardId(i)] = &candidatesOfShard{
-			candidates:     make([]*candidate, 0),
-			flips:          make([][]byte, 0),
-			flipsPerAuthor: make(map[int][][]byte),
-			flipAuthorMap:  make(map[string]common.Address),
+			candidates:        make([]*candidate, 0),
+			flips:             make([][]byte, 0),
+			flipsPerAuthor:    make(map[int][][]byte),
+			flipAuthorMap:     make(map[string]common.Address),
+			longFlipsToSolve:  map[common.Address][][]byte{},
+			shortFlipsToSolve: map[common.Address][][]byte{},
+			nonCandidates:     make([]common.Address, 0),
 		}
 	}
 
@@ -663,21 +666,19 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() (map[common.ShardId]*candi
 			}
 			shard.candidates = append(shard.candidates, c)
 		} else {
-			nonCandidates = append(nonCandidates, addr)
+			shard.nonCandidates = append(shard.nonCandidates, addr)
 		}
 
 		return false
 	})
 
-	return candidatesDistibution, nonCandidates
+	return candidatesDistibution
 }
 
-func (vc *ValidationCeremony) getCandidatesAddresses() []common.Address {
+func (vc *ValidationCeremony) getCandidatesAddresses(shardId common.ShardId) []common.Address {
 	var result []common.Address
-	for _, shard := range vc.shardCandidates {
-		for _, p := range shard.candidates {
-			result = append(result, p.Address)
-		}
+	for _, p := range vc.shardCandidates[shardId].candidates {
+		result = append(result, p.Address)
 	}
 	return result
 }
@@ -731,7 +732,7 @@ func (vc *ValidationCeremony) delayedShortAnswersTxBroadcast() {
 }
 
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
-	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() {
+	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() {
 		return
 	}
 	answers := vc.epochDb.ReadOwnShortAnswersBits()
@@ -754,7 +755,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 }
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
-	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isCandidate() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent {
+	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent || vc.isCandidate() {
 		return
 	}
 
@@ -766,7 +767,7 @@ func (vc *ValidationCeremony) broadcastEvidenceMap() {
 
 	additional := vc.epochDb.GetConfirmedRespondents(shortSessionStart, shortSessionEnd)
 
-	candidates := vc.getCandidatesAddresses()
+	candidates := vc.getCandidatesAddresses(vc.chain.CoinbaseShard())
 
 	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional, vc.appState.State.GetRequiredFlips)
 
@@ -868,12 +869,13 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	return identitiesCount
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, authors *types.ValidationResults, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, results map[common.ShardId]*types.ValidationResults, failed bool) {
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
 	defer func() {
-		collector.SetValidation(statsCollector, vc.validationStats)
+		//TODO : modify collector to save stats by shards
+		//collector.SetValidation(statsCollector, vc.validationStats)
 	}()
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
@@ -889,117 +891,125 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		}
 	}
 
-	vc.validationStats = statsTypes.NewValidationStats()
-	stats := vc.validationStats
-	stats.FlipCids = vc.flipsData.allFlips
-	approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(), vc.epochDb.ReadEvidenceMaps())
-	approvedCandidatesSet := mapset.NewSet()
-	for _, item := range approvedCandidates {
-		approvedCandidatesSet.Add(item)
+	vc.validationStats = &statsTypes.ValidationStats{
+		Shards: map[common.ShardId]*statsTypes.ValidationShardStats{},
 	}
-
-	totalFlipsCount := len(vc.flipsData.allFlips)
-
-	flipQualification, reportersToReward := vc.qualification.qualifyFlips(uint(totalFlipsCount), vc.shardCandidates, vc.flipsData.longFlipsPerCandidate)
-
-	flipQualificationMap := make(map[int]FlipQualification)
-	for i, item := range flipQualification {
-		flipQualificationMap[i] = item
-		stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
-			Status: byte(item.status),
-			Answer: item.answer,
-			Grade:  item.grade,
-		}
-	}
-	var flipsByAuthor map[common.Address][]int
-	validationResults := new(types.ValidationResults)
-	validationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
-	validationResults.BadAuthors,
-		validationResults.GoodAuthors,
-		validationResults.AuthorResults,
-		flipsByAuthor,
-		reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward)
-
-	vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
-
-	notApprovedFlips := vc.getNotApprovedFlips(approvedCandidatesSet)
-
-	god := appState.State.GodAddress()
 
 	intermediateIdentitiesCount := 0
 	epochApplyingValues := make(map[common.Address]cacheValue)
+	validationResults := map[common.ShardId]*types.ValidationResults{}
+	god := appState.State.GodAddress()
 
-	for idx, candidate := range vc.shardCandidates {
-		addr := candidate.Address
-		var totalFlips uint32
-		var shortScore, longScore, totalScore float32
-		shortFlipsToSolve := vc.flipsData.shortFlipsPerCandidate[idx]
-		shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort, noAnswersShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
-		addFlipAnswersToStats(shortFlipAnswers, true, stats)
-
-		longFlipsToSolve := vc.flipsData.longFlipsPerCandidate[idx]
-		longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong, noAnswersLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
-		addFlipAnswersToStats(longFlipAnswers, false, stats)
-
-		totalFlipPoints := appState.State.GetShortFlipPoints(addr)
-		totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
-		approved := approvedCandidatesSet.Contains(addr)
-		missed := !approved || noAnswersShort || noAnswersLong
-
-		if shortQualifiedFlipsCount > 0 {
-			shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
-		}
-		if !approved {
-			shortQualifiedFlipsCount, shortFlipPoint, shortScore = 0, 0, 0
-		}
-		if longQualifiedFlipsCount > 0 {
-			longScore = longFlipPoint / float32(longQualifiedFlipsCount)
+	for shardId := range vc.shardCandidates {
+		shard := vc.shardCandidates[shardId]
+		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
+		stats := vc.validationStats.Shards[shardId]
+		stats.FlipCids = shard.flips
+		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.epochDb.ReadEvidenceMaps())
+		approvedCandidatesSet := mapset.NewSet()
+		for _, item := range approvedCandidates {
+			approvedCandidatesSet.Add(item)
 		}
 
-		totalScore, totalFlips = calculateNewTotalScore(appState.State.GetScores(addr), shortFlipPoint, shortQualifiedFlipsCount, totalFlipPoints, totalQualifiedFlipsCount)
+		totalFlipsCount := len(shard.flips)
 
-		identity := appState.State.GetIdentity(addr)
-		newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-			totalFlips, missed, noQualShort, noQualLong)
-		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
+		flipQualification, reportersToReward := vc.qualification.qualifyFlips(uint(totalFlipsCount), shard.candidates, shard.longFlipsPerCandidate)
 
-		incSuccessfulInvites(validationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
-		setValidationResultToGoodAuthor(addr, newIdentityState, missed, validationResults)
-		setValidationResultToGoodInviter(validationResults, addr, newIdentityState, identity.Invites)
-		reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor)
-
-		value := cacheValue{
-			state:                    newIdentityState,
-			prevState:                identity.State,
-			shortQualifiedFlipsCount: shortQualifiedFlipsCount,
-			shortFlipPoint:           shortFlipPoint,
-			birthday:                 identityBirthday,
-			missed:                   missed,
-			delegatee:                identity.Delegatee,
+		flipQualificationMap := make(map[int]FlipQualification)
+		for i, item := range flipQualification {
+			flipQualificationMap[i] = item
+			stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
+				Status: byte(item.status),
+				Answer: item.answer,
+				Grade:  item.grade,
+			}
 		}
+		var flipsByAuthor map[common.Address][]int
 
-		epochApplyingValues[addr] = value
+		shardValidationResults := new(types.ValidationResults)
+		shardValidationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
+		shardValidationResults.BadAuthors,
+			shardValidationResults.GoodAuthors,
+			shardValidationResults.AuthorResults,
+			flipsByAuthor,
+			reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward, shardId)
 
-		stats.IdentitiesPerAddr[addr] = &statsTypes.IdentityStats{
-			ShortPoint:        shortFlipPoint,
-			ShortFlips:        shortQualifiedFlipsCount,
-			LongPoint:         longFlipPoint,
-			LongFlips:         longQualifiedFlipsCount,
-			Approved:          approved,
-			Missed:            missed,
-			ShortFlipsToSolve: shortFlipsToSolve,
-			LongFlipsToSolve:  longFlipsToSolve,
+		vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
+
+		notApprovedFlips := vc.getNotApprovedFlips(approvedCandidatesSet, shardId)
+
+		for idx, candidate := range shard.candidates {
+			addr := candidate.Address
+			var totalFlips uint32
+			var shortScore, longScore, totalScore float32
+			shortFlipsToSolve := shard.shortFlipsPerCandidate[idx]
+			shortFlipPoint, shortQualifiedFlipsCount, shortFlipAnswers, noQualShort, noAnswersShort := vc.qualification.qualifyCandidate(addr, flipQualificationMap, shortFlipsToSolve, true, notApprovedFlips)
+			addFlipAnswersToStats(shortFlipAnswers, true, stats)
+
+			longFlipsToSolve := shard.longFlipsPerCandidate[idx]
+			longFlipPoint, longQualifiedFlipsCount, longFlipAnswers, noQualLong, noAnswersLong := vc.qualification.qualifyCandidate(addr, flipQualificationMap, longFlipsToSolve, false, notApprovedFlips)
+			addFlipAnswersToStats(longFlipAnswers, false, stats)
+
+			totalFlipPoints := appState.State.GetShortFlipPoints(addr)
+			totalQualifiedFlipsCount := appState.State.GetQualifiedFlipsCount(addr)
+			approved := approvedCandidatesSet.Contains(addr)
+			missed := !approved || noAnswersShort || noAnswersLong
+
+			if shortQualifiedFlipsCount > 0 {
+				shortScore = shortFlipPoint / float32(shortQualifiedFlipsCount)
+			}
+			if !approved {
+				shortQualifiedFlipsCount, shortFlipPoint, shortScore = 0, 0, 0
+			}
+			if longQualifiedFlipsCount > 0 {
+				longScore = longFlipPoint / float32(longQualifiedFlipsCount)
+			}
+
+			totalScore, totalFlips = calculateNewTotalScore(appState.State.GetScores(addr), shortFlipPoint, shortQualifiedFlipsCount, totalFlipPoints, totalQualifiedFlipsCount)
+
+			identity := appState.State.GetIdentity(addr)
+			newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
+				totalFlips, missed, noQualShort, noQualLong)
+			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
+
+			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
+			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
+			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, identity.Invites)
+			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor)
+
+			value := cacheValue{
+				state:                    newIdentityState,
+				prevState:                identity.State,
+				shortQualifiedFlipsCount: shortQualifiedFlipsCount,
+				shortFlipPoint:           shortFlipPoint,
+				birthday:                 identityBirthday,
+				missed:                   missed,
+				delegatee:                identity.Delegatee,
+			}
+
+			epochApplyingValues[addr] = value
+
+			stats.IdentitiesPerAddr[addr] = &statsTypes.IdentityStats{
+				ShortPoint:        shortFlipPoint,
+				ShortFlips:        shortQualifiedFlipsCount,
+				LongPoint:         longFlipPoint,
+				LongFlips:         longQualifiedFlipsCount,
+				Approved:          approved,
+				Missed:            missed,
+				ShortFlipsToSolve: shortFlipsToSolve,
+				LongFlipsToSolve:  longFlipsToSolve,
+			}
+
+			if value.state.NewbieOrBetter() {
+				intermediateIdentitiesCount++
+			}
 		}
-
-		if value.state.NewbieOrBetter() {
-			intermediateIdentitiesCount++
-		}
+		shardValidationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
+		validationResults[shardId] = shardValidationResults
 	}
-	validationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
-
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
-		stats.Failed = true
+		vc.validationStats.Failed = true
 		vc.epochApplyingCache[height] = epochApplyingCache{
 			epochApplyingResult: epochApplyingValues,
 			validationResults:   validationResults,
@@ -1011,27 +1021,28 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for addr, value := range epochApplyingValues {
 		identitiesCount += applyOnState(appState, statsCollector, addr, value)
 	}
+	for shardId, shard := range vc.shardCandidates {
+		for _, addr := range shard.nonCandidates {
+			identity := appState.State.GetIdentity(addr)
+			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
+			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-	for _, addr := range vc.nonCandidates {
-		identity := appState.State.GetIdentity(addr)
-		newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
-		identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
-
-		if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
-			if goodInviter, ok := validationResults.GoodInviters[identity.Inviter.Address]; ok {
-				goodInviter.SavedInvites += 1
+			if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
+				if goodInviter, ok := validationResults[shardId].GoodInviters[identity.Inviter.Address]; ok {
+					goodInviter.SavedInvites += 1
+				}
 			}
-		}
 
-		value := cacheValue{
-			state:                    newIdentityState,
-			shortQualifiedFlipsCount: 0,
-			shortFlipPoint:           0,
-			birthday:                 identityBirthday,
-			delegatee:                identity.Delegatee,
+			value := cacheValue{
+				state:                    newIdentityState,
+				shortQualifiedFlipsCount: 0,
+				shortFlipPoint:           0,
+				birthday:                 identityBirthday,
+				delegatee:                identity.Delegatee,
+			}
+			epochApplyingValues[addr] = value
+			identitiesCount += applyOnState(appState, statsCollector, addr, value)
 		}
-		epochApplyingValues[addr] = value
-		identitiesCount += applyOnState(appState, statsCollector, addr, value)
 	}
 
 	vc.epochApplyingCache[height] = epochApplyingCache{
@@ -1110,7 +1121,7 @@ func getOrPutGoodInviter(validationResults *types.ValidationResults, address com
 	return inviter, true
 }
 
-func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification, reportersToReward *reportersToReward) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults, madeFlips map[common.Address][]int, filteredReportersToReward *reportersToReward) {
+func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification, reportersToReward *reportersToReward, shardId common.ShardId) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults, madeFlips map[common.Address][]int, filteredReportersToReward *reportersToReward) {
 
 	badAuthors = make(map[common.Address]types.BadAuthorReason)
 	goodAuthors = make(map[common.Address]*types.ValidationResult)
@@ -1119,10 +1130,10 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 
 	badAuthorsWithoutReport := make(map[common.Address]struct{})
 	nonQualifiedFlips := make(map[common.Address]int)
-
+	shard := vc.shardCandidates[shardId]
 	for flipIdx, item := range qualifications {
-		cid := vc.flipsData.allFlips[flipIdx]
-		author := vc.flipsData.flipAuthorMap[string(cid)]
+		cid := shard.flips[flipIdx]
+		author := shard.flipAuthorMap[string(cid)]
 		madeFlips[author] = append(madeFlips[author], flipIdx)
 		if _, ok := authorResults[author]; !ok {
 			authorResults[author] = new(types.AuthorResults)
@@ -1180,7 +1191,7 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 	return badAuthors, goodAuthors, authorResults, madeFlips, reportersToReward
 }
 
-func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort bool, stats *statsTypes.ValidationStats) {
+func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort bool, stats *statsTypes.ValidationShardStats) {
 	for flipIdx, answer := range answers {
 		flipStats, _ := stats.FlipsPerIdx[flipIdx]
 		if isShort {
@@ -1191,13 +1202,14 @@ func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort b
 	}
 }
 
-func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set) mapset.Set {
+func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set, shardId common.ShardId) mapset.Set {
 	result := mapset.NewSet()
-	for i, c := range vc.shardCandidates {
+	shard := vc.shardCandidates[shardId]
+	for i, c := range shard.candidates {
 		addr := c.Address
 		if !approvedCandidates.Contains(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
-			for _, f := range vc.flipsData.flipsPerAuthor[i] {
-				flipIdx := flipPos(vc.flipsData.allFlips, f)
+			for _, f := range shard.flipsPerAuthor[i] {
+				flipIdx := flipPos(shard.flips, f)
 				result.Add(flipIdx)
 			}
 		}
@@ -1372,12 +1384,18 @@ func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 }
 
 func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err error) {
-	if vc.flipsData.flipAuthorMap == nil {
-		return 0, 0, errors.New("flip author not found")
-	}
 
-	author, ok := vc.flipsData.flipAuthorMap[string(cid)]
-	if !ok {
+	var author common.Address
+	var ok bool
+	for _, shard := range vc.shardCandidates {
+		if shard.flipAuthorMap != nil {
+			author, ok = shard.flipAuthorMap[string(cid)]
+			if ok {
+				break
+			}
+		}
+	}
+	if author.IsEmpty() {
 		return 0, 0, errors.New("flip author not found")
 	}
 
@@ -1457,7 +1475,9 @@ func (vc *ValidationCeremony) GetFlipKeys(addr common.Address, cidBytes []byte) 
 	if !vc.lottery.finished {
 		return nil, nil, errors.New("data is not ready")
 	}
-	author, ok := vc.flipsData.flipAuthorMap[string(cidBytes)]
+	shardId := vc.appState.State.ShardId(addr)
+
+	author, ok := vc.shardCandidates[shardId].flipAuthorMap[string(cidBytes)]
 	if !ok {
 		return nil, nil, errors.New("bad flip")
 	}
@@ -1552,14 +1572,16 @@ func (vc *ValidationCeremony) PrivateEncryptionKeyCandidates(addr common.Address
 		return nil, errors.Errorf("address %v does not have candidates", addr.String())
 	}
 
-	candidateIndexes, ok := vc.candidatesPerAuthor[index]
+	shardId := vc.appState.State.ShardId(addr)
+
+	candidateIndexes, ok := vc.shardLotteries[shardId].candidatesPerAuthor[index]
 	if !ok {
 		return nil, errors.Errorf("address %v does not have candidates", addr.String())
 	}
 
 	var pubKeys [][]byte
 	for _, item := range candidateIndexes {
-		candidate := vc.shardCandidates[item]
+		candidate := vc.shardCandidates[shardId].candidates[item]
 		pubKeys = append(pubKeys, candidate.PubKey)
 	}
 
@@ -1576,7 +1598,8 @@ func (vc *ValidationCeremony) IsValidationReady() bool {
 func (vc *ValidationCeremony) getPrivateKeyPackageIndex(addr common.Address, author common.Address) int {
 	addrIndex := vc.getCandidateIndex(addr)
 	authorIndex := vc.getCandidateIndex(author)
-	authorCandidates := vc.candidatesPerAuthor[authorIndex]
+	shardId := vc.appState.State.ShardId(addr)
+	authorCandidates := vc.shardLotteries[shardId].candidatesPerAuthor[authorIndex]
 
 	for idx, item := range authorCandidates {
 		if item == addrIndex {

@@ -16,6 +16,14 @@ type candidatesOfShard struct {
 	flips          [][]byte
 	flipsPerAuthor map[int][][]byte
 	flipAuthorMap  map[string]common.Address
+
+	nonCandidates []common.Address
+
+	shortFlipsPerCandidate [][]int
+	longFlipsPerCandidate  [][]int
+
+	shortFlipsToSolve map[common.Address][][]byte
+	longFlipsToSolve  map[common.Address][][]byte
 }
 
 type FlipStatus byte
