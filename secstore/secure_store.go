@@ -9,11 +9,16 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/idena-network/idena-go/log"
+	"github.com/pkg/errors"
 	"os"
+	"sync"
 )
 
 type SecStore struct {
-	buffer *memguard.LockedBuffer
+	buffer                *memguard.LockedBuffer
+	externalKeysMutes     sync.Mutex
+	externalBuffersByAddr map[common.Address]*memguard.LockedBuffer
 }
 
 func NewSecStore() *SecStore {
@@ -28,6 +33,48 @@ func NewSecStore() *SecStore {
 func (s *SecStore) AddKey(secret []byte) {
 	buffer := memguard.NewBufferFromBytes(secret)
 	s.buffer = buffer
+}
+
+func (s *SecStore) AddExternalKey(secret []byte) error {
+	s.externalKeysMutes.Lock()
+	defer s.externalKeysMutes.Unlock()
+
+	if s.externalBuffersByAddr == nil {
+		s.externalBuffersByAddr = make(map[common.Address]*memguard.LockedBuffer)
+	}
+	buffer := memguard.NewBufferFromBytes(secret)
+	privateKey, err := crypto.ToECDSA(buffer.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to get private key")
+	}
+	addr := crypto.PubkeyToAddress(privateKey.PublicKey)
+	s.externalBuffersByAddr[addr] = buffer
+	log.Info(fmt.Sprintf("Added external key for address %v", addr.Hex()))
+	return nil
+}
+
+func (s *SecStore) ClearExternalKeys() {
+	s.externalKeysMutes.Lock()
+	defer s.externalKeysMutes.Unlock()
+
+	if s.externalBuffersByAddr == nil {
+		return
+	}
+	for _, buffer := range s.externalBuffersByAddr {
+		buffer.Destroy()
+	}
+	s.externalBuffersByAddr = nil
+}
+
+func (s *SecStore) GetExternalAddresses() map[common.Address]struct{} {
+	s.externalKeysMutes.Lock()
+	defer s.externalKeysMutes.Unlock()
+
+	res := make(map[common.Address]struct{}, len(s.externalBuffersByAddr))
+	for addr := range s.externalBuffersByAddr {
+		res[addr] = struct{}{}
+	}
+	return res
 }
 
 func (s *SecStore) SignTx(tx *types.Transaction) (*types.Transaction, error) {
@@ -74,6 +121,7 @@ func (s *SecStore) Destroy() {
 	if s.buffer != nil {
 		s.buffer.Destroy()
 	}
+	s.ClearExternalKeys()
 }
 
 func (s *SecStore) ExportKey(password string) (string, error) {
@@ -87,5 +135,10 @@ func (s *SecStore) ExportKey(password string) (string, error) {
 
 func (s *SecStore) DecryptMessage(data []byte) ([]byte, error) {
 	sec, _ := crypto.ToECDSA(s.buffer.Bytes())
+	return ecies.ImportECDSA(sec).Decrypt(data, nil, nil)
+}
+
+func (s *SecStore) DecryptExternalMessage(data []byte, address common.Address) ([]byte, error) {
+	sec, _ := crypto.ToECDSA(s.externalBuffersByAddr[address].Bytes())
 	return ecies.ImportECDSA(sec).Decrypt(data, nil, nil)
 }
