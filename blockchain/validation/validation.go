@@ -501,8 +501,12 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if appState.State.ValidationPeriod() < state.LongSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
-	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
+	identity := appState.State.GetIdentity(sender)
+	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
+	}
+	if appCfg.Consensus.EnableValidationSharding && identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 {
+		return InvalidSender
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
 		return err
