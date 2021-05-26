@@ -210,7 +210,26 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 
 	addresses := make([]common.Hash, 0)
 	totalWeight := float32(0)
+
+	type inviterWrapper struct {
+		address common.Address
+		inviter *types.InviterValidationResult
+	}
+	addInviter := func(data []inviterWrapper, elem inviterWrapper) []inviterWrapper {
+		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
+		data = append(data, inviterWrapper{})
+		copy(data[index+1:], data[index:])
+		data[index] = elem
+		return data
+	}
+	goodInviters := make([]inviterWrapper, 0, len(validationResults.GoodInviters))
 	for addr, inviter := range validationResults.GoodInviters {
+		goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+	}
+
+	for _, inviterWrapper := range goodInviters {
+		inviter := inviterWrapper.inviter
+		addr := inviterWrapper.address
 		if !inviter.PayInvitationReward {
 			continue
 		}
@@ -259,7 +278,9 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
-	for addr, inviter := range validationResults.GoodInviters {
+	for _, inviterWrapper := range goodInviters {
+		inviter := inviterWrapper.inviter
+		addr := inviterWrapper.address
 		if !inviter.PayInvitationReward {
 			continue
 		}
