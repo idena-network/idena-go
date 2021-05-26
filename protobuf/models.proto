@@ -376,6 +376,7 @@ message ProtoStateIdentity {
     bytes delegatee = 19;
     uint32 delegationNonce = 20;
     uint32 delegationEpoch = 21;
+    uint32 shardId = 22;
 }
 
 message ProtoStateGlobal {
@@ -392,6 +393,7 @@ message ProtoStateGlobal {
     uint32 godAddressInvites = 11;
     uint32 blocksCntWithoutCeremonialTxs = 12;
     repeated uint64 prevEpochBlocks = 13;
+    uint32 shardsNum = 14;
 }
 
 message ProtoStateApprovedIdentity {
@@ -432,6 +434,7 @@ message ProtoPredefinedState {
         uint32 godAddressInvites = 11;
         uint32 blocksCntWithoutCeremonialTxs = 12;
         repeated uint64 prevEpochBlocks = 13;
+        uint32 shardsNum = 14;
     }
 
     message StatusSwitch {
@@ -490,6 +493,7 @@ message ProtoPredefinedState {
         bytes delegatee = 20;
         uint32 delegationNonce = 21;
         uint32 delegationEpoch = 22;
+        uint32 shardId = 23;
     }
 
     message ApprovedIdentity {

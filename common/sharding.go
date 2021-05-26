@@ -1,20 +1,23 @@
 package common
 
-const minShardSize = 1400
-const maxShardSize = 3000
+const MinShardSize = 2200
+const MaxShardSize = 4600
 
-func CalculateShardsNumber(networkSize, currentShardsNum int) int {
-	for {
-		shouldRemoveShards := networkSize <= minShardSize*currentShardsNum
-		shouldAddShards := networkSize >= maxShardSize*currentShardsNum
-		if !shouldAddShards && !shouldRemoveShards || shouldRemoveShards && currentShardsNum == 1 {
+func CalculateShardsNumber(minShardSize, maxShardSize, networkSize, currentShardsNum int) int {
+	shouldRemoveShards := networkSize <= minShardSize*currentShardsNum
+	shouldAddShards := networkSize >= maxShardSize*currentShardsNum
+
+	for shouldAddShards {
+		currentShardsNum *= 2
+		if networkSize < maxShardSize*currentShardsNum {
 			return currentShardsNum
 		}
-		if shouldAddShards {
-			currentShardsNum *= 2
-		}
-		if shouldRemoveShards {
-			currentShardsNum /= 2
+	}
+	for shouldRemoveShards && currentShardsNum > 1 {
+		currentShardsNum /= 2
+		if networkSize > minShardSize*currentShardsNum || currentShardsNum == 1 {
+			return currentShardsNum
 		}
 	}
+	return currentShardsNum
 }

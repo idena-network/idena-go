@@ -756,7 +756,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent ||
-		(vc.isCandidate() &&  vc.appState.ValidatorsCache.NetworkSize() != 0) {
+		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) {
 		return
 	}
 
@@ -900,7 +900,6 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	epochApplyingValues := make(map[common.Address]cacheValue)
 	validationResults := map[common.ShardId]*types.ValidationResults{}
 	god := appState.State.GodAddress()
-
 	for shardId := range vc.shardCandidates {
 		shard := vc.shardCandidates[shardId]
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
@@ -929,13 +928,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		shardValidationResults := new(types.ValidationResults)
 		shardValidationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
-		shardValidationResults.BadAuthors,
-			shardValidationResults.GoodAuthors,
-			shardValidationResults.AuthorResults,
-			flipsByAuthor,
-			reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward, shardId)
+		shardValidationResults.BadAuthors, shardValidationResults.GoodAuthors, shardValidationResults.AuthorResults, flipsByAuthor, reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward, shardId)
 
-		vc.logInfoWithInteraction("Approved candidates", "cnt", len(approvedCandidates))
+		vc.logInfoWithInteraction("Approved candidates", "shardId", shardId, "cnt", len(approvedCandidates))
 
 		notApprovedFlips := vc.getNotApprovedFlips(approvedCandidatesSet, shardId)
 

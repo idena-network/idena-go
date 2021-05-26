@@ -53,40 +53,42 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.Commit(nil)
 
-	validationResults := types.ValidationResults{
-		BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
-		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},
-			auth2:  {NewIdentityState: uint8(state.Newbie)},
-			auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeC}, {[]byte{0x1}, types.GradeD}}, NewIdentityState: uint8(state.Verified)},
-			failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
-		},
-		GoodInviters: map[common.Address]*types.InviterValidationResult{
-			auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
-			auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
-			auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
-			auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
-			failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
-			god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
-		},
-		ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
-			100: {
-				reporter: &types.Candidate{
-					Address:          reporter,
-					NewIdentityState: uint8(state.Newbie),
-				},
-				auth3: &types.Candidate{
-					Address:          auth3,
-					NewIdentityState: uint8(state.Verified),
-				},
+	validationResults := map[common.ShardId]*types.ValidationResults{
+		0: {
+			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
+			GoodAuthors: map[common.Address]*types.ValidationResult{
+				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},
+				auth2:  {NewIdentityState: uint8(state.Newbie)},
+				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeC}, {[]byte{0x1}, types.GradeD}}, NewIdentityState: uint8(state.Verified)},
+				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
 			},
-			150: {
-				reporter: &types.Candidate{
-					Address:          reporter,
-					NewIdentityState: uint8(state.Newbie),
-				},
+			GoodInviters: map[common.Address]*types.InviterValidationResult{
+				auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
+				auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
+				auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
+				auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
+				failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
+				god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
 			},
-			151: {},
+			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
+				100: {
+					reporter: &types.Candidate{
+						Address:          reporter,
+						NewIdentityState: uint8(state.Newbie),
+					},
+					auth3: &types.Candidate{
+						Address:          auth3,
+						NewIdentityState: uint8(state.Verified),
+					},
+				},
+				150: {
+					reporter: &types.Candidate{
+						Address:          reporter,
+						NewIdentityState: uint8(state.Newbie),
+					},
+				},
+				151: {},
+			},
 		},
 	}
 	appState.State.SetState(auth1, state.Verified)
@@ -104,7 +106,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
+	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
 
 	appState.Commit(nil)
 

@@ -1598,6 +1598,14 @@ func (s *StateDB) ShardsNum() uint32 {
 	return num
 }
 
+func (s *StateDB) SetShardId(addr common.Address, shardId common.ShardId) {
+	s.GetOrNewIdentityObject(addr).SetShardId(shardId)
+}
+
+func (s *StateDB) SetShardsNum(num uint32) {
+	s.GetOrNewGlobalObject().SetShardsNum(num)
+}
+
 type readCloser struct {
 	r io.Reader
 }

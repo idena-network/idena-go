@@ -1,11 +1,13 @@
 package common
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 func TestCalculateShardsNumber(t *testing.T) {
+
 	cases := []struct {
 		network       int
 		currentShards int
@@ -17,12 +19,12 @@ func TestCalculateShardsNumber(t *testing.T) {
 			expected:      1,
 		},
 		{
-			network:       3000,
+			network:       3001,
 			currentShards: 1,
 			expected:      2,
 		},
 		{
-			network:       3000,
+			network:       3010,
 			currentShards: 2,
 			expected:      2,
 		},
@@ -56,9 +58,19 @@ func TestCalculateShardsNumber(t *testing.T) {
 			currentShards: 16,
 			expected:      1,
 		},
+		{
+			network: 2800,
+			currentShards: 2,
+			expected: 1,
+		},
+		{
+			network: 2801,
+			currentShards: 2,
+			expected: 2,
+		},
 	}
 
-	for _, c := range cases {
-		require.Equal(t, c.expected, CalculateShardsNumber(c.network, c.currentShards))
+	for idx, c := range cases {
+		require.Equal(t, c.expected, CalculateShardsNumber(1400, 3000, c.network, c.currentShards), fmt.Sprintf("error in %v case", idx))
 	}
 }
