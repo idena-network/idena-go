@@ -562,8 +562,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	networkSize, validationResults, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
-
+	totalNewbies, totalVerified, newbiesByShard, verifiedByShard := setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -576,6 +575,9 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		}
 		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, block.Seed(),
 			statsCollector)
+		if chain.config.Consensus.EnableValidationSharding {
+			balanceShards(appState, networkSize, totalNewbies, totalVerified, newbiesByShard, verifiedByShard)
+		}
 	}
 
 	clearDustAccounts(appState, networkSize, statsCollector)
@@ -676,8 +678,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
-	validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -690,6 +691,11 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 		copy(identitiesWithInvites[index+1:], identitiesWithInvites[index:])
 		identitiesWithInvites[index] = elem
 	}
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+
+	var totalNewbies, totalVerified int
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
@@ -707,12 +713,16 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				if identity.Delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
 				}
+				verifiedByShard[identity.ShardId]++
+				totalVerified++
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
 				if identity.Delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
 				}
+				newbiesByShard[identity.ShardId]++
+				totalNewbies++
 			case state.Killed, state.Undefined:
 				removeLinksWithInviterAndInvitees(appState.State, addr)
 				appState.State.SetRequiredFlips(addr, 0)
@@ -723,6 +733,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			}
 			appState.State.SetInvites(addr, 0)
 		}
+
 		collector.BeforeClearPenalty(statsCollector, addr, appState)
 		collector.BeginEpochPenaltyResetBalanceUpdate(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
@@ -740,6 +751,89 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 	if !validationFailed {
 		setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
 	}
+	return totalNewbies, totalVerified, newbiesByShard, verifiedByShard
+}
+
+func balanceShards(appState *appstate.AppState, networkSize, totalNewbies, totalVerified int, newbiesByShard, verifiedByShard map[common.ShardId]int) {
+	prevShardsNum := appState.State.ShardsNum()
+	newShardsNum := common.CalculateShardsNumber(common.MinShardSize, common.MaxShardSize, networkSize, int(prevShardsNum))
+
+	for i := uint32(0); i < prevShardsNum; i++ {
+		log.Info("Shard distribution before balancing","shardId", i, "newbies", newbiesByShard[common.ShardId(i)], "verified,human", verifiedByShard[common.ShardId(i)])
+	}
+
+	desiredNewbiesInShard := totalNewbies / newShardsNum
+	desiredVerifiedInShard := totalVerified / newShardsNum
+
+	var verifiedForRelocation []common.Address
+	var newbiesForRelocation []common.Address
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		switch identity.State {
+		case state.Verified, state.Human:
+			if verifiedByShard[identity.ShardId] > desiredVerifiedInShard || identity.ShardId >= common.ShardId(newShardsNum) {
+				verifiedForRelocation = append(verifiedForRelocation, addr)
+				verifiedByShard[identity.ShardId]--
+			}
+		case state.Newbie:
+			if newbiesByShard[identity.ShardId] > desiredNewbiesInShard || identity.ShardId >= common.ShardId(newShardsNum) {
+				newbiesForRelocation = append(newbiesForRelocation, addr)
+				newbiesByShard[identity.ShardId]--
+			}
+		}
+	})
+
+	rnd := rand.New(rand.NewSource(int64(networkSize)))
+	shuffledVerifiedIndexes := rnd.Perm(len(verifiedForRelocation))
+	shuffledNewbiesIndexes := rnd.Perm(len(newbiesForRelocation))
+
+	verifiedIdx := 0
+	newbiesIdx := 0
+
+	for shardId := common.ShardId(0); shardId < common.ShardId(newShardsNum); shardId++ {
+		for verifiedByShard[shardId] < desiredVerifiedInShard && verifiedIdx < len(shuffledVerifiedIndexes) {
+			addr := verifiedForRelocation[shuffledVerifiedIndexes[verifiedIdx]]
+			appState.State.SetShardId(addr, shardId)
+			verifiedIdx++
+			verifiedByShard[shardId]++
+		}
+
+		for newbiesByShard[shardId] < desiredNewbiesInShard && newbiesIdx < len(shuffledNewbiesIndexes) {
+			addr := newbiesForRelocation[shuffledNewbiesIndexes[newbiesIdx]]
+			appState.State.SetShardId(addr, shardId)
+			newbiesIdx++
+			newbiesByShard[shardId]++
+		}
+	}
+	shardId := common.ShardId(0)
+	for verifiedIdx < len(shuffledVerifiedIndexes) {
+		addr := verifiedForRelocation[shuffledVerifiedIndexes[verifiedIdx]]
+		appState.State.SetShardId(addr, shardId)
+		verifiedByShard[shardId]++
+		shardId++
+		if shardId >= common.ShardId(newShardsNum) {
+			shardId = 0
+		}
+		verifiedIdx++
+	}
+	for newbiesIdx < len(shuffledNewbiesIndexes) {
+		addr := newbiesForRelocation[shuffledNewbiesIndexes[newbiesIdx]]
+		appState.State.SetShardId(addr, shardId)
+		newbiesByShard[shardId]++
+		shardId++
+		if shardId >= common.ShardId(newShardsNum) {
+			shardId = 0
+		}
+		newbiesIdx++
+	}
+
+	for i := 0; i < newShardsNum; i++ {
+		log.Info("Shard distribution after balancing", "shardId", i, "newbies", newbiesByShard[common.ShardId(i)], "verified,human", verifiedByShard[common.ShardId(i)])
+	}
+
+	appState.State.SetShardsNum(uint32(newShardsNum))
+
+	log.Info("Sharding info", "prev shards count", prevShardsNum, "new shards count", newShardsNum)
 }
 
 func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollector collector.StatsCollector) {

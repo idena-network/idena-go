@@ -231,9 +231,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		data[index] = elem
 		return data
 	}
-	goodInviters := make([]inviterWrapper, 0, len(validationResults.GoodInviters))
-	for addr, inviter := range validationResults.GoodInviters {
-		goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+	goodInviters := make([]inviterWrapper, 0)
+
+	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+		if shard, ok := validationResults[common.ShardId(i)]; ok {
+			for addr, inviter := range shard.GoodInviters {
+				goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+			}
+		}
 	}
 
 	for _, inviterWrapper := range goodInviters {

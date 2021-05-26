@@ -224,6 +224,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		EmptyBlocksBits:               common.BigIntBytesOrNil(s.EmptyBlocksBits),
 		GodAddressInvites:             uint32(s.GodAddressInvites),
 		BlocksCntWithoutCeremonialTxs: uint32(s.BlocksCntWithoutCeremonialTxs),
+		ShardsNum:                     s.ShardsNum,
 	}
 	return proto.Marshal(protoAnswer)
 }
@@ -247,6 +248,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
 	s.BlocksCntWithoutCeremonialTxs = byte(protoGlobal.BlocksCntWithoutCeremonialTxs)
+	s.ShardsNum = protoGlobal.ShardsNum
 	return nil
 }
 
@@ -367,6 +369,7 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		Scores:           i.Scores,
 		DelegationNonce:  i.DelegationNonce,
 		DelegationEpoch:  uint32(i.DelegationEpoch),
+		ShardId:          uint32(i.ShardId),
 	}
 	if i.Delegatee != nil {
 		protoIdentity.Delegatee = i.Delegatee.Bytes()
@@ -415,6 +418,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.Scores = protoIdentity.Scores
 	i.DelegationEpoch = uint16(protoIdentity.DelegationEpoch)
 	i.DelegationNonce = protoIdentity.DelegationNonce
+	i.ShardId = common.ShardId(protoIdentity.ShardId)
 	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
 			Cid:  protoIdentity.Flips[idx].Cid,
@@ -961,6 +965,11 @@ func (s *stateIdentity) ShardId() common.ShardId {
 	return s.data.ShardId
 }
 
+func (s *stateIdentity) SetShardId(id common.ShardId) {
+	s.data.ShardId = id
+	s.touch()
+}
+
 func (s *stateGlobal) Epoch() uint16 {
 	return s.data.Epoch
 }
@@ -1133,6 +1142,11 @@ func (s *stateGlobal) ResetBlocksCntWithoutCeremonialTxs() {
 
 func (s *stateGlobal) ShardsNum() uint32 {
 	return s.data.ShardsNum
+}
+
+func (s *stateGlobal) SetShardsNum(num uint32) {
+	s.data.ShardsNum = num
+	s.touch()
 }
 
 func (s *stateApprovedIdentity) Address() common.Address {
