@@ -283,6 +283,8 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		addr := inviterWrapper.address
 		if !inviter.PayInvitationReward {
 			continue
+		} else {
+		   break
 		}
 		isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
 		for _, successfulInvite := range inviter.SuccessfulInvites {
