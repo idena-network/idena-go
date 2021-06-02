@@ -496,6 +496,12 @@ func (diff *IdentityStateDiff) ToProto() *models.ProtoIdentityStateDiff {
 	return protoDiff
 }
 
+type StateTreeDiff struct {
+	Key     []byte
+	Value   []byte
+	Deleted bool
+}
+
 func (diff *IdentityStateDiff) ToBytes() ([]byte, error) {
 	return proto.Marshal(diff.ToProto())
 }

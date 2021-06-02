@@ -75,7 +75,7 @@ func (d *nextBlockDetector) nextBlockExist(round uint64, emptyBlockHash common.H
 				return true
 			}
 		} else {
-			if d.chain.ValidateBlock(bundle.Block, nil) == nil {
+			if _, _, _, err := d.chain.ValidateBlock(bundle.Block, nil); err == nil {
 				d.activeSeeking = nil
 				return true
 			}
