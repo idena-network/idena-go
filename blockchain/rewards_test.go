@@ -85,11 +85,11 @@ func Test_rewardValidIdentities(t *testing.T) {
 					reporter: &types.Candidate{
 						Address:          reporter,
 						NewIdentityState: uint8(state.Newbie),
+							},
+						},
+						151: {},
 					},
 				},
-				151: {},
-			},
-		},
 	}
 	appState.State.SetState(auth1, state.Verified)
 	appState.State.SetBirthday(auth1, 2)
@@ -124,7 +124,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
 
-	require.True(t, reward.Cmp(appState.State.GetBalance(poolOfAuth1)) == 0)
+	require.Equal(t, reward.String(), appState.State.GetBalance(poolOfAuth1).String())
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
 	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))

@@ -107,8 +107,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 
 	totalWeight := float32(0)
 
-	for _, validationResult := range validationResults {
-
+	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[0]
+		if !ok {
+			continue
+		}
 		for _, author := range validationResult.GoodAuthors {
 			if author.Missed {
 				continue
@@ -131,7 +134,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalWeight))
 	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
-	for _, validationResult := range validationResults {
+	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[0]
+		if !ok {
+			continue
+		}
 
 		for addr, author := range validationResult.GoodAuthors {
 			if author.Missed {
@@ -157,7 +164,11 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			collector.AfterAddStake(statsCollector, addr, stake, appState)
 		}
 	}
-	for _, validationResult := range validationResults {
+	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[0]
+		if !ok {
+			continue
+		}
 		for flipIdx, reporters := range validationResult.ReportersToRewardByFlip {
 			if len(reporters) == 0 {
 				continue
@@ -254,14 +265,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			for i := uint8(0); i < inviter.SavedInvites; i++ {
 				addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
 			}
-			for _, successfulInvite := range inviter.SuccessfulInvites {
-				totalWeight += getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config)
-			}
-			if !config.DisableSavedInviteRewards {
-				for i := uint8(0); i < inviter.SavedInvites; i++ {
-					addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
-				}
-			}
 		}
 	}
 
@@ -311,13 +314,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			if weight := getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
 				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
-			}
-			isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
-			for _, successfulInvite := range inviter.SuccessfulInvites {
-				if weight := getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config); weight > 0 {
-					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-					addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
-				}
 			}
 			if !config.DisableSavedInviteRewards {
 				for i := uint8(0); i < inviter.SavedInvites; i++ {
