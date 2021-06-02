@@ -431,7 +431,13 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 
 	peer := newPeer(stream, h.cfg.MaxDelay, h.metrics)
 
-	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len())); err != nil {
+	ownShardId := common.MultiShard
+
+	if !h.cfg.Multishard {
+		ownShardId = h.bcn.CoinbaseShard()
+	}
+
+	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), ownShardId); err != nil {
 		current := semver.New(h.appVersion)
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)

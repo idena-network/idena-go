@@ -123,6 +123,7 @@ message ProtoHandshake {
 message ProtoMsg {
     uint64 code = 1;
     bytes payload = 2;
+    uint32 shardId = 3;
 }
 
 message ProtoIdentityStateDiff {
