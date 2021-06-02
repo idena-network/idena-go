@@ -25,10 +25,12 @@ type CeremonyChecker interface {
 type request struct {
 	msgcode uint64
 	data    interface{}
+	shardId common.ShardId
 }
 
 type Msg struct {
 	Code    uint64
+	ShardId common.ShardId
 	Payload []byte
 }
 
@@ -36,6 +38,7 @@ func (msg *Msg) ToBytes() ([]byte, error) {
 	protoMsg := &models.ProtoMsg{
 		Code:    msg.Code,
 		Payload: msg.Payload,
+		ShardId: uint32(msg.ShardId),
 	}
 	return proto.Marshal(protoMsg)
 }
@@ -47,6 +50,7 @@ func (msg *Msg) FromBytes(data []byte) error {
 	}
 	msg.Code = protoMsg.Code
 	msg.Payload = protoMsg.Payload
+	msg.ShardId = common.ShardId(protoMsg.ShardId)
 	return nil
 }
 
