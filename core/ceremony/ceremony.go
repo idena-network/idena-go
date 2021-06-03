@@ -837,12 +837,11 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 	appState.State.SetBirthday(addr, value.birthday)
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
-		//TODO :fix indexing
-		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, appState)
 		addTo := addr
 		if value.delegatee != nil {
 			addTo = *value.delegatee
 		}
+		collector.BeginVerifiedStakeTransferBalanceUpdate(statsCollector, addr, addTo, appState)
 		appState.State.AddBalance(addTo, addToBalance)
 		appState.State.SubStake(addr, addToBalance)
 		collector.CompleteBalanceUpdate(statsCollector, appState)

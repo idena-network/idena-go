@@ -99,6 +99,19 @@ func (v *ValidatorsCache) NetworkSize() int {
 	return v.nodesSet.Cardinality()
 }
 
+func (v *ValidatorsCache) ForkCommitteeSize() int {
+	v.mutex.Lock()
+	defer v.mutex.Unlock()
+
+	size := v.NetworkSize() - len(v.delegations)
+	for pool, _ := range v.pools {
+		if !v.nodesSet.Contains(pool) {
+			size++
+		}
+	}
+	return size
+}
+
 func (v *ValidatorsCache) OnlineSize() int {
 	return v.onlineNodesSet.Cardinality()
 }
