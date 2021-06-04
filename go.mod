@@ -5,9 +5,8 @@ require (
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
-	github.com/cockroachdb/apd v1.1.0
 	github.com/coreos/go-semver v0.3.0
-	github.com/cosmos/iavl v0.15.0-rc5
+	github.com/cosmos/iavl v0.15.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/deckarep/golang-set v1.7.1
@@ -15,7 +14,7 @@ require (
 	github.com/frankban/quicktest v1.11.1 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.0
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/ipfs/fs-repo-migrations v1.7.1
 	github.com/ipfs/go-blockservice v0.1.4
@@ -63,12 +62,12 @@ require (
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974
 	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2
-	google.golang.org/protobuf v1.25.0
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
 
-replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20210112075003-70ccb13c86c9
+replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20210604085842-854e73deab29
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
 
