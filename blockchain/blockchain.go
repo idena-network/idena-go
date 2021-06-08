@@ -448,56 +448,6 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 }
 
-/*
-func (chain *Blockchain) processBlock(block *types.Block,
-	statsCollector collector.StatsCollector) (diff *state.IdentityStateDiff, receipts types.TxReceipts, err error) {
-
-	var root, identityRoot common.Hash
-	if block.IsEmpty() {
-		root, identityRoot, diff = chain.applyEmptyBlockOnState(chain.appState, block, statsCollector)
-	} else {
-		if root, identityRoot, diff, receipts, err = chain.applyBlockAndTxsOnState(chain.appState, block, chain.Head, statsCollector); err != nil {
-			chain.appState.Reset()
-			return nil, nil, err
-		}
-	}
-
-	if root != block.Root() || identityRoot != block.IdentityRoot() {
-		chain.appState.Reset()
-		return nil, nil, errors.Errorf("Process block. Invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
-	}
-
-	if err := chain.appState.Commit(block); err != nil {
-		return nil, nil, err
-	}
-
-	chain.log.Trace("Applied block", "root", fmt.Sprintf("0x%x", block.Root()), "height", block.Height())
-
-	return diff, receipts, nil
-}*/
-
-/*func (chain *Blockchain) applyBlockAndTxsOnState(
-	appState *appstate.AppState,
-	block *types.Block,
-	prevBlock *types.Header,
-	statsCollector collector.StatsCollector,
-) (root common.Hash, identityRoot common.Hash, diff *state.IdentityStateDiff, receipts types.TxReceipts, err error) {
-	var totalFee, totalTips *big.Int
-	var usedGas uint64
-	txsContext := &txsExecutionContext{
-		appState:       appState,
-		header:         block.Header,
-		blockInsertion: true,
-		statsCollector: statsCollector,
-	}
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
-		return
-	}
-
-	root, identityRoot, stateDiff, diff = chain.applyBlockOnState(appState, block, prevBlock, totalFee, totalTips, usedGas, statsCollector)
-	return root, identityRoot, diff, receipts, nil
-}*/
-
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block)
