@@ -101,6 +101,13 @@ type txExecutionContext struct {
 	statsCollector collector.StatsCollector
 }
 
+type blockInsertionResult struct {
+	stateDiff         []*state.StateTreeDiff
+	identityStateDiff *state.IdentityStateDiff
+	txReceipts        types.TxReceipts
+	txTasks           []task
+}
+
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
 	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
@@ -357,7 +364,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	return block, nil
 }
 
-func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) (*types.Block, []*state.StateTreeDiff, *state.IdentityStateDiff) {
+func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) (*types.Block, *blockInsertionResult) {
 	prevTimestamp := time.Unix(prevBlock.Time(), 0)
 
 	block := &types.Block{
@@ -378,12 +385,12 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
 	block.Header.EmptyBlockHeader.IdentityRoot = checkState.IdentityState.Root()
-	return block, stateDiff, identityStateDiff
+	return block, &blockInsertionResult{stateDiff: stateDiff, identityStateDiff: identityStateDiff}
 }
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	appState, _ := chain.appState.ForCheck(chain.Head.Height())
-	block, _, _ := chain.generateEmptyBlock(appState, chain.Head)
+	block, _ := chain.generateEmptyBlock(appState, chain.Head)
 	return block
 }
 
@@ -396,11 +403,11 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	// TODO : update stats collecting
 	// statsCollector.EnableCollecting()
 	// defer statsCollector.CompleteCollecting()
-	if stateDiff, identityStateDiff, receipts, err := chain.ValidateBlock(block, checkState); err != nil {
+	if blockInsertionResult, err := chain.ValidateBlock(block, checkState); err != nil {
 		return err
 	} else {
-		chain.appState.State.AddDiff(stateDiff)
-		chain.appState.IdentityState.AddDiff(block.Height(), identityStateDiff)
+		chain.appState.State.AddDiff(blockInsertionResult.stateDiff)
+		chain.appState.IdentityState.AddDiff(block.Height(), blockInsertionResult.identityStateDiff)
 
 		if chain.appState.State.Root() != block.Root() {
 			chain.appState.Reset()
@@ -416,9 +423,14 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 			return err
 		}
 
-		if err := chain.insertBlock(block, identityStateDiff, receipts); err != nil {
+		if err := chain.insertBlock(block, blockInsertionResult.identityStateDiff, blockInsertionResult.txReceipts); err != nil {
 			return err
 		}
+
+		for _, task := range blockInsertionResult.txTasks {
+			task()
+		}
+
 		if !chain.isSyncing {
 			chain.txpool.ResetTo(block)
 		}
@@ -973,7 +985,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	}
 }
 
-func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, usedGas uint64, err error) {
+func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, tasks []task, usedGas uint64, err error) {
 	totalFee = new(big.Int)
 	totalTips = new(big.Int)
 	appState := context.appState
@@ -985,7 +997,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 	for i := 0; i < len(txs); i++ {
 		tx := txs[i]
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
-			return nil, nil, nil, 0, err
+			return nil, nil, nil, nil, 0, err
 		}
 		txContext := &txExecutionContext{
 			appState:       appState,
@@ -994,8 +1006,8 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			height:         header.Height(),
 			statsCollector: context.statsCollector,
 		}
-		if usedFee, receipt, err := chain.applyTxOnState(tx, txContext); err != nil {
-			return nil, nil, nil, 0, err
+		if usedFee, receipt, task, err := chain.applyTxOnState(tx, txContext); err != nil {
+			return nil, nil, nil, nil, 0, err
 		} else {
 			gas := uint64(fee.CalculateGas(tx))
 			if receipt != nil {
@@ -1003,18 +1015,23 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 				gas += receipt.GasUsed
 			}
 			if usedGas+gas > types.MaxBlockGas {
-				return nil, nil, nil, 0, errors.New("block exceeds gas limit")
+				return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
 			}
 			usedGas += gas
 			totalFee.Add(totalFee, usedFee)
 			totalTips.Add(totalTips, tx.TipsOrZero())
+			if task!=nil {
+				tasks = append(tasks, task)
+			}
 		}
 	}
 
-	return totalFee, totalTips, receipts, usedGas, nil
+	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
-func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, error) {
+type task = func() ()
+
+func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, task, error) {
 
 	statsCollector := context.statsCollector
 	appState := context.appState
@@ -1030,7 +1047,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	senderAccount := stateDB.GetOrNewAccountObject(sender)
 
 	if tx.Epoch != globalState.Epoch() {
-		return nil, nil, errors.New(fmt.Sprintf("invalid tx epoch. Tx=%v expectedEpoch=%v actualEpoch=%v", tx.Hash().Hex(),
+		return nil, nil, nil, errors.New(fmt.Sprintf("invalid tx epoch. Tx=%v expectedEpoch=%v actualEpoch=%v", tx.Hash().Hex(),
 			globalState.Epoch(), tx.Epoch))
 	}
 
@@ -1041,7 +1058,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	}
 
 	if currentNonce+1 != tx.AccountNonce {
-		return nil, nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v expectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
+		return nil, nil, nil, errors.New(fmt.Sprintf("invalid tx nonce. Tx=%v expectedNonce=%v actualNonce=%v", tx.Hash().Hex(),
 			currentNonce+1, tx.AccountNonce))
 	}
 
@@ -1049,6 +1066,8 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	fee := chain.getTxFee(feePerGas, tx)
 	totalCost := chain.getTxCost(feePerGas, tx)
 	var receipt *types.TxReceipt
+	var task task
+
 	switch tx.Type {
 	case types.ActivationTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
@@ -1226,11 +1245,13 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	case types.StoreToIpfsTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
-		if context.blockInsertion && rand.Float32() > StoreToIpfsThreshold {
-			attachment := attachments.ParseStoreToIpfsAttachment(tx)
-			select {
-			case chain.ipfsLoadQueue <- attachment:
-			default:
+		task = func() {
+			if rand.Float32() > StoreToIpfsThreshold {
+				attachment := attachments.ParseStoreToIpfsAttachment(tx)
+				select {
+				case chain.ipfsLoadQueue <- attachment:
+				default:
+				}
 			}
 		}
 	}
@@ -1245,7 +1266,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	collector.AddTxFee(statsCollector, fee)
 	collector.AddFeeBurntCoins(statsCollector, sender, fee, chain.config.Consensus.FeeBurnRate, tx)
 
-	return fee, receipt, nil
+	return fee, receipt, task, nil
 }
 
 func (chain *Blockchain) getTxFee(feePerGas *big.Int, tx *types.Transaction) *big.Int {
@@ -1612,7 +1633,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			continue
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
-		if f, r, err := chain.applyTxOnState(tx, context); err == nil {
+		if f, r,_, err := chain.applyTxOnState(tx, context); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
 				receipts = append(receipts, r)
@@ -1718,34 +1739,34 @@ func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier i
 	return false, nil
 }
 
-func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header) ([]*state.StateTreeDiff, *state.IdentityStateDiff, types.TxReceipts, error) {
+func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header) (*blockInsertionResult, error) {
 
 	if block.IsEmpty() {
-		emptyBlock, stateDiff, identityStateDiff := chain.generateEmptyBlock(checkState, prevBlock)
+		emptyBlock, blockInsertionRes := chain.generateEmptyBlock(checkState, prevBlock)
 		if emptyBlock.Hash() == block.Hash() {
-			return stateDiff, identityStateDiff, nil, nil
+			return blockInsertionRes, nil
 		}
-		return nil, nil, nil, errors.New("empty blocks' hashes mismatch")
+		return nil, errors.New("empty blocks' hashes mismatch")
 	}
 
 	if err := chain.ValidateHeader(block.Header, prevBlock); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	if !common.ZeroOrNil(block.Header.ProposedHeader.FeePerGas) && checkState.State.FeePerGas().Cmp(block.Header.ProposedHeader.FeePerGas) != 0 {
-		return nil, nil, nil, errors.New("fee rate is invalid")
+		return nil, errors.New("fee rate is invalid")
 	}
 
 	proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
 
 	if !checkIfProposer(proposerAddr, checkState) {
-		return nil, nil, nil, errors.New("proposer is not identity")
+		return nil, errors.New("proposer is not identity")
 	}
 
 	var txs = types.Transactions(block.Body.Transactions)
 
 	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
-		return nil, nil, nil, errors.New("txHash is invalid")
+		return nil, errors.New("txHash is invalid")
 	}
 
 	var totalFee, totalTips *big.Int
@@ -1756,25 +1777,27 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		appState: checkState,
 		header:   block.Header,
 	}
-	if totalFee, totalTips, receipts, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
-		return nil, nil, nil, err
+	var tasks []task
+
+	if totalFee, totalTips, receipts, tasks, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
+		return nil, err
 	}
 
 	if bytes.Compare(calculateTxBloom(block, receipts), block.Header.ProposedHeader.TxBloom) != 0 {
-		return nil, nil, nil, errors.New("tx bloom is invalid")
+		return nil, errors.New("tx bloom is invalid")
 	}
 
 	persistentFlags := block.Header.ProposedHeader.Flags.UnsetFlag(types.OfflinePropose).UnsetFlag(types.OfflineCommit)
 
 	if expected := chain.calculateFlags(checkState, block, prevBlock); expected != persistentFlags {
-		return nil, nil, nil, errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
+		return nil, errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
 	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
-		return nil, nil, nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
+		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
 	cid, _ := chain.ipfs.Cid(block.Body.ToBytes())
@@ -1784,7 +1807,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		cidBytes = cid.Bytes()
 	}
 	if bytes.Compare(cidBytes, block.Header.ProposedHeader.IpfsHash) != 0 {
-		return nil, nil, nil, errors.New("invalid block cid")
+		return nil, errors.New("invalid block cid")
 	}
 	var receiptCidBytes []byte
 	if receipts != nil {
@@ -1795,9 +1818,9 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		}
 	}
 	if bytes.Compare(receiptCidBytes, block.Header.ProposedHeader.TxReceiptsCid) != 0 {
-		return nil, nil, nil, errors.New("invalid receipt cid")
+		return nil, errors.New("invalid receipt cid")
 	}
-	return stateDiff, identityStateDiff, receipts, nil
+	return &blockInsertionResult{stateDiff: stateDiff, identityStateDiff: identityStateDiff, txReceipts: receipts, txTasks: tasks}, nil
 }
 
 func (chain *Blockchain) ValidateBlockCertOnHead(block *types.Header, cert *types.BlockCert) error {
@@ -1847,12 +1870,12 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 	return nil
 }
 
-func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) ([]*state.StateTreeDiff, *state.IdentityStateDiff, types.TxReceipts, error) {
+func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) (*blockInsertionResult, error) {
 	if checkState == nil {
 		var err error
 		checkState, err = chain.appState.ForCheck(chain.Head.Height())
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	}
 	return chain.validateBlock(checkState, block, chain.Head)
@@ -2080,7 +2103,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 	prevBlock := chain.GetBlockHeaderByHeight(startHeight)
 
 	for _, b := range blocks {
-		if _, _, _, err := chain.validateBlock(checkState, b.Block, prevBlock); err != nil {
+		if _, err := chain.validateBlock(checkState, b.Block, prevBlock); err != nil {
 			return err
 		}
 		if b.Block.Header.Flags().HasFlag(types.IdentityUpdate) {

@@ -237,7 +237,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	context := &txExecutionContext{
 		appState: chain.appState,
 	}
-	_, _, err := chain.applyTxOnState(signedTx1, context)
+	_, _,_, err := chain.applyTxOnState(signedTx1, context)
 
 	require.Nil(err)
 	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
