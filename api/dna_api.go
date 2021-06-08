@@ -458,10 +458,10 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 }
 
 type Epoch struct {
+	StartBlock             uint64    `json:"startBlock"`
 	Epoch                  uint16    `json:"epoch"`
 	NextValidation         time.Time `json:"nextValidation"`
 	CurrentPeriod          string    `json:"currentPeriod"`
-	CurrentValidationStart time.Time `json:"currentValidationStart"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
@@ -485,9 +485,9 @@ func (api *DnaApi) Epoch() Epoch {
 
 	return Epoch{
 		Epoch:                  s.State.Epoch(),
+		StartBlock:             s.State.EpochBlock(),
 		NextValidation:         s.State.NextValidationTime(),
 		CurrentPeriod:          res,
-		CurrentValidationStart: api.ceremony.ShortSessionBeginTime(),
 	}
 }
 

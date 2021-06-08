@@ -205,10 +205,6 @@ func (vc *ValidationCeremony) addBlock(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) ShortSessionBeginTime() time.Time {
-	return vc.appState.EvidenceMap.GetShortSessionBeginningTime()
-}
-
 func (vc *ValidationCeremony) isCandidate() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
 	return state.IsCeremonyCandidate(identity)
