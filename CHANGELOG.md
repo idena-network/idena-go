@@ -4,11 +4,11 @@
 
 ### Breaking Changes
 
-- Remove `currentValidationStart` from response of GetEpoch RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))  
+- Remove `currentValidationStart` from response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))  
 
 ### Changes
 
-- Add start block to response of GetEpoch RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))
+- Add `startBlock` to response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))
 - Upgrade to GitHub-native Dependabot ([#683](https://github.com/idena-network/idena-go/pull/683))
 - Update iavl and protobuf deps ([#696](https://github.com/idena-network/idena-go/pull/696))
 - Update deps ([#698](https://github.com/idena-network/idena-go/pull/698) & [#699](https://github.com/idena-network/idena-go/pull/699) & [#700](https://github.com/idena-network/idena-go/pull/700) & [#701](https://github.com/idena-network/idena-go/pull/701))
