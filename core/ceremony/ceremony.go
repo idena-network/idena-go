@@ -856,7 +856,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
-	defer collector.SetValidation(statsCollector, vc.validationStats)
+	defer func() {
+		collector.SetValidation(statsCollector, vc.validationStats)
+	}()
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {

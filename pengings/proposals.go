@@ -258,7 +258,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 		if _, ok := round.Load(block.Hash()); ok {
 			return false, false
 		}
-		if _, err := proposals.chain.ValidateBlock(block, checkState); err != nil {
+		if _, err := proposals.chain.ValidateBlock(block, checkState, nil); err != nil {
 			log.Warn("Failed proposed block validation", "err", err)
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {

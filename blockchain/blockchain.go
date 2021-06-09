@@ -364,7 +364,7 @@ func (chain *Blockchain) GenerateGenesis(network types.Network) (*types.Block, e
 	return block, nil
 }
 
-func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header) (*types.Block, *blockInsertionResult) {
+func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevBlock *types.Header, statsCollector collector.StatsCollector) (*types.Block, *blockInsertionResult) {
 	prevTimestamp := time.Unix(prevBlock.Time(), 0)
 
 	block := &types.Block{
@@ -381,7 +381,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
 
-	_, _, stateDiff, identityStateDiff := chain.applyEmptyBlockOnState(checkState, block, nil)
+	_, _, stateDiff, identityStateDiff := chain.applyEmptyBlockOnState(checkState, block, statsCollector)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
 	block.Header.EmptyBlockHeader.IdentityRoot = checkState.IdentityState.Root()
@@ -390,7 +390,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 
 func (chain *Blockchain) GenerateEmptyBlock() *types.Block {
 	appState, _ := chain.appState.ForCheck(chain.Head.Height())
-	block, _ := chain.generateEmptyBlock(appState, chain.Head)
+	block, _ := chain.generateEmptyBlock(appState, chain.Head, nil)
 	return block
 }
 
@@ -400,10 +400,9 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	if err := validateBlockParentHash(block.Header, chain.Head); err != nil {
 		return err
 	}
-	// TODO : update stats collecting
-	// statsCollector.EnableCollecting()
-	// defer statsCollector.CompleteCollecting()
-	if blockInsertionResult, err := chain.ValidateBlock(block, checkState); err != nil {
+	statsCollector.EnableCollecting()
+	defer statsCollector.CompleteCollecting()
+	if blockInsertionResult, err := chain.ValidateBlock(block, checkState, statsCollector); err != nil {
 		return err
 	} else {
 		chain.appState.State.AddDiff(blockInsertionResult.stateDiff)
@@ -971,7 +970,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			usedGas += gas
 			totalFee.Add(totalFee, usedFee)
 			totalTips.Add(totalTips, tx.TipsOrZero())
-			if task!=nil {
+			if task != nil {
 				tasks = append(tasks, task)
 			}
 		}
@@ -980,7 +979,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
-type task = func() ()
+type task = func()
 
 func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecutionContext) (*big.Int, *types.TxReceipt, task, error) {
 
@@ -1584,7 +1583,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			continue
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
-		if f, r,_, err := chain.applyTxOnState(tx, context); err == nil {
+		if f, r, _, err := chain.applyTxOnState(tx, context); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
 				receipts = append(receipts, r)
@@ -1690,10 +1689,10 @@ func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier i
 	return false, nil
 }
 
-func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header) (*blockInsertionResult, error) {
+func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header, statsCollector collector.StatsCollector) (*blockInsertionResult, error) {
 
 	if block.IsEmpty() {
-		emptyBlock, blockInsertionRes := chain.generateEmptyBlock(checkState, prevBlock)
+		emptyBlock, blockInsertionRes := chain.generateEmptyBlock(checkState, prevBlock, statsCollector)
 		if emptyBlock.Hash() == block.Hash() {
 			return blockInsertionRes, nil
 		}
@@ -1725,8 +1724,9 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var receipts types.TxReceipts
 	var usedGas uint64
 	txsContext := &txsExecutionContext{
-		appState: checkState,
-		header:   block.Header,
+		appState:       checkState,
+		header:         block.Header,
+		statsCollector: statsCollector,
 	}
 	var tasks []task
 
@@ -1747,7 +1747,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
-	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
@@ -1821,7 +1821,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 	return nil
 }
 
-func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState) (*blockInsertionResult, error) {
+func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState, statsCollector collector.StatsCollector) (*blockInsertionResult, error) {
 	if checkState == nil {
 		var err error
 		checkState, err = chain.appState.ForCheck(chain.Head.Height())
@@ -1829,7 +1829,7 @@ func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.
 			return nil, err
 		}
 	}
-	return chain.validateBlock(checkState, block, chain.Head)
+	return chain.validateBlock(checkState, block, chain.Head, statsCollector)
 }
 
 func validateBlockParentHash(block *types.Header, prevBlock *types.Header) error {
@@ -2054,7 +2054,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 	prevBlock := chain.GetBlockHeaderByHeight(startHeight)
 
 	for _, b := range blocks {
-		if _, err := chain.validateBlock(checkState, b.Block, prevBlock); err != nil {
+		if _, err := chain.validateBlock(checkState, b.Block, prevBlock, nil); err != nil {
 			return err
 		}
 		if b.Block.Header.Flags().HasFlag(types.IdentityUpdate) {
