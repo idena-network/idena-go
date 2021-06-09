@@ -121,9 +121,9 @@ func (s *AppState) Initialize(height uint64) error {
 	return nil
 }
 
-func (s *AppState) Precommit() *state.IdentityStateDiff {
-	s.State.Precommit(true)
-	return s.IdentityState.Precommit(true)
+func (s *AppState) Precommit() ([]*state.StateTreeDiff, *state.IdentityStateDiff) {
+	diff := s.State.Precommit(true)
+	return diff, s.IdentityState.Precommit(true)
 }
 
 func (s *AppState) Reset() {
@@ -132,7 +132,7 @@ func (s *AppState) Reset() {
 }
 
 func (s *AppState) Commit(block *types.Block) error {
-	_, _, err := s.State.Commit(true)
+	_, _, _, err := s.State.Commit(true)
 	if err != nil {
 		return err
 	}
@@ -184,4 +184,18 @@ func (s *AppState) SetPredefinedState(predefinedState *models.ProtoPredefinedSta
 	s.State.SetPredefinedIdentities(predefinedState)
 	s.State.SetPredefinedContractValues(predefinedState)
 	s.IdentityState.SetPredefinedIdentities(predefinedState)
+}
+
+func (s *AppState) CommitTrees(block *types.Block) error {
+	_, _, err := s.State.CommitTree(int64(block.Height()))
+	if err != nil {
+		return err
+	}
+	_, _, err = s.IdentityState.CommitTree(int64(block.Height()))
+
+	if block != nil {
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block)
+	}
+
+	return err
 }
