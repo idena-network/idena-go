@@ -526,98 +526,108 @@ func (s *StateDB) ResetBlocksCntWithoutCeremonialTxs() {
 //
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) {
+func (s *StateDB) updateStateAccountObject(stateObject *stateAccount) *StateTreeDiff {
 	addr := stateObject.Address()
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode account object at %x: %v", addr[:], err))
 	}
-
-	s.tree.Set(StateDbKeys.AddressKey(addr), data)
+	key := StateDbKeys.AddressKey(addr)
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) {
+func (s *StateDB) updateStateIdentityObject(stateObject *stateIdentity) *StateTreeDiff {
 	addr := stateObject.Address()
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode identity object at %x: %v", addr[:], err))
 	}
-
-	s.tree.Set(StateDbKeys.IdentityKey(addr), data)
+	key := StateDbKeys.IdentityKey(addr)
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) {
+func (s *StateDB) updateStateGlobalObject(stateObject *stateGlobal) *StateTreeDiff {
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode global object, %v", err))
 	}
-
-	s.tree.Set(StateDbKeys.GlobalKey(), data)
+	key := StateDbKeys.GlobalKey()
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) {
+func (s *StateDB) updateStateStatusSwitchObject(stateObject *stateStatusSwitch) *StateTreeDiff {
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode status switch object, %v", err))
 	}
-
-	s.tree.Set(StateDbKeys.StatusSwitchKey(), data)
+	key := StateDbKeys.StatusSwitchKey()
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
-func (s *StateDB) updateStateDelegationSwitchObject(stateObject *stateDelegationSwitch) {
+func (s *StateDB) updateStateDelegationSwitchObject(stateObject *stateDelegationSwitch) *StateTreeDiff {
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode state delegation switch object, %v", err))
 	}
-
-	s.tree.Set(StateDbKeys.DelegationSwitchKey(), data)
+	key := StateDbKeys.DelegationSwitchKey()
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
-func (s *StateDB) updateStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) {
+func (s *StateDB) updateStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) *StateTreeDiff {
 	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode state delayed offline penalty object, %v", err))
 	}
-
-	s.tree.Set(StateDbKeys.DelayedOfflinePenaltyKey(), data)
+	key := StateDbKeys.DelayedOfflinePenaltyKey()
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
-func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) {
+func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) *StateTreeDiff {
 	stateObject.deleted = true
 	addr := stateObject.Address()
-
-	s.tree.Remove(StateDbKeys.AddressKey(addr))
+	key := StateDbKeys.AddressKey(addr)
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
 }
 
 // deleteStateAccountObject removes the given object from the state trie.
-func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) {
+func (s *StateDB) deleteStateIdentityObject(stateObject *stateIdentity) *StateTreeDiff {
 	stateObject.deleted = true
 	addr := stateObject.Address()
-
-	s.tree.Remove(StateDbKeys.IdentityKey(addr))
+	key := StateDbKeys.IdentityKey(addr)
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
 }
 
-func (s *StateDB) deleteStateStatusSwitchObject(stateObject *stateStatusSwitch) {
+func (s *StateDB) deleteStateStatusSwitchObject(stateObject *stateStatusSwitch) *StateTreeDiff {
 	stateObject.deleted = true
-
-	s.tree.Remove(StateDbKeys.StatusSwitchKey())
+	key := StateDbKeys.StatusSwitchKey()
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
 }
 
-func (s *StateDB) deleteStateDelegationSwitchObject(stateObject *stateDelegationSwitch) {
+func (s *StateDB) deleteStateDelegationSwitchObject(stateObject *stateDelegationSwitch) *StateTreeDiff {
 	stateObject.deleted = true
-
-	s.tree.Remove(StateDbKeys.DelegationSwitchKey())
+	key := StateDbKeys.DelegationSwitchKey()
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
 }
 
-
-func (s *StateDB) deleteStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) {
+func (s *StateDB) deleteStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) *StateTreeDiff {
 	stateObject.deleted = true
-
-	s.tree.Remove(StateDbKeys.DelayedOfflinePenaltyKey())
+	key := StateDbKeys.DelayedOfflinePenaltyKey()
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
 }
 
 // Retrieve a state account given my the address. Returns nil if not found.
@@ -749,7 +759,6 @@ func (s *StateDB) getStateDelegationSwitch() (stateObject *stateDelegationSwitch
 	s.setStateDelegationSwitchObject(obj)
 	return obj
 }
-
 
 func (s *StateDB) getStateDelayedOfflinePenalty() (stateObject *stateDelayedOfflinePenalties) {
 	// Prefer 'live' objects.
@@ -962,9 +971,10 @@ func (s *StateDB) createDelayedOfflinePenalty() *stateDelayedOfflinePenalties {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, err error) {
-	s.Precommit(deleteEmptyObjects)
-	return s.CommitTree(s.tree.Version() + 1)
+func (s *StateDB) Commit(deleteEmptyObjects bool) (diff []*StateTreeDiff, root []byte, version int64,  err error) {
+	diffs := s.Precommit(deleteEmptyObjects)
+	root, version, err = s.CommitTree(s.tree.Version() + 1)
+	return diffs, root, version, err
 }
 
 func (s *StateDB) SaveForcedVersion(height uint64) (root []byte, version int64, err error) {
@@ -995,15 +1005,26 @@ func (s *StateDB) CommitTree(newVersion int64) (root []byte, version int64, err 
 	return hash, version, err
 }
 
-func (s *StateDB) Precommit(deleteEmptyObjects bool) {
+func (s *StateDB) AddDiff(diffs []*StateTreeDiff) {
+	for _, diff := range diffs {
+		if diff.Deleted {
+			s.tree.Remove(diff.Key)
+		} else {
+			s.tree.Set(diff.Key, diff.Value)
+		}
+	}
+}
+
+func (s *StateDB) Precommit(deleteEmptyObjects bool)  []*StateTreeDiff {
 	s.lock.Lock()
+	var diffs []*StateTreeDiff
 	// Commit account objects to the trie.
 	for _, addr := range getOrderedObjectsKeys(s.stateAccountsDirty) {
 		stateObject := s.stateAccounts[addr]
 		if deleteEmptyObjects && stateObject.empty() {
-			s.deleteStateAccountObject(stateObject)
+			diffs = append(diffs, s.deleteStateAccountObject(stateObject))
 		} else {
-			s.updateStateAccountObject(stateObject)
+			diffs = append(diffs, s.updateStateAccountObject(stateObject))
 		}
 		delete(s.stateAccountsDirty, addr)
 	}
@@ -1012,9 +1033,9 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
 		if deleteEmptyObjects && stateObject.empty() {
-			s.deleteStateIdentityObject(stateObject)
+			diffs = append(diffs, s.deleteStateIdentityObject(stateObject))
 		} else {
-			s.updateStateIdentityObject(stateObject)
+			diffs = append(diffs, s.updateStateIdentityObject(stateObject))
 		}
 		delete(s.stateIdentitiesDirty, addr)
 	}
@@ -1030,8 +1051,10 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 		v := s.contractStoreCache[k]
 		if v.removed {
 			s.tree.Remove([]byte(k))
+			diffs = append(diffs, &StateTreeDiff{Key: []byte(k), Deleted: true})
 		} else {
 			s.tree.Set([]byte(k), v.value)
+			diffs = append(diffs, &StateTreeDiff{Key: []byte(k), Value: v.value})
 		}
 	}
 	s.contractStoreCache = make(map[string]*contractStoreValue)
@@ -1039,35 +1062,36 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) {
 	s.lock.Unlock()
 
 	if s.stateGlobalDirty {
-		s.updateStateGlobalObject(s.stateGlobal)
+		diffs = append(diffs,s.updateStateGlobalObject(s.stateGlobal))
 		s.stateGlobalDirty = false
 	}
 
 	if s.stateStatusSwitchDirty {
 		if s.stateStatusSwitch.empty() {
-			s.deleteStateStatusSwitchObject(s.stateStatusSwitch)
+			diffs = append(diffs,s.deleteStateStatusSwitchObject(s.stateStatusSwitch))
 		} else {
-			s.updateStateStatusSwitchObject(s.stateStatusSwitch)
+			diffs = append(diffs,s.updateStateStatusSwitchObject(s.stateStatusSwitch))
 		}
 		s.stateStatusSwitchDirty = false
 	}
 	if s.stateDelegationSwitchDirty {
 		if s.stateDelegationSwitch.empty() {
-			s.deleteStateDelegationSwitchObject(s.stateDelegationSwitch)
+			diffs = append(diffs,s.deleteStateDelegationSwitchObject(s.stateDelegationSwitch))
 		} else {
-			s.updateStateDelegationSwitchObject(s.stateDelegationSwitch)
+			diffs = append(diffs,s.updateStateDelegationSwitchObject(s.stateDelegationSwitch))
 		}
 		s.stateDelegationSwitchDirty = false
 	}
 
 	if s.stateDelayedOfflinePenaltiesDirty {
 		if s.stateDelayedOfflinePenalties.empty() {
-			s.deleteStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties)
+			diffs = append(diffs,s.deleteStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
 		} else {
-			s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties)
+			diffs = append(diffs,s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
 		}
 		s.stateDelayedOfflinePenaltiesDirty = false
 	}
+	return diffs
 }
 
 func (s *StateDB) Reset() {

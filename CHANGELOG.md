@@ -8,6 +8,7 @@
 
 ### Changes
 
+- Get rid of double block processing while inserting a block into the chain ([#704](https://github.com/idena-network/idena-go/pull/704))
 - Add `startBlock` to response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))
 - Upgrade to GitHub-native Dependabot ([#683](https://github.com/idena-network/idena-go/pull/683))
 - Update iavl and protobuf deps ([#696](https://github.com/idena-network/idena-go/pull/696))

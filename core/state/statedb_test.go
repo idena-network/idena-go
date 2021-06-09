@@ -103,7 +103,7 @@ func TestStateDB_CheckForkValidation(t *testing.T) {
 		acc := forCheck.GetOrNewAccountObject(saved[i].address)
 		acc.SetBalance(saved[i].balance)
 
-		_, _, err := forCheck.Commit(true)
+		_, _, _, err := forCheck.Commit(true)
 		require.Nil(err)
 	}
 
@@ -217,7 +217,7 @@ func TestStateGlobal_VrfProposerThreshold(t *testing.T) {
 	value := 0.95
 
 	stateDb.SetVrfProposerThreshold(value)
-	_, _, err := stateDb.Commit(false)
+	_, _, _, err := stateDb.Commit(false)
 	require.NoError(t, err)
 	stateDb.Clear()
 
