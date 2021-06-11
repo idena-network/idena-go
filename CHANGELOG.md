@@ -2,17 +2,19 @@
 
 ## Unreleased
 
+## 0.26.3 (June 11, 2021)
+
 ### Breaking Changes
 
 - Remove `currentValidationStart` from response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))  
 
 ### Changes
 
-- Get rid of double block processing while inserting a block into the chain ([#704](https://github.com/idena-network/idena-go/pull/704))
+- Get rid of double block processing while inserting a block into the chain ([#704](https://github.com/idena-network/idena-go/pull/704) & [#708](https://github.com/idena-network/idena-go/pull/708))
 - Add `startBlock` to response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))
 - Upgrade to GitHub-native Dependabot ([#683](https://github.com/idena-network/idena-go/pull/683))
 - Update iavl and protobuf deps ([#696](https://github.com/idena-network/idena-go/pull/696))
-- Update deps ([#698](https://github.com/idena-network/idena-go/pull/698) & [#699](https://github.com/idena-network/idena-go/pull/699) & [#700](https://github.com/idena-network/idena-go/pull/700) & [#701](https://github.com/idena-network/idena-go/pull/701))
+- Update deps ([#698](https://github.com/idena-network/idena-go/pull/698) & [#699](https://github.com/idena-network/idena-go/pull/699) & [#700](https://github.com/idena-network/idena-go/pull/700) & [#701](https://github.com/idena-network/idena-go/pull/701) & [#707](https://github.com/idena-network/idena-go/pull/707))
 - Add CHANGELOG.md ([#702](https://github.com/idena-network/idena-go/pull/702))
 
 ## 0.26.2 (May 26, 2021)
