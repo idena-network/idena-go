@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.26.3 (June 11, 2021)
+
 ### Breaking Changes
 
 - Remove `currentValidationStart` from response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))  
