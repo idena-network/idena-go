@@ -2,7 +2,9 @@ package protocol
 
 import (
 	"errors"
+	"github.com/idena-network/idena-go/common"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -85,26 +87,37 @@ func (ps *peerSet) Peers() []*protoPeer {
 	return list
 }
 
-func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, highPriority bool) {
-	ps.SendWithFilterAndExpiration(msgcode, key, payload, highPriority, msgCacheAliveTime)
+func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, shardId common.ShardId, highPriority bool) {
+	ps.SendWithFilterAndExpiration(msgcode, key, payload, shardId, highPriority, msgCacheAliveTime)
 }
 
-func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, highPriority bool, expiration time.Duration) {
-	peers := ps.Peers()
+func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, highPriority bool) bool {
+	peersCnt := ps.Len()
+	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 5 || highPriority{
+		return true
+	}
+	rnd := rand.Float32()
+	return rnd > 1-1.5/float32(peersCnt)
+}
 
+func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, shardId common.ShardId, highPriority bool, expiration time.Duration) {
+	peers := ps.Peers()
 	for _, p := range peers {
-		if _, ok := p.msgCache.Get(key); !ok {
-			p.markKeyWithExpiration(key, expiration)
-			p.sendMsg(msgcode, payload, highPriority)
+		if ps.shouldSendToPeer(p, shardId, highPriority) {
+			if _, ok := p.msgCache.Get(key); !ok {
+				p.markKeyWithExpiration(key, expiration)
+				p.sendMsg(msgcode, payload, shardId, highPriority)
+			}
 		}
 	}
 }
 
-func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
+func (ps *peerSet) Send(msgcode uint64, payload interface{}, shardId common.ShardId) {
 	peers := ps.Peers()
-
 	for _, p := range peers {
-		p.sendMsg(msgcode, payload, false)
+		if ps.shouldSendToPeer(p, shardId, false) {
+			p.sendMsg(msgcode, payload, shardId, false)
+		}
 	}
 }
 

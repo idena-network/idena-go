@@ -258,6 +258,8 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 		return pullPush.ToBytes()
 	case Block:
 		return payload.(*types.Block).ToBytes()
+	case UpdateShardId:
+		return payload.(*updateShardId).ToBytes()
 	}
 	return nil, errors.Errorf("type %T is not serializable", payload)
 }

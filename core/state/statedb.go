@@ -509,6 +509,10 @@ func (s *StateDB) SetGodAddressInvites(count uint16) {
 	s.GetOrNewGlobalObject().SetGodAddressInvites(count)
 }
 
+func (s *StateDB) CanCompleteEpoch() bool {
+	return s.GetOrNewGlobalObject().CanCompleteEpoch()
+}
+
 func (s *StateDB) BlocksCntWithoutCeremonialTxs() byte {
 	return s.GetOrNewGlobalObject().BlocksCntWithoutCeremonialTxs()
 }
@@ -519,6 +523,14 @@ func (s *StateDB) IncBlocksCntWithoutCeremonialTxs() {
 
 func (s *StateDB) ResetBlocksCntWithoutCeremonialTxs() {
 	s.GetOrNewGlobalObject().ResetBlocksCntWithoutCeremonialTxs()
+}
+
+func (s *StateDB) AddEmptyBlockByShard(networkSize int, shardId common.ShardId, proposer common.Address) {
+	s.GetOrNewGlobalObject().AddEmptyBlockByShard(networkSize, shardId, proposer)
+}
+
+func (s *StateDB) ResetEmptyBlockByShard(shardId common.ShardId) {
+	s.GetOrNewGlobalObject().ResetEmptyBlockByShard(shardId)
 }
 
 //
@@ -943,7 +955,9 @@ func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdenti
 }
 
 func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
-	stateObject = newGlobalObject(Global{}, s.MarkStateGlobalObjectDirty)
+	stateObject = newGlobalObject(Global{
+		EmptyBlocksByShards: map[common.ShardId][]common.Address{},
+	}, s.MarkStateGlobalObjectDirty)
 	stateObject.touch()
 	s.setStateGlobalObject(stateObject)
 	return stateObject
@@ -971,7 +985,7 @@ func (s *StateDB) createDelayedOfflinePenalty() *stateDelayedOfflinePenalties {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(deleteEmptyObjects bool) (diff []*StateTreeDiff, root []byte, version int64,  err error) {
+func (s *StateDB) Commit(deleteEmptyObjects bool) (diff []*StateTreeDiff, root []byte, version int64, err error) {
 	diffs := s.Precommit(deleteEmptyObjects)
 	root, version, err = s.CommitTree(s.tree.Version() + 1)
 	return diffs, root, version, err
@@ -1015,7 +1029,7 @@ func (s *StateDB) AddDiff(diffs []*StateTreeDiff) {
 	}
 }
 
-func (s *StateDB) Precommit(deleteEmptyObjects bool)  []*StateTreeDiff {
+func (s *StateDB) Precommit(deleteEmptyObjects bool) []*StateTreeDiff {
 	s.lock.Lock()
 	var diffs []*StateTreeDiff
 	// Commit account objects to the trie.
@@ -1062,32 +1076,32 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool)  []*StateTreeDiff {
 	s.lock.Unlock()
 
 	if s.stateGlobalDirty {
-		diffs = append(diffs,s.updateStateGlobalObject(s.stateGlobal))
+		diffs = append(diffs, s.updateStateGlobalObject(s.stateGlobal))
 		s.stateGlobalDirty = false
 	}
 
 	if s.stateStatusSwitchDirty {
 		if s.stateStatusSwitch.empty() {
-			diffs = append(diffs,s.deleteStateStatusSwitchObject(s.stateStatusSwitch))
+			diffs = append(diffs, s.deleteStateStatusSwitchObject(s.stateStatusSwitch))
 		} else {
-			diffs = append(diffs,s.updateStateStatusSwitchObject(s.stateStatusSwitch))
+			diffs = append(diffs, s.updateStateStatusSwitchObject(s.stateStatusSwitch))
 		}
 		s.stateStatusSwitchDirty = false
 	}
 	if s.stateDelegationSwitchDirty {
 		if s.stateDelegationSwitch.empty() {
-			diffs = append(diffs,s.deleteStateDelegationSwitchObject(s.stateDelegationSwitch))
+			diffs = append(diffs, s.deleteStateDelegationSwitchObject(s.stateDelegationSwitch))
 		} else {
-			diffs = append(diffs,s.updateStateDelegationSwitchObject(s.stateDelegationSwitch))
+			diffs = append(diffs, s.updateStateDelegationSwitchObject(s.stateDelegationSwitch))
 		}
 		s.stateDelegationSwitchDirty = false
 	}
 
 	if s.stateDelayedOfflinePenaltiesDirty {
 		if s.stateDelayedOfflinePenalties.empty() {
-			diffs = append(diffs,s.deleteStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
+			diffs = append(diffs, s.deleteStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
 		} else {
-			diffs = append(diffs,s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
+			diffs = append(diffs, s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
 		}
 		s.stateDelayedOfflinePenaltiesDirty = false
 	}
@@ -1591,11 +1605,7 @@ func (s *StateDB) ShardId(address common.Address) common.ShardId {
 }
 
 func (s *StateDB) ShardsNum() uint32 {
-	num := s.GetOrNewGlobalObject().ShardsNum()
-	if num == 0 {
-		num++
-	}
-	return num
+	return s.GetOrNewGlobalObject().ShardsNum()
 }
 
 func (s *StateDB) SetShardId(addr common.Address, shardId common.ShardId) {
@@ -1604,6 +1614,10 @@ func (s *StateDB) SetShardId(addr common.Address, shardId common.ShardId) {
 
 func (s *StateDB) SetShardsNum(num uint32) {
 	s.GetOrNewGlobalObject().SetShardsNum(num)
+}
+
+func (s *StateDB) EmptyBlocksByShard() map[common.ShardId][]common.Address {
+	return s.GetOrNewGlobalObject().data.EmptyBlocksByShards
 }
 
 type readCloser struct {

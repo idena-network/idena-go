@@ -141,3 +141,23 @@ func (h *pushPullHash) String() string {
 func (h *pushPullHash) IsValid() bool {
 	return h.Type >= pushVote && h.Type <= pushTx
 }
+
+type updateShardId struct {
+	ShardId common.ShardId
+}
+
+func (u *updateShardId) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoUpdateShardId{
+		ShardId: uint32(u.ShardId),
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (u *updateShardId) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoUpdateShardId)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	u.ShardId = common.ShardId(protoObj.ShardId)
+	return nil
+}

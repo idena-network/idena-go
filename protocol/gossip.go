@@ -151,6 +151,14 @@ func (h *IdenaGossipHandler) Start() {
 		setHandler()
 	})
 
+	h.bus.Subscribe(events.UpdateShardId, func(e eventbus.Event) {
+		if !h.cfg.Multishard {
+			if h.connManager.SetShardId(h.bcn.CoinbaseShard()) {
+				h.notifyAboutShardUpdate(h.bcn.CoinbaseShard())
+			}
+		}
+	})
+
 	if !h.cfg.Multishard {
 		h.connManager.SetShardId(h.bcn.CoinbaseShard())
 	}
@@ -289,7 +297,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		block := h.bcn.GetBlock(common.BytesToHash(query.Hash))
 		if block != nil {
-			p.sendMsg(Block, block, false)
+			p.sendMsg(Block, block, common.MultiShard, false)
 		}
 	case GetBlocksRange:
 		query := new(models.ProtoGetBlocksRangeRequest)
@@ -381,8 +389,8 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return errResp(ValidationErr, "%v", msg)
 		}
 
-		if entry, highPriority, ok := h.pushPullManager.GetEntry(*pullHash); ok {
-			h.sendEntry(p, *pullHash, entry, highPriority)
+		if entry, shardId, highPriority, ok := h.pushPullManager.GetEntry(*pullHash); ok {
+			h.sendEntry(p, *pullHash, entry, shardId, highPriority)
 		}
 	case Block:
 		block := new(types.Block)
@@ -398,6 +406,13 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		p.markKey(key)
 		h.proposals.AddBlock(block)
+	case UpdateShardId:
+		upd := new(updateShardId)
+		if err := upd.FromBytes(msg.Payload); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		p.shardId = upd.ShardId
+		h.connManager.UpdatePeerShardId(p.id, upd.ShardId)
 	}
 
 	return nil
@@ -592,7 +607,7 @@ func (h *IdenaGossipHandler) provideBlocks(p *protoPeer, batchId uint32, from ui
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
-	}, false)
+	}, common.MultiShard, false)
 }
 
 func (h *IdenaGossipHandler) provideForkBlocks(p *protoPeer, batchId uint32, blocks []common.Hash) {
@@ -609,7 +624,7 @@ func (h *IdenaGossipHandler) provideForkBlocks(p *protoPeer, batchId uint32, blo
 	p.sendMsg(BlocksRange, &blockRange{
 		BatchId: batchId,
 		Blocks:  result,
-	}, false)
+	}, common.MultiShard, false)
 }
 
 func (h *IdenaGossipHandler) runListening(peer *protoPeer) {
@@ -626,11 +641,11 @@ func (h *IdenaGossipHandler) broadcastLoop() {
 	for {
 		select {
 		case tx := <-h.txChan:
-			h.broadcastTx(tx.Tx, tx.Own)
+			h.broadcastTx(tx.Tx, tx.ShardId, tx.Own)
 		case key := <-h.flipKeyChan:
-			h.broadcastFlipKey(key.Key, key.Own)
+			h.broadcastFlipKey(key.Key, key.ShardId, key.Own)
 		case key := <-h.flipKeysPackageChan:
-			h.broadcastFlipKeysPackage(key.Key, key.Own)
+			h.broadcastFlipKeysPackage(key.Key, key.ShardId, key.Own)
 		case pullReq := <-h.pushPullManager.Requests():
 			h.sendPull(pullReq.peer, pullReq.hash)
 		}
@@ -689,7 +704,7 @@ func (h *IdenaGossipHandler) GetBlocksRange(peerId peer.ID, from uint64, to uint
 		BatchId: batchId,
 		From:    from,
 		To:      to,
-	}, false)
+	}, common.MultiShard, false)
 	return b, nil
 }
 
@@ -718,7 +733,7 @@ func (h *IdenaGossipHandler) GetForkBlockRange(peerId peer.ID, ownBlocks []commo
 	peer.sendMsg(GetForkBlockRange, &models.ProtoGetForkBlockRangeRequest{
 		BatchId: batchId,
 		Blocks:  data,
-	}, false)
+	}, common.MultiShard, false)
 	return b, nil
 }
 
@@ -727,8 +742,8 @@ func (h *IdenaGossipHandler) ProposeProof(proposal *types.ProofProposal) {
 		Type: pushProof,
 		Hash: proposal.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, proposal, false)
-	h.sendPush(hash)
+	h.pushPullManager.AddEntry(hash, proposal, common.MultiShard, false)
+	h.sendPush(hash, common.MultiShard)
 }
 
 func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
@@ -736,8 +751,8 @@ func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
 		Type: pushBlock,
 		Hash: block.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, block, false)
-	h.sendPush(hash)
+	h.pushPullManager.AddEntry(hash, block, common.MultiShard, false)
+	h.sendPush(hash, common.MultiShard)
 }
 
 func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
@@ -745,33 +760,33 @@ func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
 		Type: pushVote,
 		Hash: vote.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, vote, false)
-	h.sendPush(hash)
+	h.pushPullManager.AddEntry(hash, vote, common.MultiShard, false)
+	h.sendPush(hash, common.MultiShard)
 }
 
-func (h *IdenaGossipHandler) sendPush(hash pushPullHash) {
+func (h *IdenaGossipHandler) sendPush(hash pushPullHash, shardId common.ShardId) {
 	data, _ := hash.ToBytes()
 	if hash.Type == pushKeyPackage {
-		h.peers.SendWithFilterAndExpiration(Push, msgKey(data), hash, false, flipKeyMsgCacheAliveTime)
+		h.peers.SendWithFilterAndExpiration(Push, msgKey(data), hash, shardId, false, flipKeyMsgCacheAliveTime)
 	} else {
-		h.peers.SendWithFilter(Push, msgKey(data), hash, false)
+		h.peers.SendWithFilter(Push, msgKey(data), hash, shardId, false)
 	}
 }
 
-func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}, highPriority bool) {
+func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry interface{}, shardId common.ShardId, highPriority bool) {
 	switch hash.Type {
 	case pushVote:
-		p.sendMsg(Vote, entry, highPriority)
+		p.sendMsg(Vote, entry, shardId, highPriority)
 	case pushBlock:
-		p.sendMsg(ProposeBlock, entry, highPriority)
+		p.sendMsg(ProposeBlock, entry, shardId, highPriority)
 	case pushProof:
-		p.sendMsg(ProposeProof, entry, highPriority)
+		p.sendMsg(ProposeProof, entry, shardId, highPriority)
 	case pushFlip:
-		p.sendMsg(FlipBody, entry, highPriority)
+		p.sendMsg(FlipBody, entry, shardId, highPriority)
 	case pushKeyPackage:
-		p.sendMsg(FlipKeysPackage, entry, highPriority)
+		p.sendMsg(FlipKeysPackage, entry, shardId, highPriority)
 	case pushTx:
-		p.sendMsg(NewTx, entry, highPriority)
+		p.sendMsg(NewTx, entry, shardId, highPriority)
 		if highPriority {
 			tx := entry.(*types.Transaction)
 			p.log.Info("Sent high priority tx", "hash", tx.Hash().Hex())
@@ -785,14 +800,14 @@ func errResp(code int, format string, v ...interface{}) error {
 	return fmt.Errorf("%v - %v", code, fmt.Sprintf(format, v...))
 }
 
-func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, own bool) {
+func (h *IdenaGossipHandler) broadcastTx(tx *types.Transaction, shardId common.ShardId, own bool) {
 	hash := pushPullHash{
 		Type: pushTx,
 		Hash: tx.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, tx, own)
+	h.pushPullManager.AddEntry(hash, tx, shardId, own)
 	data, _ := hash.ToBytes()
-	h.peers.SendWithFilter(Push, msgKey(data), hash, own)
+	h.peers.SendWithFilter(Push, msgKey(data), hash, shardId, own)
 	if own {
 		h.log.Info("Sent own tx push", "hash", tx.Hash().Hex())
 	}
@@ -803,34 +818,34 @@ func (h *IdenaGossipHandler) sendFlip(flip *types.Flip) {
 		Type: pushFlip,
 		Hash: flip.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, flip, false)
-	h.sendPush(hash)
+	h.pushPullManager.AddEntry(hash, flip, common.MultiShard, false)
+	h.sendPush(hash, common.MultiShard)
 }
 
-func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, own bool) {
+func (h *IdenaGossipHandler) broadcastFlipKey(flipKey *types.PublicFlipKey, shardId common.ShardId, own bool) {
 	b, _ := flipKey.ToBytes()
-	h.peers.SendWithFilterAndExpiration(FlipKey, msgKey(b), flipKey, own, flipKeyMsgCacheAliveTime)
+	h.peers.SendWithFilterAndExpiration(FlipKey, msgKey(b), flipKey, shardId, own, flipKeyMsgCacheAliveTime)
 }
 
-func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, own bool) {
+func (h *IdenaGossipHandler) broadcastFlipKeysPackage(flipKeysPackage *types.PrivateFlipKeysPackage, shardId common.ShardId, own bool) {
 	hash := pushPullHash{
 		Type: pushKeyPackage,
 		Hash: flipKeysPackage.Hash128(),
 	}
-	h.sendPush(hash)
+	h.sendPush(hash, shardId)
 }
 
 func (h *IdenaGossipHandler) sendPull(peerId peer.ID, hash pushPullHash) {
 	peer := h.peers.Peer(peerId)
 	if peer != nil {
-		peer.sendMsg(Pull, hash, false)
+		peer.sendMsg(Pull, hash, common.MultiShard, false)
 	}
 }
 
 func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 	h.peers.Send(GetBlockByHash, &models.ProtoGetBlockByHashRequest{
 		Hash: hash[:],
-	})
+	}, common.MultiShard)
 }
 
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
@@ -841,8 +856,8 @@ func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 			Type: pushTx,
 			Hash: tx.Hash128(),
 		}
-		h.pushPullManager.AddEntry(payload, tx, false)
-		p.sendMsg(Push, payload, false)
+		h.pushPullManager.AddEntry(payload, tx, tx.LoadShardId(), false)
+		p.sendMsg(Push, payload, tx.LoadShardId(), false)
 		bytes, _ := payload.ToBytes()
 		p.markKey(msgKey(bytes))
 	}
@@ -853,24 +868,24 @@ func (h *IdenaGossipHandler) sendManifest(p *protoPeer) {
 	if manifest == nil {
 		return
 	}
-	p.sendMsg(SnapshotManifest, manifest, true)
+	p.sendMsg(SnapshotManifest, manifest, common.MultiShard, true)
 }
 
 func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
 	const maximalPeersNumberForFullSync = 3
 
-	keys := h.flipKeyPool.GetFlipKeysForSync(p.peers <= maximalPeersNumberForFullSync)
+	keys := h.flipKeyPool.GetFlipKeysForSync(p.shardId, p.peers <= maximalPeersNumberForFullSync)
 	for _, key := range keys {
-		p.sendMsg(FlipKey, key, false)
+		p.sendMsg(FlipKey, key, p.shardId, false)
 	}
 
-	keysPackages := h.flipKeyPool.GetFlipPackagesHashesForSync(p.peers <= maximalPeersNumberForFullSync)
+	keysPackages := h.flipKeyPool.GetFlipPackagesHashesForSync(p.shardId, p.peers <= maximalPeersNumberForFullSync)
 	for _, hash := range keysPackages {
 		payload := pushPullHash{
 			Type: pushKeyPackage,
 			Hash: hash,
 		}
-		p.sendMsg(Push, payload, false)
+		p.sendMsg(Push, payload, p.shardId, false)
 		bytes, _ := payload.ToBytes()
 		p.markKeyWithExpiration(msgKey(bytes), flipKeyMsgCacheAliveTime)
 	}
@@ -948,22 +963,38 @@ func (h *IdenaGossipHandler) IsConnected(id peer.ID) bool {
 
 func (h *IdenaGossipHandler) watchShardSubscription() {
 	for {
-		time.Sleep(time.Second * 10)
-		topics := h.pubsub.GetTopics()
-		if len(topics) > 0 {
-			ownTopic := ""
-			ownShard := h.bcn.CoinbaseShard()
-			if ownShard != common.MultiShard {
-				ownTopic = fmt.Sprintf("shard-%v", ownShard)
+		time.Sleep(time.Second * 20)
+		ownShard := h.bcn.CoinbaseShard()
+		var topic *pubsub.Topic
+		var topicShard common.ShardId
+		var sub *pubsub.Subscription
+
+		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) {
+			if sub != nil {
+				sub.Cancel()
 			}
-			for _, t := range topics {
-				if t != ownTopic {
-					topic, _ := h.pubsub.Join(t)
-					if topic != nil {
-						topic.Close()
-					}
-				}
+			if topic!=nil {
+				topic.Close()
 			}
+			topicS := fmt.Sprintf("shard-%v", ownShard)
+			topic, err := h.pubsub.Join(topicS)
+			if err != nil {
+				log.Warn("failed to create shard topic", "err", err)
+				continue
+			}
+			sub, err = topic.Subscribe()
+			if err != nil {
+				log.Warn("failed to create shard topic", "err", err)
+				continue
+			}
+			log.Info("created sub to shard topic", "topic", topicS)
+			topicShard = ownShard
 		}
 	}
+}
+
+func (h *IdenaGossipHandler) notifyAboutShardUpdate(shard common.ShardId) {
+	h.peers.Send(UpdateShardId, &updateShardId{
+		ShardId: shard,
+	}, common.MultiShard)
 }

@@ -126,6 +126,10 @@ message ProtoMsg {
     uint32 shardId = 3;
 }
 
+message ProtoUpdateShardId {
+    uint32 shardId = 1;
+}
+
 message ProtoIdentityStateDiff {
     message IdentityStateDiffValue {
         bytes address = 1;
@@ -381,6 +385,12 @@ message ProtoStateIdentity {
 }
 
 message ProtoStateGlobal {
+
+    message EmptyBlocksByShards {
+        uint32 shardId = 1;
+        repeated bytes proposers = 2;
+    }
+
     uint32 epoch = 1;
     int64 nextValidationTime = 2;
     uint32 validationPeriod = 3;
@@ -395,6 +405,7 @@ message ProtoStateGlobal {
     uint32 blocksCntWithoutCeremonialTxs = 12;
     repeated uint64 prevEpochBlocks = 13;
     uint32 shardsNum = 14;
+    repeated EmptyBlocksByShards emptyBlocksByShards = 15;
 }
 
 message ProtoStateApprovedIdentity {

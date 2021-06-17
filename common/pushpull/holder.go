@@ -7,9 +7,9 @@ import (
 )
 
 type Holder interface {
-	Add(hash common.Hash128, entry interface{}, highPriority bool)
+	Add(hash common.Hash128, entry interface{}, shardId common.ShardId, highPriority bool)
 	Has(hash common.Hash128) bool
-	Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool)
+	Get(hash common.Hash128) (entry interface{}, shardId common.ShardId, highPriority bool, present bool)
 	MaxParallelPulls() uint32
 	SupportPendingRequests() bool
 	PushTracker() PendingPushTracker
@@ -24,6 +24,7 @@ type DefaultHolder struct {
 type entryWrapper struct {
 	entry        interface{}
 	highPriority bool
+	shardId      common.ShardId
 }
 
 func (d *DefaultHolder) PushTracker() PendingPushTracker {
@@ -47,10 +48,11 @@ func NewDefaultHolder(maxPulls int, pushTracker PendingPushTracker) Holder {
 	return holder
 }
 
-func (d *DefaultHolder) Add(hash common.Hash128, entry interface{}, highPriority bool) {
+func (d *DefaultHolder) Add(hash common.Hash128, entry interface{}, shardId common.ShardId, highPriority bool) {
 	d.entryCache.SetDefault(hash.String(), &entryWrapper{
 		entry:        entry,
 		highPriority: highPriority,
+		shardId:      shardId,
 	})
 	if d.pushTracker != nil {
 		d.pushTracker.RemovePull(hash)
@@ -62,12 +64,12 @@ func (d *DefaultHolder) Has(hash common.Hash128) bool {
 	return ok
 }
 
-func (d *DefaultHolder) Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool) {
+func (d *DefaultHolder) Get(hash common.Hash128) (entry interface{}, id common.ShardId, highPriority bool, present bool) {
 	wrapper, ok := d.entryCache.Get(hash.String())
 	if !ok {
-		return nil, false, false
+		return nil, common.MultiShard, false, false
 	}
-	return wrapper.(*entryWrapper).entry, wrapper.(*entryWrapper).highPriority, true
+	return wrapper.(*entryWrapper).entry, wrapper.(*entryWrapper).shardId, wrapper.(*entryWrapper).highPriority, true
 }
 
 func (d *DefaultHolder) MaxParallelPulls() uint32 {

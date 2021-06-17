@@ -471,6 +471,9 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 	vc.processCeremonyTxs(block)
 	vc.stopFlipKeysSync()
 	vc.log.Info("After long blocks without ceremonial txs", "cnt", vc.appState.State.BlocksCntWithoutCeremonialTxs())
+	for shardId, proposers := range vc.appState.State.EmptyBlocksByShard() {
+		vc.log.Info("After long blocks without ceremonial txs", "shardId", shardId , "cnt",len(proposers))
+	}
 }
 
 func (vc *ValidationCeremony) calculateCeremonyCandidates() {
@@ -515,9 +518,9 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		vc.logInfoWithInteraction("Ceremony candidates", "shardId", shardId, "cnt", len(shard.candidates))
 	}
 
-	if len(vc.shardCandidates) == 1 && len(vc.shardCandidates[0].candidates) < 100 {
+	if len(vc.shardCandidates) == 1 && len(vc.shardCandidates[1].candidates) < 100 {
 		var addrs []string
-		for _, c := range vc.getCandidatesAddresses(0) {
+		for _, c := range vc.getCandidatesAddresses(1) {
 			addrs = append(addrs, c.Hex())
 		}
 		vc.logInfoWithInteraction("Ceremony candidates", "addresses", addrs)
@@ -623,7 +626,7 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() map[common.ShardId]*candid
 
 	candidatesDistibution := make(map[common.ShardId]*candidatesOfShard)
 	shardsNum := vc.appState.State.ShardsNum()
-	for i := uint32(0); i < shardsNum; i++ {
+	for i := uint32(1); i <= shardsNum; i++ {
 		candidatesDistibution[common.ShardId(i)] = &candidatesOfShard{
 			candidates:        make([]*candidate, 0),
 			flips:             make([][]byte, 0),
@@ -656,9 +659,9 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() map[common.ShardId]*candid
 		if err := data.FromBytes(value); err != nil {
 			return false
 		}
-		shard := candidatesDistibution[data.ShardId]
+		shard := candidatesDistibution[data.ShiftedShardId()]
 		if state.IsCeremonyCandidate(data) {
-			addFlips(addr, data.ShardId, data.Flips)
+			addFlips(addr, data.ShiftedShardId(), data.Flips)
 			c := &candidate{
 				Address:  addr,
 				PubKey:   data.PubKey,

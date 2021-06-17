@@ -43,12 +43,17 @@ var (
 type FlipKeysPool interface {
 	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
 	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
-	GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128
-	GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey
+	GetFlipPackagesHashesForSync(shardId common.ShardId, noFilter bool) []common.Hash128
+	GetFlipKeysForSync(common.ShardId, noFilter bool) []*types.PublicFlipKey
 }
 
 func init() {
 	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
+}
+
+type flipKeyPackageWrapper struct {
+	keyPackage *types.PrivateFlipKeysPackage
+	shardId    common.ShardId
 }
 
 type KeysPool struct {
@@ -64,7 +69,7 @@ type KeysPool struct {
 	head                      *types.Header
 	log                       log.Logger
 	flipKeyPackages           map[common.Address]*types.PrivateFlipKeysPackage
-	flipKeyPackagesByHash     map[common.Hash128]*types.PrivateFlipKeysPackage
+	flipKeyPackagesByHash     map[common.Hash128]*flipKeyPackageWrapper
 	flipKeyPackagesSyncCounts map[common.Hash128]int
 	privateKeysArrayCache     map[common.Address]*keysArray
 	secStore                  *secstore.SecStore
@@ -85,7 +90,7 @@ func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secSt
 		flipKeys:                  make(map[common.Address]*types.PublicFlipKey),
 		flipKeysSyncCounts:        make(map[common.Address]int),
 		flipKeyPackages:           make(map[common.Address]*types.PrivateFlipKeysPackage),
-		flipKeyPackagesByHash:     make(map[common.Hash128]*types.PrivateFlipKeysPackage),
+		flipKeyPackagesByHash:     make(map[common.Hash128]*flipKeyPackageWrapper),
 		flipKeyPackagesSyncCounts: make(map[common.Hash128]int),
 		privateKeysArrayCache:     make(map[common.Address]*keysArray),
 		secStore:                  secStore,
@@ -118,7 +123,7 @@ func (p *KeysPool) Initialize(head *types.Header) {
 	}
 }
 
-func (p *KeysPool) Add(hash common.Hash128, entry interface{}, highPriority bool) {
+func (p *KeysPool) Add(hash common.Hash128, entry interface{}, id common.ShardId, highPriority bool) {
 	//ignore it, entries are adding via AddPrivateKeysPackage
 }
 
@@ -133,11 +138,14 @@ func (p *KeysPool) Has(hash common.Hash128) bool {
 	return ok
 }
 
-func (p *KeysPool) Get(hash common.Hash128) (entry interface{}, highPriority bool, present bool) {
+func (p *KeysPool) Get(hash common.Hash128) (entry interface{}, id common.ShardId, highPriority bool, present bool) {
 	p.privateKeysMutex.RLock()
 	value, ok := p.flipKeyPackagesByHash[hash]
 	p.privateKeysMutex.RUnlock()
-	return value, false, ok
+	if ok {
+		return value.keyPackage, value.shardId, false, true
+	}
+	return nil, common.MultiShard, false, ok
 }
 
 func (p *KeysPool) MaxParallelPulls() uint32 {
@@ -178,6 +186,8 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 		return err
 	}
 
+	key.SetShardId(appState.State.ShardId(sender))
+
 	p.flipKeys[sender] = key
 
 	p.appState.EvidenceMap.NewFlipsKey(sender)
@@ -187,8 +197,9 @@ func (p *KeysPool) putPublicFlipKey(key *types.PublicFlipKey, appState *appstate
 	p.publicKeyMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeyEvent{
-		Key: key,
-		Own: own,
+		Key:     key,
+		Own:     own,
+		ShardId: appState.State.ShardId(sender),
 	})
 	return nil
 }
@@ -230,8 +241,7 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 
 	p.flipKeyPackages[sender] = keysPackage
 	shortHash := keysPackage.Hash128()
-	p.flipKeyPackagesByHash[shortHash] = keysPackage
-
+	p.flipKeyPackagesByHash[shortHash] = &flipKeyPackageWrapper{keysPackage, appState.State.ShardId(sender)}
 	p.pushTracker.RemovePull(shortHash)
 
 	p.epochDb.WritePrivateFlipKey(keysPackage)
@@ -239,44 +249,49 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	p.privateKeysMutex.Unlock()
 
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
-		Key: keysPackage,
-		Own: own,
+		Key:     keysPackage,
+		ShardId: appState.State.ShardId(sender),
+		Own:     own,
 	})
 	return nil
 }
 
-func (p *KeysPool) GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey {
-	p.publicKeyMutex.Lock()
-	defer p.publicKeyMutex.Unlock()
+func (p *KeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*types.PublicFlipKey {
+	p.publicKeyMutex.RLock()
+	defer p.publicKeyMutex.RUnlock()
 
 	var list []*types.PublicFlipKey
 	if noFilter {
 		list = make([]*types.PublicFlipKey, 0, len(p.flipKeys))
 	}
 	if !p.stopSync {
-		for key, tx := range p.flipKeys {
-			if noFilter || p.flipKeysSyncCounts[key] <= maxFlipKeySyncCounts {
-				list = append(list, tx)
-				p.flipKeysSyncCounts[key]++
+		for h , key := range p.flipKeys {
+			if key.LoadShardId() == shardId || shardId == common.MultiShard {				
+			if noFilter || p.flipKeysSyncCounts[h] <= maxFlipKeySyncCounts {
+				list = append(list, key)
+				p.flipKeysSyncCounts[h]++
+			}
 			}
 		}
 	}
 	return list
 }
 
-func (p *KeysPool) GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128 {
-	p.privateKeysMutex.Lock()
-	defer p.privateKeysMutex.Unlock()
+func (p *KeysPool) GetFlipPackagesHashesForSync(shardId common.ShardId, noFilter bool) []common.Hash128 {
+	p.privateKeysMutex.RLock()
+	defer p.privateKeysMutex.RUnlock()
 
 	var list []common.Hash128
 	if noFilter {
 		list = make([]common.Hash128, 0, len(p.flipKeyPackagesByHash))
 	}
 	if !p.stopSync {
-		for k := range p.flipKeyPackagesByHash {
-			if noFilter || p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts {
+		for k, p := range p.flipKeyPackagesByHash {
+			if p.shardId == shardId || shardId == common.MultiShard {
+				if noFilter || p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts {
 				list = append(list, k)
 				p.flipKeyPackagesSyncCounts[k]++
+			}
 			}
 		}
 	}
@@ -357,7 +372,7 @@ func (p *KeysPool) Clear() {
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
 	p.flipKeyPackagesSyncCounts = map[common.Hash128]int{}
 	p.flipKeyPackages = make(map[common.Address]*types.PrivateFlipKeysPackage)
-	p.flipKeyPackagesByHash = make(map[common.Hash128]*types.PrivateFlipKeysPackage)
+	p.flipKeyPackagesByHash = make(map[common.Hash128]*flipKeyPackageWrapper)
 	p.flipKeyPackagesSyncCounts = map[common.Hash128]int{}
 	p.privateKeysArrayCache = make(map[common.Address]*keysArray)
 	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
