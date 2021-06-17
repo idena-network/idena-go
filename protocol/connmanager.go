@@ -76,6 +76,19 @@ func (m *ConnManager) Connected(id peer.ID, inbound bool, shardId common.ShardId
 	}
 }
 
+func (m *ConnManager) UpdatePeerShardId(id peer.ID, shardId common.ShardId) {
+	m.peerMutex.Lock()
+	defer m.peerMutex.Unlock()
+	if _, ok := m.inboundPeers[id]; ok {
+		m.inboundPeers[id] = shardId
+		return
+	}
+	if _, ok := m.outboundPeers[id]; ok {
+		m.outboundPeers[id] = shardId
+		return
+	}
+}
+
 func (m *ConnManager) PeersCntFromOtherShards() int {
 	m.peerMutex.Lock()
 	defer m.peerMutex.Unlock()
@@ -110,8 +123,10 @@ func (m *ConnManager) PeersCntFromOwnShard() int {
 	return cnt
 }
 
-func (m *ConnManager) SetShardId(shard common.ShardId) {
+func (m *ConnManager) SetShardId(shard common.ShardId) (updated bool) {
+	prevShardId := m.shardId
 	m.shardId = shard
+	return prevShardId != shard
 }
 
 func (m *ConnManager) Disconnected(id peer.ID, reason error) {

@@ -48,7 +48,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	normalizedAges := float32(0)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults[identity.ShardId].BadAuthors[addr]; !ok {
+			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
 				normalizedAges += normalAge(epoch - identity.Birthday)
 			}
 		}
@@ -64,7 +64,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults[identity.ShardId].BadAuthors[addr]; !ok {
+			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
 				age := epoch - identity.Birthday
 				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
@@ -107,7 +107,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 
 	totalWeight := float32(0)
 
-	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
 		validationResult, ok := validationResults[0]
 		if !ok {
 			continue
@@ -134,7 +134,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalWeight))
 	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
-	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
 		validationResult, ok := validationResults[0]
 		if !ok {
 			continue
@@ -164,7 +164,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			collector.AfterAddStake(statsCollector, addr, stake, appState)
 		}
 	}
-	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
 		validationResult, ok := validationResults[0]
 		if !ok {
 			continue
@@ -244,7 +244,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	}
 	goodInviters := make([]inviterWrapper, 0)
 
-	for i := uint32(0); i < appState.State.ShardsNum(); i++ {
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
 		if shard, ok := validationResults[common.ShardId(i)]; ok {
 			for addr, inviter := range shard.GoodInviters {
 				goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})

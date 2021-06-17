@@ -17,4 +17,5 @@ const (
 	Push              = 0x0E
 	Pull              = 0x0F
 	Block             = 0x10
+	UpdateShardId     = 0x11
 )

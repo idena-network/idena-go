@@ -230,6 +230,7 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 				pool.bus.Publish(&events.NewTxEvent{
 					Tx:       tx,
 					Own:      sender == pool.coinbase,
+					ShardId:  appState.State.ShardId(sender),
 					Deferred: true,
 				})
 			}
@@ -261,8 +262,10 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 		appState, _ := pool.appState.Readonly(pool.head.Height())
 		if err := pool.add(tx, appState); err != nil {
 			if _, ok := priorityTypes[tx.Type]; ok {
+				sender, _ := types.Sender(tx)
 				pool.bus.Publish(&events.NewTxEvent{
 					Tx:       tx,
+					ShardId:  appState.State.ShardId(sender),
 					Own:      true,
 					Deferred: true,
 				})
@@ -314,11 +317,14 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) erro
 		return err
 	}
 
+	tx.SetShardId(appState.State.ShardId(sender))
+
 	pool.mutex.Unlock()
 
 	pool.bus.Publish(&events.NewTxEvent{
-		Tx:  tx,
-		Own: sender == pool.coinbase,
+		Tx:      tx,
+		Own:     sender == pool.coinbase,
+		ShardId: tx.LoadShardId(),
 	})
 	return nil
 }

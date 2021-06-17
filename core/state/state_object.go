@@ -9,6 +9,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	math2 "math"
 	"math/big"
+	"sort"
 )
 
 type IdentityState uint8
@@ -207,6 +208,7 @@ type Global struct {
 	GodAddressInvites             uint16
 	BlocksCntWithoutCeremonialTxs byte
 	ShardsNum                     uint32
+	EmptyBlocksByShards           map[common.ShardId][]common.Address
 }
 
 func (s *Global) ToBytes() ([]byte, error) {
@@ -225,6 +227,24 @@ func (s *Global) ToBytes() ([]byte, error) {
 		GodAddressInvites:             uint32(s.GodAddressInvites),
 		BlocksCntWithoutCeremonialTxs: uint32(s.BlocksCntWithoutCeremonialTxs),
 		ShardsNum:                     s.ShardsNum,
+	}
+	var keys []common.ShardId
+	for k := range s.EmptyBlocksByShards {
+		keys = append(keys, k)
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		return keys[i] > keys[j]
+	})
+	for _, shardId := range keys {
+		addresses := s.EmptyBlocksByShards[shardId]
+		var proposers [][]byte
+		for _, addr := range addresses {
+			proposers = append(proposers, addr.Bytes())
+		}
+		protoAnswer.EmptyBlocksByShards = append(protoAnswer.EmptyBlocksByShards, &models.ProtoStateGlobal_EmptyBlocksByShards{
+			ShardId:   uint32(shardId),
+			Proposers: proposers,
+		})
 	}
 	return proto.Marshal(protoAnswer)
 }
@@ -249,6 +269,15 @@ func (s *Global) FromBytes(data []byte) error {
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
 	s.BlocksCntWithoutCeremonialTxs = byte(protoGlobal.BlocksCntWithoutCeremonialTxs)
 	s.ShardsNum = protoGlobal.ShardsNum
+	s.EmptyBlocksByShards = make(map[common.ShardId][]common.Address)
+	for _, shard := range protoGlobal.EmptyBlocksByShards {
+		var addrs []common.Address
+		for _, p := range shard.Proposers {
+			addrs = append(addrs, common.BytesToAddress(p))
+		}
+		s.EmptyBlocksByShards[common.ShardId(shard.ShardId)] = addrs
+	}
+
 	return nil
 }
 
@@ -336,7 +365,8 @@ type Identity struct {
 	Delegatee            *common.Address
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
-	ShardId              common.ShardId
+	// do not use directly
+	ShardId common.ShardId
 }
 
 type TxAddr struct {
@@ -468,6 +498,13 @@ func (i *Identity) GetMaximumAvailableFlips() uint8 {
 		return i.RequiredFlips + AdditionalHumanFlips
 	}
 	return i.RequiredFlips
+}
+
+func (i *Identity) ShiftedShardId() common.ShardId {
+	if i.ShardId == 0 {
+		return i.ShardId + 1
+	}
+	return i.ShardId
 }
 
 type ApprovedIdentity struct {
@@ -962,7 +999,7 @@ func (s *stateIdentity) DelegationEpoch() uint16 {
 }
 
 func (s *stateIdentity) ShardId() common.ShardId {
-	return s.data.ShardId
+	return s.data.ShiftedShardId()
 }
 
 func (s *stateIdentity) SetShardId(id common.ShardId) {
@@ -1140,13 +1177,49 @@ func (s *stateGlobal) ResetBlocksCntWithoutCeremonialTxs() {
 	s.touch()
 }
 
+func (s *stateGlobal) AddEmptyBlockByShard(networkSize int, shardId common.ShardId, proposer common.Address) {
+	if len(s.data.EmptyBlocksByShards[shardId]) >= AfterLongRequiredBlocks {
+		return
+	}
+	proposers := s.data.EmptyBlocksByShards[shardId]
+	for _, p := range proposers {
+		if p == proposer && networkSize/int(s.ShardsNum()) > AfterLongRequiredBlocks {
+			return
+		}
+	}
+	s.data.EmptyBlocksByShards[shardId] = append(proposers, proposer)
+	s.touch()
+}
+
+func (s *stateGlobal) ResetEmptyBlockByShard(shardId common.ShardId) {
+	s.data.EmptyBlocksByShards[shardId] = []common.Address{}
+	s.touch()
+}
+
 func (s *stateGlobal) ShardsNum() uint32 {
-	return s.data.ShardsNum
+	num := s.data.ShardsNum
+	if num == 0 {
+		num++
+	}
+	return num
 }
 
 func (s *stateGlobal) SetShardsNum(num uint32) {
 	s.data.ShardsNum = num
 	s.touch()
+}
+
+func (s *stateGlobal) CanCompleteEpoch() bool {
+	if s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks {
+		return true
+	}
+	completedShard := 0
+	for _, shard := range s.data.EmptyBlocksByShards {
+		if len(shard) >= AfterLongRequiredBlocks {
+			completedShard++
+		}
+	}
+	return uint32(completedShard) == s.ShardsNum()
 }
 
 func (s *stateApprovedIdentity) Address() common.Address {

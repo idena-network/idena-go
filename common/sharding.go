@@ -1,7 +1,7 @@
 package common
 
-const MinShardSize = 2200
-const MaxShardSize = 4600
+const MinShardSize = 2
+const MaxShardSize = 4
 
 func CalculateShardsNumber(minShardSize, maxShardSize, networkSize, currentShardsNum int) int {
 	shouldRemoveShards := networkSize <= minShardSize*currentShardsNum

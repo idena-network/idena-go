@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/libp2p/go-libp2p-core"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -16,11 +17,13 @@ const (
 	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
 	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
 	DeleteFlipEventID      = eventbus.EventID("flip-delete")
+	UpdateShardId          = eventbus.EventID("update-shard-id")
 )
 
 type NewTxEvent struct {
 	Tx       *types.Transaction
 	Own      bool
+	ShardId  common.ShardId
 	Deferred bool
 }
 
@@ -37,8 +40,9 @@ func (e *NewBlockEvent) EventID() eventbus.EventID {
 }
 
 type NewFlipKeyEvent struct {
-	Key *types.PublicFlipKey
-	Own bool
+	Key     *types.PublicFlipKey
+	ShardId common.ShardId
+	Own     bool
 }
 
 func (e *NewFlipKeyEvent) EventID() eventbus.EventID {
@@ -61,8 +65,9 @@ func (NewFlipEvent) EventID() eventbus.EventID {
 }
 
 type NewFlipKeysPackageEvent struct {
-	Key *types.PrivateFlipKeysPackage
-	Own bool
+	Key     *types.PrivateFlipKeysPackage
+	ShardId common.ShardId
+	Own     bool
 }
 
 func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
@@ -84,4 +89,11 @@ type DeleteFlipEvent struct {
 
 func (DeleteFlipEvent) EventID() eventbus.EventID {
 	return DeleteFlipEventID
+}
+
+type UpdateShardIdEvent struct {
+}
+
+func (UpdateShardIdEvent) EventID() eventbus.EventID {
+	return UpdateShardId
 }
