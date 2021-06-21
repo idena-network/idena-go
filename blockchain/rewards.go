@@ -108,7 +108,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	totalWeight := float32(0)
 
 	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-		validationResult, ok := validationResults[0]
+		validationResult, ok := validationResults[common.ShardId(i)]
 		if !ok {
 			continue
 		}
@@ -135,7 +135,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
 	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-		validationResult, ok := validationResults[0]
+		validationResult, ok := validationResults[common.ShardId(i)]
 		if !ok {
 			continue
 		}
@@ -165,7 +165,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		}
 	}
 	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-		validationResult, ok := validationResults[0]
+		validationResult, ok := validationResults[common.ShardId(i)]
 		if !ok {
 			continue
 		}

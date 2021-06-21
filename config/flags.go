@@ -15,8 +15,8 @@ const (
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
 
-	DefaultMaxInboundOwnShardPeers     = 10
-	DefaultMaxOutboundOwnShardPeers    = 4
+	DefaultMaxInboundOwnShardPeers     = 8
+	DefaultMaxOutboundOwnShardPeers    = 6
 	DefaultMaxInboundNotOwnShardPeers  = 2
 	DefaultMaxOutboundNotOwnShardPeers = 2
 

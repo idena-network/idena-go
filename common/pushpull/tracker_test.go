@@ -103,7 +103,7 @@ func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
 	tracker.AddPendingPush("6", hash1)
 
 	time.Sleep(time.Millisecond * 700)
-	holder.Add(hash1, 1, false)
+	holder.Add(hash1, 1, common.MultiShard, false)
 	wg.Wait()
 
 	require.Equal(t, peer.ID("3"), pulls[0].Id)
