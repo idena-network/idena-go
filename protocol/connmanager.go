@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -299,21 +298,11 @@ func (m *ConnManager) NeedOutboundOwnShardPeers() bool {
 }
 
 func (m *ConnManager) MaxOutboundPeers() int {
-	inBoundPeers := len(m.inboundPeers)
-	maxOutbound := m.cfg.MaxOutboundPeers
-	if inBoundPeers >= 7 {
-		maxOutbound = 1
-	}
-	return math.MinInt(maxOutbound, m.cfg.MaxOutboundPeers)
+	return m.cfg.MaxOutboundPeers
 }
 
 func (m *ConnManager) MaxOutboundOwnPeers() int {
-	inBoundPeers := len(m.inboundPeers)
-	maxOutbound := m.cfg.MaxOutboundOwnShardPeers
-	if inBoundPeers >= 10 {
-		maxOutbound = 1
-	}
-	return math.MinInt(maxOutbound, m.cfg.MaxOutboundOwnShardPeers)
+	return m.cfg.MaxOutboundOwnShardPeers
 }
 
 func (m *ConnManager) CanDial() bool {

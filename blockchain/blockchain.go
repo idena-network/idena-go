@@ -445,6 +445,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 		})
 		if block.Header.Flags().HasFlag(types.ValidationFinished) {
 			chain.bus.Publish(&events.UpdateShardIdEvent{})
+			log.Info("Coinbase shard", "shardId", chain.CoinbaseShard())
 		}
 		chain.RemovePreliminaryHead(nil)
 		return nil

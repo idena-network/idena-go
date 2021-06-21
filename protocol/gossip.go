@@ -420,7 +420,12 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 
 func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
 	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && (h.connManager.CanAcceptStream() || h.connManager.NeedInboundOwnShardPeers()) {
-		h.runPeer(stream, true)
+		if _, err := h.runPeer(stream, true); err != nil {
+			h.log.Debug("failed to run inbound peer", "err", err)
+		}
+	} else {
+		id := stream.Conn().RemotePeer()
+		h.log.Debug("cannot accept stream", "peerId", id.Pretty(), "canConnect", h.connManager.CanConnect(stream.Conn().RemotePeer()), "canAccept", h.connManager.CanAcceptStream(), "needOwn", h.connManager.NeedInboundOwnShardPeers())
 	}
 }
 
@@ -460,27 +465,38 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		return nil, err
 	}
 
-	canConnect := false
-	shouldDisconnectAnotherPeer := false
-	if inbound {
-		if h.connManager.IsFromOwnShards(peer.shardId) {
-			canConnect = h.connManager.NeedInboundOwnShardPeers()
-			shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream() && canConnect
+	needPeerFromShard := func(inbound bool, shardId common.ShardId) (bool, bool) {
+		canConnect := false
+		shouldDisconnectAnotherPeer := false
+		if inbound {
+			if h.connManager.IsFromOwnShards(peer.shardId) {
+				canConnect = h.connManager.NeedInboundOwnShardPeers()
+				shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream() && canConnect
+			} else {
+				canConnect = h.connManager.CanAcceptStream()
+			}
 		} else {
-			canConnect = h.connManager.CanAcceptStream()
+			if h.connManager.IsFromOwnShards(peer.shardId) {
+				canConnect = h.connManager.NeedOutboundOwnShardPeers()
+				shouldDisconnectAnotherPeer = !h.connManager.CanDial() && canConnect
+			} else {
+				canConnect = h.connManager.CanDial()
+			}
 		}
-	} else {
-		if h.connManager.IsFromOwnShards(peer.shardId) {
-			canConnect = h.connManager.NeedOutboundOwnShardPeers()
-			shouldDisconnectAnotherPeer = !h.connManager.CanDial() && canConnect
-		} else {
-			canConnect = h.connManager.CanDial()
-		}
+		return canConnect, shouldDisconnectAnotherPeer
 	}
 
+	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
+
 	if !canConnect {
-		peer.disconnect()
-		return nil, errors.Errorf("no slots for shard=%v", peer.shardId)
+		go func() {
+			time.Sleep(time.Second * 30)
+			canConnect, _ := needPeerFromShard(inbound, peer.shardId)
+			if !canConnect {
+				log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
+				peer.disconnect()
+			}
+		}()
 	}
 	if shouldDisconnectAnotherPeer {
 		peerId := h.connManager.GetRandomPeerFromAnotherShard(inbound)
@@ -546,7 +562,9 @@ func (h *IdenaGossipHandler) dialPeers() {
 			if peer == nil {
 				if _, ok := attempts[id]; !ok {
 					attempts[id] = struct{}{}
-					h.runPeer(stream, false)
+					if _, err := h.runPeer(stream, false); err != nil {
+						h.log.Debug("failed to run outbound peer", "err", err)
+					}
 				}
 			}
 		}
@@ -962,29 +980,29 @@ func (h *IdenaGossipHandler) IsConnected(id peer.ID) bool {
 }
 
 func (h *IdenaGossipHandler) watchShardSubscription() {
+	var topic *pubsub.Topic
+	var topicShard common.ShardId
+	var sub *pubsub.Subscription
 	for {
 		time.Sleep(time.Second * 20)
 		ownShard := h.bcn.CoinbaseShard()
-		var topic *pubsub.Topic
-		var topicShard common.ShardId
-		var sub *pubsub.Subscription
-
 		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) {
 			if sub != nil {
 				sub.Cancel()
 			}
-			if topic!=nil {
+			if topic != nil {
 				topic.Close()
 			}
 			topicS := fmt.Sprintf("shard-%v", ownShard)
-			topic, err := h.pubsub.Join(topicS)
+			var err error
+			topic, err = h.pubsub.Join(topicS)
 			if err != nil {
 				log.Warn("failed to create shard topic", "err", err)
 				continue
 			}
 			sub, err = topic.Subscribe()
 			if err != nil {
-				log.Warn("failed to create shard topic", "err", err)
+				log.Warn("failed to create shard sub", "err", err)
 				continue
 			}
 			log.Info("created sub to shard topic", "topic", topicS)

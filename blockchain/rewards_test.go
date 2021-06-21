@@ -54,7 +54,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.Commit(nil)
 
 	validationResults := map[common.ShardId]*types.ValidationResults{
-		0: {
+		1: {
 			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 			GoodAuthors: map[common.Address]*types.ValidationResult{
 				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},

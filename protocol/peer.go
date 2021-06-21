@@ -285,7 +285,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *typ
 
 		msg := makeMsg(Handshake, data, 0)
 		errc <- p.rw.WriteMsg(msg)
-		p.log.Trace("handshake message sent")
+		p.log.Trace("handshake message sent", "shardId", shardId)
 	}()
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
