@@ -22,7 +22,7 @@ require (
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-filestore v0.0.3
 	github.com/ipfs/go-ipfs v0.8.0
-	github.com/ipfs/go-ipfs-blockstore v0.1.4
+	github.com/ipfs/go-ipfs-blockstore v0.1.6
 	github.com/ipfs/go-ipfs-config v0.14.0
 	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipfs-files v0.0.8
