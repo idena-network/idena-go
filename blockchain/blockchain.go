@@ -832,6 +832,7 @@ func balanceShards(appState *appstate.AppState, networkSize, totalNewbies, total
 	}
 
 	for i := 1; i <= newShardsNum; i++ {
+		appState.State.SetShardSize(common.ShardId(i), uint32(newbiesByShard[common.ShardId(i)] +  verifiedByShard[common.ShardId(i)]))
 		log.Info("Shard distribution after balancing", "shardId", i, "newbies", newbiesByShard[common.ShardId(i)], "verified,human", verifiedByShard[common.ShardId(i)])
 	}
 
@@ -1153,7 +1154,9 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.AddBalance(recipient, balanceToTransfer)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
-
+		candidateShard := chain.MinimalShard(appState)
+		stateDB.SetShardId(recipient, candidateShard)
+		stateDB.IncreaseShardSize(candidateShard)
 		inviter := stateDB.GetInviter(sender)
 		if inviter != nil {
 			removeLinkWithInviter(appState.State, sender)
@@ -1202,7 +1205,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, sender)
+		if stateDB.GetIdentityState(sender).CandidateOrBetter() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(sender))
+		}
 		stateDB.SetState(sender, state.Killed)
+
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
@@ -1213,6 +1220,9 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
+		if stateDB.GetIdentityState(*tx.To).CandidateOrBetter() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
+		}
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		if inviteePrevState == state.Newbie {
@@ -1235,6 +1245,9 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		delegatorPrevState := stateDB.GetIdentityState(*tx.To)
+		if stateDB.GetIdentityState(*tx.To).CandidateOrBetter() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
+		}
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
@@ -2548,4 +2561,21 @@ func (chain *Blockchain) ipfsLoad() {
 
 func (chain *Blockchain) CoinbaseShard() common.ShardId {
 	return chain.appState.State.ShardId(chain.coinBaseAddress)
+}
+
+func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
+	if appState.State.ShardsNum() == 1{
+		return common.ShardId(1)
+	}
+	sizes := appState.State.ShardSizes()
+
+	minSize := uint32(math.MaxUint32)
+	var minShard common.ShardId
+	for shardId, size := range sizes {
+		if size < minSize {
+			minSize = size
+			minShard = shardId
+		}
+	}
+	return minShard
 }

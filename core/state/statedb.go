@@ -957,6 +957,7 @@ func (s *StateDB) createIdentity(addr common.Address) (newobj, prev *stateIdenti
 func (s *StateDB) createGlobal() (stateObject *stateGlobal) {
 	stateObject = newGlobalObject(Global{
 		EmptyBlocksByShards: map[common.ShardId][]common.Address{},
+		ShardSizes:          map[common.ShardId]uint32{},
 	}, s.MarkStateGlobalObjectDirty)
 	stateObject.touch()
 	s.setStateGlobalObject(stateObject)
@@ -1618,6 +1619,22 @@ func (s *StateDB) SetShardsNum(num uint32) {
 
 func (s *StateDB) EmptyBlocksByShard() map[common.ShardId][]common.Address {
 	return s.GetOrNewGlobalObject().data.EmptyBlocksByShards
+}
+
+func (s *StateDB) ShardSizes() map[common.ShardId]uint32 {
+	return s.GetOrNewGlobalObject().data.ShardSizes
+}
+
+func (s *StateDB) IncreaseShardSize(shardId common.ShardId) {
+	s.GetOrNewGlobalObject().IncreaseShardSize(shardId)
+}
+
+func (s *StateDB) DecreaseShardSize(shardId common.ShardId) {
+	s.GetOrNewGlobalObject().DecreaseShardSize(shardId)
+}
+
+func (s *StateDB) SetShardSize(shardId common.ShardId, size uint32) {
+	s.GetOrNewGlobalObject().SetShardSize(shardId, size)
 }
 
 type readCloser struct {

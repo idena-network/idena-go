@@ -35,6 +35,10 @@ const (
 	AfterLongRequiredBlocks = 5
 )
 
+func (s IdentityState) CandidateOrBetter() bool {
+	return s.NewbieOrBetter() || s == Candidate
+}
+
 func (s IdentityState) NewbieOrBetter() bool {
 	return s == Newbie || s == Verified || s == Human
 }
@@ -209,6 +213,7 @@ type Global struct {
 	BlocksCntWithoutCeremonialTxs byte
 	ShardsNum                     uint32
 	EmptyBlocksByShards           map[common.ShardId][]common.Address
+	ShardSizes                    map[common.ShardId]uint32
 }
 
 func (s *Global) ToBytes() ([]byte, error) {
@@ -228,14 +233,14 @@ func (s *Global) ToBytes() ([]byte, error) {
 		BlocksCntWithoutCeremonialTxs: uint32(s.BlocksCntWithoutCeremonialTxs),
 		ShardsNum:                     s.ShardsNum,
 	}
-	var keys []common.ShardId
+	var shardIds []common.ShardId
 	for k := range s.EmptyBlocksByShards {
-		keys = append(keys, k)
+		shardIds = append(shardIds, k)
 	}
-	sort.SliceStable(keys, func(i, j int) bool {
-		return keys[i] > keys[j]
+	sort.SliceStable(shardIds, func(i, j int) bool {
+		return shardIds[i] > shardIds[j]
 	})
-	for _, shardId := range keys {
+	for _, shardId := range shardIds {
 		addresses := s.EmptyBlocksByShards[shardId]
 		var proposers [][]byte
 		for _, addr := range addresses {
@@ -246,6 +251,17 @@ func (s *Global) ToBytes() ([]byte, error) {
 			Proposers: proposers,
 		})
 	}
+	cnt := s.ShardsNum
+	if cnt == 0 {
+		cnt++
+	}
+	for i := common.ShardId(1); i <= common.ShardId(cnt); i++ {
+		protoAnswer.ShardSizes = append(protoAnswer.ShardSizes, &models.ProtoStateGlobal_ShardSize{
+			ShardId: uint32(i),
+			Size:    s.ShardSizes[i],
+		})
+	}
+
 	return proto.Marshal(protoAnswer)
 }
 
@@ -276,6 +292,10 @@ func (s *Global) FromBytes(data []byte) error {
 			addrs = append(addrs, common.BytesToAddress(p))
 		}
 		s.EmptyBlocksByShards[common.ShardId(shard.ShardId)] = addrs
+	}
+	s.ShardSizes = make(map[common.ShardId]uint32)
+	for _, shardSize := range protoGlobal.ShardSizes {
+		s.ShardSizes[common.ShardId(shardSize.ShardId)] = shardSize.Size
 	}
 
 	return nil
@@ -1220,6 +1240,23 @@ func (s *stateGlobal) CanCompleteEpoch() bool {
 		}
 	}
 	return uint32(completedShard) == s.ShardsNum()
+}
+
+func (s *stateGlobal) IncreaseShardSize(id common.ShardId) {
+	s.data.ShardSizes[id]++
+	s.touch()
+}
+
+func (s *stateGlobal) DecreaseShardSize(id common.ShardId) {
+	if s.data.ShardSizes[id] > 0 {
+		s.data.ShardSizes[id]--
+	}
+	s.touch()
+}
+
+func (s *stateGlobal) SetShardSize(id common.ShardId, size uint32) {
+	s.data.ShardSizes[id] = size
+	s.touch()
 }
 
 func (s *stateApprovedIdentity) Address() common.Address {

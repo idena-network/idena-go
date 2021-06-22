@@ -391,6 +391,11 @@ message ProtoStateGlobal {
         repeated bytes proposers = 2;
     }
 
+    message ShardSize {
+        uint32 shardId = 1;
+        uint32 size = 2;
+    }
+
     uint32 epoch = 1;
     int64 nextValidationTime = 2;
     uint32 validationPeriod = 3;
@@ -406,6 +411,7 @@ message ProtoStateGlobal {
     repeated uint64 prevEpochBlocks = 13;
     uint32 shardsNum = 14;
     repeated EmptyBlocksByShards emptyBlocksByShards = 15;
+    repeated ShardSize shardSizes = 16;
 }
 
 message ProtoStateApprovedIdentity {
