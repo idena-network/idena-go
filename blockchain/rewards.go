@@ -25,8 +25,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	currentEpochDuration := epochDurations[len(epochDurations)-1]
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(currentEpochDuration)))
-	//TODO : update collector
-	//collector.SetValidationResults(statsCollector, validationResults)
+	collector.SetValidationResults(statsCollector, validationResults)
 	collector.SetTotalReward(statsCollector, totalReward)
 
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())

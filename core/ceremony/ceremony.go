@@ -906,8 +906,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
 	defer func() {
-		//TODO : modify collector to save stats by shards
-		//collector.SetValidation(statsCollector, vc.validationStats)
+		collector.SetValidation(statsCollector, vc.validationStats)
 	}()
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {

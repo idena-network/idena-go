@@ -16,7 +16,7 @@ type StatsCollector interface {
 	SetValidation(validation *statsTypes.ValidationStats)
 	SetMinScoreForInvite(score float32)
 
-	SetValidationResults(authors *types.ValidationResults)
+	SetValidationResults(validationResults map[common.ShardId]*types.ValidationResults)
 
 	SetTotalReward(amount *big.Int)
 	SetTotalValidationReward(amount *big.Int, share *big.Int)
@@ -157,11 +157,11 @@ func SetMinScoreForInvite(c StatsCollector, score float32) {
 	c.SetMinScoreForInvite(score)
 }
 
-func (c *collectorStub) SetValidationResults(validationResults *types.ValidationResults) {
+func (c *collectorStub) SetValidationResults(validationResults map[common.ShardId]*types.ValidationResults) {
 	// do nothing
 }
 
-func SetValidationResults(c StatsCollector, validationResults *types.ValidationResults) {
+func SetValidationResults(c StatsCollector, validationResults map[common.ShardId]*types.ValidationResults) {
 	if c == nil {
 		return
 	}
