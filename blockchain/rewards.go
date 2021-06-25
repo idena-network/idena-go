@@ -164,7 +164,8 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		}
 	}
 	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-		validationResult, ok := validationResults[common.ShardId(i)]
+		shardId := common.ShardId(i)
+		validationResult, ok := validationResults[shardId]
 		if !ok {
 			continue
 		}
@@ -185,7 +186,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 				collector.CompleteBalanceUpdate(statsCollector, appState)
 				collector.AddMintedCoins(statsCollector, reward)
 				collector.AddMintedCoins(statsCollector, stake)
-				collector.AddReportedFlipsReward(statsCollector, rewardDest, reporter.Address, flipIdx, reward, stake)
+				collector.AddReportedFlipsReward(statsCollector, rewardDest, reporter.Address, shardId, flipIdx, reward, stake)
 				collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
 			}
 		}
