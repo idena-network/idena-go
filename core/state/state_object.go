@@ -252,9 +252,6 @@ func (s *Global) ToBytes() ([]byte, error) {
 		})
 	}
 	cnt := s.ShardsNum
-	if cnt == 0 {
-		cnt++
-	}
 	for i := common.ShardId(1); i <= common.ShardId(cnt); i++ {
 		protoAnswer.ShardSizes = append(protoAnswer.ShardSizes, &models.ProtoStateGlobal_ShardSize{
 			ShardId: uint32(i),
@@ -1216,6 +1213,11 @@ func (s *stateGlobal) ResetEmptyBlockByShard(shardId common.ShardId) {
 	s.touch()
 }
 
+func (s *stateGlobal) ClearEmptyBlocksByShard() {
+	s.data.EmptyBlocksByShards = make(map[common.ShardId][]common.Address)
+	s.touch()
+}
+
 func (s *stateGlobal) ShardsNum() uint32 {
 	num := s.data.ShardsNum
 	if num == 0 {
@@ -1250,8 +1252,8 @@ func (s *stateGlobal) IncreaseShardSize(id common.ShardId) {
 func (s *stateGlobal) DecreaseShardSize(id common.ShardId) {
 	if s.data.ShardSizes[id] > 0 {
 		s.data.ShardSizes[id]--
+		s.touch()
 	}
-	s.touch()
 }
 
 func (s *stateGlobal) SetShardSize(id common.ShardId, size uint32) {
