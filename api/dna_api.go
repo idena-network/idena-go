@@ -272,6 +272,12 @@ type FlipWords struct {
 	Id    int       `json:"id"`
 }
 
+type Inviter struct {
+	TxHash      common.Hash    `json:"txHash"`
+	Address     common.Address `json:"address"`
+	EpochHeight uint32         `json:"epochHeight"`
+}
+
 type Identity struct {
 	Address             common.Address  `json:"address"`
 	ProfileHash         string          `json:"profileHash"`
@@ -297,6 +303,7 @@ type Identity struct {
 	DelegationEpoch     uint16          `json:"delegationEpoch"`
 	DelegationNonce     uint32          `json:"delegationNonce"`
 	IsPool              bool            `json:"isPool"`
+	Inviter             *Inviter        `json:"inviter"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -429,6 +436,15 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		}
 	}
 
+	var inviter *Inviter
+	if data.Inviter != nil {
+		inviter = &Inviter{
+			TxHash:      data.Inviter.TxHash,
+			Address:     data.Inviter.Address,
+			EpochHeight: data.Inviter.EpochHeight,
+		}
+	}
+
 	return Identity{
 		Address:             address,
 		State:               s,
@@ -454,14 +470,15 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		DelegationNonce:     data.DelegationNonce,
 		Online:              isOnline,
 		IsPool:              appState.ValidatorsCache.IsPool(address),
+		Inviter:             inviter,
 	}
 }
 
 type Epoch struct {
-	StartBlock             uint64    `json:"startBlock"`
-	Epoch                  uint16    `json:"epoch"`
-	NextValidation         time.Time `json:"nextValidation"`
-	CurrentPeriod          string    `json:"currentPeriod"`
+	StartBlock     uint64    `json:"startBlock"`
+	Epoch          uint16    `json:"epoch"`
+	NextValidation time.Time `json:"nextValidation"`
+	CurrentPeriod  string    `json:"currentPeriod"`
 }
 
 func (api *DnaApi) Epoch() Epoch {
@@ -484,10 +501,10 @@ func (api *DnaApi) Epoch() Epoch {
 	}
 
 	return Epoch{
-		Epoch:                  s.State.Epoch(),
-		StartBlock:             s.State.EpochBlock(),
-		NextValidation:         s.State.NextValidationTime(),
-		CurrentPeriod:          res,
+		Epoch:          s.State.Epoch(),
+		StartBlock:     s.State.EpochBlock(),
+		NextValidation: s.State.NextValidationTime(),
+		CurrentPeriod:  res,
 	}
 }
 
