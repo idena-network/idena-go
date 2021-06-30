@@ -315,16 +315,16 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
 				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 			}
-			if !config.DisableSavedInviteRewards {
-				for i := uint8(0); i < inviter.SavedInvites; i++ {
-					hash := crypto.Hash(append(addr[:], i))
-					if _, ok := win[hash]; ok {
-						totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-						addReward(addr, totalReward, isNewbie, 0, nil, 0, true)
-					} else {
-						totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-						addReward(addr, totalReward, isNewbie, 0, nil, 0, false)
-					}
+		}
+		if !config.DisableSavedInviteRewards {
+			for i := uint8(0); i < inviter.SavedInvites; i++ {
+				hash := crypto.Hash(append(addr[:], i))
+				if _, ok := win[hash]; ok {
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
+					addReward(addr, totalReward, isNewbie, 0, nil, 0, true)
+				} else {
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
+					addReward(addr, totalReward, isNewbie, 0, nil, 0, false)
 				}
 			}
 		}

@@ -153,14 +153,16 @@ func (h *IdenaGossipHandler) Start() {
 
 	h.bus.Subscribe(events.UpdateShardId, func(e eventbus.Event) {
 		if !h.cfg.Multishard {
-			if h.connManager.SetShardId(h.bcn.CoinbaseShard()) {
-				h.notifyAboutShardUpdate(h.bcn.CoinbaseShard())
+			shardId, _ := h.bcn.CoinbaseShard()
+			if h.connManager.SetShardId(shardId) {
+				h.notifyAboutShardUpdate(shardId)
 			}
 		}
 	})
 
 	if !h.cfg.Multishard {
-		h.connManager.SetShardId(h.bcn.CoinbaseShard())
+		shardId, _ := h.bcn.CoinbaseShard()
+		h.connManager.SetShardId(shardId)
 	}
 
 	go h.broadcastLoop()
@@ -454,7 +456,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	ownShardId := common.MultiShard
 
 	if !h.cfg.Multishard {
-		ownShardId = h.bcn.CoinbaseShard()
+		ownShardId, _ = h.bcn.CoinbaseShard()
 	}
 
 	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), ownShardId); err != nil {
@@ -985,8 +987,8 @@ func (h *IdenaGossipHandler) watchShardSubscription() {
 	var sub *pubsub.Subscription
 	for {
 		time.Sleep(time.Second * 20)
-		ownShard := h.bcn.CoinbaseShard()
-		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) {
+		ownShard, err := h.bcn.CoinbaseShard()
+		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) && err == nil {
 			if sub != nil {
 				sub.Cancel()
 			}

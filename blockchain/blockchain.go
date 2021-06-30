@@ -445,7 +445,8 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 		})
 		if block.Header.Flags().HasFlag(types.ValidationFinished) {
 			chain.bus.Publish(&events.UpdateShardIdEvent{})
-			log.Info("Coinbase shard", "shardId", chain.CoinbaseShard())
+			shardId, _ := chain.CoinbaseShard()
+			log.Info("Coinbase shard", "shardId", shardId)
 		}
 		chain.RemovePreliminaryHead(nil)
 		return nil
@@ -598,7 +599,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		appState.State.AddPrevEpochBlock(epochBlock)
 	}
 	appState.State.SetEpochBlock(block.Height())
-
+	appState.State.ClearEmptyBlocksByShard()
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
@@ -832,7 +833,7 @@ func balanceShards(appState *appstate.AppState, networkSize, totalNewbies, total
 	}
 
 	for i := 1; i <= newShardsNum; i++ {
-		appState.State.SetShardSize(common.ShardId(i), uint32(newbiesByShard[common.ShardId(i)] +  verifiedByShard[common.ShardId(i)]))
+		appState.State.SetShardSize(common.ShardId(i), uint32(newbiesByShard[common.ShardId(i)]+verifiedByShard[common.ShardId(i)]))
 		log.Info("Shard distribution after balancing", "shardId", i, "newbies", newbiesByShard[common.ShardId(i)], "verified,human", verifiedByShard[common.ShardId(i)])
 	}
 
@@ -890,7 +891,9 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	if appState.State.ValidationPeriod() == state.AfterLongSessionPeriod && !block.IsEmpty() {
 
 		proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
-		proposerShardId := appState.State.ShardId(proposerAddr)
+
+		proposer := appState.State.GetIdentity(proposerAddr)
+		proposerShardId := proposer.ShiftedShardId()
 
 		hasAnyCeremonialTx := false
 		hasProposerShardTx := false
@@ -899,7 +902,8 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 			if _, ok := types.CeremonialTxs[tx.Type]; ok {
 				hasAnyCeremonialTx = true
 				sender, _ := types.Sender(tx)
-				txShardId := appState.State.ShardId(sender)
+				senderIdentity := appState.State.GetIdentity(sender)
+				txShardId := senderIdentity.ShiftedShardId()
 				hasProposerShardTx = txShardId == proposerShardId
 				break
 			}
@@ -1092,7 +1096,6 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			}
 		}
 	}
-
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
@@ -1154,9 +1157,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.AddBalance(recipient, balanceToTransfer)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
-		candidateShard := chain.MinimalShard(appState)
-		stateDB.SetShardId(recipient, candidateShard)
-		stateDB.IncreaseShardSize(candidateShard)
+		if chain.config.Consensus.EnableValidationSharding {
+			candidateShard := chain.MinimalShard(appState)
+			stateDB.SetShardId(recipient, candidateShard)
+			stateDB.IncreaseShardSize(candidateShard)
+		}
 		inviter := stateDB.GetInviter(sender)
 		if inviter != nil {
 			removeLinkWithInviter(appState.State, sender)
@@ -2559,20 +2564,26 @@ func (chain *Blockchain) ipfsLoad() {
 	}
 }
 
-func (chain *Blockchain) CoinbaseShard() common.ShardId {
-	return chain.appState.State.ShardId(chain.coinBaseAddress)
+func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
+	state, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return common.ShardId(0), err
+	}
+	return state.State.ShardId(chain.coinBaseAddress), nil
 }
 
 func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
-	if appState.State.ShardsNum() == 1{
+	if appState.State.ShardsNum() == 1 {
 		return common.ShardId(1)
 	}
 	sizes := appState.State.ShardSizes()
 
 	minSize := uint32(math.MaxUint32)
 	var minShard common.ShardId
-	for shardId, size := range sizes {
-		if size < minSize {
+
+	for shardId := common.ShardId(1); shardId < common.ShardId(appState.State.ShardsNum()); shardId++ {
+		size, ok := sizes[shardId]
+		if ok && size < minSize {
 			minSize = size
 			minShard = shardId
 		}

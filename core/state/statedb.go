@@ -1621,6 +1621,10 @@ func (s *StateDB) EmptyBlocksByShard() map[common.ShardId][]common.Address {
 	return s.GetOrNewGlobalObject().data.EmptyBlocksByShards
 }
 
+func (s *StateDB) ClearEmptyBlocksByShard(){
+	s.GetOrNewGlobalObject().ClearEmptyBlocksByShard()
+}
+
 func (s *StateDB) ShardSizes() map[common.ShardId]uint32 {
 	return s.GetOrNewGlobalObject().data.ShardSizes
 }

@@ -149,7 +149,6 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
 	vc.qualification = NewQualification(vc.epochDb)
-
 	_ = vc.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
 			newBlockEvent := e.(*events.NewBlockEvent)
@@ -472,7 +471,7 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 	vc.stopFlipKeysSync()
 	vc.log.Info("After long blocks without ceremonial txs", "cnt", vc.appState.State.BlocksCntWithoutCeremonialTxs())
 	for shardId, proposers := range vc.appState.State.EmptyBlocksByShard() {
-		vc.log.Info("After long blocks without ceremonial txs", "shardId", shardId , "cnt",len(proposers))
+		vc.log.Info("After long blocks without ceremonial txs", "shardId", shardId, "cnt", len(proposers))
 	}
 }
 
@@ -506,8 +505,9 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 	}
 
 	coinbase := vc.secStore.GetAddress()
-	shortToSolve := vc.GetShortFlipsToSolve(coinbase, vc.appState.State.ShardId(coinbase))
-	longToSolve := vc.GetLongFlipsToSolve(coinbase, vc.appState.State.ShardId(coinbase))
+	coinbaseIdentity := vc.appState.State.GetIdentity(coinbase)
+	shortToSolve := vc.GetShortFlipsToSolve(coinbase, coinbaseIdentity.ShiftedShardId())
+	longToSolve := vc.GetLongFlipsToSolve(coinbase, coinbaseIdentity.ShiftedShardId())
 
 	if vc.shouldInteractWithNetwork() {
 		go vc.flipper.LoadInMemory(shortToSolve)
@@ -771,7 +771,12 @@ func (vc *ValidationCeremony) broadcastEvidenceMap() {
 
 	additional := vc.epochDb.GetConfirmedRespondents(shortSessionStart, shortSessionEnd)
 
-	candidates := vc.getCandidatesAddresses(vc.chain.CoinbaseShard())
+	shardId, err := vc.chain.CoinbaseShard()
+	if err != nil {
+		log.Warn("unable to read coinbase shard", "err", err)
+		return
+	}
+	candidates := vc.getCandidatesAddresses(shardId)
 
 	bitmap := vc.appState.EvidenceMap.CalculateBitmap(candidates, additional, vc.appState.State.GetRequiredFlips)
 
@@ -1474,7 +1479,8 @@ func (vc *ValidationCeremony) GetFlipKeys(addr common.Address, cidBytes []byte) 
 	if !vc.lottery.finished {
 		return nil, nil, errors.New("data is not ready")
 	}
-	shardId := vc.appState.State.ShardId(addr)
+	identity := vc.appState.State.GetIdentity(addr)
+	shardId := identity.ShiftedShardId()
 
 	author, ok := vc.shardCandidates[shardId].flipAuthorMap[string(cidBytes)]
 	if !ok {
@@ -1571,7 +1577,8 @@ func (vc *ValidationCeremony) PrivateEncryptionKeyCandidates(addr common.Address
 		return nil, errors.Errorf("address %v does not have candidates", addr.String())
 	}
 
-	shardId := vc.appState.State.ShardId(addr)
+	identity := vc.appState.State.GetIdentity(addr)
+	shardId := identity.ShiftedShardId()
 
 	candidateIndexes, ok := vc.shardLotteries[shardId].candidatesPerAuthor[index]
 	if !ok {
@@ -1597,7 +1604,8 @@ func (vc *ValidationCeremony) IsValidationReady() bool {
 func (vc *ValidationCeremony) getPrivateKeyPackageIndex(addr common.Address, author common.Address) int {
 	addrIndex := vc.getCandidateIndex(addr)
 	authorIndex := vc.getCandidateIndex(author)
-	shardId := vc.appState.State.ShardId(addr)
+	identity := vc.appState.State.GetIdentity(addr)
+	shardId := identity.ShiftedShardId()
 	authorCandidates := vc.shardLotteries[shardId].candidatesPerAuthor[authorIndex]
 
 	for idx, item := range authorCandidates {
