@@ -24,8 +24,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
-	math2 "math"
-	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -770,20 +768,17 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 }
 
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
-	// Do not sync with peer that has many peers
-	threshold := math2.Max(0.1, 1-0.1*float64(p.peers-2))
-	if rand.Float64() < threshold {
-		pending := h.txpool.GetPendingTransaction()
-		for _, tx := range pending {
-			payload := pushPullHash{
-				Type: pushTx,
-				Hash: tx.Hash128(),
-			}
-			h.pushPullManager.AddEntry(payload, tx, false)
-			p.sendMsg(Push, payload, false)
-			bytes, _ := payload.ToBytes()
-			p.markPayload(bytes)
+	const maximalPeersNumberForFullSync = 3
+	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync)
+	for _, tx := range pending {
+		payload := pushPullHash{
+			Type: pushTx,
+			Hash: tx.Hash128(),
 		}
+		h.pushPullManager.AddEntry(payload, tx, false)
+		p.sendMsg(Push, payload, false)
+		bytes, _ := payload.ToBytes()
+		p.markPayload(bytes)
 	}
 }
 
@@ -796,12 +791,14 @@ func (h *IdenaGossipHandler) sendManifest(p *protoPeer) {
 }
 
 func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {
-	keys := h.flipKeyPool.GetFlipKeysForSync()
+	const maximalPeersNumberForFullSync = 3
+
+	keys := h.flipKeyPool.GetFlipKeysForSync(p.peers <= maximalPeersNumberForFullSync)
 	for _, key := range keys {
 		p.sendMsg(FlipKey, key, false)
 	}
 
-	keysPackages := h.flipKeyPool.GetFlipPackagesHashesForSync()
+	keysPackages := h.flipKeyPool.GetFlipPackagesHashesForSync(p.peers <= maximalPeersNumberForFullSync)
 	for _, hash := range keysPackages {
 		payload := pushPullHash{
 			Type: pushKeyPackage,

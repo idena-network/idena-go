@@ -38,12 +38,12 @@ func (pool *AsyncKeysPool) AddPublicFlipKey(key *types.PublicFlipKey, _ bool) er
 	return nil
 }
 
-func (pool *AsyncKeysPool) GetFlipPackagesHashesForSync() []common.Hash128 {
-	return pool.inner.GetFlipPackagesHashesForSync()
+func (pool *AsyncKeysPool) GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128 {
+	return pool.inner.GetFlipPackagesHashesForSync(noFilter)
 }
 
-func (pool *AsyncKeysPool) GetFlipKeysForSync() []*types.PublicFlipKey {
-	return pool.inner.GetFlipKeysForSync()
+func (pool *AsyncKeysPool) GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey {
+	return pool.inner.GetFlipKeysForSync(noFilter)
 }
 
 func (pool *AsyncKeysPool) readPrivateQueue() {

@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	MaxDeferredTxs = 100
+	MaxDeferredTxs  = 100
+	maxTxSyncCounts = 7
 )
 
 var (
@@ -37,7 +38,7 @@ var (
 type TransactionPool interface {
 	AddInternalTx(tx *types.Transaction) error
 	AddExternalTxs(txs ...*types.Transaction) error
-	GetPendingTransaction() []*types.Transaction
+	GetPendingTransaction(noFilter bool) []*types.Transaction
 	IsSyncing() bool
 }
 
@@ -45,6 +46,7 @@ type TxPool struct {
 	knownDeferredTxs mapset.Set
 	deferredTxs      chan *types.Transaction
 	all              *txMap
+	txSyncCounts     map[common.Hash]int
 	executableTxs    map[common.Address]*sortedTxs
 	pendingTxs       map[common.Address]*txMap
 	mempoolCfg       *config.Mempool
@@ -73,6 +75,7 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 		all:              newTxMap(-1),
 		executableTxs:    make(map[common.Address]*sortedTxs),
 		pendingTxs:       make(map[common.Address]*txMap),
+		txSyncCounts:     map[common.Hash]int{},
 		knownDeferredTxs: mapset.NewSet(),
 		mempoolCfg:       cfg.Mempool,
 		cfg:              cfg,
@@ -381,8 +384,19 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	return nil
 }
 
-func (pool *TxPool) GetPendingTransaction() []*types.Transaction {
-	return pool.all.List()
+func (pool *TxPool) GetPendingTransaction(noFilter bool) []*types.Transaction {
+	all := pool.all.List()
+	pool.mutex.Lock()
+	defer pool.mutex.Unlock()
+
+	var result []*types.Transaction
+	for _, tx := range all {
+		if pool.txSyncCounts[tx.Hash()] <= maxTxSyncCounts || noFilter {
+			result = append(result, tx)
+			pool.txSyncCounts[tx.Hash()] ++
+		}
+	}
+	return result
 }
 
 func (pool *TxPool) GetPendingByAddress(address common.Address) []*types.Transaction {
@@ -428,6 +442,7 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
 	pool.all.Remove(transaction.Hash())
+	delete(pool.txSyncCounts, transaction.Hash())
 	if pool.txKeeper != nil {
 		pool.txKeeper.RemoveTx(transaction.Hash())
 	}
@@ -504,7 +519,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 		pool.log.Warn("failed to reload nonce cache", "err", err)
 	}
 
-	pending := pool.GetPendingTransaction()
+	pending := pool.all.List()
 
 	appState, _ := pool.appState.Readonly(pool.head.Height())
 

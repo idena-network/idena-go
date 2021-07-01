@@ -28,6 +28,7 @@ import (
 const (
 	maxPrivateKeysPackageDataSize = 1024 * 100
 	publicFlipKeySize             = 32
+	maxFlipKeySyncCounts          = 10
 )
 
 var (
@@ -41,8 +42,8 @@ var (
 type FlipKeysPool interface {
 	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
 	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
-	GetFlipPackagesHashesForSync() []common.Hash128
-	GetFlipKeysForSync() []*types.PublicFlipKey
+	GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128
+	GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey
 }
 
 func init() {
@@ -50,41 +51,46 @@ func init() {
 }
 
 type KeysPool struct {
-	db                    dbm.DB
-	epochDb               *database.EpochDb
-	appState              *appstate.AppState
-	flipKeys              map[common.Address]*types.PublicFlipKey
-	publicKeyMutex        sync.RWMutex
-	privateKeysMutex      sync.RWMutex
-	bus                   eventbus.Bus
-	head                  *types.Header
-	log                   log.Logger
-	flipKeyPackages       map[common.Address]*types.PrivateFlipKeysPackage
-	flipKeyPackagesByHash map[common.Hash128]*types.PrivateFlipKeysPackage
-	privateKeysArrayCache map[common.Address]*keysArray
-	secStore              *secstore.SecStore
-	packagesLoadingCtx    context.Context
-	cancelLoadingCtx      context.CancelFunc
-	self                  common.Address
-	pushTracker           pushpull.PendingPushTracker
-	stopSync              bool
+	db       dbm.DB
+	epochDb  *database.EpochDb
+	appState *appstate.AppState
+
+	flipKeys                  map[common.Address]*types.PublicFlipKey
+	flipKeysSyncCounts        map[common.Address]int
+	publicKeyMutex            sync.RWMutex
+	privateKeysMutex          sync.RWMutex
+	bus                       eventbus.Bus
+	head                      *types.Header
+	log                       log.Logger
+	flipKeyPackages           map[common.Address]*types.PrivateFlipKeysPackage
+	flipKeyPackagesByHash     map[common.Hash128]*types.PrivateFlipKeysPackage
+	flipKeyPackagesSyncCounts map[common.Hash128]int
+	privateKeysArrayCache     map[common.Address]*keysArray
+	secStore                  *secstore.SecStore
+	packagesLoadingCtx        context.Context
+	cancelLoadingCtx          context.CancelFunc
+	self                      common.Address
+	pushTracker               pushpull.PendingPushTracker
+	stopSync                  bool
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	pool := &KeysPool{
-		db:                    db,
-		appState:              appState,
-		bus:                   bus,
-		log:                   log.New(),
-		flipKeys:              make(map[common.Address]*types.PublicFlipKey),
-		flipKeyPackages:       make(map[common.Address]*types.PrivateFlipKeysPackage),
-		flipKeyPackagesByHash: make(map[common.Hash128]*types.PrivateFlipKeysPackage),
-		privateKeysArrayCache: make(map[common.Address]*keysArray),
-		secStore:              secStore,
-		packagesLoadingCtx:    ctx,
-		cancelLoadingCtx:      cancel,
-		pushTracker:           pushpull.NewDefaultPushTracker(time.Second * 5),
+		db:                        db,
+		appState:                  appState,
+		bus:                       bus,
+		log:                       log.New(),
+		flipKeys:                  make(map[common.Address]*types.PublicFlipKey),
+		flipKeysSyncCounts:        make(map[common.Address]int),
+		flipKeyPackages:           make(map[common.Address]*types.PrivateFlipKeysPackage),
+		flipKeyPackagesByHash:     make(map[common.Hash128]*types.PrivateFlipKeysPackage),
+		flipKeyPackagesSyncCounts: make(map[common.Hash128]int),
+		privateKeysArrayCache:     make(map[common.Address]*keysArray),
+		secStore:                  secStore,
+		packagesLoadingCtx:        ctx,
+		cancelLoadingCtx:          cancel,
+		pushTracker:               pushpull.NewDefaultPushTracker(time.Second * 5),
 	}
 	pool.pushTracker.SetHolder(pool)
 	return pool
@@ -238,27 +244,33 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 	return nil
 }
 
-func (p *KeysPool) GetFlipKeysForSync() []*types.PublicFlipKey {
-	p.publicKeyMutex.RLock()
-	defer p.publicKeyMutex.RUnlock()
+func (p *KeysPool) GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey {
+	p.publicKeyMutex.Lock()
+	defer p.publicKeyMutex.Unlock()
 
 	var list []*types.PublicFlipKey
 	if !p.stopSync {
-		for _, tx := range p.flipKeys {
-			list = append(list, tx)
+		for key, tx := range p.flipKeys {
+			if p.flipKeysSyncCounts[key] <= maxFlipKeySyncCounts || noFilter {
+				list = append(list, tx)
+				p.flipKeysSyncCounts[key]++
+			}
 		}
 	}
 	return list
 }
 
-func (p *KeysPool) GetFlipPackagesHashesForSync() []common.Hash128 {
-	p.privateKeysMutex.RLock()
-	defer p.privateKeysMutex.RUnlock()
+func (p *KeysPool) GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128 {
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
 
 	var list []common.Hash128
 	if !p.stopSync {
 		for k := range p.flipKeyPackagesByHash {
-			list = append(list, k)
+			if p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts || noFilter {
+				list = append(list, k)
+				p.flipKeyPackagesSyncCounts[k]++
+			}
 		}
 	}
 	return list
@@ -336,8 +348,10 @@ func (p *KeysPool) Clear() {
 
 	p.cancelLoadingCtx()
 	p.flipKeys = make(map[common.Address]*types.PublicFlipKey)
+	p.flipKeyPackagesSyncCounts = map[common.Hash128]int{}
 	p.flipKeyPackages = make(map[common.Address]*types.PrivateFlipKeysPackage)
 	p.flipKeyPackagesByHash = make(map[common.Hash128]*types.PrivateFlipKeysPackage)
+	p.flipKeyPackagesSyncCounts = map[common.Hash128]int{}
 	p.privateKeysArrayCache = make(map[common.Address]*keysArray)
 	p.packagesLoadingCtx, p.cancelLoadingCtx = context.WithCancel(context.Background())
 	p.epochDb = database.NewEpochDb(p.db, p.appState.State.Epoch())
