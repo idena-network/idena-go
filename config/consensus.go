@@ -55,6 +55,7 @@ type ConsensusConf struct {
 	EncourageEarlyInvitations         bool
 	EnableDelayedOfflinePenalty       bool
 	BurnInviteeStake                  bool
+	ReductionOneDelay                 time.Duration
 }
 
 type ConsensusVerson uint16
@@ -84,9 +85,10 @@ func init() {
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
 		AgreementThreshold:                0.65, // 65% of committee members should vote for block
-		WaitBlockDelay:                    time.Minute,
+		WaitBlockDelay:                    time.Second * 40,
 		WaitSortitionProofDelay:           time.Second * 5,
 		EstimatedBaVariance:               time.Second * 5,
+		ReductionOneDelay:                 time.Second * 40,
 		WaitForStepDelay:                  time.Second * 20,
 		BlockReward:                       big.NewInt(1e+18),
 		StakeRewardRate:                   0.2,
