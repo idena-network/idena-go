@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+
+## 0.26.4 (July 3, 2021)
+
+### Changes
+
+- Optimize mempool sync ([#721](https://github.com/idena-network/idena-go/pull/721))
+- Update consensus engine timeouts ([#720](https://github.com/idena-network/idena-go/pull/720))
+- Extend identity API ([#718](https://github.com/idena-network/idena-go/pull/718))
+- Update deps ([#717](https://github.com/idena-network/idena-go/pull/717) & [#716](https://github.com/idena-network/idena-go/pull/716) & [#710](https://github.com/idena-network/idena-go/pull/710) & [#719](https://github.com/idena-network/idena-go/pull/719) & [#714](https://github.com/idena-network/idena-go/pull/714) & [#715](https://github.com/idena-network/idena-go/pull/715) & [#722](https://github.com/idena-network/idena-go/pull/722))
+
 ## 0.26.3 (June 11, 2021)
 
 ### Breaking Changes
