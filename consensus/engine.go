@@ -365,7 +365,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
 	engine.vote(round, types.ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionOne)
 
-	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.WaitForStepDelay)
+	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
