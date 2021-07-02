@@ -263,7 +263,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		},
 	})
 
-	txs := pool.GetPendingTransaction(true)
+	txs := pool.GetPendingTransaction(true, false)
 
 	require.Equal(4, len(txs))
 	require.Contains(txs, tx1)

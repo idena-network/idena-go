@@ -35,8 +35,8 @@ func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	return nil
 }
 
-func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool) []*types.Transaction {
-	return pool.txPool.GetPendingTransaction(noFilter)
+func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool, count bool) []*types.Transaction {
+	return pool.txPool.GetPendingTransaction(noFilter, count)
 }
 
 func (pool *AsyncTxPool) loop() {

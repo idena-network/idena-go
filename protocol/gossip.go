@@ -769,7 +769,7 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	const maximalPeersNumberForFullSync = 3
-	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync)
+	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync, true)
 	for _, tx := range pending {
 		payload := pushPullHash{
 			Type: pushTx,

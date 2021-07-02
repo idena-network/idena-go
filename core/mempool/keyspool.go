@@ -249,9 +249,12 @@ func (p *KeysPool) GetFlipKeysForSync(noFilter bool) []*types.PublicFlipKey {
 	defer p.publicKeyMutex.Unlock()
 
 	var list []*types.PublicFlipKey
+	if noFilter {
+		list = make([]*types.PublicFlipKey, 0, len(p.flipKeys))
+	}
 	if !p.stopSync {
 		for key, tx := range p.flipKeys {
-			if p.flipKeysSyncCounts[key] <= maxFlipKeySyncCounts || noFilter {
+			if noFilter || p.flipKeysSyncCounts[key] <= maxFlipKeySyncCounts {
 				list = append(list, tx)
 				p.flipKeysSyncCounts[key]++
 			}
@@ -265,9 +268,12 @@ func (p *KeysPool) GetFlipPackagesHashesForSync(noFilter bool) []common.Hash128 
 	defer p.privateKeysMutex.Unlock()
 
 	var list []common.Hash128
+	if noFilter {
+		list = make([]common.Hash128, 0, len(p.flipKeyPackagesByHash))
+	}
 	if !p.stopSync {
 		for k := range p.flipKeyPackagesByHash {
-			if p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts || noFilter {
+			if noFilter || p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts {
 				list = append(list, k)
 				p.flipKeyPackagesSyncCounts[k]++
 			}

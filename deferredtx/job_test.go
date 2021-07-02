@@ -43,7 +43,7 @@ func (f *fakeTxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	panic("implement me")
 }
 
-func (f fakeTxPool) GetPendingTransaction(bool) []*types.Transaction {
+func (f fakeTxPool) GetPendingTransaction(bool, bool) []*types.Transaction {
 	panic("implement me")
 }
 
