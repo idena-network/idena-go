@@ -21,7 +21,7 @@ var migrations = map[int]gomigrate.Migration{
 
 func GetVersion(ipfsdir string) (int, error) {
 
-	ver, err := mfsr.RepoVersion(ipfsdir)
+	ver, err := mfsr.RepoPath(ipfsdir).Version()
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, fsrepo.ErrNoVersion
