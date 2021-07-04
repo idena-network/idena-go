@@ -8,8 +8,10 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/cosmos/iavl v0.15.3
 	github.com/davecgh/go-spew v1.1.1
+	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/deckarep/golang-set v1.7.1
 	github.com/dsnet/compress v0.0.1 // indirect
+	github.com/frankban/quicktest v1.11.1 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/protobuf v1.5.2
@@ -19,8 +21,8 @@ require (
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-filestore v0.0.3
-	github.com/ipfs/go-ipfs v0.9.0
-	github.com/ipfs/go-ipfs-blockstore v0.1.6
+	github.com/ipfs/go-ipfs v0.8.0
+	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-config v0.14.0
 	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipfs-files v0.0.8
@@ -28,15 +30,17 @@ require (
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-mfs v0.1.2
-	github.com/ipfs/go-unixfs v0.2.5
+	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
 	github.com/klauspost/compress v1.13.1
 	github.com/libp2p/go-libp2p-core v0.8.5
 	github.com/libp2p/go-msgio v0.0.6
+	github.com/libp2p/go-sockaddr v0.1.0 // indirect
 	github.com/libp2p/go-yamux v1.4.1
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/multiformats/go-multiaddr v0.3.3
 	github.com/multiformats/go-multihash v0.0.15
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.1
@@ -55,11 +59,11 @@ require (
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf
-	golang.org/x/net v0.0.0-20210423184538-5f58ad60dda6
-	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
+	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
+	golang.org/x/net v0.0.0-20201021035429-f5854403a974
+	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2
 	google.golang.org/protobuf v1.27.1
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
 
@@ -67,4 +71,4 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202106
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
 
-go 1.15
+go 1.13
