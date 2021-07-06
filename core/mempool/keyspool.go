@@ -44,7 +44,7 @@ type FlipKeysPool interface {
 	AddPrivateKeysPackage(keysPackage *types.PrivateFlipKeysPackage, own bool) error
 	AddPublicFlipKey(key *types.PublicFlipKey, own bool) error
 	GetFlipPackagesHashesForSync(shardId common.ShardId, noFilter bool) []common.Hash128
-	GetFlipKeysForSync(common.ShardId, noFilter bool) []*types.PublicFlipKey
+	GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*types.PublicFlipKey
 }
 
 func init() {
@@ -265,12 +265,13 @@ func (p *KeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*
 		list = make([]*types.PublicFlipKey, 0, len(p.flipKeys))
 	}
 	if !p.stopSync {
-		for h , key := range p.flipKeys {
-			if key.LoadShardId() == shardId || shardId == common.MultiShard {				
+		for h, key := range p.flipKeys {
+			if key.LoadShardId() != shardId && shardId != common.MultiShard {
+				continue
+			}
 			if noFilter || p.flipKeysSyncCounts[h] <= maxFlipKeySyncCounts {
 				list = append(list, key)
 				p.flipKeysSyncCounts[h]++
-			}
 			}
 		}
 	}
@@ -286,12 +287,13 @@ func (p *KeysPool) GetFlipPackagesHashesForSync(shardId common.ShardId, noFilter
 		list = make([]common.Hash128, 0, len(p.flipKeyPackagesByHash))
 	}
 	if !p.stopSync {
-		for k, p := range p.flipKeyPackagesByHash {
-			if p.shardId == shardId || shardId == common.MultiShard {
-				if noFilter || p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts {
+		for k, pkg := range p.flipKeyPackagesByHash {
+			if pkg.shardId != shardId && shardId != common.MultiShard {
+				continue
+			}
+			if noFilter || p.flipKeyPackagesSyncCounts[k] <= maxFlipKeySyncCounts {
 				list = append(list, k)
 				p.flipKeyPackagesSyncCounts[k]++
-			}
 			}
 		}
 	}
