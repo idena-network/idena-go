@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/golang/protobuf/proto"
@@ -916,9 +917,16 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 			}
 		} else {
 			if !hasAnyCeremonialTx {
-				appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.NetworkSize(), proposerShardId, proposerAddr)
-			} else if hasProposerShardTx {
+				if !proposer.State.NewbieOrBetter() {
+					randSeed := binary.LittleEndian.Uint64(block.Seed().Bytes())
+					random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
+					proposerShardId = common.ShardId(1 + random.Intn(int(appState.State.ShardsNum())))
+				}
+				appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
+				appState.State.IncBlocksCntWithoutCeremonialTxs()
+			} else if hasProposerShardTx && proposer.State.NewbieOrBetter() {
 				appState.State.ResetEmptyBlockByShard(proposerShardId)
+				appState.State.ResetBlocksCntWithoutCeremonialTxs()
 			}
 		}
 	}
@@ -1673,7 +1681,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.AfterLongSessionStarted
 	}
 
-	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.CanCompleteEpoch() {
+	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.CanCompleteEpoch(chain.config.Consensus.EnableValidationSharding) {
 		flags |= types.ValidationFinished
 		flags |= types.IdentityUpdate
 	}

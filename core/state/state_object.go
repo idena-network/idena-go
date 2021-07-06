@@ -210,7 +210,7 @@ type Global struct {
 	VrfProposerThreshold          uint64
 	EmptyBlocksBits               *big.Int
 	GodAddressInvites             uint16
-	BlocksCntWithoutCeremonialTxs byte
+	BlocksCntWithoutCeremonialTxs uint32
 	ShardsNum                     uint32
 	EmptyBlocksByShards           map[common.ShardId][]common.Address
 	ShardSizes                    map[common.ShardId]uint32
@@ -280,7 +280,7 @@ func (s *Global) FromBytes(data []byte) error {
 	s.VrfProposerThreshold = protoGlobal.VrfProposerThreshold
 	s.EmptyBlocksBits = common.BigIntOrNil(protoGlobal.EmptyBlocksBits)
 	s.GodAddressInvites = uint16(protoGlobal.GodAddressInvites)
-	s.BlocksCntWithoutCeremonialTxs = byte(protoGlobal.BlocksCntWithoutCeremonialTxs)
+	s.BlocksCntWithoutCeremonialTxs = protoGlobal.BlocksCntWithoutCeremonialTxs
 	s.ShardsNum = protoGlobal.ShardsNum
 	s.EmptyBlocksByShards = make(map[common.ShardId][]common.Address)
 	for _, shard := range protoGlobal.EmptyBlocksByShards {
@@ -1180,7 +1180,7 @@ func (s *stateGlobal) SetGodAddressInvites(count uint16) {
 	s.touch()
 }
 
-func (s *stateGlobal) BlocksCntWithoutCeremonialTxs() byte {
+func (s *stateGlobal) BlocksCntWithoutCeremonialTxs() uint32 {
 	return s.data.BlocksCntWithoutCeremonialTxs
 }
 
@@ -1194,14 +1194,17 @@ func (s *stateGlobal) ResetBlocksCntWithoutCeremonialTxs() {
 	s.touch()
 }
 
-func (s *stateGlobal) AddEmptyBlockByShard(networkSize int, shardId common.ShardId, proposer common.Address) {
+func (s *stateGlobal) AddEmptyBlockByShard(onlineSize int, shardId common.ShardId, proposer common.Address) {
 	if len(s.data.EmptyBlocksByShards[shardId]) >= AfterLongRequiredBlocks {
 		return
 	}
 	proposers := s.data.EmptyBlocksByShards[shardId]
-	for _, p := range proposers {
-		if p == proposer && networkSize/int(s.ShardsNum()) > AfterLongRequiredBlocks {
-			return
+
+	for _, shardProposers := range s.data.EmptyBlocksByShards {
+		for _, p := range shardProposers {
+			if p == proposer && onlineSize/int(s.ShardsNum()) > AfterLongRequiredBlocks {
+				return
+			}
 		}
 	}
 	s.data.EmptyBlocksByShards[shardId] = append(proposers, proposer)
@@ -1231,8 +1234,11 @@ func (s *stateGlobal) SetShardsNum(num uint32) {
 	s.touch()
 }
 
-func (s *stateGlobal) CanCompleteEpoch() bool {
-	if s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks {
+func (s *stateGlobal) CanCompleteEpoch(enableValidationSharding bool) bool {
+	if !enableValidationSharding && s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks {
+		return true
+	}
+	if enableValidationSharding && s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks * 2 * s.ShardsNum() {
 		return true
 	}
 	completedShard := 0
