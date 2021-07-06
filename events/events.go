@@ -3,7 +3,9 @@ package events
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/eventbus"
+	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core"
+	"time"
 )
 
 const (
@@ -15,6 +17,7 @@ const (
 	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
 	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
 	DeleteFlipEventID      = eventbus.EventID("flip-delete")
+	PeersEventID           = eventbus.EventID("peers")
 )
 
 type NewTxEvent struct {
@@ -82,4 +85,13 @@ type DeleteFlipEvent struct {
 
 func (DeleteFlipEvent) EventID() eventbus.EventID {
 	return DeleteFlipEventID
+}
+
+type PeersEvent struct {
+	PeersData []iface.ConnectionInfo
+	Time      time.Time
+}
+
+func (e *PeersEvent) EventID() eventbus.EventID {
+	return PeersEventID
 }

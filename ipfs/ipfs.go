@@ -268,6 +268,14 @@ func (p *ipfsProxy) watchPeers() {
 		if len(info) > 0 {
 			p.lastPeersUpdatedTime = time.Now().UTC()
 		}
+
+		if p.cfg.PublishPeers {
+			p.bus.Publish(&events.PeersEvent{
+				PeersData: info,
+				Time:      time.Now(),
+			})
+		}
+
 		logger.Trace("last time with non-peers", "time", p.lastPeersUpdatedTime, "peers count", len(info))
 		time.Sleep(time.Second * 10)
 	}
@@ -756,8 +764,6 @@ func NewMemoryIpfsProxy() Proxy {
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
 }
-
-
 
 func (i *memoryIpfs) ShouldPin(dataType DataType) bool {
 	return true
