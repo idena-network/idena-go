@@ -509,11 +509,11 @@ func (s *StateDB) SetGodAddressInvites(count uint16) {
 	s.GetOrNewGlobalObject().SetGodAddressInvites(count)
 }
 
-func (s *StateDB) CanCompleteEpoch() bool {
-	return s.GetOrNewGlobalObject().CanCompleteEpoch()
+func (s *StateDB) CanCompleteEpoch(enableValidationSharding bool) bool {
+	return s.GetOrNewGlobalObject().CanCompleteEpoch(enableValidationSharding)
 }
 
-func (s *StateDB) BlocksCntWithoutCeremonialTxs() byte {
+func (s *StateDB) BlocksCntWithoutCeremonialTxs() uint32 {
 	return s.GetOrNewGlobalObject().BlocksCntWithoutCeremonialTxs()
 }
 
@@ -525,8 +525,8 @@ func (s *StateDB) ResetBlocksCntWithoutCeremonialTxs() {
 	s.GetOrNewGlobalObject().ResetBlocksCntWithoutCeremonialTxs()
 }
 
-func (s *StateDB) AddEmptyBlockByShard(networkSize int, shardId common.ShardId, proposer common.Address) {
-	s.GetOrNewGlobalObject().AddEmptyBlockByShard(networkSize, shardId, proposer)
+func (s *StateDB) AddEmptyBlockByShard(onlineSize int, shardId common.ShardId, proposer common.Address) {
+	s.GetOrNewGlobalObject().AddEmptyBlockByShard(onlineSize, shardId, proposer)
 }
 
 func (s *StateDB) ResetEmptyBlockByShard(shardId common.ShardId) {
@@ -1319,7 +1319,7 @@ func (s *StateDB) SetPredefinedGlobal(state *models.ProtoPredefinedState) {
 	stateObject.data.VrfProposerThreshold = state.Global.VrfProposerThreshold
 	stateObject.data.EmptyBlocksBits = common.BigIntOrNil(state.Global.EmptyBlocksBits)
 	stateObject.data.GodAddressInvites = uint16(state.Global.GodAddressInvites)
-	stateObject.data.BlocksCntWithoutCeremonialTxs = byte(state.Global.BlocksCntWithoutCeremonialTxs)
+	stateObject.data.BlocksCntWithoutCeremonialTxs = state.Global.BlocksCntWithoutCeremonialTxs
 }
 
 func (s *StateDB) SetPredefinedStatusSwitch(state *models.ProtoPredefinedState) {
