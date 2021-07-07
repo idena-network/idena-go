@@ -182,7 +182,7 @@ func (fs *fullSync) validateHeader(block *block, p *protoPeer) error {
 		}
 	}
 	if !block.Cert.Empty() {
-		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache)
+		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache, nil)
 	}
 
 	return nil

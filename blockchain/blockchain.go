@@ -1775,10 +1775,10 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 }
 
 func (chain *Blockchain) ValidateBlockCertOnHead(block *types.Header, cert *types.BlockCert) error {
-	return chain.ValidateBlockCert(chain.Head, block, cert, chain.appState.ValidatorsCache)
+	return chain.ValidateBlockCert(chain.Head, block, cert, chain.appState.ValidatorsCache, nil)
 }
 
-func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache) (err error) {
+func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types.Header, cert *types.BlockCert, validatorsCache *validators.ValidatorsCache, pubKeyToAddrCache map[string]common.Address) (err error) {
 
 	step := cert.Step
 	validators := validatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), step, chain.GetCommitteeSize(validatorsCache, step == types.Final))
@@ -1799,8 +1799,8 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 			Signature: signature.Signature,
 		}
 
-		if !validators.Contains(vote.VoterAddr()) {
-			return errors.New("invalid voter")
+		if !validators.Contains(vote.VoterAddr(pubKeyToAddrCache)) {
+			return errors.Errorf("invalid voter %v", vote.VoterAddr(pubKeyToAddrCache).String())
 		}
 		if vote.Header.Round != block.Height() {
 			return errors.New("invalid vote header")
@@ -1812,7 +1812,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		if vote.Header.ParentHash != prevBlock.Hash() {
 			return errors.New("invalid parent hash")
 		}
-		voters.Add(vote.VoterAddr())
+		voters.Add(vote.VoterAddr(nil))
 	}
 
 	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final)-validators.VotesCountSubtrahend(chain.config.Consensus.AgreementThreshold) {
@@ -2063,7 +2063,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 			}
 		}
 		if !b.Cert.Empty() {
-			if err := chain.ValidateBlockCert(prevBlock, b.Block.Header, b.Cert, checkState.ValidatorsCache); err != nil {
+			if err := chain.ValidateBlockCert(prevBlock, b.Block.Header, b.Cert, checkState.ValidatorsCache, nil); err != nil {
 				return err
 			}
 		}
@@ -2139,21 +2139,11 @@ func checkIfProposer(addr common.Address, appState *appstate.AppState) bool {
 		appState.State.GodAddress() == addr && appState.ValidatorsCache.OnlineSize() == 0
 }
 
-func (chain *Blockchain) AddHeader(header *types.Header) error {
-
-	prev := chain.PreliminaryHead
-	if prev == nil {
-		prev = chain.Head
-	}
-	if err := chain.ValidateHeader(header, prev); err != nil {
-		return err
-	}
-
+func (chain *Blockchain) AddHeaderUnsafe(header *types.Header) error {
 	chain.repo.WriteBlockHeader(header)
 	chain.repo.WriteCanonicalHash(header.Height(), header.Hash())
 	chain.repo.WritePreliminaryHead(header)
 	chain.PreliminaryHead = header
-
 	return nil
 }
 

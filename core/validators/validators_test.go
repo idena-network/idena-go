@@ -59,6 +59,9 @@ func TestValidatorsCache_Load(t *testing.T) {
 	pool2 := common.Address{2}
 	pool3 := common.Address{3}
 
+	vCacheForUpdate := NewValidatorsCache(identityStateDB, common.Address{0x11})
+	vCacheForUpdate.Load()
+
 	for j := 0; j < countAll; j++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -82,10 +85,14 @@ func TestValidatorsCache_Load(t *testing.T) {
 	identityStateDB.Add(pool2)
 	identityStateDB.SetOnline(pool3, false)
 
-	identityStateDB.Commit(false)
+	_, _, diff, _ := identityStateDB.Commit(false)
 
 	vCache := NewValidatorsCache(identityStateDB, common.Address{0x11})
 	vCache.Load()
+
+	vCacheForUpdate.UpdateFromIdentityStateDiff(diff)
+
+	require.Equal(vCache.sortedValidators.list, vCacheForUpdate.sortedValidators.list)
 
 	require.Equal(4, vCache.PoolSize(pool1))
 	require.Equal(3, vCache.PoolSize(pool2))
@@ -96,11 +103,11 @@ func TestValidatorsCache_Load(t *testing.T) {
 	require.False(vCache.IsPool(common.Address{0x4}))
 	require.Len(vCache.delegations, 7)
 
-	require.Len(vCache.sortedValidators, 12)
+	require.Len(vCache.sortedValidators.list, 12)
 
-	require.NotContains(vCache.sortedValidators, pool1)
-	require.Contains(vCache.sortedValidators, pool2)
-	require.NotContains(vCache.sortedValidators, pool3)
+	require.NotContains(vCache.sortedValidators.list, pool1)
+	require.Contains(vCache.sortedValidators.list, pool2)
+	require.NotContains(vCache.sortedValidators.list, pool3)
 
 	stepValidators := vCache.GetOnlineValidators([32]byte{0x1}, 1, 1, 12)
 	require.Equal(12, stepValidators.Original.Cardinality())

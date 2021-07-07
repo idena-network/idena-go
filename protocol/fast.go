@@ -35,7 +35,7 @@ type fastSync struct {
 	appState             *appstate.AppState
 	potentialForkedPeers mapset.Set
 	manifest             *snapshot.Manifest
-	stateDb              *state.IdentityStateDB
+	identityStateDB      *state.IdentityStateDB
 	validators           *validators.ValidatorsCache
 	sm                   *state.SnapshotManager
 	bus                  eventbus.Bus
@@ -45,6 +45,8 @@ type fastSync struct {
 	subManager           *subscriptions.Manager
 	upgrader             *upgrade.Upgrader
 	prevConfig           *config.ConsensusConf
+
+	pubKeyToAddrCache map[string]common.Address
 }
 
 func (fs *fastSync) batchSize() uint64 {
@@ -75,6 +77,7 @@ func NewFastSync(pm *IdenaGossipHandler, log log.Logger,
 		keyStore:             keyStore,
 		subManager:           subManager,
 		upgrader:             upgrader,
+		pubKeyToAddrCache:    map[string]common.Address{},
 	}
 }
 
@@ -91,11 +94,11 @@ func (fs *fastSync) dropPreliminaries() {
 		fs.prevConfig = nil
 	}
 	fs.appState.IdentityState.DropPreliminary()
-	fs.stateDb = nil
+	fs.identityStateDB = nil
 }
 
 func (fs *fastSync) loadValidators() {
-	fs.validators = validators.NewValidatorsCache(fs.stateDb, fs.appState.State.GodAddress())
+	fs.validators = validators.NewValidatorsCache(fs.identityStateDB, fs.appState.State.GodAddress())
 	fs.validators.Load()
 }
 
@@ -111,7 +114,7 @@ func (fs *fastSync) tryUpgradeConsensus(header *types.Header) {
 func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	if fs.chain.PreliminaryHead == nil {
 		fs.chain.PreliminaryHead = head
-		fs.stateDb, err = fs.createPreliminaryCopy(head.Height())
+		fs.identityStateDB, err = fs.createPreliminaryCopy(head.Height())
 		if err != nil {
 			return 0, err
 		}
@@ -123,7 +126,7 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
 	}
 	fs.tryUpgradeConsensus(fs.chain.PreliminaryHead)
-	fs.stateDb, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
+	fs.identityStateDB, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
 	if err != nil {
 		fs.dropPreliminaries()
 		return fs.preConsuming(head)
@@ -146,10 +149,10 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 			return b.Header.Height(), err
 		}
 		if !b.IdentityDiff.Empty() {
-			fs.stateDb.CommitTree(int64(b.Header.Height()))
+			fs.identityStateDB.CommitTree(int64(b.Header.Height()))
 		}
 
-		if err := fs.chain.AddHeader(b.Header); err != nil {
+		if err := fs.chain.AddHeaderUnsafe(b.Header); err != nil {
 			fs.pm.BanPeer(b.peerId, err)
 			return b.Header.Height(), err
 		}
@@ -160,7 +163,7 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		}
 
 		if !b.IdentityDiff.Empty() {
-			fs.loadValidators()
+			fs.validators.UpdateFromIdentityStateDiff(b.IdentityDiff)
 		}
 		fs.chain.WriteIdentityStateDiff(b.Header.Height(), b.IdentityDiff)
 		if !b.Cert.Empty() {
@@ -291,9 +294,9 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 }
 
 func (fs *fastSync) validateIdentityState(block blockPeer) error {
-	fs.stateDb.AddDiff(block.Header.Height(), block.IdentityDiff)
-	if fs.stateDb.Root() != block.Header.IdentityRoot() {
-		fs.stateDb.Reset()
+	fs.identityStateDB.AddDiff(block.Header.Height(), block.IdentityDiff)
+	if fs.identityStateDB.Root() != block.Header.IdentityRoot() {
+		fs.identityStateDB.Reset()
 		return errors.New("identity root is invalid")
 	}
 	return nil
@@ -316,7 +319,7 @@ func (fs *fastSync) validateHeader(block *block) error {
 		}
 	}
 	if !block.Cert.Empty() {
-		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.validators)
+		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.validators, fs.pubKeyToAddrCache)
 	}
 
 	return nil
@@ -350,7 +353,7 @@ func (fs *fastSync) postConsuming() error {
 		//TODO : add snapshot to ban list
 		return err
 	}
-	fs.stateDb.SaveForcedVersion(fs.chain.PreliminaryHead.Height())
+	fs.identityStateDB.SaveForcedVersion(fs.chain.PreliminaryHead.Height())
 
 	if err := fs.chain.AtomicSwitchToPreliminary(fs.manifest); err != nil {
 		return err

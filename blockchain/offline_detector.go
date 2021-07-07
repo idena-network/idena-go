@@ -277,7 +277,7 @@ func (dt *OfflineDetector) processVote(vote *types.Vote) {
 	dt.mutex.Lock()
 	defer dt.mutex.Unlock()
 
-	votesAddr := vote.VoterAddr()
+	votesAddr := vote.VoterAddr(nil)
 
 	// process offline\online vote
 	if vote.Header.TurnOffline {

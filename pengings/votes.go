@@ -73,7 +73,7 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 		return false
 	}
 
-	if votes.state.ValidatorsCache.OnlineSize() > 0 && !votes.state.ValidatorsCache.IsOnlineIdentity(vote.VoterAddr()) {
+	if votes.state.ValidatorsCache.OnlineSize() > 0 && !votes.state.ValidatorsCache.IsOnlineIdentity(vote.VoterAddr(nil)) {
 		return false
 	}
 
