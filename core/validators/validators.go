@@ -215,6 +215,9 @@ func (v *ValidatorsCache) UpdateFromIdentityStateDiff(diff *state.IdentityStateD
 			if ok {
 				delete(v.delegations, d.Address)
 				v.pools[delegatee].remove(d.Address)
+				if len(v.pools[delegatee].list) == 0 {
+					delete(v.pools, delegatee)
+				}
 			}
 		}
 

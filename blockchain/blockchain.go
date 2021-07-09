@@ -1812,7 +1812,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		if vote.Header.ParentHash != prevBlock.Hash() {
 			return errors.New("invalid parent hash")
 		}
-		voters.Add(vote.VoterAddr(nil))
+		voters.Add(vote.VoterAddr(pubKeyToAddrCache))
 	}
 
 	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final)-validators.VotesCountSubtrahend(chain.config.Consensus.AgreementThreshold) {
