@@ -418,7 +418,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 			return errors.New("invalid block identity root")
 		}
 
-		if err := chain.appState.CommitTrees(block); err != nil {
+		if err := chain.appState.CommitTrees(block, blockInsertionResult.identityStateDiff); err != nil {
 			chain.appState.Reset()
 			return err
 		}

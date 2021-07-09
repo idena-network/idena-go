@@ -132,12 +132,9 @@ func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
 	return v.onlineNodesSet.Clone()
 }
 
-func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block) {
-	v.mutex.Lock()
-	defer v.mutex.Unlock()
-
+func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block, diff *state.IdentityStateDiff) {
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
-		v.loadValidNodes()
+		v.UpdateFromIdentityStateDiff(diff)
 		v.log.Info("Validators updated", "total", v.nodesSet.Cardinality(), "online", v.onlineNodesSet.Cardinality())
 	}
 	v.god = godAddress

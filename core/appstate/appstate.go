@@ -16,7 +16,9 @@ type AppState struct {
 	NonceCache      *state.NonceCache
 	IdentityState   *state.IdentityStateDB
 	EvidenceMap     *EvidenceMap
-	defaultTree     bool
+
+	defaultTree       bool
+	prevPrecommitDiff *state.IdentityStateDiff
 }
 
 func NewAppState(db dbm.DB, bus eventbus.Bus) (*AppState, error) {
@@ -123,7 +125,8 @@ func (s *AppState) Initialize(height uint64) error {
 
 func (s *AppState) Precommit() ([]*state.StateTreeDiff, *state.IdentityStateDiff) {
 	diff := s.State.Precommit(true)
-	return diff, s.IdentityState.Precommit(true)
+	s.prevPrecommitDiff = s.IdentityState.Precommit(true)
+	return diff, s.prevPrecommitDiff
 }
 
 func (s *AppState) Reset() {
@@ -139,7 +142,7 @@ func (s *AppState) Commit(block *types.Block) error {
 	_, _, _, err = s.IdentityState.Commit(true)
 
 	if block != nil {
-		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block)
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block, s.prevPrecommitDiff)
 	}
 
 	return err
@@ -186,7 +189,7 @@ func (s *AppState) SetPredefinedState(predefinedState *models.ProtoPredefinedSta
 	s.IdentityState.SetPredefinedIdentities(predefinedState)
 }
 
-func (s *AppState) CommitTrees(block *types.Block) error {
+func (s *AppState) CommitTrees(block *types.Block, diff *state.IdentityStateDiff) error {
 	_, _, err := s.State.CommitTree(int64(block.Height()))
 	if err != nil {
 		return err
@@ -194,7 +197,7 @@ func (s *AppState) CommitTrees(block *types.Block) error {
 	_, _, err = s.IdentityState.CommitTree(int64(block.Height()))
 
 	if block != nil {
-		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block)
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block, diff)
 	}
 
 	return err
