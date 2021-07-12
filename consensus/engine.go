@@ -339,7 +339,7 @@ func (engine *Engine) proposeBlock(proof []byte) *types.Block {
 	engine.pm.ProposeProof(proofProposal)
 	engine.pm.ProposeBlock(proposal)
 
-	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC(), nil)
+	engine.proposals.AddProposedBlock(proposal, "", time.Now().UTC())
 	engine.proposals.AddProposeProof(proofProposal)
 
 	return proposal.Block
