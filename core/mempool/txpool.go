@@ -106,11 +106,14 @@ func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useT
 	if useTxKeeper {
 		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
 		pool.txKeeper.Load()
+
+		var removedTxs []common.Hash
 		for _, tx := range pool.txKeeper.List() {
 			if err := pool.AddInternalTx(tx); err != nil {
-				pool.txKeeper.RemoveTx(tx.Hash())
+				removedTxs = append(removedTxs, tx.Hash())
 			}
 		}
+		pool.txKeeper.RemoveTxs(removedTxs)
 	}
 }
 
@@ -453,9 +456,6 @@ func (pool *TxPool) Remove(transaction *types.Transaction) {
 	defer pool.mutex.Unlock()
 	pool.all.Remove(transaction.Hash())
 	delete(pool.txSyncCounts, transaction.Hash())
-	if pool.txKeeper != nil {
-		pool.txKeeper.RemoveTx(transaction.Hash())
-	}
 	sender, _ := types.Sender(transaction)
 
 	if executable, ok := pool.executableTxs[sender]; ok {
@@ -513,8 +513,13 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	pool.head = block.Header
 
+	removedTxs := make([]common.Hash, 0, len(block.Body.Transactions))
 	for _, tx := range block.Body.Transactions {
 		pool.Remove(tx)
+		removedTxs = append(removedTxs, tx.Hash())
+	}
+	if pool.txKeeper != nil {
+		pool.txKeeper.RemoveTxs(removedTxs)
 	}
 
 	pool.movePendingTxsToExecutable()
@@ -591,10 +596,13 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	}
 
 	pool.appState.NonceCache.UnLock()
+	removedTxs = make([]common.Hash, 0, len(removingTxs))
 	for _, tx := range removingTxs {
 		pool.Remove(tx)
+		removedTxs = append(removedTxs, tx.Hash())
 	}
 	if pool.txKeeper != nil {
+		pool.txKeeper.RemoveTxs(removedTxs)
 		pool.txKeeper.PersistAsync()
 	}
 }

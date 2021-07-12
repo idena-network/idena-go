@@ -341,9 +341,15 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	require.Len(t, pool.txKeeper.txs, 320)
 	require.Len(t, pool.all.txs, 320)
 
-	for _, tx := range pool.all.txs {
-		pool.Remove(tx)
-	}
+	pool.appState.State.SetGlobalEpoch(1)
+	pool.appState.Commit(nil)
+
+	pool.ResetTo(&types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 2,
+		},
+	}, Body: &types.Body{}})
+
 	require.Len(t, pool.txKeeper.txs, 0)
 	require.Len(t, pool.all.txs, 0)
 

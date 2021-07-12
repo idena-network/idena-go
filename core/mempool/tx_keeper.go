@@ -33,7 +33,7 @@ func (k *txKeeper) persist() error {
 		return err
 	}
 	defer file.Close()
-	var list []hexutil.Bytes
+	list := make([]hexutil.Bytes, 0, len(k.txs))
 	for _, d := range k.txs {
 		list = append(list, d)
 	}
@@ -99,21 +99,28 @@ func (k *txKeeper) AddTx(tx *types.Transaction, internalTx bool) {
 	}
 }
 
-func (k *txKeeper) RemoveTx(hash common.Hash) {
+func (k *txKeeper) RemoveTxs(hashes []common.Hash) {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
-	if _, ok := k.txs[hash]; ok {
-		delete(k.txs, hash)
-		if err := k.persist(); err != nil {
-			log.Warn("error while remove mempool tx", "err", err)
+	var shouldPersist bool
+	for _, hash := range hashes {
+		if _, ok := k.txs[hash]; ok {
+			delete(k.txs, hash)
+			shouldPersist = true
 		}
+	}
+	if !shouldPersist {
+		return
+	}
+	if err := k.persist(); err != nil {
+		log.Warn("error while remove mempool tx", "err", err)
 	}
 }
 
 func (k *txKeeper) List() []*types.Transaction {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
-	var result []*types.Transaction
+	result := make([]*types.Transaction, 0, len(k.txs))
 	for _, hex := range k.txs {
 		tx := new(types.Transaction)
 		if err := tx.FromBytes(hex); err == nil {
