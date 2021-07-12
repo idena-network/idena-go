@@ -229,19 +229,21 @@ func (engine *Engine) loop() {
 
 		engine.log.Info("Selected proposer", "proposer", proposer)
 		emptyBlock := engine.chain.GenerateEmptyBlock()
+
+		extraDelayForReductionOne := time.Duration(0)
 		if proposerPubKey == nil {
 			block = emptyBlock
 		} else {
 
 			engine.process = "Waiting for block from proposer"
-			block = engine.waitForBlock(proposerPubKey)
+			block, extraDelayForReductionOne = engine.waitForBlock(proposerPubKey)
 
 			if block == nil {
 				block = emptyBlock
 			}
 		}
 
-		blockHash := engine.reduction(round, block)
+		blockHash := engine.reduction(round, block, extraDelayForReductionOne)
 		blockHash, cert, err := engine.binaryBa(blockHash)
 		if err != nil {
 			engine.log.Info("Binary Ba is failed", "err", err)
@@ -348,24 +350,26 @@ func (engine *Engine) getHighestProposerPubKey(round uint64) []byte {
 	return engine.proposals.GetProposerPubKey(round)
 }
 
-func (engine *Engine) waitForBlock(proposerPubKey []byte) *types.Block {
+func (engine *Engine) waitForBlock(proposerPubKey []byte) (*types.Block, time.Duration) {
 	engine.log.Info("Wait for block proposal")
+	now := time.Now()
 	block, err := engine.proposals.GetProposedBlock(engine.chain.Round(), proposerPubKey, engine.cfg.Consensus.WaitBlockDelay)
+	notUsedDelay :=  engine.cfg.Consensus.WaitBlockDelay - time.Since(now)
 	if err != nil {
 		engine.log.Error("Proposed block is not found", "err", err.Error())
-		return nil
+		return nil, notUsedDelay
 	}
-	return block
+	return block, notUsedDelay
 }
 
-func (engine *Engine) reduction(round uint64, block *types.Block) common.Hash {
+func (engine *Engine) reduction(round uint64, block *types.Block, extraDelayForReductionOne time.Duration) common.Hash {
 	engine.process = "Reduction started"
 	engine.log.Info("Reduction started", "block", block.Hash().Hex())
 
 	engine.vote(round, types.ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionOne)
 
-	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay)
+	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay + extraDelayForReductionOne)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
@@ -541,7 +545,7 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 				return bestHash, &cert, nil
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	return common.Hash{}, nil, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
 }
