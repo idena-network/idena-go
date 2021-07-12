@@ -1799,8 +1799,23 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 			Signature: signature.Signature,
 		}
 
-		if !validators.Contains(vote.VoterAddr(pubKeyToAddrCache)) {
-			return errors.Errorf("invalid voter %v", vote.VoterAddr(pubKeyToAddrCache).String())
+		var addr common.Address
+		if pubKeyToAddrCache != nil {
+			pubKey, err := vote.PubKey()
+			if err != nil {
+				continue
+			}
+			var ok bool
+			if addr, ok = pubKeyToAddrCache[string(pubKey)]; !ok {
+				addr = vote.VoterAddr()
+				pubKeyToAddrCache[string(pubKey)] = addr
+			}
+		} else {
+			addr = vote.VoterAddr()
+		}
+
+		if !validators.Contains(addr) {
+			return errors.Errorf("invalid voter %v", addr.String())
 		}
 		if vote.Header.Round != block.Height() {
 			return errors.New("invalid vote header")
@@ -1812,7 +1827,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 		if vote.Header.ParentHash != prevBlock.Hash() {
 			return errors.New("invalid parent hash")
 		}
-		voters.Add(vote.VoterAddr(pubKeyToAddrCache))
+		voters.Add(addr)
 	}
 
 	if voters.Cardinality() < chain.GetCommitteeVotesThreshold(validatorsCache, step == types.Final)-validators.VotesCountSubtrahend(chain.config.Consensus.AgreementThreshold) {

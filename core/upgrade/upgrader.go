@@ -118,9 +118,9 @@ func (u *Upgrader) processVote(vote *types.Vote) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 	if vote.Header.Upgrade > 0 {
-		u.votes.Add(vote.VoterAddr(nil), vote.Header.Upgrade)
+		u.votes.Add(vote.VoterAddr(), vote.Header.Upgrade)
 	} else {
-		u.votes.Remove(vote.VoterAddr(nil))
+		u.votes.Remove(vote.VoterAddr())
 	}
 }
 

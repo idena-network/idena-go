@@ -506,17 +506,17 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 					byBlock[vote.Header.VotedHash] = roundVotes
 				}
 
-				if _, ok := roundVotes[vote.VoterAddr(nil)]; !ok {
+				if _, ok := roundVotes[vote.VoterAddr()]; !ok {
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
-					if !validators.Addresses.Contains(vote.VoterAddr(nil)) {
+					if !validators.Addresses.Contains(vote.VoterAddr()) {
 						return true
 					}
 					if vote.Header.Step != step {
 						return true
 					}
-					roundVotes[vote.VoterAddr(nil)] = vote
+					roundVotes[vote.VoterAddr()] = vote
 
 					if len(roundVotes) >= necessaryVotesCount {
 						list := make([]*types.Vote, 0, necessaryVotesCount)

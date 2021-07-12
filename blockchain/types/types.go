@@ -742,7 +742,7 @@ func (v *Vote) Hash() common.Hash {
 	}
 
 	voteHash := crypto.SignatureHash(v)
-	voterAddr := v.VoterAddr(nil)
+	voterAddr := v.VoterAddr()
 	h := common.Hash(crypto.Hash(append(voteHash[:], voterAddr[:]...)))
 
 	v.hash.Store(h)
@@ -761,29 +761,23 @@ func (v *Vote) Hash128() common.Hash128 {
 	return h
 }
 
-func (v *Vote) VoterAddr(pubKeyToAddrCache map[string]common.Address) common.Address {
+func (v *Vote) VoterAddr() common.Address {
 	if addr := v.addr.Load(); addr != nil {
 		return addr.(common.Address)
 	}
-
-	hash := crypto.SignatureHash(v)
-
 	addr := common.Address{}
-	pubKey, err := crypto.Ecrecover(hash[:], v.Signature)
+	pubKey, err := v.PubKey()
 	if err == nil {
-		var ok bool
-		if pubKeyToAddrCache != nil {
-			addr, ok = pubKeyToAddrCache[string(pubKey)]
-		}
-		if !ok {
-			addr, _ = crypto.PubKeyBytesToAddress(pubKey)
-			if pubKeyToAddrCache!=nil {
-				pubKeyToAddrCache[string(pubKey)] = addr
-			}
-		}
+		addr, _ = crypto.PubKeyBytesToAddress(pubKey)
 	}
 	v.addr.Store(addr)
 	return addr
+}
+
+
+func (v *Vote) PubKey() ([]byte, error) {
+	hash := crypto.SignatureHash(v)
+	return crypto.Ecrecover(hash[:], v.Signature)
 }
 
 func (v *Vote) IsValid() bool {
