@@ -129,6 +129,23 @@ func (s *AppState) Precommit() ([]*state.StateTreeDiff, *state.IdentityStateDiff
 	return diff, s.prevPrecommitDiff
 }
 
+func (s *AppState) FinalizePrecommit(block *types.Block) error {
+	_, _, _, err := s.State.Commit(true)
+	if err != nil {
+		return err
+	}
+	_, _, _, err = s.IdentityState.Commit(true)
+	if err != nil {
+		return err
+	}
+
+	if block != nil {
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block, s.prevPrecommitDiff)
+	}
+
+	return err
+}
+
 func (s *AppState) Reset() {
 	s.State.Reset()
 	s.IdentityState.Reset()
@@ -139,10 +156,13 @@ func (s *AppState) Commit(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	_, _, _, err = s.IdentityState.Commit(true)
+	_, _, diff, err := s.IdentityState.Commit(true)
+	if err != nil {
+		return err
+	}
 
 	if block != nil {
-		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block, s.prevPrecommitDiff)
+		s.ValidatorsCache.RefreshIfUpdated(s.State.GodAddress(), block, diff)
 	}
 
 	return err
