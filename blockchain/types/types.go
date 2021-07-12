@@ -765,16 +765,19 @@ func (v *Vote) VoterAddr() common.Address {
 	if addr := v.addr.Load(); addr != nil {
 		return addr.(common.Address)
 	}
-
-	hash := crypto.SignatureHash(v)
-
 	addr := common.Address{}
-	pubKey, err := crypto.Ecrecover(hash[:], v.Signature)
+	pubKey, err := v.PubKey()
 	if err == nil {
 		addr, _ = crypto.PubKeyBytesToAddress(pubKey)
 	}
 	v.addr.Store(addr)
 	return addr
+}
+
+
+func (v *Vote) PubKey() ([]byte, error) {
+	hash := crypto.SignatureHash(v)
+	return crypto.Ecrecover(hash[:], v.Signature)
 }
 
 func (v *Vote) IsValid() bool {
