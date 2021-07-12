@@ -619,6 +619,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
 		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
+		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.EnableRelayHop = false
 		if cfg.Profile != "" {
