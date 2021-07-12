@@ -88,7 +88,7 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 			if !b.Cert.Empty() {
 				fs.chain.WriteCertificate(block.Hash(), b.Cert, true)
 			}
-			if checkState.Commit(block) != nil {
+			if checkState.FinalizePrecommit(block) != nil {
 				return block.Height(), err
 			}
 		}
@@ -182,7 +182,7 @@ func (fs *fullSync) validateHeader(block *block, p *protoPeer) error {
 		}
 	}
 	if !block.Cert.Empty() {
-		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache)
+		return fs.chain.ValidateBlockCert(prevBlock, block.Header, block.Cert, fs.appState.ValidatorsCache, nil)
 	}
 
 	return nil
