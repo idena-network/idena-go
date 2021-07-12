@@ -240,6 +240,11 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 		if err = pool.add(tx, appState); err != nil && len(txs) == 1 {
 			return err
 		}
+		if err == nil {
+			if pool.txKeeper != nil {
+				pool.txKeeper.AddTx(tx, false)
+			}
+		}
 	}
 	return nil
 }
@@ -256,7 +261,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
 		if pool.txKeeper != nil {
-			pool.txKeeper.AddTx(tx)
+			pool.txKeeper.AddTx(tx, true)
 		}
 		appState, _ := pool.appState.Readonly(pool.head.Height())
 		if err := pool.add(tx, appState); err != nil {
@@ -279,7 +284,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	}
 	if err = pool.add(tx, appState); err == nil {
 		if pool.txKeeper != nil {
-			pool.txKeeper.AddTx(tx)
+			pool.txKeeper.AddTx(tx, true)
 		}
 	}
 	return err
@@ -588,6 +593,9 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	pool.appState.NonceCache.UnLock()
 	for _, tx := range removingTxs {
 		pool.Remove(tx)
+	}
+	if pool.txKeeper != nil {
+		pool.txKeeper.PersistAsync()
 	}
 }
 

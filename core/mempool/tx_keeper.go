@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	Folder = "own-mempool-txs"
+	Folder = "mempool-txs"
 )
 
 type txKeeper struct {
@@ -83,7 +83,7 @@ func (k *txKeeper) openFile() (file *os.File, err error) {
 	return f, nil
 }
 
-func (k *txKeeper) AddTx(tx *types.Transaction) {
+func (k *txKeeper) AddTx(tx *types.Transaction, internalTx bool) {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
 	if _, ok := k.txs[tx.Hash()]; ok {
@@ -91,6 +91,9 @@ func (k *txKeeper) AddTx(tx *types.Transaction) {
 	}
 	data, _ := tx.ToBytes()
 	k.txs[tx.Hash()] = data
+	if !internalTx {
+		return
+	}
 	if err := k.persist(); err != nil {
 		log.Warn("error while save mempool tx", "err", err)
 	}
@@ -118,4 +121,12 @@ func (k *txKeeper) List() []*types.Transaction {
 		}
 	}
 	return result
+}
+
+func (k *txKeeper) PersistAsync() {
+	go func() {
+		k.mutex.Lock()
+		defer k.mutex.Unlock()
+		k.persist()
+	}()
 }
