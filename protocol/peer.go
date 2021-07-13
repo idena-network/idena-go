@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
@@ -84,6 +85,7 @@ type protoPeer struct {
 	peers                uint32
 	metrics              *metricCollector
 	skippedRequestsCount uint32
+	shardId              common.ShardId
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -113,12 +115,12 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 	return p
 }
 
-func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bool) {
+func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.ShardId, highPriority bool) {
 	if highPriority {
 		timer := time.NewTimer(time.Second * 5)
 		defer timer.Stop()
 		select {
-		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload}:
+		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload, shardId: shardId}:
 		case <-timer.C:
 			p.log.Error("TIMEOUT while sending message (high priority)", "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.highPriorityRequests))
 			p.disconnect()
@@ -126,7 +128,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 		}
 	} else {
 		select {
-		case p.queuedRequests <- &request{msgcode: msgcode, data: payload}:
+		case p.queuedRequests <- &request{msgcode: msgcode, data: payload, shardId: shardId}:
 			atomic.StoreUint32(&p.skippedRequestsCount, 0)
 		case <-p.finished:
 		default:
@@ -143,7 +145,7 @@ func (p *protoPeer) broadcast() {
 	defer close(p.finished)
 	defer p.disconnect()
 	send := func(request *request) error {
-		msg := makeMsg(request.msgcode, request.data)
+		msg := makeMsg(request.msgcode, request.data, request.shardId)
 
 		ch := make(chan error, 1)
 		timer := time.NewTimer(time.Minute)
@@ -207,12 +209,12 @@ func (p *protoPeer) broadcast() {
 	}
 }
 
-func makeMsg(msgcode uint64, payload interface{}) []byte {
+func makeMsg(msgcode uint64, payload interface{}, shardId common.ShardId) []byte {
 	data, err := toBytes(msgcode, payload)
 	if err != nil {
 		panic(err)
 	}
-	msg, err := (&Msg{Code: msgcode, Payload: data}).ToBytes()
+	msg, err := (&Msg{Code: msgcode, Payload: data, ShardId: shardId}).ToBytes()
 	if err != nil {
 		panic(err)
 	}
@@ -252,11 +254,13 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 		return pullPush.ToBytes()
 	case Block:
 		return payload.(*types.Block).ToBytes()
+	case UpdateShardId:
+		return payload.(*updateShardId).ToBytes()
 	}
 	return nil, errors.Errorf("type %T is not serializable", payload)
 }
 
-func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *types.GenesisInfo, appVersion string, peersCount uint32) error {
+func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *types.GenesisInfo, appVersion string, peersCount uint32, shardId common.ShardId) error {
 	errc := make(chan error, 2)
 	handShake := new(handshakeData)
 	p.log.Trace("start handshake")
@@ -268,15 +272,16 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *typ
 			Timestamp:    time.Now().UTC().Unix(),
 			AppVersion:   appVersion,
 			Peers:        peersCount,
+			ShardId:      shardId,
 		}
 		if genesis.OldGenesis != nil {
 			hash := genesis.OldGenesis.Hash()
 			data.OldGenesis = &hash
 		}
 
-		msg := makeMsg(Handshake, data)
+		msg := makeMsg(Handshake, data, 0)
 		errc <- p.rw.WriteMsg(msg)
-		p.log.Trace("handshake message sent")
+		p.log.Trace("handshake message sent", "shardId", shardId)
 	}()
 	go func() {
 		errc <- p.readStatus(handShake, network, genesis)
@@ -295,6 +300,7 @@ func (p *protoPeer) Handshake(network types.Network, height uint64, genesis *typ
 	}
 	p.knownHeight.Store(handShake.Height)
 	p.peers = handShake.Peers
+	p.shardId = handShake.ShardId
 	return nil
 }
 

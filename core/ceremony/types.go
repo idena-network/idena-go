@@ -6,11 +6,24 @@ import (
 )
 
 type candidate struct {
-	Address    common.Address
-	PubKey     []byte
-	Generation uint32
-	Code       []byte
-	IsAuthor   bool
+	Address  common.Address
+	PubKey   []byte
+	IsAuthor bool
+}
+
+type candidatesOfShard struct {
+	candidates     []*candidate
+	flips          [][]byte
+	flipsPerAuthor map[int][][]byte
+	flipAuthorMap  map[string]common.Address
+
+	nonCandidates []common.Address
+
+	shortFlipsPerCandidate [][]int
+	longFlipsPerCandidate  [][]int
+
+	shortFlipsToSolve map[common.Address][][]byte
+	longFlipsToSolve  map[common.Address][][]byte
 }
 
 type FlipStatus byte

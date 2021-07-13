@@ -789,7 +789,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	s.Commit(nil)
 
-	setNewIdentitiesAttributes(s, 12, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 12, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
@@ -802,13 +802,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 1, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 5, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -817,7 +817,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 15, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 15, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -828,7 +828,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 20, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -839,7 +839,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 2, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 2, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -847,7 +847,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x5}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 6, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 6, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -1051,4 +1051,25 @@ func Test_Delegation(t *testing.T) {
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool2))
 	require.False(t, appState.ValidatorsCache.IsPool(pool2))
 	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(pool2))
+}
+
+func TestBalance_shards_reducing(t *testing.T) {
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	for i := 0; i < common.MinShardSize; i++ {
+		addr := common.Address{byte(i)}
+		appState.State.SetState(addr, state.Human)
+		appState.State.SetShardId(addr, 0)
+	}
+	for i := common.MinShardSize; i < common.MinShardSize * 2; i++ {
+		addr := common.Address{byte(i)}
+		appState.State.SetState(addr, state.Human)
+		appState.State.SetShardId(addr, 1)
+	}
+	appState.State.SetShardsNum(2)
+	appState.Commit(nil)
+	balanceShards(appState, 6, 0, 6, map[common.ShardId]int{}, map[common.ShardId]int{0: 3, 1: 3})
+
 }

@@ -3,6 +3,11 @@ package config
 type P2P struct {
 	MaxInboundPeers  int
 	MaxOutboundPeers int
-	MaxDelay         int
-	DisableMetrics   bool
+
+	MaxInboundOwnShardPeers  int
+	MaxOutboundOwnShardPeers int
+
+	MaxDelay       int
+	DisableMetrics bool
+	Multishard     bool
 }

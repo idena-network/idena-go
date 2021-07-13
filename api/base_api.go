@@ -117,3 +117,8 @@ func (api *BaseApi) signTransaction(from common.Address, tx *types.Transaction, 
 	}
 	return api.ks.SignTx(account, tx)
 }
+
+func (api *BaseApi) getCoinbaseShard() common.ShardId {
+	state := api.getReadonlyAppState()
+	return state.State.ShardId(api.secStore.GetAddress())
+}
