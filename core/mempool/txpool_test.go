@@ -14,6 +14,7 @@ import (
 	"github.com/tendermint/tm-db"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func TestTxPool_addDeferredTx(t *testing.T) {
@@ -303,10 +304,12 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	}
 
 	for i := 0; i < 300; i++ {
-
 		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
-	require.Len(t, pool.txKeeper.txs, 300)
+	for i := 0; i < 20; i++ {
+		require.NoError(t, pool.AddExternalTxs(getTx(keys[i])))
+	}
+	require.Len(t, pool.txKeeper.txs, 320)
 	prevPool := pool
 
 	pool = getPool()
@@ -319,9 +322,34 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	require.Len(t, pool.txKeeper.txs, 300)
 	require.Len(t, pool.all.txs, 300)
 
-	for _, tx := range pool.all.txs {
-		pool.Remove(tx)
-	}
+	prevPool.ResetTo(&types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 1,
+		},
+	}, Body: &types.Body{}})
+
+	// wait for async mempool saving
+	time.Sleep(time.Second)
+
+	pool = getPool()
+	pool.appState = prevPool.appState
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 1,
+		},
+	}, common.Address{0x1}, true)
+	require.Len(t, pool.txKeeper.txs, 320)
+	require.Len(t, pool.all.txs, 320)
+
+	pool.appState.State.SetGlobalEpoch(1)
+	pool.appState.Commit(nil)
+
+	pool.ResetTo(&types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 2,
+		},
+	}, Body: &types.Body{}})
+
 	require.Len(t, pool.txKeeper.txs, 0)
 	require.Len(t, pool.all.txs, 0)
 
