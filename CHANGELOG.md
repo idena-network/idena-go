@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.26.6-rc1 (Jul 14, 2021)
+
+### Changes
+
+- Speed up fast sync ([#731](https://github.com/idena-network/idena-go/pull/731))
+- Adjust consensus engine timeouts ([#732](https://github.com/idena-network/idena-go/pull/732))
+- Disable noise protocol ([#733](https://github.com/idena-network/idena-go/pull/733))
+- Keep all mempool transactions on disk ([#734](https://github.com/idena-network/idena-go/pull/734))
+- Implement postponed validation of proposed blocks ([#735](https://github.com/idena-network/idena-go/pull/735))
+- Publish ipfs peers info to eventbus ([#736](https://github.com/idena-network/idena-go/pull/736))
+
 ## 0.26.5 (Jul 4, 2021)
 
 ### Changes
