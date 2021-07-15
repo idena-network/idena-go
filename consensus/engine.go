@@ -204,8 +204,8 @@ func (engine *Engine) loop() {
 		engine.prevRoundDuration = 0
 		roundStart := time.Now().UTC()
 
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers",
-			engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(),"shardId", engine.pm.OwnShardId(), "total-peers",
+			engine.pm.PeersCount(), "own-shard-peers", engine.pm.OwnShardPeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
 			"network", engine.appState.ValidatorsCache.NetworkSize())
 
 		engine.process = "Check if I'm proposer"
@@ -354,7 +354,7 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) (*types.Block, time.Du
 	engine.log.Info("Wait for block proposal")
 	now := time.Now()
 	block, err := engine.proposals.GetProposedBlock(engine.chain.Round(), proposerPubKey, engine.cfg.Consensus.WaitBlockDelay)
-	notUsedDelay :=  engine.cfg.Consensus.WaitBlockDelay - time.Since(now)
+	notUsedDelay := engine.cfg.Consensus.WaitBlockDelay - time.Since(now)
 	if err != nil {
 		engine.log.Error("Proposed block is not found", "err", err.Error())
 		return nil, notUsedDelay
@@ -369,7 +369,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block, extraDelayForR
 	engine.vote(round, types.ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionOne)
 
-	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay + extraDelayForReductionOne)
+	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay+extraDelayForReductionOne)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
