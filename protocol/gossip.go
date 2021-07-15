@@ -431,6 +431,15 @@ func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
 	}
 }
 
+func (h *IdenaGossipHandler) OwnShardId() common.ShardId {
+	ownShardId := common.MultiShard
+
+	if !h.cfg.Multishard {
+		ownShardId, _ = h.bcn.CoinbaseShard()
+	}
+	return ownShardId
+}
+
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
@@ -453,13 +462,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 
 	peer := newPeer(stream, h.cfg.MaxDelay, h.metrics)
 
-	ownShardId := common.MultiShard
-
-	if !h.cfg.Multishard {
-		ownShardId, _ = h.bcn.CoinbaseShard()
-	}
-
-	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), ownShardId); err != nil {
+	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), h.OwnShardId()); err != nil {
 		current := semver.New(h.appVersion)
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
@@ -491,14 +494,14 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
-		go func() {
-			time.Sleep(time.Second * 30)
-			canConnect, _ := needPeerFromShard(inbound, peer.shardId)
-			if !canConnect {
-				log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
-				peer.disconnect()
-			}
-		}()
+		//go func() {
+		//time.Sleep(time.Second * 30)
+		canConnect, _ := needPeerFromShard(inbound, peer.shardId)
+		if !canConnect {
+			log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
+			peer.disconnect()
+		}
+		//}()
 	}
 	if shouldDisconnectAnotherPeer {
 		peerId := h.connManager.GetRandomPeerFromAnotherShard(inbound)
@@ -925,6 +928,10 @@ func (h *IdenaGossipHandler) HasPeers() bool {
 }
 func (h *IdenaGossipHandler) PeersCount() int {
 	return h.peers.Len()
+}
+
+func (h *IdenaGossipHandler) OwnShardPeersCount() int {
+	return h.peers.FromShard(h.OwnShardId())
 }
 func (h *IdenaGossipHandler) Peers() []*protoPeer {
 	return h.peers.Peers()

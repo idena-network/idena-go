@@ -93,7 +93,7 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{
 
 func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, highPriority bool) bool {
 	peersCnt := ps.Len()
-	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 5 || highPriority{
+	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 5 || highPriority {
 		return true
 	}
 	rnd := rand.Float32()
@@ -130,4 +130,15 @@ func (ps *peerSet) hasKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func (ps *peerSet) FromShard(shardId common.ShardId) int {
+	var cnt int
+	peers := ps.Peers()
+	for _, p := range peers {
+		if shardId == common.MultiShard || p.shardId == shardId {
+			cnt++
+		}
+	}
+	return cnt
 }
