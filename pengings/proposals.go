@@ -196,20 +196,13 @@ func (proposals *Proposals) ProcessPendingProofs() []*types.ProofProposal {
 func (proposals *Proposals) ProcessPendingBlocks() []*types.BlockProposal {
 	var result []*types.BlockProposal
 
-	checkState, err := proposals.appState.ForCheck(proposals.chain.Head.Height())
-	if err != nil {
-		proposals.log.Warn("failed to create checkState", "err", err)
-	}
 	proposals.pendingBlocks.Range(func(key, value interface{}) bool {
 
 		blockPeer := value.(*blockPeer)
-		if added, pending := proposals.AddProposedBlock(blockPeer.proposal, blockPeer.peerId, blockPeer.receivingTime, checkState); added {
+		if added, pending := proposals.AddProposedBlock(blockPeer.proposal, blockPeer.peerId, blockPeer.receivingTime); added {
 			result = append(result, blockPeer.proposal)
 		} else if !pending {
 			proposals.pendingBlocks.Delete(key)
-		}
-		if checkState != nil {
-			checkState.Reset()
 		}
 		return true
 	})
@@ -217,7 +210,7 @@ func (proposals *Proposals) ProcessPendingBlocks() []*types.BlockProposal {
 	return result
 }
 
-func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time, checkState *appstate.AppState) (added bool, pending bool) {
+func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peerId peer.ID, receivingTime time.Time) (added bool, pending bool) {
 	block := proposal.Block
 	currentRound := proposals.chain.Round()
 	if currentRound == block.Height() {
@@ -258,8 +251,9 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 		if _, ok := round.Load(block.Hash()); ok {
 			return false, false
 		}
-		if _, err := proposals.chain.ValidateBlock(block, checkState, nil); err != nil {
-			log.Warn("Failed proposed block validation", "err", err)
+
+		if err := proposals.chain.ValidateHeader(block.Header, proposals.chain.Head); err != nil {
+			log.Warn("Failed proposed block header validation", "err", err)
 			// it might be a signal about a fork
 			if err == blockchain.ParentHashIsInvalid && peerId != "" {
 				proposals.potentialForkedPeers.Add(peerId)
@@ -303,6 +297,9 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 				return true
 			})
 			if result != nil {
+				if _, err := proposals.chain.ValidateBlock(result, nil, nil); err != nil {
+					return nil, err
+				}
 				return result, nil
 			}
 		}
