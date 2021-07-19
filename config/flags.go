@@ -15,15 +15,18 @@ const (
 	DefaultForceFullSync  = 100
 	DefaultStoreCertRange = 2000
 
-	DefaultMaxInboundOwnShardPeers     = 8
-	DefaultMaxOutboundOwnShardPeers    = 6
+	DefaultMaxInboundOwnShardPeers     = 6
+	DefaultMaxOutboundOwnShardPeers    = 4
 	DefaultMaxInboundNotOwnShardPeers  = 2
 	DefaultMaxOutboundNotOwnShardPeers = 2
 
 	DefaultBurntTxRange = 180
 
-	LowPowerMaxInboundPeers  = 6
-	LowPowerMaxOutboundPeers = 3
+
+	LowPowerMaxInboundOwnShardPeers     = 3
+	LowPowerMaxOutboundOwnShardPeers    = 2
+	LowPowerMaxInboundNotOwnShardPeers  = 1
+	LowPowerMaxOutboundNotOwnShardPeers = 1
 )
 
 var (
