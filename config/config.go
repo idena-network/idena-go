@@ -189,8 +189,10 @@ func MakeConfig(ctx *cli.Context, cfgTransform func(cfg *Config)) (*Config, erro
 
 func applyProfile(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
-		cfg.P2P.MaxInboundPeers = LowPowerMaxInboundPeers
-		cfg.P2P.MaxOutboundPeers = LowPowerMaxOutboundPeers
+		cfg.P2P.MaxInboundPeers = LowPowerMaxInboundNotOwnShardPeers
+		cfg.P2P.MaxOutboundPeers = LowPowerMaxOutboundNotOwnShardPeers
+		cfg.P2P.MaxInboundOwnShardPeers = LowPowerMaxInboundOwnShardPeers
+		cfg.P2P.MaxOutboundOwnShardPeers = LowPowerMaxOutboundOwnShardPeers
 		cfg.IpfsConf.LowWater = 8
 		cfg.IpfsConf.HighWater = 10
 		cfg.IpfsConf.GracePeriod = "30s"
