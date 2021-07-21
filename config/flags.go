@@ -16,9 +16,9 @@ const (
 	DefaultStoreCertRange = 2000
 
 	DefaultMaxInboundOwnShardPeers     = 6
-	DefaultMaxOutboundOwnShardPeers    = 4
+	DefaultMaxOutboundOwnShardPeers    = 3
 	DefaultMaxInboundNotOwnShardPeers  = 2
-	DefaultMaxOutboundNotOwnShardPeers = 2
+	DefaultMaxOutboundNotOwnShardPeers = 1
 
 	DefaultBurntTxRange = 180
 

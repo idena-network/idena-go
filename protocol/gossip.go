@@ -157,12 +157,14 @@ func (h *IdenaGossipHandler) Start() {
 			if h.connManager.SetShardId(shardId) {
 				h.notifyAboutShardUpdate(shardId)
 			}
+			h.peers.SetOwnShardId(shardId)
 		}
 	})
 
 	if !h.cfg.Multishard {
 		shardId, _ := h.bcn.CoinbaseShard()
 		h.connManager.SetShardId(shardId)
+		h.peers.SetOwnShardId(shardId)
 	}
 
 	go h.broadcastLoop()
