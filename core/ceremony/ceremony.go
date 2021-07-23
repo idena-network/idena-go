@@ -913,7 +913,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
 		stats := vc.validationStats.Shards[shardId]
 		stats.FlipCids = shard.flips
-		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.epochDb.ReadEvidenceMaps())
+		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.readEvidenceMaps(shardId) )
 		approvedCandidatesSet := mapset.NewSet()
 		for _, item := range approvedCandidates {
 			approvedCandidatesSet.Add(item)
@@ -1655,6 +1655,21 @@ func (vc *ValidationCeremony) loadAllFlips(ctx context.Context) {
 	}
 
 	log.Info("finished all flips loading", "count", len(flips), "errors", errorsCount)
+}
+
+func (vc *ValidationCeremony) readEvidenceMaps(shardId common.ShardId) [][]byte {
+	maps := vc.epochDb.ReadEvidenceMaps()
+	candidates := map[common.Address]struct{} {}
+	for _, c := range vc.shardCandidates[shardId].candidates 	 {
+		candidates[c.Address] = struct{}{}
+	}
+    var result [][]byte
+	for _, m := range maps {
+		if _, ok := candidates[m.Sender];ok{
+			result = append(result, m.Map)
+		}
+	}
+	return result
 }
 
 func decryptFlip(encryptedPublicPart []byte, encryptedPrivatePart []byte, publicKey []byte, privateKey []byte) (publicPart []byte, privatePart []byte, err error) {
