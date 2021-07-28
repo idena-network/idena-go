@@ -106,14 +106,10 @@ func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useT
 	if useTxKeeper {
 		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
 		pool.txKeeper.Load()
-
-		var removedTxs []common.Hash
-		for _, tx := range pool.txKeeper.List() {
-			if err := pool.AddInternalTx(tx); err != nil {
-				removedTxs = append(removedTxs, tx.Hash())
-			}
-		}
-		pool.txKeeper.RemoveTxs(removedTxs)
+		
+		keeperTxs := pool.txKeeper.List()
+		pool.txKeeper.Clear()
+		pool.AddExternalTxs(keeperTxs...)
 	}
 }
 
@@ -245,7 +241,7 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 		}
 		if err == nil {
 			if pool.txKeeper != nil {
-				pool.txKeeper.AddTx(tx, false)
+				pool.txKeeper.AddTx(tx)
 			}
 		}
 	}
@@ -264,7 +260,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
 		if pool.txKeeper != nil {
-			pool.txKeeper.AddTx(tx, true)
+			pool.txKeeper.AddTx(tx)
 		}
 		appState, _ := pool.appState.Readonly(pool.head.Height())
 		if err := pool.add(tx, appState); err != nil {
@@ -287,7 +283,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	}
 	if err = pool.add(tx, appState); err == nil {
 		if pool.txKeeper != nil {
-			pool.txKeeper.AddTx(tx, true)
+			pool.txKeeper.AddTx(tx)
 		}
 	}
 	return err
@@ -603,7 +599,6 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	}
 	if pool.txKeeper != nil {
 		pool.txKeeper.RemoveTxs(removedTxs)
-		pool.txKeeper.PersistAsync()
 	}
 }
 

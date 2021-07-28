@@ -306,9 +306,11 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	for i := 0; i < 300; i++ {
 		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
+	pool.txKeeper.persist()
 	for i := 0; i < 20; i++ {
 		require.NoError(t, pool.AddExternalTxs(getTx(keys[i])))
 	}
+	time.Sleep(time.Second )
 	require.Len(t, pool.txKeeper.txs, 320)
 	prevPool := pool
 
@@ -319,6 +321,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 1,
 		},
 	}, common.Address{0x1}, true)
+	time.Sleep(time.Second )
 	require.Len(t, pool.txKeeper.txs, 300)
 	require.Len(t, pool.all.txs, 300)
 
@@ -329,7 +332,9 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	}, Body: &types.Body{}})
 
 	// wait for async mempool saving
-	time.Sleep(time.Second)
+	prevPool.txKeeper.mutex.RLock()
+	prevPool.txKeeper.persist()
+	prevPool.txKeeper.mutex.RUnlock()
 
 	pool = getPool()
 	pool.appState = prevPool.appState
@@ -338,6 +343,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 1,
 		},
 	}, common.Address{0x1}, true)
+	time.Sleep(time.Second )
 	require.Len(t, pool.txKeeper.txs, 320)
 	require.Len(t, pool.all.txs, 320)
 
@@ -349,6 +355,12 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 2,
 		},
 	}, Body: &types.Body{}})
+
+	time.Sleep(time.Second)
+
+	pool.txKeeper.mutex.RLock()
+	pool.txKeeper.persist()
+	pool.txKeeper.mutex.RUnlock()
 
 	require.Len(t, pool.txKeeper.txs, 0)
 	require.Len(t, pool.all.txs, 0)
