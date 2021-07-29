@@ -106,7 +106,7 @@ func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useT
 	if useTxKeeper {
 		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
 		pool.txKeeper.Load()
-		
+
 		keeperTxs := pool.txKeeper.List()
 		pool.txKeeper.Clear()
 		pool.AddExternalTxs(keeperTxs...)

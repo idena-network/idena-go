@@ -58,6 +58,7 @@ func (k *txKeeper) persist() error {
 	if _, err := file.Write(data); err != nil {
 		return err
 	}
+	k.hasChanges = false
 	return nil
 }
 func (k *txKeeper) Load() {
