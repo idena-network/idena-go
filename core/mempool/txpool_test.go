@@ -321,7 +321,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 1,
 		},
 	}, common.Address{0x1}, true)
-	time.Sleep(time.Second )
+	time.Sleep(time.Second * 3)
 	require.Len(t, pool.txKeeper.txs, 300)
 	require.Len(t, pool.all.txs, 300)
 
