@@ -18,6 +18,8 @@ const (
 	Folder = "mempool-txs"
 )
 
+var txKeeperPersistInterval = time.Second * 20
+
 type addCommand struct {
 	tx *types.Transaction
 }
@@ -183,7 +185,7 @@ func (k *txKeeper) persistLoop() {
 			err := k.persist()
 			k.mutex.RUnlock()
 			if err == nil {
-				time.Sleep(time.Second * 20)
+				time.Sleep(txKeeperPersistInterval)
 			}
 		}
 	}
