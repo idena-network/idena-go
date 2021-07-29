@@ -168,6 +168,8 @@ type Transaction struct {
 	hash    atomic.Value
 	hash128 atomic.Value
 	from    atomic.Value
+
+	validLongSessionAnswersProof atomic.Value
 }
 
 type FullBlockCert struct {

@@ -459,6 +459,10 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 		return nil
 	}
 
+	if types.IsValidLongSessionAnswers(tx) {
+		return nil
+	}
+
 	attachment := attachments.ParseLongAnswerAttachment(tx)
 
 	if attachment == nil || len(attachment.Proof) == 0 || len(attachment.Salt) == 0 {
@@ -479,6 +483,8 @@ func validateSubmitLongAnswersTx(appState *appstate.AppState, tx *types.Transact
 	if err != nil {
 		return err
 	}
+
+	types.MarkAsValidLongSessionAnswers(tx)
 
 	return nil
 }
