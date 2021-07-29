@@ -118,8 +118,8 @@ func (k *txKeeper) addTx(tx *types.Transaction) {
 
 	k.mutex.Lock()
 	k.txs[tx.Hash()] = data
-	k.mutex.Unlock()
 	k.hasChanges = true
+	k.mutex.Unlock()
 }
 
 func (k *txKeeper) RemoveTxs(hashes []common.Hash) {
