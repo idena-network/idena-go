@@ -373,16 +373,12 @@ func (p *protoPeer) readStatus(handShake *handshakeData, network types.Network, 
 	return nil
 }
 
-func (p *protoPeer) markPayload(payload []byte) {
-	p.markKey(msgKey(payload))
-}
-
-func (p *protoPeer) markPayloadWithExpiration(payload []byte, expiration time.Duration) {
-	p.markKeyWithExpiration(msgKey(payload), expiration)
-}
-
 func (p *protoPeer) markKey(key string) {
 	p.markKeyWithExpiration(key, cache.DefaultExpiration)
+}
+
+func (p *protoPeer) unmarkKey(key string) {
+	p.msgCache.Delete(key)
 }
 
 func (p *protoPeer) markKeyWithExpiration(key string, expiration time.Duration) {
