@@ -53,6 +53,7 @@ type ValidationCeremony struct {
 	flipper                  *flip.Flipper
 	secStore                 *secstore.SecStore
 	log                      log.Logger
+	throttlingLogger         log.ThrottlingLogger
 	publicKeySent            bool
 	privateKeysSent          bool
 	shortAnswersSent         bool
@@ -126,13 +127,15 @@ type blockHandler func(block *types.Block)
 
 func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flipper *flip.Flipper, secStore *secstore.SecStore, db dbm.DB, mempool *mempool.TxPool,
 	chain *blockchain.Blockchain, syncer protocol.Syncer, keysPool *mempool.KeysPool, config *config.Config) *ValidationCeremony {
-
+	logger := log.New()
+	throttlingLogger := log.NewThrottlingLogger(logger)
 	vc := &ValidationCeremony{
 		flipper:            flipper,
 		appState:           appState,
 		bus:                bus,
 		secStore:           secStore,
-		log:                log.New(),
+		log:                logger,
+		throttlingLogger:   throttlingLogger,
 		db:                 db,
 		mempool:            mempool,
 		keysPool:           keysPool,
@@ -1409,6 +1412,7 @@ func (vc *ValidationCeremony) addNewTx(tx *types.Transaction) {
 	select {
 	case vc.newTxQueue <- tx:
 	default:
+		vc.throttlingLogger.Warn("Tx skipped", "hash", tx.Hash().Hex())
 	}
 }
 
