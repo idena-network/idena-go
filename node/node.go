@@ -86,31 +86,11 @@ type NodeCtx struct {
 type ceremonyChecker struct {
 	appState *appstate.AppState
 	chain    *blockchain.Blockchain
-
-	readonlyHeight uint64
-	readonlyState  *appstate.AppState
-	stateMutex     sync.RWMutex
 }
 
 func (checker *ceremonyChecker) IsRunning() bool {
-	head := checker.chain.Head.Height()
-	checker.stateMutex.RLock()
-	if checker.readonlyHeight == head {
-		isRunning := checker.readonlyState.State.ValidationPeriod() >= state.FlipLotteryPeriod
-		checker.stateMutex.RUnlock()
-		return isRunning
-	}
-	checker.stateMutex.RUnlock()
-
-	checker.stateMutex.Lock()
-	defer checker.stateMutex.Unlock()
-	if checker.readonlyHeight == head {
-		return checker.readonlyState.State.ValidationPeriod() >= state.FlipLotteryPeriod
-	}
 	appState, _ := checker.appState.Readonly(checker.chain.Head.Height())
 	if appState != nil {
-		checker.readonlyHeight = checker.chain.Head.Height()
-		checker.readonlyState = appState
 		return appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
 	}
 	return false

@@ -108,8 +108,7 @@ func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
 	}
 }
 
-func (ps *peerSet) HasPayload(payload []byte) bool {
-	key := msgKey(payload)
+func (ps *peerSet) hasKey(key string) bool {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 	for _, p := range ps.peers {
