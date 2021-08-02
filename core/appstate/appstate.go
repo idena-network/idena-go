@@ -8,6 +8,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
+	"sync"
 )
 
 type AppState struct {
@@ -19,6 +20,9 @@ type AppState struct {
 
 	defaultTree       bool
 	prevPrecommitDiff *state.IdentityStateDiff
+
+	readonlyStateCache map[uint64]*AppState
+	readonlyStateMutex sync.RWMutex
 }
 
 func NewAppState(db dbm.DB, bus eventbus.Bus) (*AppState, error) {
@@ -61,6 +65,21 @@ func (s *AppState) ForCheck(height uint64) (*AppState, error) {
 }
 
 func (s *AppState) Readonly(height uint64) (*AppState, error) {
+
+	s.readonlyStateMutex.RLock()
+	if state, ok := s.readonlyStateCache[height]; ok {
+		s.readonlyStateMutex.RUnlock()
+		return state, nil
+	}
+	s.readonlyStateMutex.RUnlock()
+
+	s.readonlyStateMutex.Lock()
+	defer s.readonlyStateMutex.Unlock()
+
+	if state, ok := s.readonlyStateCache[height]; ok {
+		return state, nil
+	}
+
 	st, err := s.State.Readonly(int64(height))
 	if err != nil {
 		return nil, err
@@ -75,12 +94,15 @@ func (s *AppState) Readonly(height uint64) (*AppState, error) {
 		validatorsCache = validators.NewValidatorsCache(identityState, st.GodAddress())
 		validatorsCache.Load()
 	}
-	return &AppState{
+	state := &AppState{
 		State:           st,
 		IdentityState:   identityState,
 		ValidatorsCache: validatorsCache,
 		NonceCache:      s.NonceCache,
-	}, nil
+	}
+
+	s.readonlyStateCache = map[uint64]*AppState{height: state}
+	return state, nil
 }
 
 // loads appState
