@@ -26,6 +26,7 @@ func (pool *AsyncKeysPool) AddPrivateKeysPackage(keysPackage *types.PrivateFlipK
 	select {
 	case pool.privateQueue <- keysPackage:
 	default:
+		return KeySkipped
 	}
 	return nil
 }
@@ -34,6 +35,7 @@ func (pool *AsyncKeysPool) AddPublicFlipKey(key *types.PublicFlipKey, _ bool) er
 	select {
 	case pool.publicQueue <- key:
 	default:
+		return KeySkipped
 	}
 	return nil
 }

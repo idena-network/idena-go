@@ -37,6 +37,7 @@ var (
 
 var (
 	KeyIsAlreadyPublished = errors.New("sender has already published his keys")
+	KeySkipped            = errors.New("key has been skipped")
 )
 
 type FlipKeysPool interface {
