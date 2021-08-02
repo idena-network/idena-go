@@ -11,20 +11,33 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 const (
 	Folder = "mempool-txs"
 )
 
+var txKeeperPersistInterval = time.Second * 20
+
+type addCommand struct {
+	tx *types.Transaction
+}
+
+type rmCommand struct {
+	txs []common.Hash
+}
+
 type txKeeper struct {
-	txs     map[common.Hash]hexutil.Bytes
-	datadir string
-	mutex   sync.Mutex
+	ch         chan interface{}
+	txs        map[common.Hash]hexutil.Bytes
+	hasChanges bool
+	datadir    string
+	mutex      sync.RWMutex
 }
 
 func NewTxKeeper(datadir string) *txKeeper {
-	return &txKeeper{datadir: datadir, txs: make(map[common.Hash]hexutil.Bytes)}
+	return &txKeeper{datadir: datadir, txs: make(map[common.Hash]hexutil.Bytes), ch: make(chan interface{}, 20000)}
 }
 
 func (k *txKeeper) persist() error {
@@ -47,6 +60,7 @@ func (k *txKeeper) persist() error {
 	if _, err := file.Write(data); err != nil {
 		return err
 	}
+	k.hasChanges = false
 	return nil
 }
 func (k *txKeeper) Load() {
@@ -60,14 +74,19 @@ func (k *txKeeper) Load() {
 		return
 	}
 	list := []hexutil.Bytes{}
-	if err := json.Unmarshal(data, &list); err != nil {
+
+	if err := json.Unmarshal(data, &list); err != nil && len(data) > 0 {
 		log.Warn("cannot parse txs.json", "err", err)
 	}
+
 	k.mutex.Lock()
 	for _, hex := range list {
 		k.txs[crypto.Hash(hex)] = hex
 	}
 	k.mutex.Unlock()
+
+	go k.loop()
+	go k.persistLoop()
 }
 
 func (k *txKeeper) openFile() (file *os.File, err error) {
@@ -83,43 +102,49 @@ func (k *txKeeper) openFile() (file *os.File, err error) {
 	return f, nil
 }
 
-func (k *txKeeper) AddTx(tx *types.Transaction, internalTx bool) {
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
-	if _, ok := k.txs[tx.Hash()]; ok {
-		return
-	}
-	data, _ := tx.ToBytes()
-	k.txs[tx.Hash()] = data
-	if !internalTx {
-		return
-	}
-	if err := k.persist(); err != nil {
-		log.Warn("error while save mempool tx", "err", err)
+func (k *txKeeper) AddTx(tx *types.Transaction) {
+	select {
+	case k.ch <- &addCommand{tx: tx}:
+	default:
 	}
 }
 
+func (k *txKeeper) addTx(tx *types.Transaction) {
+	k.mutex.RLock()
+	if _, ok := k.txs[tx.Hash()]; ok {
+		k.mutex.RUnlock()
+		return
+	}
+	k.mutex.RUnlock()
+	data, _ := tx.ToBytes()
+
+	k.mutex.Lock()
+	k.txs[tx.Hash()] = data
+	k.hasChanges = true
+	k.mutex.Unlock()
+}
+
 func (k *txKeeper) RemoveTxs(hashes []common.Hash) {
+	select {
+	case k.ch <- &rmCommand{txs: hashes}:
+	default:
+	}
+}
+
+func (k *txKeeper) removeTxs(hashes []common.Hash) {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
-	var shouldPersist bool
 	for _, hash := range hashes {
 		if _, ok := k.txs[hash]; ok {
 			delete(k.txs, hash)
-			shouldPersist = true
+			k.hasChanges = true
 		}
-	}
-	if !shouldPersist {
-		return
-	}
-	if err := k.persist(); err != nil {
-		log.Warn("error while remove mempool tx", "err", err)
 	}
 }
 
 func (k *txKeeper) List() []*types.Transaction {
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
+	k.mutex.RLock()
+	defer k.mutex.RUnlock()
 	result := make([]*types.Transaction, 0, len(k.txs))
 	for _, hex := range k.txs {
 		tx := new(types.Transaction)
@@ -130,10 +155,38 @@ func (k *txKeeper) List() []*types.Transaction {
 	return result
 }
 
-func (k *txKeeper) PersistAsync() {
-	go func() {
-		k.mutex.Lock()
-		defer k.mutex.Unlock()
-		k.persist()
-	}()
+func (k *txKeeper) Clear() {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	k.txs = map[common.Hash]hexutil.Bytes{}
+	k.hasChanges = true
+}
+
+func (k *txKeeper) loop() {
+
+	for {
+		cmd := <-k.ch
+
+		if add, ok := cmd.(*addCommand); ok {
+			k.addTx(add.tx)
+			continue
+		}
+		if rm, ok := cmd.(*rmCommand); ok {
+			k.removeTxs(rm.txs)
+		}
+	}
+}
+
+func (k *txKeeper) persistLoop() {
+	for {
+		time.Sleep(time.Millisecond * 100)
+		if k.hasChanges {
+			k.mutex.RLock()
+			err := k.persist()
+			k.mutex.RUnlock()
+			if err == nil {
+				time.Sleep(txKeeperPersistInterval)
+			}
+		}
+	}
 }

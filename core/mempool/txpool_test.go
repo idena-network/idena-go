@@ -268,6 +268,9 @@ func TestTxMap_Sorted(t *testing.T) {
 }
 
 func TestTxPool_AddWithTxKeeper(t *testing.T) {
+
+	txKeeperPersistInterval = time.Millisecond * 200
+
 	pool := getPool()
 
 	keys := make([]*ecdsa.PrivateKey, 0)
@@ -306,21 +309,17 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	for i := 0; i < 300; i++ {
 		require.NoError(t, pool.AddInternalTx(getTx(keys[i])))
 	}
+	pool.txKeeper.persist()
 	for i := 0; i < 20; i++ {
 		require.NoError(t, pool.AddExternalTxs(getTx(keys[i])))
 	}
+	time.Sleep(time.Second)
 	require.Len(t, pool.txKeeper.txs, 320)
-	prevPool := pool
 
-	pool = getPool()
-	pool.appState = prevPool.appState
-	pool.Initialize(&types.Header{
-		EmptyBlockHeader: &types.EmptyBlockHeader{
-			Height: 1,
-		},
-	}, common.Address{0x1}, true)
-	require.Len(t, pool.txKeeper.txs, 300)
-	require.Len(t, pool.all.txs, 300)
+	pool.txKeeper.RemoveTxs([]common.Hash{pool.GetPendingTransaction(false, false)[0].Hash()})
+	time.Sleep(time.Second)
+	
+	prevPool := pool
 
 	prevPool.ResetTo(&types.Block{Header: &types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -329,7 +328,9 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	}, Body: &types.Body{}})
 
 	// wait for async mempool saving
-	time.Sleep(time.Second)
+	prevPool.txKeeper.mutex.RLock()
+	prevPool.txKeeper.persist()
+	prevPool.txKeeper.mutex.RUnlock()
 
 	pool = getPool()
 	pool.appState = prevPool.appState
@@ -338,8 +339,9 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 1,
 		},
 	}, common.Address{0x1}, true)
-	require.Len(t, pool.txKeeper.txs, 320)
-	require.Len(t, pool.all.txs, 320)
+	time.Sleep(time.Second)
+	require.Len(t, pool.txKeeper.txs, 319)
+	require.Len(t, pool.all.txs, 319)
 
 	pool.appState.State.SetGlobalEpoch(1)
 	pool.appState.Commit(nil)
@@ -349,6 +351,12 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 2,
 		},
 	}, Body: &types.Body{}})
+
+	time.Sleep(time.Second)
+
+	pool.txKeeper.mutex.RLock()
+	pool.txKeeper.persist()
+	pool.txKeeper.mutex.RUnlock()
 
 	require.Len(t, pool.txKeeper.txs, 0)
 	require.Len(t, pool.all.txs, 0)
