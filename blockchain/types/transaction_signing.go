@@ -51,6 +51,17 @@ func Sender(tx *Transaction) (common.Address, error) {
 	return addr, nil
 }
 
+func IsValidLongSessionAnswers(tx *Transaction) bool {
+	if valid := tx.validLongSessionAnswersProof.Load(); valid != nil {
+		return valid.(bool)
+	}
+	return false
+}
+
+func MarkAsValidLongSessionAnswers(tx *Transaction) {
+	tx.validLongSessionAnswersProof.Store(true)
+}
+
 // Sender may cache the address, allowing it to be used regardless of
 // signing method.
 func SenderPubKey(tx *Transaction) ([]byte, error) {
