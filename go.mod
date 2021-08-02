@@ -1,7 +1,7 @@
 module github.com/idena-network/idena-go
 
 require (
-	github.com/RoaringBitmap/roaring v0.8.0
+	github.com/RoaringBitmap/roaring v0.9.2
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
 	github.com/awnumar/memguard v0.22.2
 	github.com/cespare/cp v1.1.1
@@ -14,6 +14,7 @@ require (
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
+	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/ipfs/fs-repo-migrations v1.7.1
 	github.com/ipfs/go-blockservice v0.1.4
 	github.com/ipfs/go-cid v0.0.7
@@ -30,7 +31,7 @@ require (
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.5
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
-	github.com/klauspost/compress v1.13.1
+	github.com/klauspost/compress v1.13.2
 	github.com/libp2p/go-libp2p-core v0.8.5
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/libp2p/go-yamux v1.4.1
