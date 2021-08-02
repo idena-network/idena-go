@@ -63,9 +63,6 @@ type Engine struct {
 	nextBlockDetector *nextBlockDetector
 	upgrader          *upgrade.Upgrader
 	statsCollector    collector.StatsCollector
-
-	appStateCache      *appStateCache
-	appStateCacheMutex sync.Mutex
 }
 
 func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossipHandler, proposals *pengings.Proposals, config *config.Config,
@@ -108,24 +105,7 @@ func (engine *Engine) GetProcess() string {
 }
 
 func (engine *Engine) ReadonlyAppState() (*appstate.AppState, error) {
-	currentBlock := engine.chain.Head.Height()
-	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
-		return engine.appStateCache.appState, nil
-	}
-	engine.appStateCacheMutex.Lock()
-	defer engine.appStateCacheMutex.Unlock()
-	if engine.appStateCache != nil && engine.appStateCache.block == currentBlock {
-		return engine.appStateCache.appState, nil
-	}
-	s, err := engine.appState.Readonly(engine.chain.Head.Height())
-	if err != nil {
-		return nil, err
-	}
-	engine.appStateCache = &appStateCache{
-		block:    uint64(s.State.Version()),
-		appState: s,
-	}
-	return s, nil
+	return engine.appState.Readonly(engine.chain.Head.Height())
 }
 
 func (engine *Engine) AppStateForCheck() (*appstate.AppState, error) {
@@ -354,7 +334,7 @@ func (engine *Engine) waitForBlock(proposerPubKey []byte) (*types.Block, time.Du
 	engine.log.Info("Wait for block proposal")
 	now := time.Now()
 	block, err := engine.proposals.GetProposedBlock(engine.chain.Round(), proposerPubKey, engine.cfg.Consensus.WaitBlockDelay)
-	notUsedDelay :=  engine.cfg.Consensus.WaitBlockDelay - time.Since(now)
+	notUsedDelay := engine.cfg.Consensus.WaitBlockDelay - time.Since(now)
 	if err != nil {
 		engine.log.Error("Proposed block is not found", "err", err.Error())
 		return nil, notUsedDelay
@@ -369,7 +349,7 @@ func (engine *Engine) reduction(round uint64, block *types.Block, extraDelayForR
 	engine.vote(round, types.ReductionOne, block.Hash())
 	engine.process = fmt.Sprintf("Reduction %v vote commited", types.ReductionOne)
 
-	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay + extraDelayForReductionOne)
+	hash, _, err := engine.countVotes(round, types.ReductionOne, block.Header.ParentHash(), engine.chain.GetCommitteeVotesThreshold(engine.appState.ValidatorsCache, false), engine.cfg.Consensus.ReductionOneDelay+extraDelayForReductionOne)
 	engine.process = fmt.Sprintf("Reduction %v votes counted", types.ReductionOne)
 
 	emptyBlock := engine.chain.GenerateEmptyBlock()
