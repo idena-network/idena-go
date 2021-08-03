@@ -2,7 +2,6 @@ package state
 
 import (
 	"bytes"
-	"crypto/rand"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-db"
 	"math/big"
+	"math/rand"
 	"sort"
 	"testing"
 	"time"
@@ -249,8 +249,19 @@ func TestStateGlobal_EmptyBlocksRatio(t *testing.T) {
 }
 
 func TestStateDB_WriteSnapshot(t *testing.T) {
-	database := db.NewMemDB()
-	stateDb, _ := NewLazy(database)
+	db := db.NewMemDB()
+	stateDb, _ := NewLazy(db)
+	source := rand.NewSource(1)
+	rnd := rand.New(source)
+	for i := 0; i < 300; i++ {
+		key, _ := crypto.GenerateKeyFromSeed(rnd)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		stateDb.SetBalance(addr, common.DnaBase)
+		stateDb.SetState(addr, Human)
+	}
+
+	repo := database.NewRepo(db)
+	repo.WriteFinalConsensus(common.Hash{0x1})
 
 	stateDb.AddInvite(common.Address{}, 1)
 	stateDb.AddInvite(common.Address{0x1}, 1)
@@ -258,10 +269,25 @@ func TestStateDB_WriteSnapshot(t *testing.T) {
 	stateDb.Commit(true)
 
 	buffer := new(bytes.Buffer)
-
+	buffer2 := new(bytes.Buffer)
 	stateDb.WriteSnapshot(1, buffer)
 
-	require.True(t, buffer.Len() > 0)
+	repo.WriteFinalConsensus(common.Hash{0x2})
+	repo.WriteCanonicalHash(1, common.Hash{0x2})
+
+	repo.WriteBlockHeader(&types.Header{
+		ProposedHeader: &types.ProposedHeader{
+			Height:   1,
+			Flags:    types.ValidationFinished,
+			Upgrade:  1,
+			IpfsHash: []byte{1, 2, 3, 4},
+		},
+	})
+	time.Sleep(time.Second * 2)
+	stateDb.WriteSnapshot(1, buffer2)
+
+	require.True(t, buffer.Len() > 1000)
+	require.Equal(t, buffer.Bytes(), buffer2.Bytes())
 }
 
 func TestStateDB_RecoverSnapshot(t *testing.T) {

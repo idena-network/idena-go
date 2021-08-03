@@ -7,7 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
 	models "github.com/idena-network/idena-go/protobuf"
-	"github.com/mholt/archiver"
+	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
 	"io"
@@ -68,6 +68,7 @@ func WriteTreeTo(sourceDb dbm.DB, height uint64, to io.Writer) (rootHash common.
 				CustomName: name,
 				FileInfo: &fakeFileInfo{
 					size: int64(len(data)),
+
 				},
 			},
 			ReadCloser: &readCloser{r: bytes.NewReader(data)},
