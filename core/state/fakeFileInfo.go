@@ -22,7 +22,7 @@ func (fi *fakeFileInfo) Mode() os.FileMode {
 }
 
 func (fi *fakeFileInfo) ModTime() time.Time {
-	return time.Now()
+	return time.Unix(0, 0)
 }
 
 func (fi *fakeFileInfo) IsDir() bool {
