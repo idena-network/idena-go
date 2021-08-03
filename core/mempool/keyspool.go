@@ -60,24 +60,26 @@ type KeysPool struct {
 	db       dbm.DB
 	epochDb  *database.EpochDb
 	appState *appstate.AppState
+	bus      eventbus.Bus
+	head     *types.Header
+	log      log.Logger
 
-	flipKeys                  map[common.Address]*types.PublicFlipKey
-	flipKeysSyncCounts        map[common.Address]int
-	publicKeyMutex            sync.RWMutex
-	privateKeysMutex          sync.RWMutex
-	bus                       eventbus.Bus
-	head                      *types.Header
-	log                       log.Logger
-	flipKeyPackages           map[common.Address]*types.PrivateFlipKeysPackage
-	flipKeyPackagesByHash     map[common.Hash128]*flipKeyPackageWrapper
-	flipKeyPackagesSyncCounts map[common.Hash128]int
-	privateKeysArrayCache     map[common.Address]*keysArray
-	secStore                  *secstore.SecStore
-	packagesLoadingCtx        context.Context
-	cancelLoadingCtx          context.CancelFunc
-	self                      common.Address
-	pushTracker               pushpull.PendingPushTracker
-	stopSync                  bool
+	flipKeys               map[common.Address]*types.PublicFlipKey
+	publicKeyMutex         sync.RWMutex
+	flipKeysSyncCounts     map[common.Address]int
+
+	flipKeyPackages               map[common.Address]*types.PrivateFlipKeysPackage
+	privateKeysMutex              sync.RWMutex
+	flipKeyPackagesSyncCounts     map[common.Hash128]int
+
+	flipKeyPackagesByHash map[common.Hash128]*flipKeyPackageWrapper
+	privateKeysArrayCache map[common.Address]*keysArray
+	secStore              *secstore.SecStore
+	packagesLoadingCtx    context.Context
+	cancelLoadingCtx      context.CancelFunc
+	self                  common.Address
+	pushTracker           pushpull.PendingPushTracker
+	stopSync              bool
 }
 
 func NewKeysPool(db dbm.DB, appState *appstate.AppState, bus eventbus.Bus, secStore *secstore.SecStore) *KeysPool {
@@ -257,8 +259,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 }
 
 func (p *KeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*types.PublicFlipKey {
-	p.publicKeyMutex.RLock()
-	defer p.publicKeyMutex.RUnlock()
+	p.publicKeyMutex.Lock()
+	defer p.publicKeyMutex.Unlock()
 
 	var list []*types.PublicFlipKey
 	if noFilter {
@@ -279,8 +281,8 @@ func (p *KeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*
 }
 
 func (p *KeysPool) GetFlipPackagesHashesForSync(shardId common.ShardId, noFilter bool) []common.Hash128 {
-	p.privateKeysMutex.RLock()
-	defer p.privateKeysMutex.RUnlock()
+	p.privateKeysMutex.Lock()
+	defer p.privateKeysMutex.Unlock()
 
 	var list []common.Hash128
 	if noFilter {
