@@ -1,6 +1,10 @@
 package mempool
 
-import "github.com/idena-network/idena-go/blockchain/types"
+import (
+	"errors"
+	"fmt"
+	"github.com/idena-network/idena-go/blockchain/types"
+)
 
 const batchSize = 1000
 
@@ -25,12 +29,18 @@ func NewAsyncTxPool(txPool *TxPool) *AsyncTxPool {
 func (pool *AsyncTxPool) AddInternalTx(tx *types.Transaction) error {
 	panic("not implemented")
 }
+
 func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
+	skipped := 0
 	for _, tx := range txs {
 		select {
 		case pool.queue <- tx:
 		default:
+			skipped++
 		}
+	}
+	if skipped > 0 {
+		return errors.New(fmt.Sprintf("%v txs skipped", skipped))
 	}
 	return nil
 }

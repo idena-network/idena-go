@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"github.com/idena-network/idena-go/common/pushpull"
+	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"sync"
@@ -20,17 +21,19 @@ type pullRequest struct {
 }
 
 type PushPullManager struct {
-	pendingPushes *cache.Cache
-	mutex         sync.Mutex
-	requests      chan pullRequest
-	entryHolders  map[pushType]pushpull.Holder
+	pendingPushes    *cache.Cache
+	mutex            sync.Mutex
+	requests         chan pullRequest
+	entryHolders     map[pushType]pushpull.Holder
+	throttlingLogger log.ThrottlingLogger
 }
 
 func NewPushPullManager() *PushPullManager {
 	return &PushPullManager{
-		pendingPushes: cache.New(time.Minute*3, time.Minute*5),
-		requests:      make(chan pullRequest, 2000),
-		entryHolders:  make(map[pushType]pushpull.Holder),
+		pendingPushes:    cache.New(time.Minute*3, time.Minute*5),
+		requests:         make(chan pullRequest, 2000),
+		entryHolders:     make(map[pushType]pushpull.Holder),
+		throttlingLogger: log.NewThrottlingLogger(log.New("component", "pushPullManager")),
 	}
 }
 
@@ -89,6 +92,7 @@ func (m *PushPullManager) makeRequest(peer peer.ID, hash pushPullHash) {
 	select {
 	case m.requests <- pullRequest{peer: peer, hash: hash}:
 	default:
+		m.throttlingLogger.Warn("Pull request skipped")
 	}
 }
 

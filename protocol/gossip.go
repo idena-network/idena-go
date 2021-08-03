@@ -59,12 +59,13 @@ type IdenaGossipHandler struct {
 	wrongTime           bool
 	appVersion          string
 
-	log             log.Logger
-	mutex           sync.Mutex
-	pendingPeers    map[peer.ID]struct{}
-	metrics         *metricCollector
-	ceremonyChecker CeremonyChecker
-	connManager     *ConnManager
+	log              log.Logger
+	throttlingLogger log.ThrottlingLogger
+	mutex            sync.Mutex
+	pendingPeers     map[peer.ID]struct{}
+	metrics          *metricCollector
+	ceremonyChecker  CeremonyChecker
+	connManager      *ConnManager
 }
 
 type metricCollector struct {
@@ -74,6 +75,8 @@ type metricCollector struct {
 }
 
 func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blockchain, proposals *pengings.Proposals, votes *pengings.Votes, txpool *mempool.TxPool, fp *flip.Flipper, bus eventbus.Bus, flipKeyPool *mempool.KeysPool, appVersion string, ceremonyChecker CeremonyChecker) *IdenaGossipHandler {
+	logger := log.New()
+	throttlingLogger := log.NewThrottlingLogger(logger)
 	handler := &IdenaGossipHandler{
 		host:                host,
 		cfg:                 cfg,
@@ -92,7 +95,8 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		bus:                 bus,
 		flipKeyPool:         mempool.NewAsyncKeysPool(flipKeyPool),
 		appVersion:          appVersion,
-		log:                 log.New(),
+		log:                 logger,
+		throttlingLogger:    throttlingLogger,
 		pendingPeers:        make(map[peer.ID]struct{}),
 		metrics:             new(metricCollector),
 		ceremonyChecker:     ceremonyChecker,
@@ -266,7 +270,9 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return nil
 		}
 		p.markKey(key)
-		h.txpool.AddExternalTxs(tx)
+		if err := h.txpool.AddExternalTxs(tx); err != nil {
+			h.throttlingLogger.Warn("Failed to add external txs", "err", err)
+		}
 	case GetBlockByHash:
 		query := new(models.ProtoGetBlockByHashRequest)
 		if err := proto.Unmarshal(msg.Payload, query); err != nil {
@@ -317,6 +323,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		p.markKeyWithExpiration(key, flipKeyMsgCacheAliveTime)
 		if err := h.flipKeyPool.AddPublicFlipKey(flipKey, false); err == mempool.KeySkipped {
+			h.throttlingLogger.Warn(fmt.Sprintf("Failed to add public flip key: %s", err.Error()))
 			p.unmarkKey(key)
 		}
 	case SnapshotManifest:
@@ -338,6 +345,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		}
 		p.markKeyWithExpiration(key, flipKeyMsgCacheAliveTime)
 		if err := h.flipKeyPool.AddPrivateKeysPackage(keysPackage, false); err == mempool.KeySkipped {
+			h.throttlingLogger.Warn(fmt.Sprintf("Failed to add private keys package: %s", err.Error()))
 			p.unmarkKey(key)
 		}
 	case Push:
@@ -723,6 +731,7 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 			p.log.Info("Sent high priority tx", "hash", tx.Hash().Hex())
 		}
 	default:
+		h.throttlingLogger.Warn(fmt.Sprintf("Unknown push/pull hash type: %v", hash.Type))
 	}
 }
 

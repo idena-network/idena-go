@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
+	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
@@ -23,11 +24,12 @@ const (
 )
 
 type OfflineDetector struct {
-	appState *appstate.AppState
-	bus      eventbus.Bus
-	repo     *database.Repo
-	config   *config.OfflineDetectionConfig
-	secStore *secstore.SecStore
+	appState         *appstate.AppState
+	bus              eventbus.Bus
+	repo             *database.Repo
+	config           *config.OfflineDetectionConfig
+	secStore         *secstore.SecStore
+	throttlingLogger log.ThrottlingLogger
 
 	votesChan               chan *types.Vote
 	offlineVoting           map[common.Hash]*voteList
@@ -58,6 +60,7 @@ func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.App
 		startTime:               time.Now().UTC(),
 		secStore:                secStore,
 		offlineCommitteeMaxSize: config.Consensus.MaxCommitteeSize * 3,
+		throttlingLogger:        log.NewThrottlingLogger(log.New("component", "offlineDetector")),
 	}
 }
 
@@ -82,6 +85,7 @@ func (dt *OfflineDetector) ProcessVote(vote *types.Vote) {
 	select {
 	case dt.votesChan <- vote:
 	default:
+		dt.throttlingLogger.Warn("Vote skipped")
 	}
 }
 

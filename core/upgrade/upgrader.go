@@ -16,21 +16,24 @@ import (
 const TargetVersion = config.ConsensusV5
 
 type Upgrader struct {
-	config    *config.Config
-	appState  *appstate.AppState
-	repo      *database.Repo
-	votesChan chan *types.Vote
-	mutex     sync.RWMutex
-	votes     *types.UpgradeVotes
+	config           *config.Config
+	appState         *appstate.AppState
+	repo             *database.Repo
+	votesChan        chan *types.Vote
+	mutex            sync.RWMutex
+	votes            *types.UpgradeVotes
+	throttlingLogger log.ThrottlingLogger
 }
 
 func NewUpgrader(config *config.Config, appState *appstate.AppState, db dbm.DB) *Upgrader {
+	throttlingLogger := log.NewThrottlingLogger(log.New("component", "upgrader"))
 	return &Upgrader{
-		config:    config,
-		appState:  appState,
-		repo:      database.NewRepo(db),
-		votesChan: make(chan *types.Vote, 10000),
-		votes:     types.NewUpgradeVotes(),
+		config:           config,
+		appState:         appState,
+		repo:             database.NewRepo(db),
+		votesChan:        make(chan *types.Vote, 10000),
+		votes:            types.NewUpgradeVotes(),
+		throttlingLogger: throttlingLogger,
 	}
 }
 
@@ -43,6 +46,7 @@ func (u *Upgrader) ProcessVote(vote *types.Vote) {
 	select {
 	case u.votesChan <- vote:
 	default:
+		u.throttlingLogger.Warn("Vote skipped")
 	}
 }
 

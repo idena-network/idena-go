@@ -79,6 +79,7 @@ type protoPeer struct {
 	appVersion           string
 	timeouts             int
 	log                  log.Logger
+	throttlingLogger     log.ThrottlingLogger
 	createdAt            time.Time
 	transportErr         chan error
 	peers                uint32
@@ -92,6 +93,8 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 
 	id := stream.Conn().RemotePeer()
 	prettyId := id.Pretty()
+	logger := log.New("id", prettyId)
+	throttlingLogger := log.NewThrottlingLogger(logger)
 	p := &protoPeer{
 		id:                   id,
 		prettyId:             prettyId,
@@ -103,7 +106,8 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		finished:             make(chan struct{}),
 		maxDelayMs:           maxDelayMs,
 		msgCache:             cache.New(msgCacheAliveTime, msgCacheGcTime),
-		log:                  log.New("id", prettyId),
+		log:                  logger,
+		throttlingLogger:     throttlingLogger,
 		createdAt:            time.Now().UTC(),
 		metrics:              metrics,
 		transportErr:         make(chan error, 1),
@@ -132,7 +136,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, highPriority bo
 		default:
 			atomic.AddUint32(&p.skippedRequestsCount, 1)
 			if p.skippedRequestsCount > queuedRequestsSize/2 {
-				p.log.Error("skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
+				p.throttlingLogger.Warn("Skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
 				p.disconnect()
 			}
 		}
