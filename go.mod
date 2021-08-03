@@ -15,7 +15,7 @@ require (
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/ipfs/fs-repo-migrations v1.7.1
-	github.com/ipfs/go-blockservice v0.1.4
+	github.com/ipfs/go-blockservice v0.1.7
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-filestore v0.0.3
@@ -51,9 +51,9 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf
+	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
-	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
+	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
