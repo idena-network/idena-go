@@ -237,7 +237,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	context := &txExecutionContext{
 		appState: chain.appState,
 	}
-	_, _,_, err := chain.applyTxOnState(signedTx1, context)
+	_, _, _, err := chain.applyTxOnState(signedTx1, context)
 
 	require.Nil(err)
 	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
@@ -1058,18 +1058,105 @@ func TestBalance_shards_reducing(t *testing.T) {
 	bus := eventbus.New()
 	appState, _ := appstate.NewAppState(db, bus)
 
-	for i := 0; i < common.MinShardSize; i++ {
-		addr := common.Address{byte(i)}
-		appState.State.SetState(addr, state.Human)
-		appState.State.SetShardId(addr, 0)
-	}
-	for i := common.MinShardSize; i < common.MinShardSize * 2; i++ {
-		addr := common.Address{byte(i)}
-		appState.State.SetState(addr, state.Human)
-		appState.State.SetShardId(addr, 1)
-	}
-	appState.State.SetShardsNum(2)
-	appState.Commit(nil)
-	balanceShards(appState, 6, 0, 6, map[common.ShardId]int{}, map[common.ShardId]int{0: 3, 1: 3})
+	var totalNewbies, totalVerified, totalSuspended int
 
+	statuses := []state.IdentityState{state.Suspended, state.Zombie, state.Newbie, state.Verified, state.Human}
+
+	shardsNum := 2
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+	suspendedByShard := map[common.ShardId]int{}
+
+	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
+		statusIdx := 0
+		for i := 0; i < common.MinShardSize-100; i++ {
+			key, _ := crypto.GenerateKey()
+			addr := crypto.PubkeyToAddress(key.PublicKey)
+			status := statuses[statusIdx]
+			appState.State.SetState(addr, status)
+			appState.State.SetShardId(addr, shardId)
+			switch status {
+			case state.Suspended, state.Zombie:
+				totalSuspended++
+				suspendedByShard[shardId]++
+			case state.Newbie:
+				totalNewbies++
+				newbiesByShard[shardId]++
+			case state.Verified, state.Human:
+				totalVerified++
+				verifiedByShard[shardId]++
+			}
+			statusIdx++
+			if statusIdx >= len(statuses) {
+				statusIdx = 0
+			}
+		}
+	}
+	appState.State.SetShardsNum(uint32(shardsNum))
+	appState.Commit(nil)
+	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+
+	require.Equal(t, uint32(1), appState.State.ShardsNum())
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		require.Equal(t, common.ShardId(1), identity.ShardId)
+	})
+}
+
+func TestBalance_shards_increasing(t *testing.T) {
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	var totalNewbies, totalVerified, totalSuspended int
+
+	statuses := []state.IdentityState{state.Suspended, state.Zombie, state.Newbie, state.Verified, state.Human}
+
+	shardsNum := 2
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+	suspendedByShard := map[common.ShardId]int{}
+
+	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
+		statusIdx := 0
+		for i := 0; i < common.MaxShardSize+100; i++ {
+			key, _ := crypto.GenerateKey()
+			addr := crypto.PubkeyToAddress(key.PublicKey)
+			status := statuses[statusIdx]
+			appState.State.SetState(addr, status)
+			appState.State.SetShardId(addr, shardId)
+			switch status {
+			case state.Suspended, state.Zombie:
+				totalSuspended++
+				suspendedByShard[shardId]++
+			case state.Newbie:
+				totalNewbies++
+				newbiesByShard[shardId]++
+			case state.Verified, state.Human:
+				totalVerified++
+				verifiedByShard[shardId]++
+			}
+			statusIdx++
+			if statusIdx >= len(statuses) {
+				statusIdx = 0
+			}
+		}
+	}
+	appState.State.SetShardsNum(uint32(shardsNum))
+	appState.Commit(nil)
+	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+
+	require.Equal(t, uint32(4), appState.State.ShardsNum())
+
+	shardSizes := map[common.ShardId]int{}
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		shardSizes[identity.ShiftedShardId()]++
+	})
+	for _, s := range shardSizes {
+		require.Less(t, s, common.MaxShardSize)
+		require.Greater(t, s, common.MinShardSize)
+	}
 }
