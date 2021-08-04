@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.26.7-rc1 (04 Aug, 2021)
+
+### Changes
+
+- Implement async transaction keeper to prevent locks in p2p
+  messaging ([#751](https://github.com/idena-network/idena-go/pull/751))
+- Optimize transactions and flip keys validation ([#754](https://github.com/idena-network/idena-go/pull/754)
+  & [#755](https://github.com/idena-network/idena-go/pull/755))
+- Fix issue when public flip key could be missed ([#753](https://github.com/idena-network/idena-go/pull/753))
+- Update deps ([#745](https://github.com/idena-network/idena-go/pull/745)
+  & [#757](https://github.com/idena-network/idena-go/pull/757)
+  & [#742](https://github.com/idena-network/idena-go/pull/742)
+  & [#759](https://github.com/idena-network/idena-go/pull/759)
+  & [#758](https://github.com/idena-network/idena-go/pull/758)
+  & [#746](https://github.com/idena-network/idena-go/pull/746))
+- Extend logs ([#756](https://github.com/idena-network/idena-go/pull/756))
+
 ## 0.26.6 (Jul 19, 2021)
 
 ### Changes
@@ -26,21 +43,34 @@
 - Optimize mempool sync ([#721](https://github.com/idena-network/idena-go/pull/721))
 - Update consensus engine timeouts ([#720](https://github.com/idena-network/idena-go/pull/720))
 - Extend identity API ([#718](https://github.com/idena-network/idena-go/pull/718))
-- Update deps ([#717](https://github.com/idena-network/idena-go/pull/717) & [#716](https://github.com/idena-network/idena-go/pull/716) & [#710](https://github.com/idena-network/idena-go/pull/710) & [#719](https://github.com/idena-network/idena-go/pull/719) & [#714](https://github.com/idena-network/idena-go/pull/714) & [#715](https://github.com/idena-network/idena-go/pull/715) & [#722](https://github.com/idena-network/idena-go/pull/722))
+- Update deps ([#717](https://github.com/idena-network/idena-go/pull/717)
+  & [#716](https://github.com/idena-network/idena-go/pull/716)
+  & [#710](https://github.com/idena-network/idena-go/pull/710)
+  & [#719](https://github.com/idena-network/idena-go/pull/719)
+  & [#714](https://github.com/idena-network/idena-go/pull/714)
+  & [#715](https://github.com/idena-network/idena-go/pull/715)
+  & [#722](https://github.com/idena-network/idena-go/pull/722))
 
 ## 0.26.3 (Jun 11, 2021)
 
 ### Breaking Changes
 
-- Remove `currentValidationStart` from response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))  
+- Remove `currentValidationStart` from response of `dna_epoch` RPC
+  method ([#706](https://github.com/idena-network/idena-go/pull/706))
 
 ### Changes
 
-- Get rid of double block processing while inserting a block into the chain ([#704](https://github.com/idena-network/idena-go/pull/704) & [#708](https://github.com/idena-network/idena-go/pull/708))
+- Get rid of double block processing while inserting a block into the
+  chain ([#704](https://github.com/idena-network/idena-go/pull/704)
+  & [#708](https://github.com/idena-network/idena-go/pull/708))
 - Add `startBlock` to response of `dna_epoch` RPC method ([#706](https://github.com/idena-network/idena-go/pull/706))
 - Upgrade to GitHub-native Dependabot ([#683](https://github.com/idena-network/idena-go/pull/683))
 - Update iavl and protobuf deps ([#696](https://github.com/idena-network/idena-go/pull/696))
-- Update deps ([#698](https://github.com/idena-network/idena-go/pull/698) & [#699](https://github.com/idena-network/idena-go/pull/699) & [#700](https://github.com/idena-network/idena-go/pull/700) & [#701](https://github.com/idena-network/idena-go/pull/701) & [#707](https://github.com/idena-network/idena-go/pull/707))
+- Update deps ([#698](https://github.com/idena-network/idena-go/pull/698)
+  & [#699](https://github.com/idena-network/idena-go/pull/699)
+  & [#700](https://github.com/idena-network/idena-go/pull/700)
+  & [#701](https://github.com/idena-network/idena-go/pull/701)
+  & [#707](https://github.com/idena-network/idena-go/pull/707))
 - Add CHANGELOG.md ([#702](https://github.com/idena-network/idena-go/pull/702))
 
 ## 0.26.2 (May 26, 2021)
@@ -60,7 +90,8 @@
 ### Fork (Upgrade 5)
 
 - Encourage early invitations ([#671](https://github.com/idena-network/idena-go/pull/671))
-- Check 5 sequential blocks without ceremonial txs to finish the validation ceremony ([#672](https://github.com/idena-network/idena-go/pull/672))
+- Check 5 sequential blocks without ceremonial txs to finish the validation
+  ceremony ([#672](https://github.com/idena-network/idena-go/pull/672))
 - Implement delayed offline penalties ([#674](https://github.com/idena-network/idena-go/pull/674))
 - Burn 5/6 of invitee stake in KillInviteeTx ([#676](https://github.com/idena-network/idena-go/pull/676))
 
@@ -76,13 +107,17 @@
 
 ### Changes
 
-- Save own mempool transactions to disk ([#675](https://github.com/idena-network/idena-go/pull/675) & [#679](https://github.com/idena-network/idena-go/pull/679) & [#680](https://github.com/idena-network/idena-go/pull/680) & [#681](https://github.com/idena-network/idena-go/pull/681))
+- Save own mempool transactions to disk ([#675](https://github.com/idena-network/idena-go/pull/675)
+  & [#679](https://github.com/idena-network/idena-go/pull/679)
+  & [#680](https://github.com/idena-network/idena-go/pull/680)
+  & [#681](https://github.com/idena-network/idena-go/pull/681))
 - Add flip keywords API ([#678](https://github.com/idena-network/idena-go/pull/678))
 
 ### Bug Fixes
 
 - Fix data races ([#667](https://github.com/idena-network/idena-go/pull/667))
-- Trim whitespace around API key from [@busimus](https://github.com/busimus) ([#668](https://github.com/idena-network/idena-go/pull/668))
+- Trim whitespace around API key
+  from [@busimus](https://github.com/busimus) ([#668](https://github.com/idena-network/idena-go/pull/668))
 
 ## 0.25.2 (Apr 1, 2021)
 
@@ -90,7 +125,8 @@ Finish voting transactions will be enabled on the next seamless fork.
 
 ### Changes
 
-- Temporary disable finish oracle voting transactions due to bug ([#665](https://github.com/idena-network/idena-go/pull/665))
+- Temporary disable finish oracle voting transactions due to
+  bug ([#665](https://github.com/idena-network/idena-go/pull/665))
 
 ## 0.25.1 (Mar 27, 2021)
 
@@ -110,8 +146,10 @@ Finish voting transactions will be enabled on the next seamless fork.
 ### Changes
 
 - Increase file descriptor limit ([#653](https://github.com/idena-network/idena-go/pull/653))
-- Update deps ([#645](https://github.com/idena-network/idena-go/pull/645) & [#648](https://github.com/idena-network/idena-go/pull/648))
+- Update deps ([#645](https://github.com/idena-network/idena-go/pull/645)
+  & [#648](https://github.com/idena-network/idena-go/pull/648))
 
 ### Bug Fixes
 
-- Fix build on linux ([#650](https://github.com/idena-network/idena-go/pull/650) & [#654](https://github.com/idena-network/idena-go/pull/654))
+- Fix build on linux ([#650](https://github.com/idena-network/idena-go/pull/650)
+  & [#654](https://github.com/idena-network/idena-go/pull/654))
