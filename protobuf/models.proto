@@ -143,6 +143,16 @@ message ProtoSnapshotBlock {
     repeated KeyValue data = 1;
 }
 
+message ProtoSnapshotNodes {
+    message Node {
+        bytes key = 1;
+        bytes value = 2;
+        uint64 version = 3;
+        uint32 height = 4;
+    }
+    repeated Node nodes = 1;
+}
+
 message ProtoGossipBlockRange {
     message Block {
         ProtoBlockHeader header = 1;

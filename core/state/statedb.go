@@ -1242,6 +1242,22 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 	})
 }
 
+
+func (s *StateDB) WriteSnapshot2(height uint64, to io.Writer) (root common.Hash, err error) {
+	return WriteTreeTo2(s.db, height, to)
+}
+
+
+
+func (s *StateDB) RecoverSnapshot2(height uint64, treeRoot common.Hash, from io.Reader) error {
+	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
+	return ReadTreeFrom2(pdb, height, treeRoot, from)
+}
+
+
+
+
+
 func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
 	return WriteTreeTo(s.db, height, to)
 }
@@ -1570,6 +1586,10 @@ func (s *StateDB) HasDelayedOfflinePenalty(addr common.Address) bool {
 
 func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 	s.GetOrNewDelayedOfflinePenaltyObject().Remove(addr)
+}
+
+func (s *StateDB) HasVersion(h uint64) bool {
+	return s.tree.ExistVersion(int64(h))
 }
 
 type readCloser struct {

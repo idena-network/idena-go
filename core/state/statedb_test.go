@@ -375,6 +375,96 @@ func TestStateDB_RecoverSnapshot(t *testing.T) {
 	defer it.Close()
 	require.False(t, it.Valid())
 }
+
+func TestStateDB_RecoverSnapshot2(t *testing.T) {
+	//arrange
+	database := db.NewMemDB()
+	stateDb, _ := NewLazy(database)
+
+	prevStateDb := stateDb.db
+
+	identity := common.Address{}
+	stateDb.AddInvite(identity, 1)
+
+	stateDb.Commit(true)
+	const AddrsCount = 50000
+	const Height = uint64(2)
+
+	for i := 0; i < AddrsCount; i++ {
+		addr := common.Address{}
+		addr.SetBytes(common.ToBytes(uint64(i)))
+		stateDb.SetNonce(addr, uint32(i+1))
+	}
+
+	stateDb.Commit(true)
+
+	var keys [][]byte
+	var values [][]byte
+
+	stateDb.IterateAccounts(func(key []byte, value []byte) bool {
+		keys = append(keys, key)
+		values = append(values, value)
+		return false
+	})
+
+	require.Equal(t, AddrsCount, len(keys))
+
+	expectedRoot := stateDb.Root()
+	stateDb.AddInvite(common.Address{}, 2)
+
+	stateDb.Commit(true)
+	stateDb, _ = NewLazy(database)
+	stateDb.Load(3)
+	stateDb.tree.Hash()
+
+	//act
+
+	buffer := new(bytes.Buffer)
+	stateDb.WriteSnapshot2(Height, buffer)
+	require.True(t, buffer.Len() > 0)
+
+	println(buffer.Len())
+
+	require.Nil(t, stateDb.RecoverSnapshot2(Height, expectedRoot, buffer))
+
+	batch := stateDb.original.NewBatch()
+
+	dropDb := stateDb.CommitSnapshot(Height, batch)
+	common.ClearDb(dropDb)
+	batch.WriteSync()
+	//assert
+
+	require.Equal(t, int64(Height), stateDb.tree.Version())
+	require.Equal(t, expectedRoot, stateDb.Root())
+
+	i := 0
+	stateDb.IterateAccounts(func(key []byte, value []byte) bool {
+
+		require.Equal(t, keys[i], key)
+		require.Equal(t, values[i], value)
+		i++
+		return false
+	})
+
+	require.Equal(t, AddrsCount, i)
+
+	cnt := 0
+
+	stateDb.IterateIdentities(func(key []byte, value []byte) bool {
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+		require.Equal(t, addr, identity)
+		cnt++
+		return false
+	})
+	require.Equal(t, 1, cnt)
+
+	it, _ := prevStateDb.Iterator(nil, nil)
+	defer it.Close()
+	require.False(t, it.Valid())
+}
+
+
 func TestStateDB_Set_Has_ValidationTxBit(t *testing.T) {
 	database := db.NewMemDB()
 	stateDb, _ := NewLazy(database)
