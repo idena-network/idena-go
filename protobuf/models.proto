@@ -149,6 +149,7 @@ message ProtoSnapshotNodes {
         bytes value = 2;
         uint64 version = 3;
         uint32 height = 4;
+        bool emptyValue = 5;
     }
     repeated Node nodes = 1;
 }
@@ -494,7 +495,7 @@ message ProtoPredefinedState {
         bytes delegatee = 4;
     }
 
-    message ContractKeyValue{
+    message ContractKeyValue {
         bytes key = 1;
         bytes value = 2;
     }

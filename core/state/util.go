@@ -184,10 +184,11 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 			break
 		}
 		nodes.Nodes = append(nodes.Nodes, &models.ProtoSnapshotNodes_Node{
-			Key:     node.Key,
-			Height:  uint32(node.Height),
-			Value:   node.Value,
-			Version: uint64(node.Version),
+			Key:        node.Key,
+			Height:     uint32(node.Height),
+			Value:      node.Value,
+			Version:    uint64(node.Version),
+			EmptyValue: node.Value != nil && len(node.Value) == 0,
 		})
 		if len(nodes.Nodes) >= SnapshotBlockSize {
 			if err := writeBlock(nodes, strconv.Itoa(i)); err != nil {
@@ -233,12 +234,19 @@ func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.R
 				return err
 			}
 			for _, node := range sb.Nodes {
-				importer.Add(&iavl.ExportNode{
+
+				exportNode := &iavl.ExportNode{
 					Key:     node.Key,
 					Value:   node.Value,
 					Version: int64(node.Version),
 					Height:  int8(node.Height),
-				})
+				}
+
+				if node.EmptyValue {
+					exportNode.Value = make([]byte, 0)
+				}
+
+				importer.Add(exportNode)
 			}
 		}
 	}
