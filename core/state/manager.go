@@ -25,6 +25,11 @@ const (
 	SnapshotsFolder = "/snapshots"
 )
 
+type SnapshotVersion byte
+
+const SnapshotVersionV1 = SnapshotVersion(1)
+const SnapshotVersionV2 = SnapshotVersion(2)
+
 var (
 	InvalidManifestPrefix = []byte("im")
 	MaxManifestTimeouts   = byte(5)
@@ -60,13 +65,13 @@ func NewSnapshotManager(db dbm.DB, state *StateDB, bus eventbus.Bus, ipfs ipfs.P
 	return m
 }
 
-func createSnapshotFile(datadir string, height uint64) (fileName string, file *os.File, err error) {
+func createSnapshotFile(datadir string, height uint64, version SnapshotVersion) (fileName string, file *os.File, err error) {
 	newpath := filepath.Join(datadir, SnapshotsFolder)
 	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
 		return "", nil, err
 	}
 
-	filePath := filepath.Join(newpath, strconv.FormatUint(height, 10)+".tar")
+	filePath := filepath.Join(newpath, strconv.FormatUint(height, 10)+"."+strconv.FormatInt(int64(version), 10)+".tar")
 	f, err := os.Create(filePath)
 	if err != nil {
 		return "", nil, err
@@ -83,25 +88,35 @@ func (m *SnapshotManager) createSnapshotIfNeeded(block *types.Header) {
 	}
 }
 
-func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
-	filePath, file, err := createSnapshotFile(m.cfg.DataDir, height)
+func (m *SnapshotManager) createShapshotForVersion(height uint64, version SnapshotVersion) (cidBytes []byte, root common.Hash, filePath string) {
+	filePath, file, err := createSnapshotFile(m.cfg.DataDir, height, version)
 	if err != nil {
 		m.log.Error("Cannot create file for snapshot", "err", err)
-		return common.Hash{}
+		return nil, common.Hash{}, ""
 	}
 
-	if root, err = m.state.WriteSnapshot(height, file); err != nil {
-		file.Close()
-		m.log.Error("Cannot write snapshot to file", "err", err)
-		return common.Hash{}
+	switch version {
+	case SnapshotVersionV1:
+		if root, err = m.state.WriteSnapshot(height, file); err != nil {
+			file.Close()
+			m.log.Error("Cannot write snapshot to file", "err", err)
+			return nil, common.Hash{}, ""
+		}
+	case SnapshotVersionV2:
+		if root, err = m.state.WriteSnapshot2(height, file); err != nil {
+			file.Close()
+			m.log.Error("Cannot write snapshot to file", "err", err)
+			return nil, common.Hash{}, ""
+		}
 	}
+
 	file.Close()
 	var f *os.File
 	var cid cid.Cid
 	if f, err = os.Open(filePath); err != nil {
 		m.log.Error("Cannot open snapshot file", "err", err)
 		os.Remove(filePath)
-		return
+		return nil, common.Hash{}, ""
 	}
 	stat, _ := f.Stat()
 	if cid, err = m.ipfs.AddFile(f.Name(), f, stat); err != nil {
@@ -110,27 +125,47 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 		if err = os.Remove(filePath); err != nil {
 			m.log.Error("Cannot remove file", "err", err)
 		}
-		return
+		return nil, common.Hash{}, ""
 	}
-	m.clearFs(filePath)
-	m.writeLastManifest(cid.Bytes(), root, height, filePath)
+	return cid.Bytes(), root, filePath
+}
+
+func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
+
+	cidV1, root, filePath := m.createShapshotForVersion(height, SnapshotVersionV1)
+	cidV2, _, filePath2 := m.createShapshotForVersion(height, SnapshotVersionV2)
+
+	if cidV1 != nil && cidV2 != nil {
+		m.clearFs([]string{filePath, filePath2})
+		m.writeLastManifest(cidV1, cidV2, root, height, filePath, filePath2)
+	}
 	return root
 }
 
-func (m *SnapshotManager) clearFs(excludedFile string) {
-	if prevCid, _, _, _ := m.repo.LastSnapshotManifest(); prevCid != nil {
+func (m *SnapshotManager) clearFs(excludedFiles []string) {
+	if prevCid, prevCidV2, _, _, _ := m.repo.LastSnapshotManifest(); prevCid != nil {
 		m.ipfs.Unpin(prevCid)
+		m.ipfs.Unpin(prevCidV2)
 	}
-	m.clearSnapshotFolder(excludedFile)
+	m.clearSnapshotFolder(excludedFiles)
 }
 
-func (m *SnapshotManager) clearSnapshotFolder(excludedFile string) {
+func (m *SnapshotManager) clearSnapshotFolder(excludedFiles []string) {
 	directory := filepath.Join(m.cfg.DataDir, SnapshotsFolder)
 
 	var files []string
 
+	var contains = func(arr []string, value string) bool {
+		for _, s := range arr {
+			if s == value {
+				return true
+			}
+		}
+		return false
+	}
+
 	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && path != excludedFile {
+		if !info.IsDir() && !contains(excludedFiles, path) {
 			files = append(files, path)
 		}
 		return nil
@@ -147,14 +182,19 @@ func (m *SnapshotManager) clearSnapshotFolder(excludedFile string) {
 	}
 }
 
-func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, root common.Hash, height uint64, file string) {
-	m.repo.WriteLastSnapshotManifest(snapshotCid, root, height, file)
+func (m *SnapshotManager) writeLastManifest(snapshotCid []byte, snapshotCidV2 []byte, root common.Hash, height uint64, file string, fileV2 string) {
+	m.repo.WriteLastSnapshotManifest(snapshotCid, snapshotCidV2, root, height, file, fileV2)
 }
 
-func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePath string, err error) {
-	filePath, file, err := createSnapshotFile(m.cfg.DataDir, snapshot.Height)
+func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePath string, version SnapshotVersion, err error) {
+	version = SnapshotVersionV2
+	if len(snapshot.CidV2) == 0 {
+		version = SnapshotVersionV1
+	}
+
+	filePath, file, err := createSnapshotFile(m.cfg.DataDir, snapshot.Height, version)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -179,7 +219,13 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	done := make(chan struct{})
 
 	go func() {
-		loadToErr = m.ipfs.LoadTo(snapshot.Cid, file, ctx, onLoading)
+		switch version {
+		case SnapshotVersionV1:
+			loadToErr = m.ipfs.LoadTo(snapshot.Cid, file, ctx, onLoading)
+		case SnapshotVersionV2:
+			loadToErr = m.ipfs.LoadTo(snapshot.CidV2, file, ctx, onLoading)
+		}
+
 		wg.Done()
 		close(done)
 	}()
@@ -205,11 +251,18 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	wg.Wait()
 
 	if loadToErr == nil {
-		m.clearFs(filePath)
-		m.writeLastManifest(snapshot.Cid, snapshot.Root, snapshot.Height, filePath)
+		m.clearFs([]string{filePath})
+		var filePath1, filePath2 string
+		if version == SnapshotVersionV1 {
+			filePath1 = filePath
+		}
+		if version == SnapshotVersionV2 {
+			filePath2 = filePath
+		}
+		m.writeLastManifest(snapshot.Cid, snapshot.CidV2, snapshot.Root, snapshot.Height, filePath1, filePath2)
 	}
 
-	return filePath, loadToErr
+	return filePath, version, loadToErr
 }
 
 func (m *SnapshotManager) StartSync() {

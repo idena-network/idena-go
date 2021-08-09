@@ -2121,7 +2121,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		wasReset = true
 		resetTo := uint64(0)
 		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.MaxSavedStatesCount)+1; h, tryCnt = h-1, tryCnt+1 {
-			if chain.appState.IdentityState.HasVersion(h) {
+			if  chain.appState.State.HasVersion(h) &&  chain.appState.IdentityState.HasVersion(h) {
 				resetTo = h
 				break
 			}
@@ -2233,12 +2233,13 @@ func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff
 }
 
 func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
-	cid, root, height, _ := chain.repo.LastSnapshotManifest()
+	cid, cidV2, root, height, _ := chain.repo.LastSnapshotManifest()
 	if cid == nil {
 		return nil
 	}
 	return &snapshot.Manifest{
 		Cid:    cid,
+		CidV2: cidV2,
 		Root:   root,
 		Height: height,
 	}

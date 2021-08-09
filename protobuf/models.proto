@@ -143,6 +143,17 @@ message ProtoSnapshotBlock {
     repeated KeyValue data = 1;
 }
 
+message ProtoSnapshotNodes {
+    message Node {
+        bytes key = 1;
+        bytes value = 2;
+        uint64 version = 3;
+        uint32 height = 4;
+        bool emptyValue = 5;
+    }
+    repeated Node nodes = 1;
+}
+
 message ProtoGossipBlockRange {
     message Block {
         ProtoBlockHeader header = 1;
@@ -212,6 +223,7 @@ message ProtoManifest {
     bytes cid = 1;
     uint64 height = 2;
     bytes root = 3;
+    bytes cidV2 = 4;
 }
 
 message ProtoPrivateFlipKeysPackage {
@@ -236,6 +248,8 @@ message ProtoSnapshotManifestDb {
     uint64 height = 2;
     string fileName = 3;
     bytes root = 4;
+    bytes cidV2 = 5;
+    string fileNameV2 = 6;
 }
 
 message ProtoShortAnswerDb {
@@ -484,7 +498,7 @@ message ProtoPredefinedState {
         bytes delegatee = 4;
     }
 
-    message ContractKeyValue{
+    message ContractKeyValue {
         bytes key = 1;
         bytes value = 2;
     }

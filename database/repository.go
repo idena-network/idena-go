@@ -295,26 +295,28 @@ func (r *Repo) WriteWeakCertificate(hash common.Hash) {
 	r.writeWeakCertificate(weakCerts)
 }
 
-func (r *Repo) LastSnapshotManifest() (cid []byte, root common.Hash, height uint64, fileName string) {
+func (r *Repo) LastSnapshotManifest() (cid []byte, cidV2 []byte, root common.Hash, height uint64, fileName string) {
 	data, err := r.db.Get(lastSnapshotKey)
 	assertNoError(err)
 	if data == nil {
-		return nil, common.Hash{}, 0, ""
+		return nil, nil, common.Hash{}, 0, ""
 	}
 	manifest := new(models.ProtoSnapshotManifestDb)
 	if err := proto.Unmarshal(data, manifest); err != nil {
 		log.Error("invalid snapshot manifest proto", "err", err)
-		return nil, common.Hash{}, 0, ""
+		return nil, nil, common.Hash{}, 0, ""
 	}
-	return manifest.Cid, common.BytesToHash(manifest.Root), manifest.Height, manifest.FileName
+	return manifest.Cid, manifest.CidV2, common.BytesToHash(manifest.Root), manifest.Height, manifest.FileName
 }
 
-func (r *Repo) WriteLastSnapshotManifest(cid []byte, root common.Hash, height uint64, fileName string) error {
+func (r *Repo) WriteLastSnapshotManifest(cid []byte, cidV2 []byte, root common.Hash, height uint64, fileName string, fileNameV2 string) error {
 	manifest := &models.ProtoSnapshotManifestDb{
-		Cid:      cid,
-		Height:   height,
-		FileName: fileName,
-		Root:     root[:],
+		Cid:        cid,
+		CidV2:      cidV2,
+		Height:     height,
+		FileName:   fileName,
+		FileNameV2: fileNameV2,
+		Root:       root[:],
 	}
 	data, err := proto.Marshal(manifest)
 	if err != nil {
@@ -534,7 +536,7 @@ func (r *Repo) GetSavedEvents(contract common.Address) (events []*types.SavedEve
 func (r *Repo) WriteIntermediateGenesis(batch dbm.Batch, height uint64) {
 	if batch != nil {
 		batch.Set(intermediateGenesisKey, common.ToBytes(height))
-	} else{
+	} else {
 		r.db.Set(intermediateGenesisKey, common.ToBytes(height))
 	}
 }

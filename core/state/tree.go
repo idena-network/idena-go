@@ -165,6 +165,10 @@ func (t *MutableTree) LazyLoad(version int64) (int64, error) {
 	return t.tree.LazyLoadVersion(version)
 }
 
+func (t *MutableTree) Importer(version int64) (*iavl.Importer, error) {
+	return t.tree.Import(version)
+}
+
 type ImmutableTree struct {
 	tree *iavl.ImmutableTree
 }
@@ -262,4 +266,8 @@ func (t *ImmutableTree) Rollback() {
 
 func (t *ImmutableTree) SetVirtualVersion(version int64) {
 	t.tree.SetVirtualVersion(version)
+}
+
+func (t *ImmutableTree) Exporter() *iavl.Exporter{
+	return t.tree.Export()
 }
