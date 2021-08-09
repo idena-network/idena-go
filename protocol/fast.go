@@ -335,7 +335,7 @@ func (fs *fastSync) postConsuming() error {
 		return errors.New("preliminary head's root doesn't equal manifest's root")
 	}
 	fs.log.Info("Start loading of snapshot", "height", fs.manifest.Height)
-	filePath, err := fs.sm.DownloadSnapshot(fs.manifest)
+	filePath, version,  err := fs.sm.DownloadSnapshot(fs.manifest)
 	if err != nil {
 		fs.sm.AddTimeoutManifest(fs.manifest.Cid)
 		return errors.WithMessage(err, "snapshot's downloading has been failed")
@@ -346,7 +346,13 @@ func (fs *fastSync) postConsuming() error {
 	if err != nil {
 		return err
 	}
-	err = fs.appState.State.RecoverSnapshot(fs.manifest.Height, fs.manifest.Root, file)
+	switch version {
+	case state.SnapshotVersionV1:
+		err = fs.appState.State.RecoverSnapshot(fs.manifest.Height, fs.manifest.Root, file)
+	case state.SnapshotVersionV2:
+		err = fs.appState.State.RecoverSnapshot2(fs.manifest.Height, fs.manifest.Root, file)
+	}
+
 	file.Close()
 	if err != nil {
 		fs.sm.AddInvalidManifest(fs.manifest.Cid)

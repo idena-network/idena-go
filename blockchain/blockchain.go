@@ -2233,12 +2233,13 @@ func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff
 }
 
 func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
-	cid, root, height, _ := chain.repo.LastSnapshotManifest()
+	cid, cidV2, root, height, _ := chain.repo.LastSnapshotManifest()
 	if cid == nil {
 		return nil
 	}
 	return &snapshot.Manifest{
 		Cid:    cid,
+		CidV2: cidV2,
 		Root:   root,
 		Height: height,
 	}

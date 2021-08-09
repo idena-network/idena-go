@@ -1247,15 +1247,11 @@ func (s *StateDB) WriteSnapshot2(height uint64, to io.Writer) (root common.Hash,
 	return WriteTreeTo2(s.db, height, to)
 }
 
-
-
 func (s *StateDB) RecoverSnapshot2(height uint64, treeRoot common.Hash, from io.Reader) error {
 	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
+	common.ClearDb(pdb)
 	return ReadTreeFrom2(pdb, height, treeRoot, from)
 }
-
-
-
 
 
 func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
