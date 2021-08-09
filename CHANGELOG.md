@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.26.7-rc1 (04 Aug, 2021)
+## 0.26.7 (09 Aug, 2021)
 
 ### Changes
 
@@ -18,6 +18,8 @@
   & [#758](https://github.com/idena-network/idena-go/pull/758)
   & [#746](https://github.com/idena-network/idena-go/pull/746))
 - Extend logs ([#756](https://github.com/idena-network/idena-go/pull/756))
+- Use import/export API of iavl tree for state snapshot to reduce its
+  size ([#764](https://github.com/idena-network/idena-go/pull/764))
 
 ## 0.26.6 (Jul 19, 2021)
 
