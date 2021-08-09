@@ -159,7 +159,7 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 	}
 
 	exporter := tree.GetImmutable().Exporter()
-
+	defer exporter.Close()
 	nodes := new(models.ProtoSnapshotNodes)
 	i := 0
 
@@ -222,6 +222,7 @@ func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.R
 	if err != nil {
 		return err
 	}
+	defer importer.Close()
 
 	for file, err := tar.Read(); err == nil; file, err = tar.Read() {
 		if data, err := ioutil.ReadAll(file); err != nil {
@@ -254,7 +255,6 @@ func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.R
 		common.ClearDb(pdb)
 		return err
 	}
-	importer.Close()
 
 	if _, err := tree.LoadVersion(int64(height)); err != nil {
 		common.ClearDb(pdb)
