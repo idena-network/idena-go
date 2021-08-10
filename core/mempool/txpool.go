@@ -92,6 +92,11 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 			newBlockEvent := e.(*events.NewBlockEvent)
 			pool.head = newBlockEvent.Block.Header
 		})
+	_ = pool.bus.Subscribe(events.BlockchainResetEventID,
+		func(e eventbus.Event) {
+			resetEvent := e.(*events.BlockchainResetEvent)
+			pool.head = resetEvent.Header
+		})
 	_ = pool.bus.Subscribe(events.FastSyncCompleted, func(event eventbus.Event) {
 		pool.appState.NonceCache.Lock()
 		pool.appState.NonceCache.ReloadFallback(pool.appState.State)
