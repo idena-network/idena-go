@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
@@ -31,90 +32,117 @@ func Test_getAnswersCount(t *testing.T) {
 
 func Test_qualifyOneFlip(t *testing.T) {
 	require := require.New(t)
-
+	cfg := &config.Config{
+		Consensus: config.ConsensusVersions[config.ConsensusV6],
+	}
+	qual := &qualification{config: cfg}
 	ans := fillArray(6, 1, 1)
-	q := qualifyOneFlip(ans, 4, 18, 4)
+	q := qual.qualifyOneFlip(ans, 4, 18, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeA, q.grade)
 
 	ans = fillArray(6, 0, 0)
-	q = qualifyOneFlip(ans, 2, 6, 2)
+	q = qual.qualifyOneFlip(ans, 2, 6, 2)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeC, q.grade)
 
 	ans = fillArray(7, 0, 0)
-	q = qualifyOneFlip(ans, 2, 8, 2)
+	q = qual.qualifyOneFlip(ans, 2, 8, 2)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(7, 0, 0)
-	q = qualifyOneFlip(ans, 3, 12, 3)
+	q = qual.qualifyOneFlip(ans, 3, 12, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeB, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 13, 3)
+	q = qual.qualifyOneFlip(ans, 4, 13, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeB, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 12, 4)
+	q = qual.qualifyOneFlip(ans, 4, 12, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeC, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 4, 8, 4)
+	q = qual.qualifyOneFlip(ans, 4, 8, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qualifyOneFlip(ans, 5, 6, 3)
+	q = qual.qualifyOneFlip(ans, 5, 6, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeReported, q.grade)
 
 	ans = fillArray(25, 75, 0)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(0, 10, 0)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(15, 3, 4)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(30, 66, 4)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Right, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(4, 4, 4)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(NotQualified, q.status)
 	require.Equal(types.None, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(1, 2, 10)
-	q = qualifyOneFlip(ans, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
 	require.Equal(QualifiedByNone, q.status)
 	require.Equal(types.None, q.answer)
 	require.Equal(types.GradeD, q.grade)
+
+	ans = fillArray(1, 2, 00)
+	q = qual.qualifyOneFlip(ans, 3, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(1, 2, 00)
+	q = qual.qualifyOneFlip(ans, 2, 0, 0)
+	require.NotEqual(types.GradeReported, q.grade)
+
+	ans = fillArray(2, 2, 00)
+	q = qual.qualifyOneFlip(ans, 3, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(3, 2, 00)
+	q = qual.qualifyOneFlip(ans, 3, 0, 0)
+	require.NotEqual(types.GradeReported, q.grade)
+
+	ans = fillArray(3, 2, 00)
+	q = qual.qualifyOneFlip(ans, 4, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(3, 3, 00)
+	q = qual.qualifyOneFlip(ans, 4, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
 }
 
 func Test_getFlipStatusForCandidate(t *testing.T) {
@@ -347,12 +375,14 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	addr1 := tests.GetRandAddr()
 	addr2 := tests.GetRandAddr()
 	addr3 := tests.GetRandAddr()
+	addr4 := tests.GetRandAddr()
 	candidates := []*candidate{
 		{Address: addrWithIgnoredReports},
 		{Address: addrWithoutReports},
 		{Address: addr1},
 		{Address: addr2},
 		{Address: addr3},
+		{Address: addr4},
 	}
 	reportedFlipIdx := 5
 	flipsPerCandidate := [][]int{
@@ -360,6 +390,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 		{reportedFlipIdx, 6, 7},
 		{reportedFlipIdx, 6, 7, 8, 9, 10},
 		{reportedFlipIdx, 6, 7, 8, 9, 10},
+		{reportedFlipIdx, 6, 7},
 		{reportedFlipIdx, 6, 7},
 	}
 
@@ -426,6 +457,15 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long4.Grade(2, types.GradeB)
 	longAttachment4 := attachments.CreateLongAnswerAttachment(long4.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
+	long5 := types.NewAnswers(uint(len(flipsPerCandidate[5])))
+	long5.Left(0)
+	long5.Grade(0, types.GradeReported)
+	long5.Left(1)
+	long5.Grade(1, types.GradeA)
+	long5.Right(2)
+	long5.Grade(2, types.GradeB)
+	longAttachment5 := attachments.CreateLongAnswerAttachment(long5.Bytes(), nil, nil, ecies.ImportECDSA(key))
+
 	q := qualification{
 		longAnswers: map[common.Address][]byte{
 			addrWithIgnoredReports: longAttachment0,
@@ -433,6 +473,10 @@ func TestQualification_qualifyFlips(t *testing.T) {
 			addr1:                  longAttachment2,
 			addr2:                  longAttachment3,
 			addr3:                  longAttachment4,
+			addr4:                  longAttachment5,
+		},
+		config: &config.Config{
+			Consensus: config.ConsensusVersions[config.ConsensusV6],
 		},
 	}
 
@@ -461,9 +505,9 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	require.Equal(t, types.Right, flipQualifications[9].answer)
 	require.Equal(t, Qualified, flipQualifications[9].status)
 
-	require.Equal(t, 3, len(reportersToReward.reportersByAddr))
+	require.Equal(t, 4, len(reportersToReward.reportersByAddr))
 
-	require.Equal(t, 3, len(reportersToReward.reportedFlipsByReporter))
+	require.Equal(t, 4, len(reportersToReward.reportedFlipsByReporter))
 	require.Equal(t, 1, len(reportersToReward.reportedFlipsByReporter[addr1]))
 	_, ok := reportersToReward.reportedFlipsByReporter[addr1][reportedFlipIdx]
 	require.True(t, ok)
@@ -475,7 +519,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, 1, len(reportersToReward.reportersByFlip))
-	require.Equal(t, 3, len(reportersToReward.reportersByFlip[reportedFlipIdx]))
+	require.Equal(t, 4, len(reportersToReward.reportersByFlip[reportedFlipIdx]))
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr1])
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr2])
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr3])
