@@ -505,7 +505,8 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
 	}
-	if appCfg!=nil && appCfg.Consensus.EnableValidationSharding && identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 {
+	if appCfg != nil && appCfg.Consensus.EnableValidationSharding &&
+		(identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee != nil) {
 		return InvalidSender
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {

@@ -1601,7 +1601,8 @@ func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 
 func (s *StateDB) ShardId(address common.Address) common.ShardId {
 	return s.GetOrNewIdentityObject(address).ShardId()
-}func (s *StateDB) HasVersion(h uint64) bool {
+}
+func (s *StateDB) HasVersion(h uint64) bool {
 	return s.tree.ExistVersion(int64(h))
 }
 

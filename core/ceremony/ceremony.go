@@ -200,6 +200,11 @@ func (vc *ValidationCeremony) isCandidate() bool {
 	return identity.State == state.Candidate
 }
 
+func (vc *ValidationCeremony) isDelegator() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return identity.Delegatee != nil
+}
+
 func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState) bool {
 	identity := appState.State.GetIdentity(vc.secStore.GetAddress())
 	return len(identity.Flips) > 0
@@ -759,7 +764,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent ||
-		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) {
+		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) || vc.isDelegator() {
 		return
 	}
 
@@ -913,7 +918,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
 		stats := vc.validationStats.Shards[shardId]
 		stats.FlipCids = shard.flips
-		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.readEvidenceMaps(shardId) )
+		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.readEvidenceMaps(shardId))
 		approvedCandidatesSet := mapset.NewSet()
 		for _, item := range approvedCandidates {
 			approvedCandidatesSet.Add(item)
@@ -1659,13 +1664,13 @@ func (vc *ValidationCeremony) loadAllFlips(ctx context.Context) {
 
 func (vc *ValidationCeremony) readEvidenceMaps(shardId common.ShardId) [][]byte {
 	maps := vc.epochDb.ReadEvidenceMaps()
-	candidates := map[common.Address]struct{} {}
-	for _, c := range vc.shardCandidates[shardId].candidates 	 {
+	candidates := map[common.Address]struct{}{}
+	for _, c := range vc.shardCandidates[shardId].candidates {
 		candidates[c.Address] = struct{}{}
 	}
-    var result [][]byte
+	var result [][]byte
 	for _, m := range maps {
-		if _, ok := candidates[m.Sender];ok{
+		if _, ok := candidates[m.Sender]; ok {
 			result = append(result, m.Map)
 		}
 	}
