@@ -19,7 +19,6 @@ const (
 	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
 	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
 	DeleteFlipEventID      = eventbus.EventID("flip-delete")
-	UpdateShardId          = eventbus.EventID("update-shard-id")
 	PeersEventID           = eventbus.EventID("peers")
 )
 
@@ -93,14 +92,6 @@ type DeleteFlipEvent struct {
 func (DeleteFlipEvent) EventID() eventbus.EventID {
 	return DeleteFlipEventID
 }
-
-type UpdateShardIdEvent struct {
-}
-
-func (UpdateShardIdEvent) EventID() eventbus.EventID {
-	return UpdateShardId
-}
-
 
 type PeersEvent struct {
 	PeersData []iface.ConnectionInfo

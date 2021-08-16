@@ -151,9 +151,13 @@ func (h *IdenaGossipHandler) Start() {
 		setHandler()
 	})
 
-	h.bus.Subscribe(events.UpdateShardId, func(e eventbus.Event) {
+	h.bus.Subscribe(events.AddBlockEventID, func(e eventbus.Event) {
 		if !h.cfg.Multishard {
 			shardId, _ := h.bcn.CoinbaseShard()
+			if h.bcn.ShardsNum() <= 1 {
+				shardId = common.MultiShard
+			}
+
 			if h.connManager.SetShardId(shardId) {
 				h.notifyAboutShardUpdate(shardId)
 			}

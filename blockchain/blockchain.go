@@ -445,7 +445,6 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 			Block: block,
 		})
 		if block.Header.Flags().HasFlag(types.ValidationFinished) {
-			chain.bus.Publish(&events.UpdateShardIdEvent{})
 			shardId, _ := chain.CoinbaseShard()
 			log.Info("Coinbase shard", "shardId", shardId)
 		}
@@ -684,7 +683,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int,map[common.ShardId]int ) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -802,7 +801,7 @@ func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, tot
 		}
 	})
 
-	rnd := rand.New(rand.NewSource(int64(totalNewbies+totalVerified+totalSuspended)))
+	rnd := rand.New(rand.NewSource(int64(totalNewbies + totalVerified + totalSuspended)))
 	shuffledVerifiedIndexes := rnd.Perm(len(verifiedForRelocation))
 	shuffledNewbiesIndexes := rnd.Perm(len(newbiesForRelocation))
 	shuffledSuspendedIndexes := rnd.Perm(len(suspendedForRelocation))
@@ -2294,7 +2293,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		wasReset = true
 		resetTo := uint64(0)
 		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.MaxSavedStatesCount)+1; h, tryCnt = h-1, tryCnt+1 {
-			if  chain.appState.State.HasVersion(h) &&  chain.appState.IdentityState.HasVersion(h) {
+			if chain.appState.State.HasVersion(h) && chain.appState.IdentityState.HasVersion(h) {
 				resetTo = h
 				break
 			}
@@ -2412,7 +2411,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 	}
 	return &snapshot.Manifest{
 		Cid:    cid,
-		CidV2: cidV2,
+		CidV2:  cidV2,
 		Root:   root,
 		Height: height,
 	}
@@ -2604,11 +2603,15 @@ func (chain *Blockchain) ipfsLoad() {
 }
 
 func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
-	state, err := chain.appState.Readonly(chain.Head.Height())
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
 	if err != nil {
-		return common.ShardId(0), err
+		return common.MultiShard, err
 	}
-	return state.State.ShardId(chain.coinBaseAddress), nil
+	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
+	if identity.State == state.Undefined || identity.State == state.Invite || identity.State == state.Killed {
+		return common.MultiShard, nil
+	}
+	return identity.ShardId, nil
 }
 
 func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
@@ -2628,4 +2631,12 @@ func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardI
 		}
 	}
 	return minShard
+}
+
+func (chain *Blockchain) ShardsNum() uint32 {
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return 0
+	}
+	return stateDb.State.ShardsNum()
 }
