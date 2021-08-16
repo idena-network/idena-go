@@ -43,7 +43,6 @@ const (
 	MaxShortAnswersBroadcastDelaySec    = 30
 	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
 	FlipKeysSyncTimeFrame = 60 * 4 // seconds
-	AllFlipsLoadingTime   = time.Hour * 2
 )
 
 type ValidationCeremony struct {
@@ -312,7 +311,7 @@ func (vc *ValidationCeremony) startValidationShortSessionTimer() {
 				select {
 				case <-ticker.C:
 					// load all flips in case of public node
-					if vc.config.Sync.LoadAllFlips && !vc.allFlipsIsLoading && time.Now().UTC().Add(AllFlipsLoadingTime).After(validationTime) {
+					if vc.config.Sync.LoadAllFlips && !vc.allFlipsIsLoading && time.Now().UTC().Add(vc.config.Sync.AllFlipsLoadingTime).After(validationTime) {
 						vc.allFlipsIsLoading = true
 						go vc.loadAllFlips(ctx)
 					}
