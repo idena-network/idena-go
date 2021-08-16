@@ -40,7 +40,7 @@ import (
 const (
 	LotterySeedLag                      = 100
 	MaxFlipKeysPackageBroadcastDelaySec = 120
-	MaxShortAnswersBroadcastDelaySec    = 60
+	MaxShortAnswersBroadcastDelaySec    = 30
 	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
 	FlipKeysSyncTimeFrame = 60 * 4 // seconds
 	AllFlipsLoadingTime   = time.Hour * 2
