@@ -98,10 +98,10 @@ func (e *PeersEvent) EventID() eventbus.EventID {
 }
 
 type BlockchainResetEvent struct {
-	Header *types.Header
+	Header      *types.Header
+	RevertedTxs []*types.Transaction
 }
 
 func (e *BlockchainResetEvent) EventID() eventbus.EventID {
 	return BlockchainResetEventID
 }
-

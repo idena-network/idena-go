@@ -2116,7 +2116,7 @@ func (chain *Blockchain) ResetTo(height uint64) (revertedTxs []*types.Transactio
 		chain.repo.RemoveHeader(hash)
 		chain.repo.RemoveCanonicalHash(h)
 	}
-	chain.bus.Publish(&events.BlockchainResetEvent{Header: chain.Head})
+	chain.bus.Publish(&events.BlockchainResetEvent{Header: chain.Head, RevertedTxs: revertedTxs})
 	return revertedTxs, nil
 }
 
