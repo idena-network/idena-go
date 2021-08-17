@@ -2608,11 +2608,21 @@ func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
 		return common.MultiShard, err
 	}
 	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
+	return identity.ShardId, nil
+}
+
+func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return common.MultiShard, err
+	}
+	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
 	if identity.State == state.Undefined || identity.State == state.Invite || identity.State == state.Killed {
 		return common.MultiShard, nil
 	}
 	return identity.ShardId, nil
 }
+
 
 func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
 	if appState.State.ShardsNum() == 1 {

@@ -67,7 +67,7 @@ type IdenaGossipHandler struct {
 	metrics          *metricCollector
 	ceremonyChecker  CeremonyChecker
 	connManager      *ConnManager
-	pubsub          *pubsub.PubSub
+	pubsub           *pubsub.PubSub
 }
 
 type metricCollector struct {
@@ -152,24 +152,16 @@ func (h *IdenaGossipHandler) Start() {
 	})
 
 	h.bus.Subscribe(events.AddBlockEventID, func(e eventbus.Event) {
-		if !h.cfg.Multishard {
-			shardId, _ := h.bcn.CoinbaseShard()
-			if h.bcn.ShardsNum() <= 1 {
-				shardId = common.MultiShard
-			}
-
-			if h.connManager.SetShardId(shardId) {
-				h.notifyAboutShardUpdate(shardId)
-			}
-			h.peers.SetOwnShardId(shardId)
+		shardId := h.OwnPeeringShardId()
+		if h.connManager.SetShardId(shardId) {
+			h.notifyAboutShardUpdate(shardId)
 		}
+		h.peers.SetOwnShardId(shardId)
 	})
 
-	if !h.cfg.Multishard {
-		shardId, _ := h.bcn.CoinbaseShard()
-		h.connManager.SetShardId(shardId)
-		h.peers.SetOwnShardId(shardId)
-	}
+	shardId  := h.OwnPeeringShardId()
+	h.connManager.SetShardId(shardId)
+	h.peers.SetOwnShardId(shardId)
 
 	go h.broadcastLoop()
 	go h.checkTime()
@@ -437,12 +429,16 @@ func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
 	}
 }
 
-func (h *IdenaGossipHandler) OwnShardId() common.ShardId {
+func (h *IdenaGossipHandler) OwnPeeringShardId() common.ShardId {
 	ownShardId := common.MultiShard
 
 	if !h.cfg.Multishard {
-		ownShardId, _ = h.bcn.CoinbaseShard()
+		ownShardId, _ = h.bcn.ModifiedCoinbaseShard()
+		if h.bcn.ShardsNum() <= 1 {
+			ownShardId = common.MultiShard
+		}
 	}
+
 	return ownShardId
 }
 
@@ -468,7 +464,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 
 	peer := newPeer(stream, h.cfg.MaxDelay, h.metrics)
 
-	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), h.OwnShardId()); err != nil {
+	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), h.OwnPeeringShardId()); err != nil {
 		current := semver.New(h.appVersion)
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
@@ -937,7 +933,7 @@ func (h *IdenaGossipHandler) PeersCount() int {
 }
 
 func (h *IdenaGossipHandler) OwnShardPeersCount() int {
-	return h.peers.FromShard(h.OwnShardId())
+	return h.peers.FromShard(h.OwnPeeringShardId())
 }
 func (h *IdenaGossipHandler) Peers() []*protoPeer {
 	return h.peers.Peers()
@@ -1000,8 +996,8 @@ func (h *IdenaGossipHandler) watchShardSubscription() {
 	var sub *pubsub.Subscription
 	for {
 		time.Sleep(time.Second * 20)
-		ownShard, err := h.bcn.CoinbaseShard()
-		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) && err == nil {
+		ownShard := h.OwnPeeringShardId()
+		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) {
 			if sub != nil {
 				sub.Cancel()
 			}
