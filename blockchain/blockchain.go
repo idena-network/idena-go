@@ -2608,7 +2608,7 @@ func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
 		return common.MultiShard, err
 	}
 	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
-	return identity.ShardId, nil
+	return identity.ShiftedShardId(), nil
 }
 
 func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
@@ -2620,7 +2620,7 @@ func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
 	if identity.State == state.Undefined || identity.State == state.Invite || identity.State == state.Killed {
 		return common.MultiShard, nil
 	}
-	return identity.ShardId, nil
+	return identity.ShiftedShardId(), nil
 }
 
 
