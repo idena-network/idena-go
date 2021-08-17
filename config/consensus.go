@@ -59,6 +59,7 @@ type ConsensusConf struct {
 	EnableValidationSharding          bool
 	ChangeKillTxValidation            bool
 	IncreaseGodInvitesLimit           bool
+	FixDelegation                     bool
 }
 
 type ConsensusVerson uint16
@@ -166,6 +167,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EnableValidationSharding = true
 		cfg.ChangeKillTxValidation = true
 		cfg.IncreaseGodInvitesLimit = true
+		cfg.FixDelegation = true
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true

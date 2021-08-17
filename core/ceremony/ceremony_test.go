@@ -664,8 +664,9 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.AddStake(addr1, big.NewInt(100))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
 	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
+	appstate.State.SetDelegatee(addr1, delegatee)
 
-	identities := applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{
+	identities := applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
 		birthday:                 3,
 		shortFlipPoint:           1,
@@ -682,13 +683,26 @@ func Test_applyOnState(t *testing.T) {
 	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(10)) == 0)
 	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) == 0)
 
-	applyOnState(appstate, collector.NewStatsCollector(), addr1, cacheValue{
+	applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
 		shortFlipPoint:           0,
 		shortQualifiedFlipsCount: 0,
 		missed:                   true,
 	})
 	identity = appstate.State.GetIdentity(addr1)
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
+
+
+	appstate.State.SetDelegatee(delegatee, common.Address{0x3})
+
+	applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
+		prevState:                state.Zombie,
+		shortFlipPoint:           1,
+		shortQualifiedFlipsCount: 2,
+		state:                    state.Verified,
+		delegatee:                &delegatee,
+	})
+	identity = appstate.State.GetIdentity(addr1)
+	require.Nil(t, identity.Delegatee)
 }
 
 func Test_calculateNewTotalScore(t *testing.T) {
