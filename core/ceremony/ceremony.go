@@ -211,8 +211,13 @@ func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState
 }
 
 func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address, shardId common.ShardId) [][]byte {
+	if !vc.lottery.finished {
+		return nil
+	}
+
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
+
 
 	shard, ok := vc.shardCandidates[shardId]
 	if !ok {
@@ -230,6 +235,10 @@ func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address, shard
 }
 
 func (vc *ValidationCeremony) GetLongFlipsToSolve(address common.Address, shardId common.ShardId) [][]byte {
+	if !vc.lottery.finished {
+		return nil
+	}
+
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
 
@@ -389,7 +398,7 @@ func (vc *ValidationCeremony) handleFlipLotteryPeriod(block *types.Block) {
 		seedBlock := vc.chain.GetBlockHeaderByHeight(seedHeight)
 
 		vc.epochDb.WriteLotterySeed(seedBlock.Seed().Bytes())
-		vc.lottery.wg.Add(1)
+
 		go vc.asyncFlipLotteryCalculations()
 	}
 
@@ -407,6 +416,7 @@ func (vc *ValidationCeremony) tryToBroadcastFlipKeysPackage() {
 }
 
 func (vc *ValidationCeremony) asyncFlipLotteryCalculations() {
+	vc.lottery.wg.Add(1)
 	vc.logInfoWithInteraction("Flip lottery calculations started")
 	vc.calculateCeremonyCandidates()
 	vc.logInfoWithInteraction("Flip lottery calculations finished")
