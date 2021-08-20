@@ -300,7 +300,6 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.startValidationShortSessionTimer()
 	if vc.appState.State.ValidationPeriod() != state.NonePeriod {
 		vc.calculateCeremonyCandidates()
-		vc.lottery.finished = true
 	}
 	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
 	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
@@ -420,7 +419,6 @@ func (vc *ValidationCeremony) asyncFlipLotteryCalculations() {
 	vc.logInfoWithInteraction("Flip lottery calculations started")
 	vc.calculateCeremonyCandidates()
 	vc.logInfoWithInteraction("Flip lottery calculations finished")
-	vc.lottery.finished = true
 	vc.lottery.wg.Done()
 
 	go vc.delayedFlipPackageBroadcast()
@@ -518,6 +516,8 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		shard := vc.shardCandidates[shardId]
 		shard.shortFlipsPerCandidate, shard.longFlipsPerCandidate = GetFlipsDistribution(len(shard.candidates), vc.shardLotteries[shardId].authorsPerCandidate, shard.flipsPerAuthor, shard.flips, seed, shortFlipsCount)
 	}
+
+	vc.lottery.finished = true
 
 	coinbase := vc.secStore.GetAddress()
 	coinbaseIdentity := vc.appState.State.GetIdentity(coinbase)
