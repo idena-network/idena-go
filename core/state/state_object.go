@@ -35,8 +35,8 @@ const (
 	AfterLongRequiredBlocks = 5
 )
 
-func (s IdentityState) CandidateOrBetter() bool {
-	return s.NewbieOrBetter() || s == Candidate
+func (s IdentityState) IsInShard() bool {
+	return s.NewbieOrBetter() || s == Candidate || s == Suspended || s == Zombie
 }
 
 func (s IdentityState) NewbieOrBetter() bool {

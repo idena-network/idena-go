@@ -926,27 +926,23 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 		proposer := appState.State.GetIdentity(proposerAddr)
 		proposerShardId := proposer.ShiftedShardId()
 
-		hasAnyCeremonialTx := false
-		hasProposerShardTx := false
+		ceremonialTxsByShard := map[common.ShardId]bool{}
 
 		for _, tx := range block.Body.Transactions {
 			if _, ok := types.CeremonialTxs[tx.Type]; ok {
-				hasAnyCeremonialTx = true
 				sender, _ := types.Sender(tx)
 				senderIdentity := appState.State.GetIdentity(sender)
-				txShardId := senderIdentity.ShiftedShardId()
-				hasProposerShardTx = txShardId == proposerShardId
-				break
+				ceremonialTxsByShard[senderIdentity.ShiftedShardId()] = true
 			}
 		}
 		if !chain.config.Consensus.EnableValidationSharding {
-			if !hasAnyCeremonialTx {
+			if len(ceremonialTxsByShard) == 0 {
 				appState.State.IncBlocksCntWithoutCeremonialTxs()
 			} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
 				appState.State.ResetBlocksCntWithoutCeremonialTxs()
 			}
 		} else {
-			if !hasAnyCeremonialTx {
+			if len(ceremonialTxsByShard) == 0 {
 				if !proposer.State.NewbieOrBetter() {
 					randSeed := binary.LittleEndian.Uint64(block.Seed().Bytes())
 					random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
@@ -954,9 +950,14 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 				}
 				appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
 				appState.State.IncBlocksCntWithoutCeremonialTxs()
-			} else if hasProposerShardTx && proposer.State.NewbieOrBetter() {
-				appState.State.ResetEmptyBlockByShard(proposerShardId)
+			} else {
 				appState.State.ResetBlocksCntWithoutCeremonialTxs()
+				if proposer.State.NewbieOrBetter() && !ceremonialTxsByShard[proposerShardId] {
+					appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
+				}
+				for shardId := range ceremonialTxsByShard {
+					appState.State.ResetEmptyBlockByShard(shardId)
+				}
 			}
 		}
 	}
@@ -1248,7 +1249,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, sender)
-		if stateDB.GetIdentityState(sender).CandidateOrBetter() {
+		if stateDB.GetIdentityState(sender).IsInShard() {
 			stateDB.DecreaseShardSize(stateDB.ShardId(sender))
 		}
 		stateDB.SetState(sender, state.Killed)
@@ -1263,7 +1264,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
-		if stateDB.GetIdentityState(*tx.To).CandidateOrBetter() {
+		if stateDB.GetIdentityState(*tx.To).IsInShard() {
 			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
 		}
 		stateDB.SetState(*tx.To, state.Killed)
@@ -1288,7 +1289,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		delegatorPrevState := stateDB.GetIdentityState(*tx.To)
-		if stateDB.GetIdentityState(*tx.To).CandidateOrBetter() {
+		if stateDB.GetIdentityState(*tx.To).IsInShard() {
 			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
 		}
 		stateDB.SetState(*tx.To, state.Killed)
@@ -2622,7 +2623,6 @@ func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
 	}
 	return identity.ShiftedShardId(), nil
 }
-
 
 func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
 	if appState.State.ShardsNum() == 1 {

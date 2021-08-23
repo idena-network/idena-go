@@ -159,7 +159,7 @@ func (h *IdenaGossipHandler) Start() {
 		h.peers.SetOwnShardId(shardId)
 	})
 
-	shardId  := h.OwnPeeringShardId()
+	shardId := h.OwnPeeringShardId()
 	h.connManager.SetShardId(shardId)
 	h.peers.SetOwnShardId(shardId)
 
@@ -419,7 +419,8 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 }
 
 func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
-	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && (h.connManager.CanAcceptStream() || h.connManager.NeedInboundOwnShardPeers()) {
+	if h.connManager.CanConnect(stream.Conn().RemotePeer()) && (h.connManager.CanAcceptStream() ||
+		h.connManager.NeedInboundOwnShardPeers() || h.connManager.NeedPeerFromSomeShard(int(h.bcn.ShardsNum()))) {
 		if _, err := h.runPeer(stream, true); err != nil {
 			h.log.Debug("failed to run inbound peer", "err", err)
 		}
@@ -475,6 +476,18 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	needPeerFromShard := func(inbound bool, shardId common.ShardId) (bool, bool) {
 		canConnect := false
 		shouldDisconnectAnotherPeer := false
+
+		if h.OwnPeeringShardId() == common.MultiShard {
+			if shardId != common.MultiShard && h.connManager.PeersFromShard(shardId) == 0 {
+				if inbound {
+					shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream()
+				} else {
+					shouldDisconnectAnotherPeer = !h.connManager.CanDial()
+				}
+				return true, shouldDisconnectAnotherPeer
+			}
+		}
+
 		if inbound {
 			if h.connManager.IsFromOwnShards(peer.shardId) {
 				canConnect = h.connManager.NeedInboundOwnShardPeers()
@@ -496,17 +509,13 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
-		//go func() {
-		//time.Sleep(time.Second * 30)
-		canConnect, _ := needPeerFromShard(inbound, peer.shardId)
 		if !canConnect {
 			log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
 			peer.disconnect()
 		}
-		//}()
 	}
 	if shouldDisconnectAnotherPeer {
-		peerId := h.connManager.GetRandomPeerFromAnotherShard(inbound)
+		peerId := h.connManager.PeerForDisconnect(inbound, peer.shardId)
 		peer := h.peers.Peer(peerId)
 		if peer != nil {
 			peer.disconnect()
@@ -556,7 +565,7 @@ func (h *IdenaGossipHandler) dialPeers() {
 	go func() {
 		attempts := make(map[peer.ID]struct{})
 		for i := 0; i < 5; i++ {
-			if !h.connManager.CanDial() && !h.connManager.NeedOutboundOwnShardPeers() {
+			if !h.connManager.CanDial() && !h.connManager.NeedOutboundOwnShardPeers() && !h.connManager.NeedPeerFromSomeShard(int(h.bcn.ShardsNum())) {
 				return
 			}
 			stream, err := h.connManager.DialRandomPeer()
@@ -580,7 +589,7 @@ func (h *IdenaGossipHandler) dialPeers() {
 
 func (h *IdenaGossipHandler) renewPeers() {
 	if !h.connManager.CanDial() {
-		peerId := h.connManager.GetRandomOutboundPeer()
+		peerId := h.connManager.GetRandomPeer(false)
 		peer := h.peers.Peer(peerId)
 		if peer != nil {
 			peer.disconnect()
@@ -588,7 +597,7 @@ func (h *IdenaGossipHandler) renewPeers() {
 	}
 
 	if !h.connManager.CanAcceptStream() {
-		peerId := h.connManager.GetRandomInboundPeer()
+		peerId := h.connManager.GetRandomPeer(true)
 		peer := h.peers.Peer(peerId)
 		if peer != nil {
 			peer.disconnect()
