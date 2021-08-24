@@ -57,6 +57,7 @@ type ConsensusConf struct {
 	BurnInviteeStake                  bool
 	ReductionOneDelay                 time.Duration
 	EnableValidationSharding          bool
+	IncreaseGodInvitesLimit           bool
 }
 
 type ConsensusVerson uint16
@@ -162,6 +163,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EndActivationDate = time.Date(2021, 05, 18, 0, 0, 0, 0, time.UTC).Unix()
 	case ConsensusV6:
 		cfg.EnableValidationSharding = true
+		cfg.IncreaseGodInvitesLimit = true
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true

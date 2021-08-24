@@ -730,7 +730,7 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	chain, state := NewCustomTestBlockchain(5, 0, key)
 
-	count := int(common.GodAddressInvitesCount(0))
+	count := int(common.GodAddressInvitesCount(0, false))
 	for i := 0; i < count; i++ {
 		keyReceiver, _ := crypto.GenerateKey()
 		receiver := crypto.PubkeyToAddress(keyReceiver.PublicKey)
