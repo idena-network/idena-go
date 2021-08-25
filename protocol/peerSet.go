@@ -2,7 +2,9 @@ package protocol
 
 import (
 	"errors"
+	"github.com/idena-network/idena-go/common"
 	peer2 "github.com/libp2p/go-libp2p-core/peer"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -14,9 +16,10 @@ var (
 )
 
 type peerSet struct {
-	peers  map[peer2.ID]*protoPeer
-	lock   sync.RWMutex
-	closed bool
+	peers      map[peer2.ID]*protoPeer
+	ownShardId common.ShardId
+	lock       sync.RWMutex
+	closed     bool
 }
 
 // newPeerSet creates a new peer set to track the active participants.
@@ -24,6 +27,10 @@ func newPeerSet() *peerSet {
 	return &peerSet{
 		peers: make(map[peer2.ID]*protoPeer),
 	}
+}
+
+func (ps *peerSet) SetOwnShardId(shardId common.ShardId) {
+	ps.ownShardId = shardId
 }
 
 // Register injects a new peer into the working set, or returns an error if the
@@ -85,26 +92,59 @@ func (ps *peerSet) Peers() []*protoPeer {
 	return list
 }
 
-func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, highPriority bool) {
-	ps.SendWithFilterAndExpiration(msgcode, key, payload, highPriority, msgCacheAliveTime)
+func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{}, shardId common.ShardId, highPriority bool) {
+	ps.SendWithFilterAndExpiration(msgcode, key, payload, shardId, highPriority, msgCacheAliveTime)
 }
 
-func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, highPriority bool, expiration time.Duration) {
+func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, highPriority bool) bool {
+	peersCnt := ps.Len()
+	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 4 || highPriority {
+		return true
+	}
+	rnd := rand.Float32()
+	return rnd > 1-1.8/float32(peersCnt)
+}
+
+
+
+func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, msgShardId common.ShardId, highPriority bool, expiration time.Duration) {
 	peers := ps.Peers()
 
+	sentToExactShard := 0
+	if msgShardId != common.MultiShard && msgShardId != ps.ownShardId {
+		for _, p := range peers {
+			if p.shardId == msgShardId || p.shardId == common.MultiShard {
+				if _, ok := p.msgCache.Get(key); !ok {
+					p.markKeyWithExpiration(key, expiration)
+					p.sendMsg(msgcode, payload, msgShardId, highPriority)
+				}
+				if p.shardId != common.MultiShard {
+					sentToExactShard++
+				}
+			}
+		}
+	}
+	const minSendingCntToExactShard = 2
+	if sentToExactShard >= minSendingCntToExactShard {
+		return
+	}
+
 	for _, p := range peers {
-		if _, ok := p.msgCache.Get(key); !ok {
-			p.markKeyWithExpiration(key, expiration)
-			p.sendMsg(msgcode, payload, highPriority)
+		if ps.shouldSendToPeer(p, msgShardId, highPriority) {
+			if _, ok := p.msgCache.Get(key); !ok {
+				p.markKeyWithExpiration(key, expiration)
+				p.sendMsg(msgcode, payload, msgShardId, highPriority)
+			}
 		}
 	}
 }
 
-func (ps *peerSet) Send(msgcode uint64, payload interface{}) {
+func (ps *peerSet) Send(msgcode uint64, payload interface{}, msgShardId common.ShardId) {
 	peers := ps.Peers()
-
 	for _, p := range peers {
-		p.sendMsg(msgcode, payload, false)
+		if ps.shouldSendToPeer(p, msgShardId, false) {
+			p.sendMsg(msgcode, payload, msgShardId, false)
+		}
 	}
 }
 
@@ -117,4 +157,15 @@ func (ps *peerSet) hasKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func (ps *peerSet) FromShard(shardId common.ShardId) int {
+	var cnt int
+	peers := ps.Peers()
+	for _, p := range peers {
+		if shardId == common.MultiShard || p.shardId == shardId {
+			cnt++
+		}
+	}
+	return cnt
 }

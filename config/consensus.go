@@ -56,6 +56,7 @@ type ConsensusConf struct {
 	EnableDelayedOfflinePenalty       bool
 	BurnInviteeStake                  bool
 	ReductionOneDelay                 time.Duration
+	EnableValidationSharding          bool
 }
 
 type ConsensusVerson uint16
@@ -68,12 +69,16 @@ const (
 
 	// Enables events sorting
 	ConsensusV5 ConsensusVerson = 5
+
+	// Enables validation sharding
+	ConsensusV6 ConsensusVerson = 6
 )
 
 var (
 	v3                ConsensusConf
 	v4                ConsensusConf
 	v5                ConsensusConf
+	v6                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -125,6 +130,10 @@ func init() {
 	v5 = v4
 	ApplyConsensusVersion(ConsensusV5, &v5)
 	ConsensusVersions[ConsensusV5] = &v5
+
+	v6 = v5
+	ApplyConsensusVersion(ConsensusV6, &v6)
+	ConsensusVersions[ConsensusV6] = &v6
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -151,6 +160,11 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.GenerateGenesisAfterUpgrade = true
 		cfg.StartActivationDate = time.Date(2021, 05, 11, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 05, 18, 0, 0, 0, 0, time.UTC).Unix()
+	case ConsensusV6:
+		cfg.EnableValidationSharding = true
+		cfg.Version = ConsensusV6
+		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
 	}
 }
 

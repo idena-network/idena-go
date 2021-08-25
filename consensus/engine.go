@@ -184,8 +184,9 @@ func (engine *Engine) loop() {
 		engine.prevRoundDuration = 0
 		roundStart := time.Now().UTC()
 
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "peers",
-			engine.pm.PeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
+		shardId, _ := engine.chain.CoinbaseShard()
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(),"shardId", shardId , "p2p-shardId", engine.pm.OwnPeeringShardId(), "total-peers",
+			engine.pm.PeersCount(), "own-shard-peers", engine.pm.OwnShardPeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
 			"network", engine.appState.ValidatorsCache.NetworkSize())
 
 		engine.process = "Check if I'm proposer"

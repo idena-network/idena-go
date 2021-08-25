@@ -349,18 +349,18 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	approvedAddr := candidates[1].Address
 	app.State.SetRequiredFlips(approvedAddr, 3)
 
-	vc.candidates = candidates
-	vc.flipsData = &flipsData{
-		allFlips:       flips,
+	vc.shardCandidates = map[common.ShardId]*candidatesOfShard{0: &candidatesOfShard{
+		candidates:     candidates,
 		flipsPerAuthor: flipsPerAuthor,
-	}
+		flips:          flips,
+	}}
 	vc.appState = app
 
 	approvedCandidates := mapset.NewSet()
 	approvedCandidates.Add(approvedAddr)
 
 	// when
-	result := vc.getNotApprovedFlips(approvedCandidates)
+	result := vc.getNotApprovedFlips(approvedCandidates, 0)
 
 	// then
 	r := require.New(t)
@@ -402,45 +402,45 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporter2 := common.Address{13}
 	reporter3 := common.Address{14}
 
-	vc.flipsData = &flipsData{}
+	vc.shardCandidates = map[common.ShardId]*candidatesOfShard{0: {
+		flips: [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc},
+			{0xd}, {0xe}, {0xf}, {0x10}, {0x11}, {0x12}, {0x13}, {0x14}, {0x15}, {0x16}},
+		flipAuthorMap: map[string]common.Address{
+			string([]byte{0x0}): auth1,
+			string([]byte{0x1}): auth1,
+			string([]byte{0x2}): auth1,
 
-	vc.flipsData.allFlips = [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc},
-		{0xd}, {0xe}, {0xf}, {0x10}, {0x11}, {0x12}, {0x13}, {0x14}, {0x15}, {0x16}}
-	vc.flipsData.flipAuthorMap = map[string]common.Address{
-		string([]byte{0x0}): auth1,
-		string([]byte{0x1}): auth1,
-		string([]byte{0x2}): auth1,
+			string([]byte{0x3}): auth2,
+			string([]byte{0x4}): auth2,
 
-		string([]byte{0x3}): auth2,
-		string([]byte{0x4}): auth2,
+			string([]byte{0x5}): auth3,
+			string([]byte{0x6}): auth3,
 
-		string([]byte{0x5}): auth3,
-		string([]byte{0x6}): auth3,
+			string([]byte{0x7}): auth4,
+			string([]byte{0x8}): auth4,
 
-		string([]byte{0x7}): auth4,
-		string([]byte{0x8}): auth4,
+			string([]byte{0x9}): auth5,
 
-		string([]byte{0x9}): auth5,
+			string([]byte{0xa}): auth6,
+			string([]byte{0xb}): auth6,
+			string([]byte{0xc}): auth6,
 
-		string([]byte{0xa}): auth6,
-		string([]byte{0xb}): auth6,
-		string([]byte{0xc}): auth6,
+			string([]byte{0xd}): auth7,
+			string([]byte{0xe}): auth7,
 
-		string([]byte{0xd}): auth7,
-		string([]byte{0xe}): auth7,
+			string([]byte{0xf}):  auth8,
+			string([]byte{0x10}): auth8,
 
-		string([]byte{0xf}):  auth8,
-		string([]byte{0x10}): auth8,
+			string([]byte{0x11}): auth9,
+			string([]byte{0x12}): auth9,
 
-		string([]byte{0x11}): auth9,
-		string([]byte{0x12}): auth9,
+			string([]byte{0x13}): auth10,
+			string([]byte{0x14}): auth10,
 
-		string([]byte{0x13}): auth10,
-		string([]byte{0x14}): auth10,
-
-		string([]byte{0x15}): auth11,
-		string([]byte{0x16}): auth11,
-	}
+			string([]byte{0x15}): auth11,
+			string([]byte{0x16}): auth11,
+			},
+		}}
 
 	qualification := []FlipQualification{
 		{status: Qualified, grade: types.GradeD},
@@ -493,7 +493,7 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporters.addReport(21, reporter1)
 	reporters.addReport(21, reporter2)
 
-	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters)
+	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0)
 
 	require.Contains(t, bad, auth2)
 	require.Contains(t, bad, auth3)

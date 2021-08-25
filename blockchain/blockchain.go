@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/golang/protobuf/proto"
@@ -81,7 +82,7 @@ type Blockchain struct {
 	bus             eventbus.Bus
 	subManager      *subscriptions.Manager
 	upgrader        *upgrade.Upgrader
-	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)
+	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, map[common.ShardId]*types.ValidationResults, bool)
 	isSyncing       bool
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
 }
@@ -128,7 +129,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 	}
 }
 
-func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, *types.ValidationResults, bool)) {
+func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) (int, map[common.ShardId]*types.ValidationResults, bool)) {
 	chain.applyNewEpochFn = fn
 }
 
@@ -443,6 +444,10 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 		chain.bus.Publish(&events.NewBlockEvent{
 			Block: block,
 		})
+		if block.Header.Flags().HasFlag(types.ValidationFinished) {
+			shardId, _ := chain.CoinbaseShard()
+			log.Info("Coinbase shard", "shardId", shardId)
+		}
 		chain.RemovePreliminaryHead(nil)
 		return nil
 	}
@@ -562,8 +567,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	networkSize, validationResults, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
-
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -576,6 +580,9 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		}
 		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, block.Seed(),
 			statsCollector)
+		if chain.config.Consensus.EnableValidationSharding {
+			balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+		}
 	}
 
 	clearDustAccounts(appState, networkSize, statsCollector)
@@ -592,25 +599,26 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		appState.State.AddPrevEpochBlock(epochBlock)
 	}
 	appState.State.SetEpochBlock(block.Height())
-
+	appState.State.ClearEmptyBlocksByShard()
 	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
-func calculateNewIdentityStatusFlags(validationResults *types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
+func calculateNewIdentityStatusFlags(validationResults map[common.ShardId]*types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
 	m := make(map[common.Address]state.ValidationStatusFlag)
-	for addr, item := range validationResults.AuthorResults {
-		var status state.ValidationStatusFlag
-		if item.HasOneReportedFlip {
-			status |= state.AtLeastOneFlipReported
+	for _, validationResult := range validationResults {
+		for addr, item := range validationResult.AuthorResults {
+			var status state.ValidationStatusFlag
+			if item.HasOneReportedFlip {
+				status |= state.AtLeastOneFlipReported
+			}
+			if item.HasOneNotQualifiedFlip {
+				status |= state.AtLeastOneFlipNotQualified
+			}
+			if item.AllFlipsNotQualified {
+				status |= state.AllFlipsNotQualified
+			}
+			m[addr] = status
 		}
-		if item.HasOneNotQualifiedFlip {
-			status |= state.AtLeastOneFlipNotQualified
-		}
-		if item.AllFlipsNotQualified {
-			status |= state.AllFlipsNotQualified
-		}
-
-		m[addr] = status
 	}
 	return m
 }
@@ -675,8 +683,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool,
-	validationResults *types.ValidationResults, statsCollector collector.StatsCollector) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -689,6 +696,12 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 		copy(identitiesWithInvites[index+1:], identitiesWithInvites[index:])
 		identitiesWithInvites[index] = elem
 	}
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+	suspendedByShard := map[common.ShardId]int{}
+
+	var totalNewbies, totalVerified, totalSuspended int
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
@@ -706,22 +719,32 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				if identity.Delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
 				}
+				verifiedByShard[identity.ShiftedShardId()]++
+				totalVerified++
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.Add(addr)
 				if identity.Delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
 				}
+				newbiesByShard[identity.ShiftedShardId()]++
+				totalNewbies++
 			case state.Killed, state.Undefined:
 				removeLinksWithInviterAndInvitees(appState.State, addr)
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.Remove(addr)
+			case state.Suspended, state.Zombie:
+				appState.State.SetRequiredFlips(addr, 0)
+				appState.IdentityState.Remove(addr)
+				suspendedByShard[identity.ShiftedShardId()]++
+				totalSuspended++
 			default:
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.Remove(addr)
 			}
 			appState.State.SetInvites(addr, 0)
 		}
+
 		collector.BeforeClearPenalty(statsCollector, addr, appState)
 		collector.BeginEpochPenaltyResetBalanceUpdate(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
@@ -739,6 +762,115 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 	if !validationFailed {
 		setInvites(appState, identitiesWithInvites, totalInvitesCount, statsCollector)
 	}
+	return totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard
+}
+
+func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, totalSuspended int, newbiesByShard, verifiedByShard, suspendedByShard map[common.ShardId]int) {
+	prevShardsNum := appState.State.ShardsNum()
+	newShardsNum := common.CalculateShardsNumber(common.MinShardSize, common.MaxShardSize, totalNewbies+totalVerified+totalSuspended, int(prevShardsNum))
+
+	for i := common.ShardId(1); i <= common.ShardId(prevShardsNum); i++ {
+		log.Info("Shard distribution before balancing", "shardId", i, "newbies", newbiesByShard[i], "verified,human", verifiedByShard[i], "suspended,zombie", suspendedByShard[i])
+	}
+
+	desiredNewbiesInShard := totalNewbies / newShardsNum
+	desiredVerifiedInShard := totalVerified / newShardsNum
+	desiredSuspendedInShard := totalSuspended / newShardsNum
+
+	var verifiedForRelocation []common.Address
+	var newbiesForRelocation []common.Address
+	var suspendedForRelocation []common.Address
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		switch identity.State {
+		case state.Verified, state.Human:
+			if verifiedByShard[identity.ShiftedShardId()] > desiredVerifiedInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
+				verifiedForRelocation = append(verifiedForRelocation, addr)
+				verifiedByShard[identity.ShiftedShardId()]--
+			}
+		case state.Newbie:
+			if newbiesByShard[identity.ShiftedShardId()] > desiredNewbiesInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
+				newbiesForRelocation = append(newbiesForRelocation, addr)
+				newbiesByShard[identity.ShiftedShardId()]--
+			}
+		case state.Suspended, state.Zombie:
+			if suspendedByShard[identity.ShiftedShardId()] > desiredSuspendedInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
+				suspendedForRelocation = append(suspendedForRelocation, addr)
+				suspendedByShard[identity.ShiftedShardId()]--
+			}
+		}
+	})
+
+	rnd := rand.New(rand.NewSource(int64(totalNewbies + totalVerified + totalSuspended)))
+	shuffledVerifiedIndexes := rnd.Perm(len(verifiedForRelocation))
+	shuffledNewbiesIndexes := rnd.Perm(len(newbiesForRelocation))
+	shuffledSuspendedIndexes := rnd.Perm(len(suspendedForRelocation))
+
+	verifiedIdx := 0
+	newbiesIdx := 0
+	suspendedIdx := 0
+
+	for shardId := common.ShardId(1); shardId <= common.ShardId(newShardsNum); shardId++ {
+		for verifiedByShard[shardId] < desiredVerifiedInShard && verifiedIdx < len(shuffledVerifiedIndexes) {
+			addr := verifiedForRelocation[shuffledVerifiedIndexes[verifiedIdx]]
+			appState.State.SetShardId(addr, shardId)
+			verifiedIdx++
+			verifiedByShard[shardId]++
+		}
+
+		for newbiesByShard[shardId] < desiredNewbiesInShard && newbiesIdx < len(shuffledNewbiesIndexes) {
+			addr := newbiesForRelocation[shuffledNewbiesIndexes[newbiesIdx]]
+			appState.State.SetShardId(addr, shardId)
+			newbiesIdx++
+			newbiesByShard[shardId]++
+		}
+		for suspendedByShard[shardId] < desiredSuspendedInShard && suspendedIdx < len(shuffledSuspendedIndexes) {
+			addr := suspendedForRelocation[shuffledSuspendedIndexes[suspendedIdx]]
+			appState.State.SetShardId(addr, shardId)
+			suspendedIdx++
+			suspendedByShard[shardId]++
+		}
+	}
+	shardId := common.ShardId(1)
+	for verifiedIdx < len(shuffledVerifiedIndexes) {
+		addr := verifiedForRelocation[shuffledVerifiedIndexes[verifiedIdx]]
+		appState.State.SetShardId(addr, shardId)
+		verifiedByShard[shardId]++
+		shardId++
+		if shardId > common.ShardId(newShardsNum) {
+			shardId = 1
+		}
+		verifiedIdx++
+	}
+	for newbiesIdx < len(shuffledNewbiesIndexes) {
+		addr := newbiesForRelocation[shuffledNewbiesIndexes[newbiesIdx]]
+		appState.State.SetShardId(addr, shardId)
+		newbiesByShard[shardId]++
+		shardId++
+		if shardId > common.ShardId(newShardsNum) {
+			shardId = 1
+		}
+		newbiesIdx++
+	}
+	for suspendedIdx < len(shuffledSuspendedIndexes) {
+		addr := suspendedForRelocation[shuffledSuspendedIndexes[suspendedIdx]]
+		appState.State.SetShardId(addr, shardId)
+		suspendedByShard[shardId]++
+		shardId++
+		if shardId > common.ShardId(newShardsNum) {
+			shardId = 1
+		}
+		suspendedIdx++
+	}
+
+	for i := common.ShardId(1); i <= common.ShardId(newShardsNum); i++ {
+		appState.State.SetShardSize(i, uint32(newbiesByShard[i]+verifiedByShard[i]+suspendedByShard[i]))
+		log.Info("Shard distribution after balancing", "shardId", i, "newbies", newbiesByShard[i], "verified,human", verifiedByShard[i], "suspended,zombie", suspendedByShard[i])
+	}
+
+	appState.State.SetShardsNum(uint32(newShardsNum))
+
+	log.Info("Sharding info", "prev shards count", prevShardsNum, "new shards count", newShardsNum)
 }
 
 func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollector collector.StatsCollector) {
@@ -788,17 +920,45 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 	statsCollector collector.StatsCollector) {
 
 	if appState.State.ValidationPeriod() == state.AfterLongSessionPeriod && !block.IsEmpty() {
-		has := false
+
+		proposerAddr, _ := crypto.PubKeyBytesToAddress(block.Header.ProposedHeader.ProposerPubKey)
+
+		proposer := appState.State.GetIdentity(proposerAddr)
+		proposerShardId := proposer.ShiftedShardId()
+
+		ceremonialTxsByShard := map[common.ShardId]bool{}
+
 		for _, tx := range block.Body.Transactions {
 			if _, ok := types.CeremonialTxs[tx.Type]; ok {
-				has = true
-				break
+				sender, _ := types.Sender(tx)
+				senderIdentity := appState.State.GetIdentity(sender)
+				ceremonialTxsByShard[senderIdentity.ShiftedShardId()] = true
 			}
 		}
-		if !has {
-			appState.State.IncBlocksCntWithoutCeremonialTxs()
-		} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
-			appState.State.ResetBlocksCntWithoutCeremonialTxs()
+		if !chain.config.Consensus.EnableValidationSharding {
+			if len(ceremonialTxsByShard) == 0 {
+				appState.State.IncBlocksCntWithoutCeremonialTxs()
+			} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
+				appState.State.ResetBlocksCntWithoutCeremonialTxs()
+			}
+		} else {
+			if len(ceremonialTxsByShard) == 0 {
+				if !proposer.State.NewbieOrBetter() {
+					randSeed := binary.LittleEndian.Uint64(block.Seed().Bytes())
+					random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
+					proposerShardId = common.ShardId(1 + random.Intn(int(appState.State.ShardsNum())))
+				}
+				appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
+				appState.State.IncBlocksCntWithoutCeremonialTxs()
+			} else {
+				appState.State.ResetBlocksCntWithoutCeremonialTxs()
+				if proposer.State.NewbieOrBetter() && !ceremonialTxsByShard[proposerShardId] {
+					appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
+				}
+				for shardId := range ceremonialTxsByShard {
+					appState.State.ResetEmptyBlockByShard(shardId)
+				}
+			}
 		}
 	}
 
@@ -975,7 +1135,6 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			}
 		}
 	}
-
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
@@ -1037,7 +1196,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.AddBalance(recipient, balanceToTransfer)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
-
+		if chain.config.Consensus.EnableValidationSharding {
+			candidateShard := chain.MinimalShard(appState)
+			stateDB.SetShardId(recipient, candidateShard)
+			stateDB.IncreaseShardSize(candidateShard)
+		}
 		inviter := stateDB.GetInviter(sender)
 		if inviter != nil {
 			removeLinkWithInviter(appState.State, sender)
@@ -1086,7 +1249,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, sender)
+		if stateDB.GetIdentityState(sender).IsInShard() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(sender))
+		}
 		stateDB.SetState(sender, state.Killed)
+
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
@@ -1097,6 +1264,9 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		inviteePrevState := stateDB.GetIdentityState(*tx.To)
+		if stateDB.GetIdentityState(*tx.To).IsInShard() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
+		}
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		if inviteePrevState == state.Newbie {
@@ -1119,6 +1289,9 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
 		delegatorPrevState := stateDB.GetIdentityState(*tx.To)
+		if stateDB.GetIdentityState(*tx.To).IsInShard() {
+			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
+		}
 		stateDB.SetState(*tx.To, state.Killed)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
@@ -1539,7 +1712,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.AfterLongSessionStarted
 	}
 
-	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.BlocksCntWithoutCeremonialTxs() >= state.AfterLongRequiredBlocks {
+	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.CanCompleteEpoch(chain.config.Consensus.EnableValidationSharding) {
 		flags |= types.ValidationFinished
 		flags |= types.IdentityUpdate
 	}
@@ -2121,7 +2294,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		wasReset = true
 		resetTo := uint64(0)
 		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.MaxSavedStatesCount)+1; h, tryCnt = h-1, tryCnt+1 {
-			if  chain.appState.State.HasVersion(h) &&  chain.appState.IdentityState.HasVersion(h) {
+			if chain.appState.State.HasVersion(h) && chain.appState.IdentityState.HasVersion(h) {
 				resetTo = h
 				break
 			}
@@ -2239,7 +2412,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 	}
 	return &snapshot.Manifest{
 		Cid:    cid,
-		CidV2: cidV2,
+		CidV2:  cidV2,
 		Root:   root,
 		Height: height,
 	}
@@ -2428,4 +2601,52 @@ func (chain *Blockchain) ipfsLoad() {
 			chain.log.Debug("error while loading ipfs content", "err", err)
 		}
 	}
+}
+
+func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return common.MultiShard, err
+	}
+	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
+	return identity.ShiftedShardId(), nil
+}
+
+func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return common.MultiShard, err
+	}
+	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
+	if identity.State == state.Undefined || identity.State == state.Invite || identity.State == state.Killed {
+		return common.MultiShard, nil
+	}
+	return identity.ShiftedShardId(), nil
+}
+
+func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
+	if appState.State.ShardsNum() == 1 {
+		return common.ShardId(1)
+	}
+	sizes := appState.State.ShardSizes()
+
+	minSize := uint32(math.MaxUint32)
+	var minShard common.ShardId
+
+	for shardId := common.ShardId(1); shardId < common.ShardId(appState.State.ShardsNum()); shardId++ {
+		size, ok := sizes[shardId]
+		if ok && size < minSize {
+			minSize = size
+			minShard = shardId
+		}
+	}
+	return minShard
+}
+
+func (chain *Blockchain) ShardsNum() uint32 {
+	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	if err != nil {
+		return 0
+	}
+	return stateDb.State.ShardsNum()
 }

@@ -237,7 +237,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	context := &txExecutionContext{
 		appState: chain.appState,
 	}
-	_, _,_, err := chain.applyTxOnState(signedTx1, context)
+	_, _, _, err := chain.applyTxOnState(signedTx1, context)
 
 	require.Nil(err)
 	require.Equal(validation.InvalidSender, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx))
@@ -789,7 +789,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	s.Commit(nil)
 
-	setNewIdentitiesAttributes(s, 12, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 12, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
@@ -802,13 +802,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 1, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 1, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 5, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 5, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -817,7 +817,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 15, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 15, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -828,7 +828,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 20, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 20, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -839,7 +839,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 2, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 2, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -847,7 +847,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x5}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 6, 100, false, &types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 6, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -1051,4 +1051,112 @@ func Test_Delegation(t *testing.T) {
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool2))
 	require.False(t, appState.ValidatorsCache.IsPool(pool2))
 	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(pool2))
+}
+
+func TestBalance_shards_reducing(t *testing.T) {
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	var totalNewbies, totalVerified, totalSuspended int
+
+	statuses := []state.IdentityState{state.Suspended, state.Zombie, state.Newbie, state.Verified, state.Human}
+
+	shardsNum := 2
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+	suspendedByShard := map[common.ShardId]int{}
+
+	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
+		statusIdx := 0
+		for i := 0; i < common.MinShardSize-100; i++ {
+			key, _ := crypto.GenerateKey()
+			addr := crypto.PubkeyToAddress(key.PublicKey)
+			status := statuses[statusIdx]
+			appState.State.SetState(addr, status)
+			appState.State.SetShardId(addr, shardId)
+			switch status {
+			case state.Suspended, state.Zombie:
+				totalSuspended++
+				suspendedByShard[shardId]++
+			case state.Newbie:
+				totalNewbies++
+				newbiesByShard[shardId]++
+			case state.Verified, state.Human:
+				totalVerified++
+				verifiedByShard[shardId]++
+			}
+			statusIdx++
+			if statusIdx >= len(statuses) {
+				statusIdx = 0
+			}
+		}
+	}
+	appState.State.SetShardsNum(uint32(shardsNum))
+	appState.Commit(nil)
+	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+
+	require.Equal(t, uint32(1), appState.State.ShardsNum())
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		require.Equal(t, common.ShardId(1), identity.ShardId)
+	})
+}
+
+func TestBalance_shards_increasing(t *testing.T) {
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	var totalNewbies, totalVerified, totalSuspended int
+
+	statuses := []state.IdentityState{state.Suspended, state.Zombie, state.Newbie, state.Verified, state.Human}
+
+	shardsNum := 2
+
+	newbiesByShard := map[common.ShardId]int{}
+	verifiedByShard := map[common.ShardId]int{}
+	suspendedByShard := map[common.ShardId]int{}
+
+	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
+		statusIdx := 0
+		for i := 0; i < common.MaxShardSize+100; i++ {
+			key, _ := crypto.GenerateKey()
+			addr := crypto.PubkeyToAddress(key.PublicKey)
+			status := statuses[statusIdx]
+			appState.State.SetState(addr, status)
+			appState.State.SetShardId(addr, shardId)
+			switch status {
+			case state.Suspended, state.Zombie:
+				totalSuspended++
+				suspendedByShard[shardId]++
+			case state.Newbie:
+				totalNewbies++
+				newbiesByShard[shardId]++
+			case state.Verified, state.Human:
+				totalVerified++
+				verifiedByShard[shardId]++
+			}
+			statusIdx++
+			if statusIdx >= len(statuses) {
+				statusIdx = 0
+			}
+		}
+	}
+	appState.State.SetShardsNum(uint32(shardsNum))
+	appState.Commit(nil)
+	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+
+	require.Equal(t, uint32(4), appState.State.ShardsNum())
+
+	shardSizes := map[common.ShardId]int{}
+
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		shardSizes[identity.ShiftedShardId()]++
+	})
+	for _, s := range shardSizes {
+		require.Less(t, s, common.MaxShardSize)
+		require.Greater(t, s, common.MinShardSize)
+	}
 }
