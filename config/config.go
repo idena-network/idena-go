@@ -255,8 +255,9 @@ func getDefaultConfig(dataDir string) *Config {
 		IpfsConf:   ipfsConfig,
 		Validation: &ValidationConfig{},
 		Sync: &SyncConfig{
-			FastSync:      true,
-			ForceFullSync: DefaultForceFullSync,
+			FastSync:            true,
+			ForceFullSync:       DefaultForceFullSync,
+			AllFlipsLoadingTime: time.Hour * 2,
 		},
 		OfflineDetection: GetDefaultOfflineDetectionConfig(),
 		Blockchain: &BlockchainConfig{
