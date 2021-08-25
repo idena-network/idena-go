@@ -1006,7 +1006,7 @@ func (h *IdenaGossipHandler) watchShardSubscription() {
 	for {
 		time.Sleep(time.Second * 20)
 		ownShard := h.OwnPeeringShardId()
-		if !h.cfg.Multishard && (sub == nil || topicShard != ownShard) {
+		if ownShard!=common.MultiShard && (sub == nil || topicShard != ownShard) {
 			if sub != nil {
 				sub.Cancel()
 			}
