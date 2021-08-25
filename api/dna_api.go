@@ -306,6 +306,7 @@ type Identity struct {
 	DelegationNonce     uint32          `json:"delegationNonce"`
 	IsPool              bool            `json:"isPool"`
 	Inviter             *Inviter        `json:"inviter"`
+	ShardId             uint32          `json:"shardId"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -473,6 +474,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Online:              isOnline,
 		IsPool:              appState.ValidatorsCache.IsPool(address),
 		Inviter:             inviter,
+		ShardId:             uint32(data.ShiftedShardId()),
 	}
 }
 
