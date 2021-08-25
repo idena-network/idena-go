@@ -25,10 +25,12 @@ type CeremonyChecker interface {
 type request struct {
 	msgcode uint64
 	data    interface{}
+	shardId common.ShardId
 }
 
 type Msg struct {
 	Code    uint64
+	ShardId common.ShardId
 	Payload []byte
 }
 
@@ -36,6 +38,7 @@ func (msg *Msg) ToBytes() ([]byte, error) {
 	protoMsg := &models.ProtoMsg{
 		Code:    msg.Code,
 		Payload: msg.Payload,
+		ShardId: uint32(msg.ShardId),
 	}
 	return proto.Marshal(protoMsg)
 }
@@ -47,6 +50,7 @@ func (msg *Msg) FromBytes(data []byte) error {
 	}
 	msg.Code = protoMsg.Code
 	msg.Payload = protoMsg.Payload
+	msg.ShardId = common.ShardId(protoMsg.ShardId)
 	return nil
 }
 
@@ -58,6 +62,7 @@ type handshakeData struct {
 	AppVersion   string
 	Peers        uint32
 	OldGenesis   *common.Hash
+	ShardId      common.ShardId
 }
 
 func (h *handshakeData) ToBytes() ([]byte, error) {
@@ -68,6 +73,7 @@ func (h *handshakeData) ToBytes() ([]byte, error) {
 		Timestamp:  h.Timestamp,
 		AppVersion: h.AppVersion,
 		Peers:      h.Peers,
+		ShardId:    uint32(h.ShardId),
 	}
 	if h.OldGenesis != nil {
 		protoHandshake.OldGenesis = h.OldGenesis.Bytes()
@@ -90,6 +96,7 @@ func (h *handshakeData) FromBytes(data []byte) error {
 		h.OldGenesis = &common.Hash{}
 		h.OldGenesis.SetBytes(protoHandshake.OldGenesis)
 	}
+	h.ShardId = common.ShardId(protoHandshake.ShardId)
 	return nil
 }
 
@@ -133,4 +140,24 @@ func (h *pushPullHash) String() string {
 
 func (h *pushPullHash) IsValid() bool {
 	return h.Type >= pushVote && h.Type <= pushTx
+}
+
+type updateShardId struct {
+	ShardId common.ShardId
+}
+
+func (u *updateShardId) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoUpdateShardId{
+		ShardId: uint32(u.ShardId),
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (u *updateShardId) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoUpdateShardId)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	u.ShardId = common.ShardId(protoObj.ShardId)
+	return nil
 }
