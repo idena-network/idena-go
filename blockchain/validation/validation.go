@@ -573,6 +573,15 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	if identityState == state.Candidate || identityState == state.Newbie || identityState == state.Killed {
 		return InvalidSender
 	}
+	if appCfg == nil || !appCfg.Consensus.ChangeKillTxValidation {
+		return nil
+	}
+	if sender == appState.State.GodAddress() {
+		return nil
+	}
+	if identityState == state.Undefined || identityState == state.Invite {
+		return InvalidSender
+	}
 	return nil
 }
 
