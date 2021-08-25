@@ -322,7 +322,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		if chain.config.GenesisConf.GodAddressInvites > 0 {
 			chain.appState.State.SetGodAddressInvites(chain.config.GenesisConf.GodAddressInvites)
 		} else {
-			chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0))
+			chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0, chain.config.Consensus.IncreaseGodInvitesLimit))
 		}
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
@@ -600,7 +600,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	appState.State.SetEpochBlock(block.Height())
 	appState.State.ClearEmptyBlocksByShard()
-	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
+	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize, chain.config.Consensus.IncreaseGodInvitesLimit))
 }
 
 func calculateNewIdentityStatusFlags(validationResults map[common.ShardId]*types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
