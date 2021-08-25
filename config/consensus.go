@@ -58,6 +58,7 @@ type ConsensusConf struct {
 	ReductionOneDelay                 time.Duration
 	EnableValidationSharding          bool
 	ChangeKillTxValidation            bool
+	IncreaseGodInvitesLimit           bool
 }
 
 type ConsensusVerson uint16
@@ -164,6 +165,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV6:
 		cfg.EnableValidationSharding = true
 		cfg.ChangeKillTxValidation = true
+		cfg.IncreaseGodInvitesLimit = true
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
