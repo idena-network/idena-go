@@ -16,7 +16,9 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/subscriptions"
+	"github.com/shopspring/decimal"
 	"github.com/tendermint/tm-db"
+	"math/big"
 )
 
 func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, valConf *config.ValidationConfig, alloc map[common.Address]config.GenesisAllocation, queueSlots int, executableSlots int, executableLimit int, queueLimit int) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
@@ -67,7 +69,7 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 	appState.Initialize(chain.Head.Height())
 	txPool.Initialize(chain.Head, secStore.GetAddress(), false)
 
-	return &TestBlockchain{db, chain}, appState, txPool, key
+	return &TestBlockchain{db, chain, 0}, appState, txPool, key
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
@@ -89,7 +91,9 @@ func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.P
 		Network:   0x99,
 		Consensus: consensusCfg,
 		GenesisConf: &config.GenesisConf{
-			Alloc:             nil,
+			Alloc: map[common.Address]config.GenesisAllocation{
+				addr: {Balance: big.NewInt(0).Mul(big.NewInt(100), common.DnaBase)},
+			},
 			GodAddress:        addr,
 			FirstCeremonyTime: 4070908800, //01.01.2099
 		},
@@ -120,8 +124,8 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 	chain.InitializeChain()
 	appState.Initialize(chain.Head.Height())
 
-	result := &TestBlockchain{db, chain}
-	result.GenerateBlocks(blocksCount).GenerateEmptyBlocks(emptyBlocksCount)
+	result := &TestBlockchain{db, chain, 0}
+	result.GenerateBlocks(blocksCount, 0).GenerateEmptyBlocks(emptyBlocksCount)
 	txPool.Initialize(chain.Head, secStore.GetAddress(), false)
 	return result, appState
 }
@@ -129,6 +133,11 @@ func NewCustomTestBlockchainWithConfig(blocksCount int, emptyBlocksCount int, ke
 type TestBlockchain struct {
 	db db.DB
 	*Blockchain
+	coinbaseTxNonce uint32
+}
+
+func (chain *TestBlockchain) AddTx(tx *types.Transaction) error {
+	return chain.txpool.AddExternalTxs(tx)
 }
 
 func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
@@ -164,7 +173,8 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 	copy := NewBlockchain(cfg, db, txPool, appState, ipfs.NewMemoryIpfsProxy(), chain.secStore, bus, offline, keyStore, subManager, upgrader)
 	copy.InitializeChain()
 	appState.Initialize(copy.Head.Height())
-	return &TestBlockchain{db, copy}, appState
+	txPool.Initialize(chain.Head, chain.secStore.GetAddress(), false)
+	return &TestBlockchain{db, copy, appState.State.GetNonce(chain.secStore.GetAddress())}, appState
 }
 
 func (chain *TestBlockchain) addCert(block *types.Block) {
@@ -183,8 +193,20 @@ func (chain *TestBlockchain) addCert(block *types.Block) {
 	chain.WriteCertificate(block.Header.Hash(), cert.Compress(), true)
 }
 
-func (chain *TestBlockchain) GenerateBlocks(count int) *TestBlockchain {
+func (chain *TestBlockchain) GenerateBlocks(count int, txsInBlock int) *TestBlockchain {
 	for i := 0; i < count; i++ {
+		for j := 0; j < txsInBlock; j++ {
+			tx := BuildTx(chain.appState, chain.coinBaseAddress, &chain.coinBaseAddress, types.SendTx, decimal.Zero,
+				decimal.New(20, 0), decimal.Zero, chain.coinbaseTxNonce, 0, nil)
+			tx, err := chain.secStore.SignTx(tx)
+			if err != nil {
+				panic(err)
+			}
+			if err = chain.txpool.AddExternalTxs(tx); err != nil {
+				panic(err)
+			}
+		}
+
 		block := chain.ProposeBlock([]byte{})
 		block.Block.Header.ProposedHeader.Time = chain.Head.Time() + 20
 		err := chain.AddBlock(block.Block, nil, collector.NewStatsCollector())

@@ -160,7 +160,13 @@ func (engine *Engine) loop() {
 		if err := engine.downloader.SyncBlockchain(engine.forkResolver); err != nil {
 			engine.synced = false
 			if engine.forkResolver.HasLoadedFork() {
-				engine.forkResolver.ApplyFork()
+				if revertedTxs, err := engine.forkResolver.ApplyFork(); err == nil {
+					if len(revertedTxs) > 0 {
+						engine.txpool.AddExternalTxs(revertedTxs...)
+					}
+				} else {
+					engine.log.Warn("fork apply error", "err", err)
+				}
 			} else {
 				engine.log.Warn("syncing error", "err", err)
 				time.Sleep(time.Second * 5)
@@ -229,8 +235,12 @@ func (engine *Engine) loop() {
 			engine.log.Info("Binary Ba is failed", "err", err)
 
 			if err == ForkDetected {
-				if err = engine.forkResolver.ApplyFork(); err != nil {
+				if revertedTxs, err := engine.forkResolver.ApplyFork(); err != nil {
 					engine.log.Error("error occurred during applying of fork", "err", err)
+				} else {
+					if len(revertedTxs) > 0 {
+						engine.txpool.AddExternalTxs(revertedTxs...)
+					}
 				}
 			}
 			continue

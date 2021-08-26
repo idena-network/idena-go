@@ -2095,10 +2095,10 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 	return nil
 }
 
-func (chain *Blockchain) ResetTo(height uint64) error {
+func (chain *Blockchain) ResetTo(height uint64) (revertedTxs []*types.Transaction, err error) {
 	prevHead := chain.Head.Height()
 	if err := chain.appState.ResetTo(height); err != nil {
-		return errors.WithMessage(err, "state is corrupted, try to resync from scratch")
+		return nil, errors.WithMessage(err, "state is corrupted, try to resync from scratch")
 	}
 	chain.setHead(height, nil)
 
@@ -2107,11 +2107,17 @@ func (chain *Blockchain) ResetTo(height uint64) error {
 		if hash == (common.Hash{}) {
 			continue
 		}
+		block := chain.GetBlock(hash)
+		if block != nil {
+			for _, tx := range block.Body.Transactions {
+				revertedTxs = append(revertedTxs, tx)
+			}
+		}
 		chain.repo.RemoveHeader(hash)
 		chain.repo.RemoveCanonicalHash(h)
 	}
-
-	return nil
+	chain.bus.Publish(&events.BlockchainResetEvent{Header: chain.Head, RevertedTxs: revertedTxs})
+	return revertedTxs, nil
 }
 
 func (chain *Blockchain) EnsureIntegrity() error {
@@ -2120,8 +2126,8 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		chain.Head.IdentityRoot() != chain.appState.IdentityState.Root() {
 		wasReset = true
 		resetTo := uint64(0)
-		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < int(state.MaxSavedStatesCount)+1; h, tryCnt = h-1, tryCnt+1 {
-			if  chain.appState.State.HasVersion(h) &&  chain.appState.IdentityState.HasVersion(h) {
+		for h, tryCnt := chain.Head.Height()-1, 0; h >= 1 && tryCnt < state.MaxSavedStatesCount+1; h, tryCnt = h-1, tryCnt+1 {
+			if chain.appState.State.HasVersion(h) && chain.appState.IdentityState.HasVersion(h) {
 				resetTo = h
 				break
 			}
@@ -2129,7 +2135,7 @@ func (chain *Blockchain) EnsureIntegrity() error {
 		if resetTo == 0 {
 			return errors.New("state db is corrupted, try to delete idenachain.db folder from your data directory and sync from scratch")
 		}
-		if err := chain.ResetTo(resetTo); err != nil {
+		if _, err := chain.ResetTo(resetTo); err != nil {
 			return err
 		}
 	}
@@ -2239,7 +2245,7 @@ func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
 	}
 	return &snapshot.Manifest{
 		Cid:    cid,
-		CidV2: cidV2,
+		CidV2:  cidV2,
 		Root:   root,
 		Height: height,
 	}
