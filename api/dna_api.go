@@ -547,6 +547,10 @@ func (api *DnaApi) Version() string {
 	return api.appVersion
 }
 
+func (api *DnaApi) MinimalClientVersion() string {
+	return "0.25.0"
+}
+
 type BurnArgs struct {
 	From   common.Address  `json:"from"`
 	Key    string          `json:"key"`
