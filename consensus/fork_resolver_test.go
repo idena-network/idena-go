@@ -13,12 +13,15 @@ import (
 
 func TestForkResolver_ResolveFork(t *testing.T) {
 	key, _ := crypto.GenerateKey()
-	chain, _ := blockchain.NewCustomTestBlockchain(100, 0, key)
+	chain, _ := blockchain.NewCustomTestBlockchain(0, 0, key)
+	chain.GenerateBlocks(80, 0)
+	chain.GenerateBlocks(20, 1)
 	chain2, _ := chain.Copy()
 	chain2.ResetTo(80)
+
 	require.Equal(t, chain.GetBlockHeaderByHeight(80).Hash(), chain2.Head.Hash())
 
-	chain2.GenerateEmptyBlocks(1).GenerateBlocks(20)
+	chain2.GenerateEmptyBlocks(1).GenerateBlocks(20, 0)
 
 	require.Equal(t, chain.Head.Height(), chain2.Head.Height())
 
@@ -43,7 +46,7 @@ func TestForkResolver_ResolveFork(t *testing.T) {
 
 	//applicable fork
 	chain2.ResetTo(80)
-	chain2.GenerateBlocks(26)
+	chain2.GenerateBlocks(26, 0)
 	forkBlocks = chain2.ReadBlockForForkedPeer(initialHashes)
 	blocks = make(chan types.BlockBundle, 22)
 
@@ -54,8 +57,14 @@ func TestForkResolver_ResolveFork(t *testing.T) {
 	err = resolver.processBlocks(blocks, "test-peer")
 	require.NoError(t, err)
 	require.True(t, resolver.HasLoadedFork())
+	revertedTxs, err := resolver.ApplyFork()
+	require.Len(t, revertedTxs, 20)
+	require.NoError(t, err)
 
-	require.NoError(t, resolver.ApplyFork())
+	for _, tx := range revertedTxs {
+		require.NoError(t, chain.AddTx(tx))
+	}
+
 	require.False(t, resolver.HasLoadedFork())
 	require.Nil(t, resolver.applicableFork)
 	require.True(t, resolver.triedPeers.Cardinality() == 0)
@@ -68,7 +77,7 @@ func TestForkResolver_ResolveFork2(t *testing.T) {
 	chain, _ := blockchain.NewCustomTestBlockchain(100, 0, key)
 	chain2, _ := chain.Copy()
 	chain2.ResetTo(80)
-	chain2.GenerateBlocks(50)
+	chain2.GenerateBlocks(50, 0)
 
 	//missed certificate
 	resolver := NewForkResolver([]ForkDetector{}, &protocol.Downloader{}, chain.Blockchain, collector.NewStatsCollector())

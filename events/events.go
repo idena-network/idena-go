@@ -18,6 +18,7 @@ const (
 	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
 	DeleteFlipEventID      = eventbus.EventID("flip-delete")
 	PeersEventID           = eventbus.EventID("peers")
+	BlockchainResetEventID = eventbus.EventID("chain-reset")
 )
 
 type NewTxEvent struct {
@@ -94,4 +95,13 @@ type PeersEvent struct {
 
 func (e *PeersEvent) EventID() eventbus.EventID {
 	return PeersEventID
+}
+
+type BlockchainResetEvent struct {
+	Header      *types.Header
+	RevertedTxs []*types.Transaction
+}
+
+func (e *BlockchainResetEvent) EventID() eventbus.EventID {
+	return BlockchainResetEventID
 }

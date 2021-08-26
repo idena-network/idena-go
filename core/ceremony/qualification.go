@@ -16,12 +16,12 @@ import (
 )
 
 type qualification struct {
-	shortAnswers  map[common.Address][]byte
-	longAnswers   map[common.Address][]byte
-	epochDb       *database.EpochDb
-	log           log.Logger
-	hasNewAnswers bool
-	lock          sync.RWMutex
+	shortAnswers map[common.Address][]byte
+	longAnswers  map[common.Address][]byte
+	epochDb      *database.EpochDb
+	log          log.Logger
+	hasChanges   bool
+	lock         sync.RWMutex
 }
 
 func NewQualification(epochDb *database.EpochDb) *qualification {
@@ -49,11 +49,30 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 	}
 	m[sender] = txPayload
 
-	q.hasNewAnswers = true
+	q.hasChanges = true
+}
+
+
+func (q *qualification) removeAnswers(short bool, sender common.Address) {
+	var m map[common.Address][]byte
+
+	if short {
+		m = q.shortAnswers
+	} else {
+		m = q.longAnswers
+	}
+
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	if _, ok := m[sender]; !ok {
+		return
+	}
+	delete(m, sender)
+	q.hasChanges = true
 }
 
 func (q *qualification) persist() {
-	if !q.hasNewAnswers {
+	if !q.hasChanges {
 		return
 	}
 	q.lock.RLock()
@@ -75,7 +94,7 @@ func (q *qualification) persist() {
 
 	q.epochDb.WriteAnswers(short, long)
 
-	q.hasNewAnswers = false
+	q.hasChanges = false
 }
 
 func (q *qualification) restore() {
