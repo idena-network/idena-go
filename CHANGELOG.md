@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.26.8-rc1 (26 Aug, 2021)
+
+- Add RPC method to fetch minimal required client version ([#786](https://github.com/idena-network/idena-go/pull/786))
+- Restore mined transactions to mempool after blocks rollback ([#768](https://github.com/idena-network/idena-go/pull/768))
+- Add mempool nonce into response of getBalance rpc method ([#779](https://github.com/idena-network/idena-go/pull/779))
+- Make all flips loading time configurable ([#773](https://github.com/idena-network/idena-go/pull/773))
+- Update boot nodes ([#787](https://github.com/idena-network/idena-go/pull/787))
+
 ## 0.26.7 (09 Aug, 2021)
 
 ### Changes
