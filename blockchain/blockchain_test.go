@@ -391,10 +391,10 @@ func Test_applyVrfProposerThreshold(t *testing.T) {
 	chain.GenerateEmptyBlocks(10)
 	require.Equal(t, 10, chain.appState.State.EmptyBlocksCount())
 
-	chain.GenerateBlocks(5)
+	chain.GenerateBlocks(5, 0)
 	require.Equal(t, 10, chain.appState.State.EmptyBlocksCount())
 
-	chain.GenerateBlocks(100)
+	chain.GenerateBlocks(100, 0)
 	require.Equal(t, 0.5, chain.appState.State.VrfProposerThreshold())
 }
 
@@ -557,7 +557,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.NoError(err)
 
 	// apply pending status switch
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	require.Equal(1, len(state.State.StatusSwitchAddresses()))
 	require.False(state.IdentityState.IsOnline(addr))
 
@@ -567,26 +567,26 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.Error(err, "should not validate tx if switch is already pending")
 
 	// switch status to online
-	chain.GenerateBlocks(3)
+	chain.GenerateBlocks(3, 0)
 	require.Equal(uint64(10), chain.Head.Height())
 	require.Zero(len(state.State.StatusSwitchAddresses()))
 	require.True(state.IdentityState.IsOnline(addr))
 	require.True(chain.Head.Flags().HasFlag(types.IdentityUpdate))
 
 	// fail to switch online again
-	chain.GenerateBlocks(5)
+	chain.GenerateBlocks(5, 0)
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.AddInternalTx(tx)
 	require.Error(err, "should not validate tx if identity already has online status")
 
 	// add pending request to switch offline
-	chain.GenerateBlocks(4)
+	chain.GenerateBlocks(4, 0)
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
 	err = chain.txpool.AddInternalTx(tx)
 	require.NoError(err)
 
 	// switch status to offline
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	require.Equal(uint64(20), chain.Head.Height())
 	require.Zero(len(state.State.StatusSwitchAddresses()))
 	require.False(state.IdentityState.IsOnline(addr))
@@ -596,7 +596,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.AddInternalTx(tx)
 	require.NoError(err)
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 
 	require.Equal(1, len(state.State.StatusSwitchAddresses()))
 
@@ -604,17 +604,17 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(false)))
 	err = chain.txpool.AddInternalTx(tx)
 	require.NoError(err)
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 
 	require.Zero(len(state.State.StatusSwitchAddresses()))
 
 	// 30th block should not update identity statuses, no pending requests
-	chain.GenerateBlocks(8)
+	chain.GenerateBlocks(8, 0)
 	require.Equal(uint64(30), chain.Head.Height())
 	require.False(state.IdentityState.IsOnline(addr))
 	require.False(chain.Head.Flags().HasFlag(types.IdentityUpdate))
 
-	chain.GenerateBlocks(70)
+	chain.GenerateBlocks(70, 0)
 	require.Equal(uint64(100), chain.Head.Height())
 
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
@@ -622,7 +622,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.Nil(err)
 
 	// switch status to online
-	chain.GenerateBlocks(10)
+	chain.GenerateBlocks(10, 0)
 
 	require.True(state.IdentityState.IsOnline(addr))
 	state.State.AddDelayedPenalty(common.Address{0x2})
@@ -634,7 +634,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
 	err = chain.txpool.AddInternalTx(tx)
 	require.Nil(err)
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 
 	require.Equal([]common.Address{{0x2}, {0x3}}, state.State.DelayedOfflinePenalties())
 	require.True(state.IdentityState.IsOnline(addr))
@@ -643,7 +643,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	state.State.AddDelayedPenalty(addr)
 	state.Commit(nil)
 	chain.CommitState()
-	chain.GenerateBlocks(10)
+	chain.GenerateBlocks(10, 0)
 
 	require.False(state.IdentityState.IsOnline(addr))
 	require.True(state.State.GetPenalty(addr).Sign() > 0)
@@ -695,7 +695,7 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	err = chain.txpool.AddInternalTx(signed)
 	require.NoError(t, err)
 
-	chain.GenerateBlocks(3)
+	chain.GenerateBlocks(3, 0)
 
 	require.True(t, app.State.HasValidationTx(addr, types.SubmitAnswersHashTx))
 	require.False(t, app.State.HasValidationTx(addr, types.SubmitShortAnswersTx))
@@ -709,7 +709,7 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	err = chain.txpool.AddInternalTx(signed)
 	require.NoError(t, err)
 
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	require.True(t, app.State.HasValidationTx(addr, types.SubmitAnswersHashTx))
 	require.True(t, app.State.HasValidationTx(addr, types.EvidenceTx))
 
@@ -736,7 +736,7 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 		receiver := crypto.PubkeyToAddress(keyReceiver.PublicKey)
 		tx, _ := chain.secStore.SignTx(BuildTx(state, addr, &receiver, types.InviteTx, decimal.Zero, decimal.New(2, 0), decimal.Zero, 0, 0, nil))
 		require.NoError(chain.txpool.AddInternalTx(tx))
-		chain.GenerateBlocks(1)
+		chain.GenerateBlocks(1, 0)
 	}
 
 	keyReceiver, _ := crypto.GenerateKey()
@@ -998,18 +998,18 @@ func Test_Delegation(t *testing.T) {
 	require.NoError(t, addTx(keys[2], types.DelegateTx, 1, 0, &pool2, nil))
 	require.NoError(t, addTx(keys[3], types.DelegateTx, 1, 0, &pool3, nil))
 
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	require.ErrorIs(t, validation.InvalidRecipient, addTx(pool3Key, types.DelegateTx, 1, 0, &pool3, nil))
 	require.NoError(t, addTx(pool3Key, types.DelegateTx, 1, 0, &pool2, nil))
 
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 
 	require.Len(t, appState.State.Delegations(), 5)
 
 	require.NoError(t, addTx(keys[0], types.OnlineStatusTx, 2, 0, nil, attachments.CreateOnlineStatusAttachment(false)))
 	require.NoError(t, addTx(keys[3], types.OnlineStatusTx, 2, 0, nil, attachments.CreateOnlineStatusAttachment(true)))
 
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	chain.GenerateEmptyBlocks(50)
 
 	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(addrs[0]))
@@ -1027,7 +1027,7 @@ func Test_Delegation(t *testing.T) {
 
 	addr3 := crypto.PubkeyToAddress(keys[3].PublicKey)
 	require.NoError(t, addTx(pool3Key, types.KillDelegatorTx, 2, 0, &addr3, nil))
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool3))
 	require.False(t, appState.ValidatorsCache.IsPool(pool3))
@@ -1042,10 +1042,10 @@ func Test_Delegation(t *testing.T) {
 	require.NoError(t, addTx(keys[1], types.UndelegateTx, 1, 1, nil, nil))
 	require.NoError(t, addTx(keys[2], types.UndelegateTx, 1, 1, nil, nil))
 
-	chain.GenerateBlocks(1)
+	chain.GenerateBlocks(1, 0)
 	require.Len(t, appState.State.Delegations(), 2)
 
-	chain.GenerateBlocks(50)
+	chain.GenerateBlocks(50, 0)
 	require.Len(t, appState.State.Delegations(), 0)
 
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool2))

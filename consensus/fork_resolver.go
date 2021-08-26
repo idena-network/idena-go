@@ -144,7 +144,7 @@ func (resolver *ForkResolver) checkForkSize(fork []types.BlockBundle) error {
 	return errors.New("fork has worse seed")
 }
 
-func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []types.BlockBundle) error {
+func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []types.BlockBundle) ([]*types.Transaction, error) {
 
 	defer func() {
 		resolver.applicableFork = nil
@@ -154,21 +154,22 @@ func (resolver *ForkResolver) applyFork(commonHeight uint64, fork []types.BlockB
 			d.ClearPotentialForks()
 		}
 	}()
-
-	if err := resolver.chain.ResetTo(commonHeight); err != nil {
-		return err
+	var revertedTxs []*types.Transaction
+	var err error
+	if revertedTxs, err = resolver.chain.ResetTo(commonHeight); err != nil {
+		return nil, err
 	}
 	for _, bundle := range fork {
 		if err := resolver.chain.AddBlock(bundle.Block, nil, resolver.statsCollector); err != nil {
-			return err
+			return nil, err
 		}
 		resolver.chain.WriteCertificate(bundle.Block.Hash(), bundle.Cert, false)
 	}
 
-	return nil
+	return revertedTxs, nil
 }
 
-func (resolver *ForkResolver) ApplyFork() error {
+func (resolver *ForkResolver) ApplyFork() (revertedTxs []*types.Transaction, err error) {
 	if !resolver.HasLoadedFork() {
 		panic("resolver hasn't applicable fork")
 	}

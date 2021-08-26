@@ -275,7 +275,7 @@ func (node *Node) StartWithHeight(height uint64) {
 	}
 
 	if height > 0 && node.blockchain.Head.Height() > height {
-		if err := node.blockchain.ResetTo(height); err != nil {
+		if _, err := node.blockchain.ResetTo(height); err != nil {
 			node.log.Error(fmt.Sprintf("Cannot reset blockchain to %d", height), "error", err.Error())
 			return
 		}

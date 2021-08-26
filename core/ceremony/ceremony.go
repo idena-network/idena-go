@@ -189,6 +189,24 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 			vc.addNewTx(newTxEvent.Tx)
 		}
 	})
+	_ = vc.bus.Subscribe(events.BlockchainResetEventID, func(e eventbus.Event) {
+		resetEvent := e.(*events.BlockchainResetEvent)
+		for _, tx := range resetEvent.RevertedTxs {
+			sender, _ := types.Sender(tx)
+
+			switch tx.Type {
+			case types.SubmitAnswersHashTx:
+				vc.epochDb.RemoveAnswerHash(sender)
+			case types.SubmitShortAnswersTx:
+				vc.qualification.removeAnswers(true, sender)
+			case types.SubmitLongAnswersTx:
+				vc.qualification.removeAnswers(false, sender)
+			case types.EvidenceTx:
+				vc.epochDb.RemoveEvidenceMap(sender)
+			}
+		}
+		vc.qualification.persist()
+	})
 
 	go vc.newTxLoop()
 	vc.restoreState()
