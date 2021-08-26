@@ -881,7 +881,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
+func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	appState.State.SetState(addr, value.state)
 	collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -889,6 +889,15 @@ func applyOnState(appState *appstate.AppState, statsCollector collector.StatsCol
 		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount))
 	}
 	appState.State.SetBirthday(addr, value.birthday)
+
+	if cfg.FixDelegation && value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
+		transitiveDelegatee := appState.State.Delegatee(*value.delegatee)
+		if transitiveDelegatee != nil {
+		 	value.delegatee = nil
+		 	appState.State.RemoveDelegatee(addr)
+		}
+	}
+
 	if value.state == state.Verified && value.prevState == state.Newbie {
 		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
 		addTo := addr
@@ -926,7 +935,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
-				identitiesCount += applyOnState(appState, statsCollector, addr, value)
+				identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
 			}
 			return identitiesCount, applyingCache.validationResults, false
 		}
@@ -1055,7 +1064,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	}
 
 	for addr, value := range epochApplyingValues {
-		identitiesCount += applyOnState(appState, statsCollector, addr, value)
+		identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
 	}
 	for shardId, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
@@ -1077,7 +1086,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				delegatee:                identity.Delegatee,
 			}
 			epochApplyingValues[addr] = value
-			identitiesCount += applyOnState(appState, statsCollector, addr, value)
+			identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
 		}
 	}
 
