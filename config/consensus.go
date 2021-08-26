@@ -60,6 +60,7 @@ type ConsensusConf struct {
 	ChangeKillTxValidation            bool
 	IncreaseGodInvitesLimit           bool
 	FixDelegation                     bool
+	FixSmallReportCommittee           bool
 }
 
 type ConsensusVerson uint16
@@ -168,6 +169,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.ChangeKillTxValidation = true
 		cfg.IncreaseGodInvitesLimit = true
 		cfg.FixDelegation = true
+		cfg.FixSmallReportCommittee = true
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true

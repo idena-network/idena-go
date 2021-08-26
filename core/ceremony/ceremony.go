@@ -147,7 +147,7 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
-	vc.qualification = NewQualification(vc.epochDb)
+	vc.qualification = NewQualification(vc.config, vc.epochDb)
 	_ = vc.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
 			newBlockEvent := e.(*events.NewBlockEvent)
@@ -355,7 +355,7 @@ func (vc *ValidationCeremony) completeEpoch() {
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
 
-	vc.qualification = NewQualification(vc.epochDb)
+	vc.qualification = NewQualification(vc.config, vc.epochDb)
 	vc.flipper.Clear()
 	vc.keysPool.Clear()
 	vc.appState.EvidenceMap.Clear()
