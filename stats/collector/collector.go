@@ -116,6 +116,8 @@ type StatsCollector interface {
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 
 	RemoveMemPoolTx(tx *types.Transaction)
+
+	AddRemovedTransitiveDelegation(delegator, delegatee common.Address)
 }
 
 type GetBalanceFunc func(address common.Address) *big.Int
@@ -1006,4 +1008,15 @@ func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt, appState *appsta
 		return
 	}
 	c.AddTxReceipt(txReceipt, appState)
+}
+
+func (c *collectorStub) AddRemovedTransitiveDelegation(delegator, delegatee common.Address) {
+	// do nothing
+}
+
+func AddRemovedTransitiveDelegation(c StatsCollector, delegator, delegatee common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddRemovedTransitiveDelegation(delegator, delegatee)
 }
