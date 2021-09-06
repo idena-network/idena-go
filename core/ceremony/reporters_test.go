@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -109,19 +110,21 @@ func Test_setValidationResult(t *testing.T) {
 		addr4: {3, 4},
 	}
 
-	r.setValidationResult(addr1, state.Newbie, false, flipsByAuthor)
+	conf := &config.ConsensusConf{}
+
+	r.setValidationResult(addr1, state.Newbie, false, flipsByAuthor, conf)
 	require.Equal(t, uint8(state.Newbie), r.reportersByAddr[addr1].NewIdentityState)
 
-	r.setValidationResult(addr2, state.Human, false, flipsByAuthor)
+	r.setValidationResult(addr2, state.Human, false, flipsByAuthor, conf)
 	require.Equal(t, uint8(state.Human), r.reportersByAddr[addr2].NewIdentityState)
 
-	r.setValidationResult(addr1, state.Killed, false, flipsByAuthor)
+	r.setValidationResult(addr1, state.Killed, false, flipsByAuthor, conf)
 	require.Equal(t, 1, len(r.reportedFlipsByReporter))
 	require.Equal(t, 1, len(r.reportersByAddr))
 	require.NotContains(t, r.reportersByAddr, addr1)
 	require.NotContains(t, r.reportedFlipsByReporter, addr1)
 
-	r.setValidationResult(addr3, state.Suspended, true, flipsByAuthor)
+	r.setValidationResult(addr3, state.Suspended, true, flipsByAuthor, conf)
 	require.Equal(t, 0, len(r.reportedFlipsByReporter))
 	require.Equal(t, 0, len(r.reportersByAddr))
 	require.Equal(t, 0, len(r.reportersByFlip))

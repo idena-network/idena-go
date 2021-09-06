@@ -31,6 +31,7 @@ type ConsensusConf struct {
 	SuccessfulValidationRewardPercent float32
 	FlipRewardPercent                 float32
 	ValidInvitationRewardPercent      float32
+	ReportsRewardPercent              float32
 	FoundationPayoutsPercent          float32
 	ZeroWalletPercent                 float32
 	FirstInvitationRewardCoef         float32
@@ -109,6 +110,7 @@ func init() {
 		SuccessfulValidationRewardPercent: 0.24,
 		FlipRewardPercent:                 0.32,
 		ValidInvitationRewardPercent:      0.32,
+		ReportsRewardPercent:              0,
 		FoundationPayoutsPercent:          0.1,
 		ZeroWalletPercent:                 0.02,
 		FirstInvitationRewardCoef:         3.0,
@@ -165,6 +167,10 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.StartActivationDate = time.Date(2021, 05, 11, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 05, 18, 0, 0, 0, 0, time.UTC).Unix()
 	case ConsensusV6:
+		cfg.SuccessfulValidationRewardPercent = 0.2
+		cfg.FlipRewardPercent = 0.35
+		cfg.ValidInvitationRewardPercent = 0.18
+		cfg.ReportsRewardPercent = 0.15
 		cfg.EnableValidationSharding = true
 		cfg.ChangeKillTxValidation = true
 		cfg.IncreaseGodInvitesLimit = true

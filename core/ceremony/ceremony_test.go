@@ -439,8 +439,8 @@ func Test_analyzeAuthors(t *testing.T) {
 
 			string([]byte{0x15}): auth11,
 			string([]byte{0x16}): auth11,
-			},
-		}}
+		},
+	}}
 
 	qualification := []FlipQualification{
 		{status: Qualified, grade: types.GradeD},
@@ -493,7 +493,8 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporters.addReport(21, reporter1)
 	reporters.addReport(21, reporter2)
 
-	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0)
+	conf := &config.ConsensusConf{}
+	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0, conf)
 
 	require.Contains(t, bad, auth2)
 	require.Contains(t, bad, auth3)
@@ -690,7 +691,6 @@ func Test_applyOnState(t *testing.T) {
 	})
 	identity = appstate.State.GetIdentity(addr1)
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
-
 
 	appstate.State.SetDelegatee(delegatee, common.Address{0x3})
 
