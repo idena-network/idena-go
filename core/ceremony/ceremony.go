@@ -235,7 +235,6 @@ func (vc *ValidationCeremony) GetShortFlipsToSolve(address common.Address, shard
 	vc.mutex.Lock()
 	defer vc.mutex.Unlock()
 
-
 	shard, ok := vc.shardCandidates[shardId]
 	if !ok {
 		return nil
@@ -893,8 +892,10 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 	if cfg.FixDelegation && value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
 		transitiveDelegatee := appState.State.Delegatee(*value.delegatee)
 		if transitiveDelegatee != nil {
-		 	value.delegatee = nil
-		 	appState.State.RemoveDelegatee(addr)
+			delegatee := *value.delegatee
+			value.delegatee = nil
+			appState.State.RemoveDelegatee(addr)
+			collector.AddRemovedTransitiveDelegation(statsCollector, addr, delegatee)
 		}
 	}
 
@@ -924,8 +925,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
 	defer func() {
-		//TODO : modify collector to save stats by shards
-		//collector.SetValidation(statsCollector, vc.validationStats)
+		collector.SetValidation(statsCollector, vc.validationStats)
 	}()
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
