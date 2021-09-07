@@ -1404,9 +1404,17 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 	return vc.flipWordsInfo.pairs
 }
 
+func (vc *ValidationCeremony) GetWordDictionaryRange() (firstIndex, size int) {
+	if vc.config.Consensus.NewKeyWordsEpoch > 0 && vc.epoch >= vc.config.Consensus.NewKeyWordsEpoch {
+		return common.WordDictionary2FirstIndex, common.WordDictionary2Size
+	}
+	return 0, common.WordDictionarySize
+}
+
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	vc.flipWordsInfo.pairs, vc.flipWordsInfo.proof = vc.GeneratePairs(seed, common.WordDictionarySize,
+	firstIndex, wordsDictionarySize := vc.GetWordDictionaryRange()
+	vc.flipWordsInfo.pairs, vc.flipWordsInfo.proof = vc.GeneratePairs(seed, firstIndex, wordsDictionarySize,
 		identity.GetTotalWordPairsCount())
 }
 
@@ -1444,7 +1452,9 @@ func (vc *ValidationCeremony) GetFlipWords(cid []byte) (word1, word2 int, err er
 		}
 	}
 
-	return GetWords(rnd, common.WordDictionarySize, identity.GetTotalWordPairsCount(), pairId)
+	firstIndex, wordsDictionarySize := vc.GetWordDictionaryRange()
+
+	return GetWords(rnd, firstIndex, wordsDictionarySize, identity.GetTotalWordPairsCount(), pairId)
 }
 
 func (vc *ValidationCeremony) getCandidateIndex(addr common.Address) int {

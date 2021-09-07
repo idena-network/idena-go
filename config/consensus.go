@@ -61,6 +61,7 @@ type ConsensusConf struct {
 	IncreaseGodInvitesLimit           bool
 	FixDelegation                     bool
 	FixSmallReportCommittee           bool
+	NewKeyWordsEpoch                  uint16
 }
 
 type ConsensusVerson uint16
@@ -170,6 +171,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.IncreaseGodInvitesLimit = true
 		cfg.FixDelegation = true
 		cfg.FixSmallReportCommittee = true
+		cfg.NewKeyWordsEpoch = 75
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
