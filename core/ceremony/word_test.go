@@ -37,7 +37,8 @@ func Test_GeneratePairs(t *testing.T) {
 		require.NotNil(t, proof)
 
 		for i := 0; i < len(nums); i++ {
-			require.True(t, nums[i] < tc.dictionarySize)
+			require.True(t, nums[i] >= 5)
+			require.True(t, nums[i] < tc.dictionarySize+5)
 		}
 
 		if !tc.checkUniqueness {
