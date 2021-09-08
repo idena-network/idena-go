@@ -959,7 +959,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		shardValidationResults := new(types.ValidationResults)
 		shardValidationResults.GoodInviters = make(map[common.Address]*types.InviterValidationResult)
-		shardValidationResults.BadAuthors, shardValidationResults.GoodAuthors, shardValidationResults.AuthorResults, flipsByAuthor, reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward, shardId)
+		shardValidationResults.BadAuthors, shardValidationResults.GoodAuthors, shardValidationResults.AuthorResults, flipsByAuthor, reportersToReward = vc.analyzeAuthors(flipQualification, reportersToReward, shardId, vc.config.Consensus)
 
 		vc.logInfoWithInteraction("Approved candidates", "shardId", shardId, "cnt", len(approvedCandidates))
 
@@ -1002,7 +1002,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
 			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
 			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, identity.Invites)
-			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor)
+			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor, vc.config.Consensus)
 
 			value := cacheValue{
 				state:                    newIdentityState,
@@ -1148,8 +1148,8 @@ func getOrPutGoodInviter(validationResults *types.ValidationResults, address com
 	return inviter, true
 }
 
-func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification, reportersToReward *reportersToReward, shardId common.ShardId) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults, madeFlips map[common.Address][]int, filteredReportersToReward *reportersToReward) {
-
+func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification, reportersToReward *reportersToReward, shardId common.ShardId, cfg *config.ConsensusConf) (badAuthors map[common.Address]types.BadAuthorReason, goodAuthors map[common.Address]*types.ValidationResult, authorResults map[common.Address]*types.AuthorResults, madeFlips map[common.Address][]int, filteredReportersToReward *reportersToReward) {
+	rewardAnyReport := cfg.ReportsRewardPercent > 0
 	badAuthors = make(map[common.Address]types.BadAuthorReason)
 	goodAuthors = make(map[common.Address]*types.ValidationResult)
 	authorResults = make(map[common.Address]*types.AuthorResults)
@@ -1171,8 +1171,10 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 			}
 			if item.grade == types.GradeReported {
 				badAuthors[author] = types.WrongWordsBadAuthor
-				if item.status != Qualified && item.status != WeaklyQualified {
-					reportersToReward.deleteFlip(flipIdx)
+				if !rewardAnyReport {
+					if item.status != Qualified && item.status != WeaklyQualified {
+						reportersToReward.deleteFlip(flipIdx)
+					}
 				}
 			} else if _, ok := badAuthors[author]; !ok {
 				badAuthors[author] = types.QualifiedByNoneBadAuthor
@@ -1209,9 +1211,11 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 	for author := range badAuthors {
 		delete(goodAuthors, author)
 		reportersToReward.deleteReporter(author)
-		if _, ok := badAuthorsWithoutReport[author]; ok {
-			for _, flipIdx := range madeFlips[author] {
-				reportersToReward.deleteFlip(flipIdx)
+		if !rewardAnyReport {
+			if _, ok := badAuthorsWithoutReport[author]; ok {
+				for _, flipIdx := range madeFlips[author] {
+					reportersToReward.deleteFlip(flipIdx)
+				}
 			}
 		}
 	}

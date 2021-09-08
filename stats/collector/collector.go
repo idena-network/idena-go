@@ -21,6 +21,7 @@ type StatsCollector interface {
 	SetTotalReward(amount *big.Int)
 	SetTotalValidationReward(amount *big.Int, share *big.Int)
 	SetTotalFlipsReward(amount *big.Int, share *big.Int)
+	SetTotalReportsReward(amount *big.Int, share *big.Int)
 	SetTotalInvitationsReward(amount *big.Int, share *big.Int)
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
@@ -201,6 +202,17 @@ func SetTotalFlipsReward(c StatsCollector, amount *big.Int, share *big.Int) {
 		return
 	}
 	c.SetTotalFlipsReward(amount, share)
+}
+
+func (c *collectorStub) SetTotalReportsReward(amount *big.Int, share *big.Int) {
+	// do nothing
+}
+
+func SetTotalReportsReward(c StatsCollector, amount *big.Int, share *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalReportsReward(amount, share)
 }
 
 func (c *collectorStub) SetTotalInvitationsReward(amount *big.Int, share *big.Int) {
