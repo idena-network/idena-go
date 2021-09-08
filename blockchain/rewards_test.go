@@ -34,6 +34,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf.FinalCommitteeReward = big.NewInt(5)
 	config.ApplyConsensusVersion(config.ConsensusV4, conf)
 	config.ApplyConsensusVersion(config.ConsensusV5, conf)
+	config.ApplyConsensusVersion(config.ConsensusV6, conf)
 
 	memdb := db.NewMemDB()
 
@@ -51,6 +52,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(auth3, state.Human)
 	appState.State.SetState(auth4, state.Suspended)
 	appState.State.SetState(badAuth, state.Newbie)
+	appState.State.SetShardsNum(2)
 	appState.Commit(nil)
 
 	validationResults := map[common.ShardId]*types.ValidationResults{
@@ -81,15 +83,19 @@ func Test_rewardValidIdentities(t *testing.T) {
 						NewIdentityState: uint8(state.Verified),
 					},
 				},
+			},
+		},
+		2: {
+			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
 				150: {
 					reporter: &types.Candidate{
 						Address:          reporter,
 						NewIdentityState: uint8(state.Newbie),
-							},
-						},
-						151: {},
 					},
 				},
+				151: {},
+			},
+		},
 	}
 	appState.State.SetState(auth1, state.Verified)
 	appState.State.SetBirthday(auth1, 2)
@@ -110,8 +116,8 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	appState.Commit(nil)
 
-	validationReward := float32(240) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
-	flipReward := float32(400) / 25
+	validationReward := float32(200) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
+	flipReward := float32(350) / 23
 	godPayout := float32(100)
 
 	// sum all coefficients
@@ -120,7 +126,9 @@ func Test_rewardValidIdentities(t *testing.T) {
 	// auth4: conf.ThirdInvitationRewardCoef (18)
 	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
 	// total: 57
-	invitationReward := float32(4.2105263) // 240/57
+	invitationReward := float32(3.1578947) // 180/57
+
+	reportReward := float32(50) // 150 / 3
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
 
@@ -131,7 +139,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*11.0, flipReward*0.5)
+	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*11.0, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
@@ -144,7 +152,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)
 
-	reward, stake = splitAndSum(conf, true, flipReward, flipReward*0.5)
+	reward, stake = splitAndSum(conf, true, reportReward, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(reporter)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(reporter)) == 0)
 
