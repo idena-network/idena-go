@@ -439,8 +439,8 @@ func Test_analyzeAuthors(t *testing.T) {
 
 			string([]byte{0x15}): auth11,
 			string([]byte{0x16}): auth11,
-			},
-		}}
+		},
+	}}
 
 	qualification := []FlipQualification{
 		{status: Qualified, grade: types.GradeD},
@@ -493,7 +493,8 @@ func Test_analyzeAuthors(t *testing.T) {
 	reporters.addReport(21, reporter1)
 	reporters.addReport(21, reporter2)
 
-	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0)
+	conf := &config.ConsensusConf{}
+	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0, conf)
 
 	require.Contains(t, bad, auth2)
 	require.Contains(t, bad, auth3)
@@ -553,6 +554,179 @@ func Test_analyzeAuthors(t *testing.T) {
 	require.Equal(t, 1, len(reporters.reportedFlipsByReporter[reporter3]))
 	require.Contains(t, reporters.reportedFlipsByReporter[reporter3], 15)
 
+}
+
+func Test_analyzeAuthors2(t *testing.T) {
+	vc := ValidationCeremony{}
+
+	auth1 := common.Address{1}
+	auth2 := common.Address{2}
+	auth3 := common.Address{3}
+	auth4 := common.Address{4}
+	auth5 := common.Address{5}
+	auth6 := common.Address{6}
+	auth7 := common.Address{7}
+	auth8 := common.Address{8}
+	auth9 := common.Address{9}
+	auth10 := common.Address{10}
+	auth11 := common.Address{11}
+
+	reporter1 := common.Address{12}
+	reporter2 := common.Address{13}
+	reporter3 := common.Address{14}
+
+	vc.shardCandidates = map[common.ShardId]*candidatesOfShard{0: {
+		flips: [][]byte{{0x0}, {0x1}, {0x2}, {0x3}, {0x4}, {0x5}, {0x6}, {0x7}, {0x8}, {0x9}, {0xa}, {0xb}, {0xc},
+			{0xd}, {0xe}, {0xf}, {0x10}, {0x11}, {0x12}, {0x13}, {0x14}, {0x15}, {0x16}},
+		flipAuthorMap: map[string]common.Address{
+			string([]byte{0x0}): auth1,
+			string([]byte{0x1}): auth1,
+			string([]byte{0x2}): auth1,
+
+			string([]byte{0x3}): auth2,
+			string([]byte{0x4}): auth2,
+
+			string([]byte{0x5}): auth3,
+			string([]byte{0x6}): auth3,
+
+			string([]byte{0x7}): auth4,
+			string([]byte{0x8}): auth4,
+
+			string([]byte{0x9}): auth5,
+
+			string([]byte{0xa}): auth6,
+			string([]byte{0xb}): auth6,
+			string([]byte{0xc}): auth6,
+
+			string([]byte{0xd}): auth7,
+			string([]byte{0xe}): auth7,
+
+			string([]byte{0xf}):  auth8,
+			string([]byte{0x10}): auth8,
+
+			string([]byte{0x11}): auth9,
+			string([]byte{0x12}): auth9,
+
+			string([]byte{0x13}): auth10,
+			string([]byte{0x14}): auth10,
+
+			string([]byte{0x15}): auth11,
+			string([]byte{0x16}): auth11,
+		},
+	}}
+
+	qualification := []FlipQualification{
+		{status: Qualified, grade: types.GradeD},
+		{status: WeaklyQualified, grade: types.GradeC},
+		{status: NotQualified, grade: types.GradeD},
+
+		{status: QualifiedByNone, grade: types.GradeD},
+		{status: Qualified, grade: types.GradeD},
+
+		{status: WeaklyQualified, grade: types.GradeReported},
+		{status: Qualified, grade: types.GradeD},
+
+		{status: NotQualified, grade: types.GradeD},
+		{status: NotQualified, grade: types.GradeD},
+
+		{status: QualifiedByNone, grade: types.GradeD},
+
+		{status: Qualified, grade: types.GradeD},
+		{status: WeaklyQualified, grade: types.GradeD},
+		{status: Qualified, grade: types.GradeD},
+
+		{status: NotQualified, grade: types.GradeReported},
+		{status: Qualified, grade: types.GradeA},
+
+		{status: Qualified, grade: types.GradeReported},
+		{status: NotQualified, grade: types.GradeA},
+
+		{status: QualifiedByNone, grade: types.GradeReported},
+		{status: Qualified, grade: types.GradeA},
+
+		{status: NotQualified, grade: types.GradeReported},
+		{status: NotQualified, grade: types.GradeC},
+
+		{status: WeaklyQualified, grade: types.GradeReported},
+		{status: QualifiedByNone, grade: types.GradeA},
+	}
+	reporters := newReportersToReward()
+	reporters.addReport(5, reporter1)
+	reporters.addReport(5, auth2)
+	reporters.addReport(13, reporter1)
+	reporters.addReport(13, reporter2)
+	reporters.addReport(15, reporter1)
+	reporters.addReport(15, reporter3)
+	reporters.addReport(15, auth2)
+	reporters.addReport(17, reporter1)
+	reporters.addReport(17, reporter2)
+	reporters.addReport(17, reporter3)
+	reporters.addReport(19, reporter2)
+	reporters.addReport(19, reporter3)
+	reporters.addReport(21, reporter1)
+	reporters.addReport(21, reporter2)
+
+	conf := &config.ConsensusConf{
+		ReportsRewardPercent: 0.01,
+	}
+	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0, conf)
+
+	require.Contains(t, bad, auth2)
+	require.Contains(t, bad, auth3)
+	require.Contains(t, bad, auth4)
+	require.Contains(t, bad, auth5)
+	require.Contains(t, bad, auth7)
+	require.Contains(t, bad, auth8)
+	require.Contains(t, bad, auth9)
+	require.Contains(t, bad, auth10)
+	require.NotContains(t, bad, auth1)
+	require.NotContains(t, bad, auth6)
+
+	require.Contains(t, good, auth1)
+	require.Equal(t, 2, len(good[auth1].FlipsToReward))
+	require.Equal(t, types.GradeD, good[auth1].FlipsToReward[0].Grade)
+	require.Equal(t, []byte{0x0}, good[auth1].FlipsToReward[0].Cid)
+	require.Equal(t, types.GradeC, good[auth1].FlipsToReward[1].Grade)
+	require.Equal(t, []byte{0x1}, good[auth1].FlipsToReward[1].Cid)
+
+	require.True(t, authorResults[auth1].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth1].AllFlipsNotQualified)
+	require.False(t, authorResults[auth1].HasOneReportedFlip)
+
+	require.False(t, authorResults[auth6].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth6].AllFlipsNotQualified)
+	require.False(t, authorResults[auth6].HasOneReportedFlip)
+
+	require.False(t, authorResults[auth3].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth3].AllFlipsNotQualified)
+	require.True(t, authorResults[auth3].HasOneReportedFlip)
+
+	require.True(t, authorResults[auth4].HasOneNotQualifiedFlip)
+	require.True(t, authorResults[auth4].AllFlipsNotQualified)
+	require.False(t, authorResults[auth4].HasOneReportedFlip)
+
+	require.False(t, authorResults[auth9].HasOneNotQualifiedFlip)
+	require.False(t, authorResults[auth9].AllFlipsNotQualified)
+	require.True(t, authorResults[auth9].HasOneReportedFlip)
+
+	require.Equal(t, 11, len(madeFlips))
+
+	require.Equal(t, 6, len(reporters.reportersByFlip))
+	require.Equal(t, 1, len(reporters.reportersByFlip[5]))
+	require.Equal(t, reporter1, reporters.reportersByFlip[5][reporter1].Address)
+	require.Equal(t, 2, len(reporters.reportersByFlip[15]))
+	require.Equal(t, reporter1, reporters.reportersByFlip[15][reporter1].Address)
+	require.Equal(t, reporter3, reporters.reportersByFlip[15][reporter3].Address)
+
+	require.Equal(t, 3, len(reporters.reportersByAddr))
+	require.Equal(t, reporter1, reporters.reportersByAddr[reporter1].Address)
+	require.Equal(t, reporter2, reporters.reportersByAddr[reporter2].Address)
+	require.Equal(t, reporter3, reporters.reportersByAddr[reporter3].Address)
+
+	require.Equal(t, 3, len(reporters.reportedFlipsByReporter))
+	require.Equal(t, 5, len(reporters.reportedFlipsByReporter[reporter1]))
+	require.Equal(t, 4, len(reporters.reportedFlipsByReporter[reporter2]))
+	require.Equal(t, 3, len(reporters.reportedFlipsByReporter[reporter3]))
 }
 
 func Test_incSuccessfulInvites(t *testing.T) {
@@ -690,7 +864,6 @@ func Test_applyOnState(t *testing.T) {
 	})
 	identity = appstate.State.GetIdentity(addr1)
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
-
 
 	appstate.State.SetDelegatee(delegatee, common.Address{0x3})
 
