@@ -16,6 +16,9 @@ const (
 	WordDictionarySize = 3300
 	WordPairsPerFlip   = 3
 
+	WordDictionary2Size       = 640
+	WordDictionary2FirstIndex = 3300
+
 	MaxFlipSize       = 1024 * 600
 	MaxProfileSize    = 1024 * 1024
 	MaxCustomDataSize = 1024 * 1024

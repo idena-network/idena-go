@@ -31,13 +31,14 @@ func Test_GeneratePairs(t *testing.T) {
 		{1, 1, false},
 		{3, 4, false},
 	} {
-		nums, proof := vc.GeneratePairs([]byte("data"), tc.dictionarySize, tc.pairCount)
+		nums, proof := vc.GeneratePairs([]byte("data"), 5, tc.dictionarySize, tc.pairCount)
 
 		require.Equal(t, tc.pairCount*2, len(nums))
 		require.NotNil(t, proof)
 
 		for i := 0; i < len(nums); i++ {
-			require.True(t, nums[i] < tc.dictionarySize)
+			require.True(t, nums[i] >= 5)
+			require.True(t, nums[i] < tc.dictionarySize+5)
 		}
 
 		if !tc.checkUniqueness {
@@ -71,20 +72,20 @@ func Test_GetWords(t *testing.T) {
 	seed := []byte("data1")
 	dictionarySize := 3300
 	pairCount := 9
-	nums, proof := vc.GeneratePairs(seed, dictionarySize, pairCount)
+	nums, proof := vc.GeneratePairs(seed, 5, dictionarySize, pairCount)
 
 	h, _ := vrf.HashFromProof(proof)
 	rnd := getWordsRnd(h)
 
-	w1, w2, _ := GetWords(rnd, dictionarySize, pairCount, 1)
+	w1, w2, _ := GetWords(rnd, 5, dictionarySize, pairCount, 1)
 	require.Equal(nums[2], w1)
 	require.Equal(nums[3], w2)
 
-	w1, w2, _ = GetWords(rnd, dictionarySize, pairCount, 8)
+	w1, w2, _ = GetWords(rnd, 5, dictionarySize, pairCount, 8)
 	require.Equal(nums[16], w1)
 	require.Equal(nums[17], w2)
 
-	w1, w2, err := GetWords(rnd, dictionarySize, pairCount, 15)
+	w1, w2, err := GetWords(rnd, 5, dictionarySize, pairCount, 15)
 	require.Error(err, "out of bounds pair index should throw error")
 }
 

@@ -495,7 +495,8 @@ func (api *FlipApi) WordPairs(addr common.Address, vrfHash hexutil.Bytes) []Flip
 	var hash [32]byte
 	copy(hash[:], vrfHash[:])
 
-	wordPairs := ceremony.GeneratePairsFromVrfHash(hash, common.WordDictionarySize, identity.GetTotalWordPairsCount())
+	firstIndex, wordsDictionarySize := api.ceremony.GetWordDictionaryRange()
+	wordPairs := ceremony.GeneratePairsFromVrfHash(hash, firstIndex, wordsDictionarySize, identity.GetTotalWordPairsCount())
 
 	usedPairs := mapset.NewSet()
 	for _, v := range identity.Flips {
