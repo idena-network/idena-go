@@ -177,10 +177,12 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.IncreaseGodInvitesLimit = true
 		cfg.FixDelegation = true
 		cfg.FixSmallReportCommittee = true
-		cfg.NewKeyWordsEpoch = 75
+		cfg.NewKeyWordsEpoch = 76
 		cfg.Version = ConsensusV6
 		cfg.MigrationTimeout = 0
 		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.StartActivationDate = time.Date(2021, 9, 23, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 9, 30, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 
