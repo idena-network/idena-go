@@ -3,6 +3,7 @@ package ceremony
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/state"
 )
 
@@ -71,7 +72,7 @@ func (r *reportersToReward) deleteReporter(reporter common.Address) {
 	}
 }
 
-func (r *reportersToReward) setValidationResult(address common.Address, newState state.IdentityState, missed bool, flipsByAuthor map[common.Address][]int) {
+func (r *reportersToReward) setValidationResult(address common.Address, newState state.IdentityState, missed bool, flipsByAuthor map[common.Address][]int, cfg *config.ConsensusConf) {
 	if !newState.NewbieOrBetter() {
 		r.deleteReporter(address)
 	} else {
@@ -79,7 +80,8 @@ func (r *reportersToReward) setValidationResult(address common.Address, newState
 			reporter.NewIdentityState = uint8(newState)
 		}
 	}
-	if missed {
+	rewardAnyReport := cfg.ReportsRewardPercent > 0
+	if missed && !rewardAnyReport {
 		for _, flip := range flipsByAuthor[address] {
 			r.deleteFlip(flip)
 		}

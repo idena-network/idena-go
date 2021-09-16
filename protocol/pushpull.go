@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/log"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -96,11 +97,11 @@ func (m *PushPullManager) makeRequest(peer peer.ID, hash pushPullHash) {
 	}
 }
 
-func (m *PushPullManager) AddEntry(key pushPullHash, entry interface{}, highPriority bool) {
-	m.entryHolders[key.Type].Add(key.Hash, entry, highPriority)
+func (m *PushPullManager) AddEntry(key pushPullHash, entry interface{}, shardId common.ShardId, highPriority bool) {
+	m.entryHolders[key.Type].Add(key.Hash, entry, shardId, highPriority)
 }
 
-func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, bool, bool) {
+func (m *PushPullManager) GetEntry(hash pushPullHash) (interface{}, common.ShardId, bool, bool) {
 	return m.entryHolders[hash.Type].Get(hash.Hash)
 }
 

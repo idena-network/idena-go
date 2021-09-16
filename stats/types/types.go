@@ -6,10 +6,14 @@ import (
 )
 
 type ValidationStats struct {
+	Shards map[common.ShardId]*ValidationShardStats
+	Failed bool
+}
+
+type ValidationShardStats struct {
 	IdentitiesPerAddr map[common.Address]*IdentityStats
 	FlipsPerIdx       map[int]*FlipStats
 	FlipCids          [][]byte
-	Failed            bool
 }
 
 type IdentityStats struct {
@@ -38,8 +42,8 @@ type FlipAnswerStats struct {
 	Point      float32
 }
 
-func NewValidationStats() *ValidationStats {
-	return &ValidationStats{
+func NewValidationStats() *ValidationShardStats {
+	return &ValidationShardStats{
 		IdentitiesPerAddr: make(map[common.Address]*IdentityStats),
 		FlipsPerIdx:       make(map[int]*FlipStats),
 	}

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const TargetVersion = config.ConsensusV5
+const TargetVersion = config.ConsensusV6
 
 type Upgrader struct {
 	config           *config.Config

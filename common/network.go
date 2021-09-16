@@ -16,6 +16,9 @@ const (
 	WordDictionarySize = 3300
 	WordPairsPerFlip   = 3
 
+	WordDictionary2Size       = 640
+	WordDictionary2FirstIndex = 3300
+
 	MaxFlipSize       = 1024 * 600
 	MaxProfileSize    = 1024 * 1024
 	MaxCustomDataSize = 1024 * 1024
@@ -81,8 +84,12 @@ func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Dur
 	return day * time.Duration(math2.MinInt(28, int(math.Round(math.Pow(float64(networkSize), 0.33)/21)*21)))
 }
 
-func GodAddressInvitesCount(networkSize int) uint16 {
-	return uint16(math2.MinInt(500, math2.MaxInt(50, networkSize/3)))
+func GodAddressInvitesCount(networkSize int, increaseLimit bool) uint16 {
+	limit := 500
+	if increaseLimit {
+		limit = math2.MaxInt(500, int(float32(networkSize)*0.1))
+	}
+	return uint16(math2.MinInt(limit, math2.MaxInt(50, networkSize/3)))
 }
 
 func EncodeScore(shortPoints float32, shortFlipsCount uint32) byte {

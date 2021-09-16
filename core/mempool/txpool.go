@@ -234,6 +234,7 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 				pool.bus.Publish(&events.NewTxEvent{
 					Tx:       tx,
 					Own:      sender == pool.coinbase,
+					ShardId:  appState.State.ShardId(sender),
 					Deferred: true,
 				})
 			}
@@ -241,7 +242,7 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 			continue
 		}
 
-		if err = pool.add(tx, appState); err != nil && len(txs) == 1 {
+		if err = pool.add(tx, appState, sender == pool.coinbase); err != nil && len(txs) == 1 {
 			return err
 		}
 		if err == nil {
@@ -268,10 +269,12 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 			pool.txKeeper.AddTx(tx)
 		}
 		appState, _ := pool.appState.Readonly(pool.head.Height())
-		if err := pool.add(tx, appState); err != nil {
+		if err := pool.add(tx, appState, true); err != nil {
 			if _, ok := priorityTypes[tx.Type]; ok {
+				sender, _ := types.Sender(tx)
 				pool.bus.Publish(&events.NewTxEvent{
 					Tx:       tx,
+					ShardId:  appState.State.ShardId(sender),
 					Own:      true,
 					Deferred: true,
 				})
@@ -286,7 +289,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	if err != nil {
 		return errors.WithMessage(err, "tx can't be validated")
 	}
-	if err = pool.add(tx, appState); err == nil {
+	if err = pool.add(tx, appState, true); err == nil {
 		if pool.txKeeper != nil {
 			pool.txKeeper.AddTx(tx)
 		}
@@ -294,7 +297,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	return err
 }
 
-func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) error {
+func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool) error {
 	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
 	}
@@ -323,11 +326,14 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState) erro
 		return err
 	}
 
+	tx.SetShardId(appState.State.ShardId(sender))
+
 	pool.mutex.Unlock()
 
 	pool.bus.Publish(&events.NewTxEvent{
-		Tx:  tx,
-		Own: sender == pool.coinbase,
+		Tx:      tx,
+		Own:     own,
+		ShardId: tx.LoadShardId(),
 	})
 	return nil
 }

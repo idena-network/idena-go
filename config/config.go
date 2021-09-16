@@ -22,6 +22,8 @@ const (
 	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
 	apiKeyFileName    = "api.key"
 	LowPowerProfile   = "lowpower"
+	SharedNodeProfile = "shared"
+	DefaultProfile    = "default"
 )
 
 type Config struct {
@@ -188,30 +190,26 @@ func MakeConfig(ctx *cli.Context, cfgTransform func(cfg *Config)) (*Config, erro
 }
 
 func applyProfile(ctx *cli.Context, cfg *Config) {
-	if ctx.IsSet(ProfileFlag.Name) && ctx.String(ProfileFlag.Name) == LowPowerProfile {
-		cfg.P2P.MaxInboundPeers = LowPowerMaxInboundPeers
-		cfg.P2P.MaxOutboundPeers = LowPowerMaxOutboundPeers
-		cfg.IpfsConf.LowWater = 8
-		cfg.IpfsConf.HighWater = 10
-		cfg.IpfsConf.GracePeriod = "30s"
-		cfg.IpfsConf.ReproviderInterval = "0"
-		cfg.IpfsConf.Routing = "dhtclient"
-	} else {
-		if cfg.IpfsConf.LowWater == 0 {
-			cfg.IpfsConf.LowWater = 30
+	if ctx.IsSet(ProfileFlag.Name) {
+		switch ctx.String(ProfileFlag.Name) {
+		case LowPowerProfile:
+			applyLowPowerProfile(cfg)
+		case SharedNodeProfile:
+			applySharedNodeProfile(cfg)
+		case DefaultProfile:
+			applyDefaultProfile(cfg)
+		default:
+			println("unknown node profile")
 		}
-		if cfg.IpfsConf.HighWater == 0 {
-			cfg.IpfsConf.HighWater = 50
-		}
-		if cfg.IpfsConf.GracePeriod == "" {
-			cfg.IpfsConf.GracePeriod = "40s"
-		}
-		if cfg.IpfsConf.ReproviderInterval == "" {
-			cfg.IpfsConf.ReproviderInterval = "12h"
-		}
-		if cfg.IpfsConf.Routing == "" {
-			cfg.IpfsConf.Routing = "dht"
-		}
+	}
+	if cfg.IpfsConf.GracePeriod == "" {
+		cfg.IpfsConf.GracePeriod = "40s"
+	}
+	if cfg.IpfsConf.ReproviderInterval == "" {
+		cfg.IpfsConf.ReproviderInterval = "12h"
+	}
+	if cfg.IpfsConf.Routing == "" {
+		cfg.IpfsConf.Routing = "dht"
 	}
 }
 
@@ -238,9 +236,11 @@ func getDefaultConfig(dataDir string) *Config {
 		DataDir: dataDir,
 		Network: 0x1, // testnet
 		P2P: P2P{
-			MaxInboundPeers:  DefaultMaxInboundPeers,
-			MaxOutboundPeers: DefaultMaxOutboundPeers,
-			DisableMetrics:   false,
+			MaxInboundPeers:          DefaultMaxInboundNotOwnShardPeers,
+			MaxOutboundPeers:         DefaultMaxOutboundNotOwnShardPeers,
+			MaxInboundOwnShardPeers:  DefaultMaxInboundOwnShardPeers,
+			MaxOutboundOwnShardPeers: DefaultMaxOutboundOwnShardPeers,
+			DisableMetrics:           false,
 		},
 		Consensus: GetDefaultConsensusConfig(),
 		RPC:       rpc.GetDefaultRPCConfig(DefaultRpcHost, DefaultRpcPort),

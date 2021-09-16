@@ -117,11 +117,17 @@ message ProtoHandshake {
     string appVersion = 5;
     uint32 peers = 6;
     bytes oldGenesis = 7;
+    uint32 shardId = 8;
 }
 
 message ProtoMsg {
     uint64 code = 1;
     bytes payload = 2;
+    uint32 shardId = 3;
+}
+
+message ProtoUpdateShardId {
+    uint32 shardId = 1;
 }
 
 message ProtoIdentityStateDiff {
@@ -375,9 +381,21 @@ message ProtoStateIdentity {
     bytes delegatee = 19;
     uint32 delegationNonce = 20;
     uint32 delegationEpoch = 21;
+    uint32 shardId = 22;
 }
 
 message ProtoStateGlobal {
+
+    message EmptyBlocksByShards {
+        uint32 shardId = 1;
+        repeated bytes proposers = 2;
+    }
+
+    message ShardSize {
+        uint32 shardId = 1;
+        uint32 size = 2;
+    }
+
     uint32 epoch = 1;
     int64 nextValidationTime = 2;
     uint32 validationPeriod = 3;
@@ -391,6 +409,9 @@ message ProtoStateGlobal {
     uint32 godAddressInvites = 11;
     uint32 blocksCntWithoutCeremonialTxs = 12;
     repeated uint64 prevEpochBlocks = 13;
+    uint32 shardsNum = 14;
+    repeated EmptyBlocksByShards emptyBlocksByShards = 15;
+    repeated ShardSize shardSizes = 16;
 }
 
 message ProtoStateApprovedIdentity {
@@ -431,6 +452,7 @@ message ProtoPredefinedState {
         uint32 godAddressInvites = 11;
         uint32 blocksCntWithoutCeremonialTxs = 12;
         repeated uint64 prevEpochBlocks = 13;
+        uint32 shardsNum = 14;
     }
 
     message StatusSwitch {
@@ -489,6 +511,7 @@ message ProtoPredefinedState {
         bytes delegatee = 20;
         uint32 delegationNonce = 21;
         uint32 delegationEpoch = 22;
+        uint32 shardId = 23;
     }
 
     message ApprovedIdentity {
