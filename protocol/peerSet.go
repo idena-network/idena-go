@@ -96,16 +96,13 @@ func (ps *peerSet) SendWithFilter(msgcode uint64, key string, payload interface{
 	ps.SendWithFilterAndExpiration(msgcode, key, payload, shardId, highPriority, msgCacheAliveTime)
 }
 
-func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, highPriority bool) bool {
-	peersCnt := ps.Len()
+func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, peersCnt int, highPriority bool) bool {
 	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 4 || highPriority {
 		return true
 	}
 	rnd := rand.Float32()
 	return rnd > 1-1.8/float32(peersCnt)
 }
-
-
 
 func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, payload interface{}, msgShardId common.ShardId, highPriority bool, expiration time.Duration) {
 	peers := ps.Peers()
@@ -130,7 +127,7 @@ func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, paylo
 	}
 
 	for _, p := range peers {
-		if ps.shouldSendToPeer(p, msgShardId, highPriority) {
+		if ps.shouldSendToPeer(p, msgShardId, len(peers), highPriority) {
 			if _, ok := p.msgCache.Get(key); !ok {
 				p.markKeyWithExpiration(key, expiration)
 				p.sendMsg(msgcode, payload, msgShardId, highPriority)
@@ -142,7 +139,7 @@ func (ps *peerSet) SendWithFilterAndExpiration(msgcode uint64, key string, paylo
 func (ps *peerSet) Send(msgcode uint64, payload interface{}, msgShardId common.ShardId) {
 	peers := ps.Peers()
 	for _, p := range peers {
-		if ps.shouldSendToPeer(p, msgShardId, false) {
+		if ps.shouldSendToPeer(p, msgShardId, len(peers), false) {
 			p.sendMsg(msgcode, payload, msgShardId, false)
 		}
 	}
