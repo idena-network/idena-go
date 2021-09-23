@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+
+## 0.27.1 (Sep 23, 2021)
+
+### Changes
+
+- Optimize network usage ([#802](https://github.com/idena-network/idena-go/pull/802))
+
 ## 0.27.0 (Sep 16, 2021)
 
 ### Fork (Upgrade 6)
