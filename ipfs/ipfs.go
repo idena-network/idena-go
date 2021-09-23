@@ -367,7 +367,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 
 	file, _ := files.NewReaderPathFile(absPath, data, fi)
 	defer file.Close()
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
+	path, err := api.Unixfs().Add(ctx, file,  options.Unixfs.Pin(true), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs from reader")
@@ -633,6 +633,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
 		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
+		ipfsConfig.Reprovider.Strategy = "pinned"
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.EnableRelayHop = false

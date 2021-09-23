@@ -201,6 +201,8 @@ func applyProfile(ctx *cli.Context, cfg *Config) {
 		default:
 			println("unknown node profile")
 		}
+	} else {
+		applyDefaultProfile(cfg)
 	}
 	if cfg.IpfsConf.GracePeriod == "" {
 		cfg.IpfsConf.GracePeriod = "40s"
