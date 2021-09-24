@@ -47,51 +47,26 @@ type ConsensusConf struct {
 	InvitesPercent                    float32
 	MinProposerThreshold              float64
 	UpgradeIntervalBeforeValidation   time.Duration
-	EnablePools                       bool
-	UpdateContracts                   bool
-	DisableSavedInviteRewards         bool
-	FixPoolRewardEvents               bool
-	EnableStoreToIpfsTx               bool
-	ResetBlocksWithoutCeremonialTxs   bool
-	EncourageEarlyInvitations         bool
-	EnableDelayedOfflinePenalty       bool
-	BurnInviteeStake                  bool
 	ReductionOneDelay                 time.Duration
-	EnableValidationSharding          bool
-	ChangeKillTxValidation            bool
-	IncreaseGodInvitesLimit           bool
-	FixDelegation                     bool
-	FixSmallReportCommittee           bool
 	NewKeyWordsEpoch                  uint16
 }
 
 type ConsensusVerson uint16
 
 const (
-	// Enables contracts
-	ConsensusV3 ConsensusVerson = 3
-	// Enables pools
-	ConsensusV4 ConsensusVerson = 4
-
-	// Enables events sorting
-	ConsensusV5 ConsensusVerson = 5
-
 	// Enables validation sharding
 	ConsensusV6 ConsensusVerson = 6
 )
 
 var (
-	v3                ConsensusConf
-	v4                ConsensusConf
-	v5                ConsensusConf
 	v6                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
 func init() {
 	ConsensusVersions = map[ConsensusVerson]*ConsensusConf{}
-	v3 = ConsensusConf{
-		Version:                           ConsensusV3,
+	v6 = ConsensusConf{
+		Version:                           ConsensusV6,
 		MaxSteps:                          150,
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
@@ -128,64 +103,14 @@ func init() {
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 	}
-	ConsensusVersions[ConsensusV3] = &v3
-
-	v4 = v3
-	ApplyConsensusVersion(ConsensusV4, &v4)
-	ConsensusVersions[ConsensusV4] = &v4
-
-	v5 = v4
-	ApplyConsensusVersion(ConsensusV5, &v5)
-	ConsensusVersions[ConsensusV5] = &v5
-
-	v6 = v5
-	ApplyConsensusVersion(ConsensusV6, &v6)
 	ConsensusVersions[ConsensusV6] = &v6
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	switch ver {
-	case ConsensusV4:
-		cfg.EnablePools = true
-		cfg.UpdateContracts = true
-		cfg.DisableSavedInviteRewards = true
-		cfg.FlipRewardPercent = 0.4
-		cfg.ValidInvitationRewardPercent = 0.24
-		cfg.Version = ConsensusV4
-		cfg.StartActivationDate = time.Date(2021, 03, 24, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 03, 29, 0, 0, 0, 0, time.UTC).Unix()
-		cfg.MigrationTimeout = 0
-	case ConsensusV5:
-		cfg.FixPoolRewardEvents = true
-		cfg.EnableStoreToIpfsTx = true
-		cfg.ResetBlocksWithoutCeremonialTxs = true
-		cfg.EncourageEarlyInvitations = true
-		cfg.EnableDelayedOfflinePenalty = true
-		cfg.BurnInviteeStake = true
-		cfg.Version = ConsensusV5
-		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = true
-		cfg.StartActivationDate = time.Date(2021, 05, 11, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 05, 18, 0, 0, 0, 0, time.UTC).Unix()
-	case ConsensusV6:
-		cfg.SuccessfulValidationRewardPercent = 0.2
-		cfg.FlipRewardPercent = 0.35
-		cfg.ValidInvitationRewardPercent = 0.18
-		cfg.ReportsRewardPercent = 0.15
-		cfg.EnableValidationSharding = true
-		cfg.ChangeKillTxValidation = true
-		cfg.IncreaseGodInvitesLimit = true
-		cfg.FixDelegation = true
-		cfg.FixSmallReportCommittee = true
-		cfg.NewKeyWordsEpoch = 76
-		cfg.Version = ConsensusV6
-		cfg.MigrationTimeout = 0
-		cfg.GenerateGenesisAfterUpgrade = true
-		cfg.StartActivationDate = time.Date(2021, 9, 23, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 9, 30, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
-	return &v3
+	return &v6
 }

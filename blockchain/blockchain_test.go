@@ -730,7 +730,7 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	chain, state := NewCustomTestBlockchain(5, 0, key)
 
-	count := int(common.GodAddressInvitesCount(0, false))
+	count := int(common.GodAddressInvitesCount(0))
 	for i := 0; i < count; i++ {
 		keyReceiver, _ := crypto.GenerateKey()
 		receiver := crypto.PubkeyToAddress(keyReceiver.PublicKey)
@@ -930,7 +930,7 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 
 	require.True(t, appState.ValidatorsCache.IsPool(pool1))
 
-	chain.applyOfflinePenalty(appState, pool1, nil)
+	chain.applyOfflinePenalty(appState, pool1)
 
 	require.Equal(t, big.NewInt(4*3*1800/int64(count)).Bytes(), appState.State.GetPenalty(pool1).Bytes())
 }

@@ -132,6 +132,16 @@ func (u *Upgrader) persist() {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 	u.repo.WriteUpgradeVotes(u.votes)
+
+	cnt:=0
+	for voter, upgrade := range u.votes.Dict {
+		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) {
+			if upgrade == uint32(u.Target()) {
+				cnt++
+			}
+		}
+	}
+	log.Info("actual votes", "cnt", cnt)
 }
 
 func (u *Upgrader) restore() {
