@@ -153,7 +153,7 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	id := appState.State.GetOrNewIdentityObject(sender)
 	id.SetStake(stake)
-	id.SetState(state.Invite)
+	id.SetState(state.Verified)
 
 	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 
@@ -210,11 +210,12 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
 
+	appState.State.SetState(sender, state.Verified)
+
 	stake := new(big.Int).Mul(big.NewInt(100), common.DnaBase)
 
 	id := appState.State.GetOrNewIdentityObject(sender)
 	id.SetStake(stake)
-	id.SetState(state.Invite)
 
 	tx1 := &types.Transaction{
 		Type:         types.KillTx,
@@ -260,8 +261,11 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	appState.State.SetState(inviter, state.Verified)
 	appState.State.SetState(invitee, state.Newbie)
 
-	appState.State.GetOrNewAccountObject(inviter).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
-	appState.State.GetOrNewIdentityObject(invitee).SetStake(new(big.Int).Mul(big.NewInt(10), common.DnaBase))
+	inviteeStake := new(big.Int).Mul(big.NewInt(10), common.DnaBase)
+	inviterBalance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
+
+	appState.State.GetOrNewAccountObject(inviter).SetBalance(inviterBalance)
+	appState.State.GetOrNewIdentityObject(invitee).SetStake(inviteeStake)
 
 	tx := &types.Transaction{
 		Type:         types.KillInviteeTx,
@@ -299,7 +303,14 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
 	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
 	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
-	newBalance := new(big.Int).Mul(big.NewInt(60), common.DnaBase)
+
+	stakeToTransfer := big.NewInt(0)
+
+	// 1/6 of stake moves to balance, rest burns
+	stakeToTransfer.Div(inviteeStake, big.NewInt(6))
+
+	newBalance := new(big.Int).Add(inviterBalance, stakeToTransfer)
+
 	newBalance.Sub(newBalance, fee)
 	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
 	require.True(t, common.ZeroOrNil(appState.State.GetStakeBalance(invitee)))
@@ -530,7 +541,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensusCfg := config.ConsensusVersions[config.ConsensusV5]
+	consensusCfg := config.ConsensusVersions[config.ConsensusV6]
 	consensusCfg.Automine = true
 	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
@@ -931,12 +942,17 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 	require.True(t, appState.ValidatorsCache.IsPool(pool1))
 
 	chain.applyOfflinePenalty(appState, pool1)
+	chain.applyDelayedOfflinePenalties(appState, &types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Flags: types.IdentityUpdate,
+		},
+	}}, nil)
 
 	require.Equal(t, big.NewInt(4*3*1800/int64(count)).Bytes(), appState.State.GetPenalty(pool1).Bytes())
 }
 
 func Test_Delegation(t *testing.T) {
-	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, config.ConsensusVersions[config.ConsensusV4], &config.ValidationConfig{}, nil, -1, -1, 0, 0)
+	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, config.ConsensusVersions[config.ConsensusV6], &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 
 	coinbase := crypto.PubkeyToAddress(coinbaseKey.PublicKey)
 

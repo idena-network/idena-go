@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/go-bindata/go-bindata/v3"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -14,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 	"os"
-	"path/filepath"
 	"runtime"
 
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -226,16 +224,6 @@ func main() {
 			return err
 		}
 		file.Close()
-
-		err = bindata.Translate(&bindata.Config{
-			Input: []bindata.InputConfig{{
-				Path:      filepath.Clean("stategen.out"),
-				Recursive: false,
-			}},
-			Package: "blockchain",
-			Output:  "bindata.go",
-		})
-
 		return nil
 	}
 

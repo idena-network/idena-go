@@ -83,10 +83,10 @@ func init() {
 		FinalCommitteeReward:              big.NewInt(5e+18),
 		SnapshotRange:                     1000,
 		OfflinePenaltyBlocksCount:         1800,
-		SuccessfulValidationRewardPercent: 0.24,
-		FlipRewardPercent:                 0.32,
-		ValidInvitationRewardPercent:      0.32,
-		ReportsRewardPercent:              0,
+		SuccessfulValidationRewardPercent: 0.2,
+		FlipRewardPercent:                 0.35,
+		ValidInvitationRewardPercent:      0.18,
+		ReportsRewardPercent:              0.15,
 		FoundationPayoutsPercent:          0.1,
 		ZeroWalletPercent:                 0.02,
 		FirstInvitationRewardCoef:         3.0,
@@ -102,6 +102,7 @@ func init() {
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
+		NewKeyWordsEpoch: 76,
 	}
 	ConsensusVersions[ConsensusV6] = &v6
 }
