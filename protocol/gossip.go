@@ -884,7 +884,7 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	const maximalPeersNumberForFullSync = 3
-	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync, true)
+	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync, p.shardId, true)
 	for _, tx := range pending {
 		payload := pushPullHash{
 			Type: pushTx,
