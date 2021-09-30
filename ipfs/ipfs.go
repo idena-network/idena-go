@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	core2 "github.com/libp2p/go-libp2p-core"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/multiformats/go-multihash"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -90,6 +91,7 @@ type Proxy interface {
 	Host() core2.Host
 	ShouldPin(dataType DataType) bool
 	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
+	PubSub() *pubsub.PubSub
 }
 type ipfsProxy struct {
 	node                 *core.IpfsNode
@@ -111,6 +113,10 @@ func (p *ipfsProxy) Host() core2.Host {
 	return p.node.PeerHost
 }
 
+func (p *ipfsProxy) PubSub() *pubsub.PubSub {
+	return p.node.PubSub
+}
+
 func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	logging.SetLevel(0, "core")
 
@@ -128,7 +134,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	}
 
 	nilNode, err := core.NewNode(context.Background(), &core.BuildCfg{
-		NilRepo: true,
+		NilRepo:   true,
 	})
 	if err != nil {
 		return nil, err
@@ -245,7 +251,7 @@ func (p *ipfsProxy) changePort() {
 		p.node = node
 		p.nodeCtx = ctx
 		p.nodeCtxCancel = cancelCtx
-		p.bus.Publish(&events.IpfsPortChangedEvent{Host: node.PeerHost})
+		p.bus.Publish(&events.IpfsPortChangedEvent{Host: node.PeerHost, PubSub: node.PubSub})
 		p.log.Info("Finish changing IPFS port", "new", p.cfg.IpfsPort)
 		break
 	}
@@ -361,7 +367,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 
 	file, _ := files.NewReaderPathFile(absPath, data, fi)
 	defer file.Close()
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
+	path, err := api.Unixfs().Add(ctx, file,  options.Unixfs.Pin(true), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs from reader")
@@ -627,9 +633,11 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
 		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
+		ipfsConfig.Reprovider.Strategy = "pinned"
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.EnableRelayHop = false
+
 		if cfg.Profile != "" {
 			transformer, ok := config2.Profiles[cfg.Profile]
 			if !ok {
@@ -725,7 +733,7 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 		Online:                      true,
 		DisableEncryptedConnections: false,
 		ExtraOpts: map[string]bool{
-			"pubsub": false,
+			"pubsub": true,
 			"ipnsps": false,
 			"mplex":  false,
 		},
@@ -763,6 +771,10 @@ func NewMemoryIpfsProxy() Proxy {
 
 type memoryIpfs struct {
 	values map[cid.Cid][]byte
+}
+
+func (i *memoryIpfs) PubSub() *pubsub.PubSub {
+	panic("implement me")
 }
 
 func (i *memoryIpfs) ShouldPin(dataType DataType) bool {

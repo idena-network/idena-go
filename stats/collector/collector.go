@@ -16,17 +16,18 @@ type StatsCollector interface {
 	SetValidation(validation *statsTypes.ValidationStats)
 	SetMinScoreForInvite(score float32)
 
-	SetValidationResults(authors *types.ValidationResults)
+	SetValidationResults(validationResults map[common.ShardId]*types.ValidationResults)
 
 	SetTotalReward(amount *big.Int)
 	SetTotalValidationReward(amount *big.Int, share *big.Int)
 	SetTotalFlipsReward(amount *big.Int, share *big.Int)
+	SetTotalReportsReward(amount *big.Int, share *big.Int)
 	SetTotalInvitationsReward(amount *big.Int, share *big.Int)
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(balanceDest, stakeDest common.Address, age uint16, balance, stake *big.Int)
 	AddFlipsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, flipsToReward []*types.FlipToReward)
-	AddReportedFlipsReward(balanceDest, stakeDest common.Address, flipIdx int, balance, stake *big.Int)
+	AddReportedFlipsReward(balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int)
 	AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16, txHash *common.Hash,
 		epochHeight uint32, isSavedInviteWinner bool)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
@@ -116,6 +117,8 @@ type StatsCollector interface {
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 
 	RemoveMemPoolTx(tx *types.Transaction)
+
+	AddRemovedTransitiveDelegation(delegator, delegatee common.Address)
 }
 
 type GetBalanceFunc func(address common.Address) *big.Int
@@ -157,11 +160,11 @@ func SetMinScoreForInvite(c StatsCollector, score float32) {
 	c.SetMinScoreForInvite(score)
 }
 
-func (c *collectorStub) SetValidationResults(validationResults *types.ValidationResults) {
+func (c *collectorStub) SetValidationResults(validationResults map[common.ShardId]*types.ValidationResults) {
 	// do nothing
 }
 
-func SetValidationResults(c StatsCollector, validationResults *types.ValidationResults) {
+func SetValidationResults(c StatsCollector, validationResults map[common.ShardId]*types.ValidationResults) {
 	if c == nil {
 		return
 	}
@@ -199,6 +202,17 @@ func SetTotalFlipsReward(c StatsCollector, amount *big.Int, share *big.Int) {
 		return
 	}
 	c.SetTotalFlipsReward(amount, share)
+}
+
+func (c *collectorStub) SetTotalReportsReward(amount *big.Int, share *big.Int) {
+	// do nothing
+}
+
+func SetTotalReportsReward(c StatsCollector, amount *big.Int, share *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalReportsReward(amount, share)
 }
 
 func (c *collectorStub) SetTotalInvitationsReward(amount *big.Int, share *big.Int) {
@@ -256,15 +270,15 @@ func AddFlipsReward(c StatsCollector, balanceDest, stakeDest common.Address, bal
 	c.AddFlipsReward(balanceDest, stakeDest, balance, stake, flipsToReward)
 }
 
-func (c *collectorStub) AddReportedFlipsReward(balanceDest, stakeDest common.Address, flipIdx int, balance, stake *big.Int) {
+func (c *collectorStub) AddReportedFlipsReward(balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int) {
 	// do nothing
 }
 
-func AddReportedFlipsReward(c StatsCollector, balanceDest, stakeDest common.Address, flipIdx int, balance, stake *big.Int) {
+func AddReportedFlipsReward(c StatsCollector, balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddReportedFlipsReward(balanceDest, stakeDest, flipIdx, balance, stake)
+	c.AddReportedFlipsReward(balanceDest, stakeDest, shardId, flipIdx, balance, stake)
 }
 
 func (c *collectorStub) AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16,
@@ -1006,4 +1020,15 @@ func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt, appState *appsta
 		return
 	}
 	c.AddTxReceipt(txReceipt, appState)
+}
+
+func (c *collectorStub) AddRemovedTransitiveDelegation(delegator, delegatee common.Address) {
+	// do nothing
+}
+
+func AddRemovedTransitiveDelegation(c StatsCollector, delegator, delegatee common.Address) {
+	if c == nil {
+		return
+	}
+	c.AddRemovedTransitiveDelegation(delegator, delegatee)
 }

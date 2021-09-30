@@ -501,8 +501,13 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if appState.State.ValidationPeriod() < state.LongSessionPeriod && txType == InBlockTx {
 		return EarlyTx
 	}
-	if !state.IsCeremonyCandidate(appState.State.GetIdentity(sender)) {
+	identity := appState.State.GetIdentity(sender)
+	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
+	}
+	if appCfg != nil && appCfg.Consensus.EnableValidationSharding &&
+		(identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee != nil) {
+		return InvalidSender
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
 		return err
@@ -566,6 +571,15 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	}
 	identityState := appState.State.GetIdentityState(sender)
 	if identityState == state.Candidate || identityState == state.Newbie || identityState == state.Killed {
+		return InvalidSender
+	}
+	if appCfg == nil || !appCfg.Consensus.ChangeKillTxValidation {
+		return nil
+	}
+	if sender == appState.State.GodAddress() {
+		return nil
+	}
+	if identityState == state.Undefined || identityState == state.Invite {
 		return InvalidSender
 	}
 	return nil
