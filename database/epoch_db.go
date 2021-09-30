@@ -39,6 +39,11 @@ type DbProof struct {
 	Proof []byte
 }
 
+type DbEvidenceMap struct {
+	Sender common.Address
+	Map    []byte
+}
+
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
 	prefix := append([]byte("epoch"), uint8(epoch>>8), uint8(epoch&0xff))
 	return &EpochDb{db: dbm.NewPrefixDB(db, prefix)}
@@ -196,13 +201,13 @@ func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
 	return short, long
 }
 
-func (edb *EpochDb) ReadEvidenceMaps() [][]byte {
+func (edb *EpochDb) ReadEvidenceMaps() []*DbEvidenceMap {
 	it, err := edb.db.Iterator(append(EvidencePrefix, common.MinAddr[:]...), append(EvidencePrefix, common.MaxAddr[:]...))
 	assertNoError(err)
 	defer it.Close()
-	var result [][]byte
+	var result []*DbEvidenceMap
 	for ; it.Valid(); it.Next() {
-		result = append(result, it.Value())
+		result = append(result, &DbEvidenceMap{ Sender : common.BytesToAddress(it.Key()[len(EvidencePrefix):]), Map:  it.Value()})
 	}
 	return result
 }

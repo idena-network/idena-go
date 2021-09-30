@@ -34,6 +34,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf.FinalCommitteeReward = big.NewInt(5)
 	config.ApplyConsensusVersion(config.ConsensusV4, conf)
 	config.ApplyConsensusVersion(config.ConsensusV5, conf)
+	config.ApplyConsensusVersion(config.ConsensusV6, conf)
 
 	memdb := db.NewMemDB()
 
@@ -51,42 +52,49 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(auth3, state.Human)
 	appState.State.SetState(auth4, state.Suspended)
 	appState.State.SetState(badAuth, state.Newbie)
+	appState.State.SetShardsNum(2)
 	appState.Commit(nil)
 
-	validationResults := types.ValidationResults{
-		BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
-		GoodAuthors: map[common.Address]*types.ValidationResult{
-			auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},
-			auth2:  {NewIdentityState: uint8(state.Newbie)},
-			auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeC}, {[]byte{0x1}, types.GradeD}}, NewIdentityState: uint8(state.Verified)},
-			failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
-		},
-		GoodInviters: map[common.Address]*types.InviterValidationResult{
-			auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
-			auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
-			auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
-			auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
-			failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
-			god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
-		},
-		ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
-			100: {
-				reporter: &types.Candidate{
-					Address:          reporter,
-					NewIdentityState: uint8(state.Newbie),
-				},
-				auth3: &types.Candidate{
-					Address:          auth3,
-					NewIdentityState: uint8(state.Verified),
+	validationResults := map[common.ShardId]*types.ValidationResults{
+		1: {
+			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
+			GoodAuthors: map[common.Address]*types.ValidationResult{
+				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},
+				auth2:  {NewIdentityState: uint8(state.Newbie)},
+				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeC}, {[]byte{0x1}, types.GradeD}}, NewIdentityState: uint8(state.Verified)},
+				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
+			},
+			GoodInviters: map[common.Address]*types.InviterValidationResult{
+				auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
+				auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
+				auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
+				auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
+				failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
+				god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
+			},
+			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
+				100: {
+					reporter: &types.Candidate{
+						Address:          reporter,
+						NewIdentityState: uint8(state.Newbie),
+					},
+					auth3: &types.Candidate{
+						Address:          auth3,
+						NewIdentityState: uint8(state.Verified),
+					},
 				},
 			},
-			150: {
-				reporter: &types.Candidate{
-					Address:          reporter,
-					NewIdentityState: uint8(state.Newbie),
+		},
+		2: {
+			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
+				150: {
+					reporter: &types.Candidate{
+						Address:          reporter,
+						NewIdentityState: uint8(state.Newbie),
+					},
 				},
+				151: {},
 			},
-			151: {},
 		},
 	}
 	appState.State.SetState(auth1, state.Verified)
@@ -104,12 +112,12 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, &validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
+	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
 
 	appState.Commit(nil)
 
-	validationReward := float32(240) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
-	flipReward := float32(400) / 25
+	validationReward := float32(200) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
+	flipReward := float32(350) / 23
 	godPayout := float32(100)
 
 	// sum all coefficients
@@ -118,18 +126,20 @@ func Test_rewardValidIdentities(t *testing.T) {
 	// auth4: conf.ThirdInvitationRewardCoef (18)
 	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
 	// total: 57
-	invitationReward := float32(4.2105263) // 240/57
+	invitationReward := float32(3.1578947) // 180/57
+
+	reportReward := float32(50) // 150 / 3
 
 	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
 
-	require.True(t, reward.Cmp(appState.State.GetBalance(poolOfAuth1)) == 0)
+	require.Equal(t, reward.String(), appState.State.GetBalance(poolOfAuth1).String())
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
 	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*11.0, flipReward*0.5)
+	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*11.0, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
@@ -142,7 +152,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)
 
-	reward, stake = splitAndSum(conf, true, flipReward, flipReward*0.5)
+	reward, stake = splitAndSum(conf, true, reportReward, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(reporter)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(reporter)) == 0)
 

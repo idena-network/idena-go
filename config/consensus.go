@@ -31,6 +31,7 @@ type ConsensusConf struct {
 	SuccessfulValidationRewardPercent float32
 	FlipRewardPercent                 float32
 	ValidInvitationRewardPercent      float32
+	ReportsRewardPercent              float32
 	FoundationPayoutsPercent          float32
 	ZeroWalletPercent                 float32
 	FirstInvitationRewardCoef         float32
@@ -56,6 +57,12 @@ type ConsensusConf struct {
 	EnableDelayedOfflinePenalty       bool
 	BurnInviteeStake                  bool
 	ReductionOneDelay                 time.Duration
+	EnableValidationSharding          bool
+	ChangeKillTxValidation            bool
+	IncreaseGodInvitesLimit           bool
+	FixDelegation                     bool
+	FixSmallReportCommittee           bool
+	NewKeyWordsEpoch                  uint16
 }
 
 type ConsensusVerson uint16
@@ -68,12 +75,16 @@ const (
 
 	// Enables events sorting
 	ConsensusV5 ConsensusVerson = 5
+
+	// Enables validation sharding
+	ConsensusV6 ConsensusVerson = 6
 )
 
 var (
 	v3                ConsensusConf
 	v4                ConsensusConf
 	v5                ConsensusConf
+	v6                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -100,6 +111,7 @@ func init() {
 		SuccessfulValidationRewardPercent: 0.24,
 		FlipRewardPercent:                 0.32,
 		ValidInvitationRewardPercent:      0.32,
+		ReportsRewardPercent:              0,
 		FoundationPayoutsPercent:          0.1,
 		ZeroWalletPercent:                 0.02,
 		FirstInvitationRewardCoef:         3.0,
@@ -125,6 +137,10 @@ func init() {
 	v5 = v4
 	ApplyConsensusVersion(ConsensusV5, &v5)
 	ConsensusVersions[ConsensusV5] = &v5
+
+	v6 = v5
+	ApplyConsensusVersion(ConsensusV6, &v6)
+	ConsensusVersions[ConsensusV6] = &v6
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -151,6 +167,22 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.GenerateGenesisAfterUpgrade = true
 		cfg.StartActivationDate = time.Date(2021, 05, 11, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2021, 05, 18, 0, 0, 0, 0, time.UTC).Unix()
+	case ConsensusV6:
+		cfg.SuccessfulValidationRewardPercent = 0.2
+		cfg.FlipRewardPercent = 0.35
+		cfg.ValidInvitationRewardPercent = 0.18
+		cfg.ReportsRewardPercent = 0.15
+		cfg.EnableValidationSharding = true
+		cfg.ChangeKillTxValidation = true
+		cfg.IncreaseGodInvitesLimit = true
+		cfg.FixDelegation = true
+		cfg.FixSmallReportCommittee = true
+		cfg.NewKeyWordsEpoch = 76
+		cfg.Version = ConsensusV6
+		cfg.MigrationTimeout = 0
+		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.StartActivationDate = time.Date(2021, 9, 23, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 9, 30, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

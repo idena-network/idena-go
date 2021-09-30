@@ -19,13 +19,12 @@ import (
 	"sort"
 )
 
-func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
+func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
 	epochDurations []uint32, seed types.Seed, statsCollector collector.StatsCollector) {
 
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	currentEpochDuration := epochDurations[len(epochDurations)-1]
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(currentEpochDuration)))
-
 	collector.SetValidationResults(statsCollector, validationResults)
 	collector.SetTotalReward(statsCollector, totalReward)
 
@@ -34,13 +33,14 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
 	addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addFlipReward(appState, config, validationResults, totalRewardD, statsCollector)
+	addReportReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addInvitationReward(appState, config, validationResults, totalRewardD, seed, epochDurations, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
-	validationResults *types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
+	validationResults map[common.ShardId]*types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfulValidationRewardPercent))
 
 	epoch := appState.State.Epoch()
@@ -48,7 +48,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	normalizedAges := float32(0)
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults.BadAuthors[addr]; !ok {
+			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
 				normalizedAges += normalAge(epoch - identity.Birthday)
 			}
 		}
@@ -64,7 +64,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults.BadAuthors[addr]; !ok {
+			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
 				age := epoch - identity.Birthday
 				normalAge := normalAge(age)
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
@@ -101,24 +101,34 @@ func getFlipRewardCoef(grade types.Grade) float32 {
 	}
 }
 
-func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
+func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
 	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
 	flipRewardD := totalReward.Mul(decimal.NewFromFloat32(config.FlipRewardPercent))
 
 	totalWeight := float32(0)
-	for _, author := range validationResults.GoodAuthors {
-		if author.Missed {
+
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[common.ShardId(i)]
+		if !ok {
 			continue
 		}
-		for _, f := range author.FlipsToReward {
-			totalWeight += getFlipRewardCoef(f.Grade)
+		for _, author := range validationResult.GoodAuthors {
+			if author.Missed {
+				continue
+			}
+			for _, f := range author.FlipsToReward {
+				totalWeight += getFlipRewardCoef(f.Grade)
+			}
 		}
-	}
-	for _, reporters := range validationResults.ReportersToRewardByFlip {
-		if len(reporters) == 0 {
+		if config.ReportsRewardPercent > 0 {
 			continue
 		}
-		totalWeight += 1
+		for _, reporters := range validationResult.ReportersToRewardByFlip {
+			if len(reporters) == 0 {
+				continue
+			}
+			totalWeight += 1
+		}
 	}
 
 	if totalWeight == 0 {
@@ -127,48 +137,121 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 	flipRewardShare := flipRewardD.Div(decimal.NewFromFloat32(totalWeight))
 	collector.SetTotalFlipsReward(statsCollector, math.ToInt(flipRewardD), math.ToInt(flipRewardShare))
 
-	for addr, author := range validationResults.GoodAuthors {
-		if author.Missed {
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[common.ShardId(i)]
+		if !ok {
 			continue
 		}
-		var weight float32
-		for _, f := range author.FlipsToReward {
-			weight += getFlipRewardCoef(f.Grade)
-		}
-		totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(weight))
-		reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
-		rewardDest := addr
-		if delegatee := appState.State.Delegatee(addr); delegatee != nil {
-			rewardDest = *delegatee
-		}
-		collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
-		appState.State.AddBalance(rewardDest, reward)
-		appState.State.AddStake(addr, stake)
-		collector.CompleteBalanceUpdate(statsCollector, appState)
-		collector.AddMintedCoins(statsCollector, reward)
-		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddFlipsReward(statsCollector, rewardDest, addr, reward, stake, author.FlipsToReward)
-		collector.AfterAddStake(statsCollector, addr, stake, appState)
-	}
-	for flipIdx, reporters := range validationResults.ReportersToRewardByFlip {
-		if len(reporters) == 0 {
-			continue
-		}
-		totalReward := flipRewardShare.Div(decimal.NewFromInt(int64(len(reporters))))
-		for _, reporter := range reporters {
-			reward, stake := splitReward(math.ToInt(totalReward), reporter.NewIdentityState == uint8(state.Newbie), config)
-			rewardDest := reporter.Address
-			if delegatee := appState.State.Delegatee(reporter.Address); delegatee != nil {
+
+		for addr, author := range validationResult.GoodAuthors {
+			if author.Missed {
+				continue
+			}
+			var weight float32
+			for _, f := range author.FlipsToReward {
+				weight += getFlipRewardCoef(f.Grade)
+			}
+			totalReward := flipRewardShare.Mul(decimal.NewFromFloat32(weight))
+			reward, stake := splitReward(math.ToInt(totalReward), author.NewIdentityState == uint8(state.Newbie), config)
+			rewardDest := addr
+			if delegatee := appState.State.Delegatee(addr); delegatee != nil {
 				rewardDest = *delegatee
 			}
-			collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, reporter.Address, appState)
+			collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
 			appState.State.AddBalance(rewardDest, reward)
-			appState.State.AddStake(reporter.Address, stake)
+			appState.State.AddStake(addr, stake)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, reward)
 			collector.AddMintedCoins(statsCollector, stake)
-			collector.AddReportedFlipsReward(statsCollector, rewardDest, reporter.Address, flipIdx, reward, stake)
-			collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
+			collector.AddFlipsReward(statsCollector, rewardDest, addr, reward, stake, author.FlipsToReward)
+			collector.AfterAddStake(statsCollector, addr, stake, appState)
+		}
+	}
+	if config.ReportsRewardPercent > 0 {
+		return
+	}
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		shardId := common.ShardId(i)
+		validationResult, ok := validationResults[shardId]
+		if !ok {
+			continue
+		}
+		for flipIdx, reporters := range validationResult.ReportersToRewardByFlip {
+			if len(reporters) == 0 {
+				continue
+			}
+			totalReward := flipRewardShare.Div(decimal.NewFromInt(int64(len(reporters))))
+			for _, reporter := range reporters {
+				reward, stake := splitReward(math.ToInt(totalReward), reporter.NewIdentityState == uint8(state.Newbie), config)
+				rewardDest := reporter.Address
+				if delegatee := appState.State.Delegatee(reporter.Address); delegatee != nil {
+					rewardDest = *delegatee
+				}
+				collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, reporter.Address, appState)
+				appState.State.AddBalance(rewardDest, reward)
+				appState.State.AddStake(reporter.Address, stake)
+				collector.CompleteBalanceUpdate(statsCollector, appState)
+				collector.AddMintedCoins(statsCollector, reward)
+				collector.AddMintedCoins(statsCollector, stake)
+				collector.AddReportedFlipsReward(statsCollector, rewardDest, reporter.Address, shardId, flipIdx, reward, stake)
+				collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
+			}
+		}
+	}
+}
+
+func addReportReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
+	totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
+	if config.ReportsRewardPercent == 0 {
+		return
+	}
+	rewardD := totalReward.Mul(decimal.NewFromFloat32(config.ReportsRewardPercent))
+
+	totalWeight := uint64(0)
+
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		validationResult, ok := validationResults[common.ShardId(i)]
+		if !ok {
+			continue
+		}
+		for _, reporters := range validationResult.ReportersToRewardByFlip {
+			totalWeight += uint64(len(reporters))
+		}
+	}
+
+	if totalWeight == 0 {
+		return
+	}
+
+	rewardShare := rewardD.Div(decimal.NewFromBigInt(new(big.Int).SetUint64(totalWeight), 0))
+
+	collector.SetTotalReportsReward(statsCollector, math.ToInt(rewardD), math.ToInt(rewardShare))
+
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		shardId := common.ShardId(i)
+		validationResult, ok := validationResults[shardId]
+		if !ok {
+			continue
+		}
+		for flipIdx, reporters := range validationResult.ReportersToRewardByFlip {
+			if len(reporters) == 0 {
+				continue
+			}
+			for _, reporter := range reporters {
+				reward, stake := splitReward(math.ToInt(rewardShare), reporter.NewIdentityState == uint8(state.Newbie), config)
+				rewardDest := reporter.Address
+				if delegatee := appState.State.Delegatee(reporter.Address); delegatee != nil {
+					rewardDest = *delegatee
+				}
+				collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, reporter.Address, appState)
+				appState.State.AddBalance(rewardDest, reward)
+				appState.State.AddStake(reporter.Address, stake)
+				collector.CompleteBalanceUpdate(statsCollector, appState)
+				collector.AddMintedCoins(statsCollector, reward)
+				collector.AddMintedCoins(statsCollector, stake)
+				collector.AddReportedFlipsReward(statsCollector, rewardDest, reporter.Address, shardId, flipIdx, reward, stake)
+				collector.AfterAddStake(statsCollector, reporter.Address, stake, appState)
+			}
 		}
 	}
 }
@@ -196,7 +279,7 @@ func getInvitationRewardCoef(age uint16, epochHeight uint32, epochDurations []ui
 	return baseCoef * float32(1-math2.Pow(t, 4)*0.5)
 }
 
-func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults *types.ValidationResults,
+func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
 	totalReward decimal.Decimal, seed types.Seed, epochDurations []uint32, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
@@ -222,9 +305,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		data[index] = elem
 		return data
 	}
-	goodInviters := make([]inviterWrapper, 0, len(validationResults.GoodInviters))
-	for addr, inviter := range validationResults.GoodInviters {
-		goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+	goodInviters := make([]inviterWrapper, 0)
+
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		if shard, ok := validationResults[common.ShardId(i)]; ok {
+			for addr, inviter := range shard.GoodInviters {
+				goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+			}
+		}
 	}
 
 	for _, inviterWrapper := range goodInviters {
