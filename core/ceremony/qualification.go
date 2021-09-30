@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/database"
@@ -16,16 +17,18 @@ import (
 )
 
 type qualification struct {
-	shortAnswers  map[common.Address][]byte
-	longAnswers   map[common.Address][]byte
-	epochDb       *database.EpochDb
-	log           log.Logger
-	hasNewAnswers bool
-	lock          sync.RWMutex
+	config        *config.Config
+	shortAnswers map[common.Address][]byte
+	longAnswers  map[common.Address][]byte
+	epochDb      *database.EpochDb
+	log          log.Logger
+	hasChanges   bool
+	lock         sync.RWMutex
 }
 
-func NewQualification(epochDb *database.EpochDb) *qualification {
+func NewQualification(config *config.Config, epochDb *database.EpochDb) *qualification {
 	return &qualification{
+		config:       config,
 		epochDb:      epochDb,
 		log:          log.New(),
 		shortAnswers: make(map[common.Address][]byte),
@@ -49,11 +52,30 @@ func (q *qualification) addAnswers(short bool, sender common.Address, txPayload 
 	}
 	m[sender] = txPayload
 
-	q.hasNewAnswers = true
+	q.hasChanges = true
+}
+
+
+func (q *qualification) removeAnswers(short bool, sender common.Address) {
+	var m map[common.Address][]byte
+
+	if short {
+		m = q.shortAnswers
+	} else {
+		m = q.longAnswers
+	}
+
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	if _, ok := m[sender]; !ok {
+		return
+	}
+	delete(m, sender)
+	q.hasChanges = true
 }
 
 func (q *qualification) persist() {
-	if !q.hasNewAnswers {
+	if !q.hasChanges {
 		return
 	}
 	q.lock.RLock()
@@ -75,7 +97,7 @@ func (q *qualification) persist() {
 
 	q.epochDb.WriteAnswers(short, long)
 
-	q.hasNewAnswers = false
+	q.hasChanges = false
 }
 
 func (q *qualification) restore() {
@@ -141,7 +163,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	result := make([]FlipQualification, totalFlipsCount)
 
 	for flipIdx := 0; flipIdx < len(data); flipIdx++ {
-		result[flipIdx] = qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount)
+		result[flipIdx] = q.qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount)
 		if result[flipIdx].grade != types.GradeReported {
 			reportersToReward.deleteFlip(flipIdx)
 		}
@@ -292,10 +314,25 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, none uint) {
 	return left, right, none
 }
 
-func qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int) FlipQualification {
+func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int) FlipQualification {
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
+
 	reported := float32(reportsCount)/float32(len(answers)) > 0.5
+	if q.config.Consensus.FixSmallReportCommittee {
+		reported = false
+		switch len(answers) {
+		case 1, 2, 3:
+			reported = reportsCount >= len(answers)
+		case 4:
+			reported = reportsCount >= 3
+		case 5:
+			reported = reportsCount >= 4
+		default:
+			reported = float32(reportsCount)/float32(len(answers)) > 0.5
+		}
+	}
+
 	graded := float32(gradesCount)/float32(len(answers)) > 0.33
 	var grade types.Grade
 	switch {

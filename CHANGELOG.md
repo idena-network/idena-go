@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+
+## 0.27.1 (Sep 23, 2021)
+
+### Changes
+
+- Optimize network usage ([#802](https://github.com/idena-network/idena-go/pull/802))
+
+## 0.27.0 (Sep 16, 2021)
+
+### Fork (Upgrade 6)
+
+- Validation sharding ([#695](https://github.com/idena-network/idena-go/pull/695))
+- Introduce new keywords for flips ([#793](https://github.com/idena-network/idena-go/pull/793))
+- Introduce separate fund to reward successful flip reports ([#792](https://github.com/idena-network/idena-go/pull/792))
+- Change flip report thresholds for small committees ([#785](https://github.com/idena-network/idena-go/pull/785))
+- Increase invites limit for the foundation address ([#781](https://github.com/idena-network/idena-go/pull/781))
+- Fix killTx transaction validation ([#780](https://github.com/idena-network/idena-go/pull/780))
+- Fix delegation for suspended and zombie ([#784](https://github.com/idena-network/idena-go/pull/784))
+
+### Changes
+
+- Add RPC method to fetch minimal required client version ([#786](https://github.com/idena-network/idena-go/pull/786))
+- Restore mined transactions to mempool after blocks rollback ([#768](https://github.com/idena-network/idena-go/pull/768))
+- Add mempool nonce into response of getBalance rpc method ([#779](https://github.com/idena-network/idena-go/pull/779))
+- Add the time parameter when the node loads all flips for the validation to the node configuration ([#773](https://github.com/idena-network/idena-go/pull/773))
+- Update boot nodes ([#787](https://github.com/idena-network/idena-go/pull/787))
+- Add shared node profile ([#783](https://github.com/idena-network/idena-go/pull/783))
+
 ## 0.26.7 (09 Aug, 2021)
 
 ### Changes

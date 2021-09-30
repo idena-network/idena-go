@@ -50,9 +50,10 @@ func (api *DnaApi) GetCoinbaseAddr() common.Address {
 }
 
 type Balance struct {
-	Stake   decimal.Decimal `json:"stake"`
-	Balance decimal.Decimal `json:"balance"`
-	Nonce   uint32          `json:"nonce"`
+	Stake        decimal.Decimal `json:"stake"`
+	Balance      decimal.Decimal `json:"balance"`
+	Nonce        uint32          `json:"nonce"`
+	MempoolNonce uint32          `json:"mempoolNonce"`
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
@@ -64,9 +65,10 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	}
 
 	return Balance{
-		Stake:   blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
-		Balance: blockchain.ConvertToFloat(state.State.GetBalance(address)),
-		Nonce:   nonce,
+		Stake:        blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
+		Balance:      blockchain.ConvertToFloat(state.State.GetBalance(address)),
+		Nonce:        nonce,
+		MempoolNonce: state.NonceCache.GetNonce(address, currentEpoch),
 	}
 }
 
@@ -304,6 +306,7 @@ type Identity struct {
 	DelegationNonce     uint32          `json:"delegationNonce"`
 	IsPool              bool            `json:"isPool"`
 	Inviter             *Inviter        `json:"inviter"`
+	ShardId             uint32          `json:"shardId"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -471,6 +474,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Online:              isOnline,
 		IsPool:              appState.ValidatorsCache.IsPool(address),
 		Inviter:             inviter,
+		ShardId:             uint32(data.ShiftedShardId()),
 	}
 }
 
@@ -543,6 +547,10 @@ func (api *DnaApi) ImportKey(args ImportKeyArgs) error {
 
 func (api *DnaApi) Version() string {
 	return api.appVersion
+}
+
+func (api *DnaApi) MinimalClientVersion() string {
+	return "0.25.0"
 }
 
 type BurnArgs struct {

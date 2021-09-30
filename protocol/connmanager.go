@@ -3,7 +3,7 @@ package protocol
 import (
 	"context"
 	"github.com/deckarep/golang-set"
-	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -28,13 +28,15 @@ type ConnManager struct {
 	discTimes         map[peer.ID]time.Time
 	resetTimes        map[peer.ID]time.Time
 
-	inboundPeers  map[peer.ID]struct{}
-	outboundPeers map[peer.ID]struct{}
+	inboundPeers  map[peer.ID]common.ShardId
+	outboundPeers map[peer.ID]common.ShardId
 
 	peerMutex sync.RWMutex
 	connMutex sync.Mutex
 	host      core.Host
 	cfg       config.P2P
+
+	ownShardId common.ShardId
 }
 
 func NewConnManager(host core.Host, cfg config.P2P) *ConnManager {
@@ -43,15 +45,15 @@ func NewConnManager(host core.Host, cfg config.P2P) *ConnManager {
 		cfg:               cfg,
 		bannedPeers:       mapset.NewSet(),
 		activeConnections: make(map[peer.ID]network.Conn),
-		inboundPeers:      make(map[peer.ID]struct{}),
-		outboundPeers:     make(map[peer.ID]struct{}),
-
-		discTimes:  make(map[peer.ID]time.Time),
-		resetTimes: make(map[peer.ID]time.Time),
+		inboundPeers:      make(map[peer.ID]common.ShardId),
+		outboundPeers:     make(map[peer.ID]common.ShardId),
+		discTimes:         make(map[peer.ID]time.Time),
+		resetTimes:        make(map[peer.ID]time.Time),
 	}
 }
 
 func (m *ConnManager) CanConnect(id peer.ID) bool {
+
 	if m.bannedPeers.Contains(id) {
 		return false
 	}
@@ -63,14 +65,33 @@ func (m *ConnManager) CanConnect(id peer.ID) bool {
 	return true
 }
 
-func (m *ConnManager) Connected(id peer.ID, inbound bool) {
+func (m *ConnManager) Connected(id peer.ID, inbound bool, shardId common.ShardId) {
 	m.peerMutex.Lock()
 	defer m.peerMutex.Unlock()
 	if inbound {
-		m.inboundPeers[id] = struct{}{}
+		m.inboundPeers[id] = shardId
 	} else {
-		m.outboundPeers[id] = struct{}{}
+		m.outboundPeers[id] = shardId
 	}
+}
+
+func (m *ConnManager) UpdatePeerShardId(id peer.ID, shardId common.ShardId) {
+	m.peerMutex.Lock()
+	defer m.peerMutex.Unlock()
+	if _, ok := m.inboundPeers[id]; ok {
+		m.inboundPeers[id] = shardId
+		return
+	}
+	if _, ok := m.outboundPeers[id]; ok {
+		m.outboundPeers[id] = shardId
+		return
+	}
+}
+
+func (m *ConnManager) SetShardId(shard common.ShardId) (updated bool) {
+	prevShardId := m.ownShardId
+	m.ownShardId = shard
+	return prevShardId != shard
 }
 
 func (m *ConnManager) Disconnected(id peer.ID, reason error) {
@@ -209,46 +230,147 @@ func (m *ConnManager) RemoveConnection(conn network.Conn) {
 func (m *ConnManager) CanAcceptStream() bool {
 	m.peerMutex.RLock()
 	defer m.peerMutex.RUnlock()
-	return len(m.inboundPeers) < m.cfg.MaxInboundPeers
+	return len(m.inboundPeers) < m.cfg.MaxInboundPeers+m.cfg.MaxInboundOwnShardPeers
+}
+
+func (m *ConnManager) NeedPeerFromSomeShard(shardsNum int) bool {
+	if m.ownShardId != common.MultiShard {
+		return false
+	}
+	for i := common.ShardId(1); i <= common.ShardId(shardsNum); i++ {
+		if m.PeersFromShard(i) == 0{
+			return true
+		}
+	}
+	return false
+}
+
+func (m *ConnManager) NeedInboundOwnShardPeers() bool {
+	if m.ownShardId == common.MultiShard {
+		return false
+	}
+	m.peerMutex.Lock()
+	defer m.peerMutex.Unlock()
+	var cnt int
+	for _, s := range m.inboundPeers {
+		if s == m.ownShardId {
+			cnt++
+		}
+	}
+	return cnt < m.cfg.MaxInboundOwnShardPeers
+}
+
+func (m *ConnManager) NeedOutboundOwnShardPeers() bool {
+	if m.ownShardId == common.MultiShard {
+		return false
+	}
+	m.peerMutex.Lock()
+	defer m.peerMutex.Unlock()
+	var cnt int
+	for _, s := range m.outboundPeers {
+		if s == m.ownShardId {
+			cnt++
+		}
+	}
+	return cnt < m.MaxOutboundOwnPeers()
 }
 
 func (m *ConnManager) MaxOutboundPeers() int {
-	inBoundPeers := len(m.inboundPeers)
-	maxOutbound := m.cfg.MaxOutboundPeers
-	if inBoundPeers >= 4 && inBoundPeers <= 6 {
-		maxOutbound = 4
-	}
-	if inBoundPeers >= 7 && inBoundPeers <= 9 {
-		maxOutbound = 3
-	}
-	if inBoundPeers >= 10 {
-		maxOutbound = 2
-	}
-	return math.MinInt(maxOutbound, m.cfg.MaxOutboundPeers)
+	return m.cfg.MaxOutboundPeers
+}
+
+func (m *ConnManager) MaxOutboundOwnPeers() int {
+	return m.cfg.MaxOutboundOwnShardPeers
 }
 
 func (m *ConnManager) CanDial() bool {
 	m.peerMutex.RLock()
 	defer m.peerMutex.RUnlock()
-	return len(m.outboundPeers) < m.MaxOutboundPeers()
+	return len(m.outboundPeers) < m.MaxOutboundPeers()+m.MaxOutboundOwnPeers()
 }
 
-func (m *ConnManager) GetRandomInboundPeer() peer.ID {
+func (m *ConnManager) GetRandomPeer(inbound bool) peer.ID {
 	m.peerMutex.RLock()
 	defer m.peerMutex.RUnlock()
 
-	for k, _ := range m.inboundPeers {
-		return k
+	var peersMap map[peer.ID]common.ShardId
+	if inbound {
+		peersMap = m.inboundPeers
+	} else {
+		peersMap = m.outboundPeers
+	}
+
+	for k, s := range peersMap {
+		if s == common.MultiShard {
+			return k
+		}
+		if s != m.ownShardId && m.ownShardId != common.MultiShard {
+			return k
+		}
+		if m.peersCntFromShard(s) > 1 {
+			return k
+		}
 	}
 	return ""
 }
 
-func (m *ConnManager) GetRandomOutboundPeer() peer.ID {
+func (m *ConnManager) PeerForDisconnect(inbound bool, newPeerShardId common.ShardId) peer.ID {
 	m.peerMutex.RLock()
 	defer m.peerMutex.RUnlock()
 
-	for k, _ := range m.outboundPeers {
-		return k
+	canDisconnect := func(oldPeerShardId common.ShardId) bool {
+		if oldPeerShardId == common.MultiShard {
+			return true
+		}
+		if oldPeerShardId == newPeerShardId {
+			return false
+		}
+		if m.ownShardId == common.MultiShard {
+			return m.peersCntFromShard(oldPeerShardId) > 1
+		}
+		return oldPeerShardId != newPeerShardId
+	}
+
+	if inbound {
+		for k, s := range m.inboundPeers {
+			if canDisconnect(s) {
+				return k
+			}
+		}
+	} else {
+		for k, s := range m.outboundPeers {
+			if canDisconnect(s) {
+				return k
+			}
+		}
 	}
 	return ""
+}
+
+func (m *ConnManager) IsFromOwnShards(id common.ShardId) bool {
+	if m.ownShardId == common.MultiShard {
+		return false
+	}
+	return m.ownShardId == id
+}
+
+func (m *ConnManager) PeersFromShard(shardId common.ShardId) int {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
+	return m.peersCntFromShard(shardId)
+}
+
+func (m *ConnManager) peersCntFromShard(shardId common.ShardId) int {
+	var cnt int
+	for _, s := range m.outboundPeers {
+		if s == m.ownShardId {
+			cnt++
+		}
+	}
+	for _, s := range m.inboundPeers {
+		if s == m.ownShardId {
+			cnt++
+		}
+	}
+	return cnt
 }

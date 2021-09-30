@@ -3,31 +3,37 @@ package config
 import "github.com/urfave/cli"
 
 const (
-	DefaultDataDir          = "datadir"
-	DefaultPort             = 40404
-	DefaultRpcHost          = "localhost"
-	DefaultRpcPort          = 9009
-	DefaultIpfsDataDir      = "ipfs"
-	DefaultIpfsPort         = 40405
-	DefaultGodAddress       = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
-	DefaultCeremonyTime     = int64(1567171800)
-	DefaultSwarmKey         = "00d6f96bb2b02a7308ad87938d6139a974b555cc029ce416641a60c46db2f531"
-	DefaultForceFullSync    = 100
-	DefaultStoreCertRange   = 2000
-	DefaultMaxInboundPeers  = 12
-	DefaultMaxOutboundPeers = 6
-	DefaultBurntTxRange     = 180
+	DefaultDataDir        = "datadir"
+	DefaultPort           = 40404
+	DefaultRpcHost        = "localhost"
+	DefaultRpcPort        = 9009
+	DefaultIpfsDataDir    = "ipfs"
+	DefaultIpfsPort       = 40405
+	DefaultGodAddress     = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
+	DefaultCeremonyTime   = int64(1567171800)
+	DefaultSwarmKey       = "00d6f96bb2b02a7308ad87938d6139a974b555cc029ce416641a60c46db2f531"
+	DefaultForceFullSync  = 100
+	DefaultStoreCertRange = 2000
 
-	LowPowerMaxInboundPeers  = 6
-	LowPowerMaxOutboundPeers = 3
+	DefaultMaxInboundOwnShardPeers     = 6
+	DefaultMaxOutboundOwnShardPeers    = 3
+	DefaultMaxInboundNotOwnShardPeers  = 2
+	DefaultMaxOutboundNotOwnShardPeers = 1
+
+	DefaultBurntTxRange = 180
+
+
+	LowPowerMaxInboundOwnShardPeers     = 3
+	LowPowerMaxOutboundOwnShardPeers    = 2
+	LowPowerMaxInboundNotOwnShardPeers  = 1
+	LowPowerMaxOutboundNotOwnShardPeers = 1
 )
 
 var (
 	DefaultIpfsBootstrapNodes = []string{
-		"/ip4/64.227.41.45/tcp/40405/ipfs/QmfJktBd2jf37Jx3eCYyn1fofbW511U5XvYiMp7233mLZM",
 		"/ip4/135.181.40.10/tcp/40405/ipfs/QmNYWtiwM1UfeCmHfWSdefrMuQdg6nycY5yS64HYqWCUhD",
 		"/ip4/165.227.91.202/tcp/40403/ipfs/QmZ9VnVZsokXEttRYiHbHmCUBSdzSQywjj5wM3Me96XoVD",
-		"/ip4/161.35.18.60/tcp/40405/ipfs/QmaBWm6dXsc6Y1MZ1x4ZTqHdjy32PGmyGmNPmHnxGGgrXF",
+		"/ip4/124.71.148.124/tcp/40405/ipfs/QmWH9D4DjSvQyWyRUw76AopCfRS5CPR2gRnRoxP3QFaefx",
 	}
 	CfgFileFlag = cli.StringFlag{
 		Name:  "config",

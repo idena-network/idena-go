@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/golang/protobuf/proto"
-	"github.com/idena-network/idena-go/common"
+	common "github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	models "github.com/idena-network/idena-go/protobuf"
 	"math/big"
@@ -169,6 +169,7 @@ type Transaction struct {
 	hash128 atomic.Value
 	from    atomic.Value
 
+	shardId atomic.Value
 	validLongSessionAnswersProof atomic.Value
 }
 
@@ -908,6 +909,17 @@ func (tx *Transaction) FromBytes(data []byte) error {
 	return nil
 }
 
+func (tx *Transaction) SetShardId(shardId common.ShardId) {
+	tx.shardId.Store(shardId)
+}
+
+func (tx *Transaction) LoadShardId() common.ShardId {
+	if shardId := tx.shardId.Load(); shardId != nil {
+		return shardId.(common.ShardId)
+	}
+	return common.MultiShard
+}
+
 // Len returns the length of s.
 func (s Transactions) Len() int { return len(s) }
 
@@ -1141,7 +1153,8 @@ type PublicFlipKey struct {
 	Signature []byte
 	Epoch     uint16
 
-	from atomic.Value
+	from    atomic.Value
+	shardId atomic.Value
 }
 
 func (k *PublicFlipKey) ToSignatureBytes() ([]byte, error) {
@@ -1179,6 +1192,17 @@ func (k *PublicFlipKey) FromBytes(data []byte) error {
 func (k *PublicFlipKey) Hash() common.Hash {
 	b, _ := k.ToBytes()
 	return crypto.Hash(b)
+}
+
+func (k *PublicFlipKey) LoadShardId() common.ShardId {
+	if shardId := k.shardId.Load();shardId!=nil{
+		return shardId.(common.ShardId)
+	}
+	return common.MultiShard
+}
+
+func (k *PublicFlipKey) SetShardId(shardId common.ShardId){
+	k.shardId.Store(shardId)
 }
 
 type PrivateFlipKeysPackage struct {

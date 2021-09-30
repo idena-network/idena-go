@@ -39,6 +39,11 @@ type DbProof struct {
 	Proof []byte
 }
 
+type DbEvidenceMap struct {
+	Sender common.Address
+	Map    []byte
+}
+
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
 	prefix := append([]byte("epoch"), uint8(epoch>>8), uint8(epoch&0xff))
 	return &EpochDb{db: dbm.NewPrefixDB(db, prefix)}
@@ -72,6 +77,10 @@ func (edb *EpochDb) WriteAnswerHash(address common.Address, hash common.Hash, ti
 	}
 	data, _ := proto.Marshal(protoAnswer)
 	assertNoError(edb.db.Set(append(AnswerHashPrefix, address.Bytes()...), data))
+}
+
+func (edb *EpochDb) RemoveAnswerHash(address common.Address) {
+	assertNoError(edb.db.Delete(append(AnswerHashPrefix, address.Bytes()...)))
 }
 
 func (edb *EpochDb) GetAnswers() map[common.Address]common.Hash {
@@ -192,19 +201,23 @@ func (edb *EpochDb) ReadAnswers() (short []DbAnswer, long []DbAnswer) {
 	return short, long
 }
 
-func (edb *EpochDb) ReadEvidenceMaps() [][]byte {
+func (edb *EpochDb) ReadEvidenceMaps() []*DbEvidenceMap {
 	it, err := edb.db.Iterator(append(EvidencePrefix, common.MinAddr[:]...), append(EvidencePrefix, common.MaxAddr[:]...))
 	assertNoError(err)
 	defer it.Close()
-	var result [][]byte
+	var result []*DbEvidenceMap
 	for ; it.Valid(); it.Next() {
-		result = append(result, it.Value())
+		result = append(result, &DbEvidenceMap{ Sender : common.BytesToAddress(it.Key()[len(EvidencePrefix):]), Map:  it.Value()})
 	}
 	return result
 }
 
 func (edb *EpochDb) WriteEvidenceMap(addr common.Address, bitmap []byte) {
 	edb.db.Set(append(EvidencePrefix, addr[:]...), bitmap)
+}
+
+func (edb *EpochDb) RemoveEvidenceMap(addr common.Address) {
+	edb.db.Delete(append(EvidencePrefix, addr[:]...))
 }
 
 func (edb *EpochDb) WriteOwnTx(txType uint16, tx []byte) {
@@ -290,7 +303,6 @@ func (edb *EpochDb) WritePublicFlipKey(key *types.PublicFlipKey) {
 	assertNoError(err)
 }
 
-
 func (edb *EpochDb) ReadPublicFlipKeys() []*types.PublicFlipKey {
 	it, err := edb.db.Iterator(append(PublicFlipKeyPrefix, common.MinHash[:]...), append(PublicFlipKeyPrefix, common.MaxHash...))
 	assertNoError(err)
@@ -312,7 +324,6 @@ func (edb *EpochDb) WritePrivateFlipKey(key *types.PrivateFlipKeysPackage) {
 	assertNoError(err)
 }
 
-
 func (edb *EpochDb) ReadPrivateFlipKeys() []*types.PrivateFlipKeysPackage {
 	it, err := edb.db.Iterator(append(PrivateFlipKeyPrefix, common.MinHash128[:]...), append(PrivateFlipKeyPrefix, common.MaxHash128...))
 	assertNoError(err)
@@ -326,5 +337,3 @@ func (edb *EpochDb) ReadPrivateFlipKeys() []*types.PrivateFlipKeysPackage {
 	}
 	return result
 }
-
-
