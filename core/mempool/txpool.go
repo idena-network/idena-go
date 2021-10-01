@@ -38,7 +38,7 @@ var (
 type TransactionPool interface {
 	AddInternalTx(tx *types.Transaction) error
 	AddExternalTxs(txs ...*types.Transaction) error
-	GetPendingTransaction(noFilter bool, count bool) []*types.Transaction
+	GetPendingTransaction(noFilter bool, id common.ShardId, count bool) []*types.Transaction
 	IsSyncing() bool
 }
 
@@ -399,7 +399,7 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	return nil
 }
 
-func (pool *TxPool) GetPendingTransaction(noFilter bool, count bool) []*types.Transaction {
+func (pool *TxPool) GetPendingTransaction(noFilter bool, shardId common.ShardId, count bool) []*types.Transaction {
 	all := pool.all.List()
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
@@ -410,9 +410,11 @@ func (pool *TxPool) GetPendingTransaction(noFilter bool, count bool) []*types.Tr
 	}
 	for _, tx := range all {
 		if noFilter || pool.txSyncCounts[tx.Hash()] <= maxTxSyncCounts {
-			result = append(result, tx)
-			if count {
-				pool.txSyncCounts[tx.Hash()] ++
+			if shardId == common.MultiShard || tx.LoadShardId() == shardId {
+				result = append(result, tx)
+				if count {
+					pool.txSyncCounts[tx.Hash()]++
+				}
 			}
 		}
 	}

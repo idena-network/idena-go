@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 )
 
 const batchSize = 1000
@@ -45,8 +46,8 @@ func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	return nil
 }
 
-func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool, count bool) []*types.Transaction {
-	return pool.txPool.GetPendingTransaction(noFilter, count)
+func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool, id common.ShardId, count bool) []*types.Transaction {
+	return pool.txPool.GetPendingTransaction(noFilter, id, count)
 }
 
 func (pool *AsyncTxPool) loop() {

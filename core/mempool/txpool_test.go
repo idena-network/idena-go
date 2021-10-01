@@ -316,7 +316,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	time.Sleep(time.Second)
 	require.Len(t, pool.txKeeper.txs, 320)
 
-	pool.txKeeper.RemoveTxs([]common.Hash{pool.GetPendingTransaction(false, false)[0].Hash()})
+	pool.txKeeper.RemoveTxs([]common.Hash{pool.GetPendingTransaction(false, common.MultiShard, false)[0].Hash()})
 	time.Sleep(time.Second)
 	
 	prevPool := pool
