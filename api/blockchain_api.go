@@ -221,6 +221,11 @@ type Transactions struct {
 	Token        *hexutil.Bytes `json:"token"`
 }
 
+type EstimateTxResponse struct {
+	TxHash common.Hash     `json:"txHash"`
+	TxFee  decimal.Decimal `json:"txFee"`
+}
+
 // sorted by epoch \ nonce desc (the newest transactions are first)
 func (api *BlockchainApi) PendingTransactions(args TransactionsArgs) Transactions {
 	txs := api.pool.GetPendingByAddress(args.Address)
@@ -285,6 +290,27 @@ func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
 	}
 
 	return data, nil
+}
+
+func (api *BlockchainApi) EstimateTx(args SendTxArgs) (*EstimateTxResponse, error) {
+	var payload []byte
+	if args.Payload != nil {
+		payload = *args.Payload
+	}
+
+	tx, err := api.baseApi.getSignedTx(args.From, args.To, args.Type, args.Amount, args.MaxFee, args.Tips, args.Nonce, args.Epoch, payload, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = api.baseApi.txpool.Validate(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EstimateTxResponse{
+		TxHash: tx.Hash(),
+		TxFee:  blockchain.ConvertToFloat(fee.CalculateFee(1, api.baseApi.getReadonlyAppState().State.FeePerGas(), tx)),
+	}, nil
 }
 
 func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
