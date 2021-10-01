@@ -6,7 +6,7 @@
 
 ### Changes
 
-- Respect shardId in mempool syncing (#805) ([#805](https://github.com/idena-network/idena-go/pull/805))
+- Respect shardId in mempool syncing ([#805](https://github.com/idena-network/idena-go/pull/805))
 - Update deps ([#776](https://github.com/idena-network/idena-go/pull/776)
   & [#796](https://github.com/idena-network/idena-go/pull/796))
 - Add RPC method to estimate tx ([#809](https://github.com/idena-network/idena-go/pull/809))
