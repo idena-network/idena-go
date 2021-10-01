@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.27.2-rc1 (Oct 1, 2021)
+
+### Changes
+
+- Respect shardId in mempool syncing (#805) ([#805](https://github.com/idena-network/idena-go/pull/805))
+- Update deps ([#776](https://github.com/idena-network/idena-go/pull/776)
+  & [#796](https://github.com/idena-network/idena-go/pull/796))
+- Add RPC method to estimate tx ([#809](https://github.com/idena-network/idena-go/pull/809))
 
 ## 0.27.1 (Sep 23, 2021)
 
@@ -24,9 +32,11 @@
 ### Changes
 
 - Add RPC method to fetch minimal required client version ([#786](https://github.com/idena-network/idena-go/pull/786))
-- Restore mined transactions to mempool after blocks rollback ([#768](https://github.com/idena-network/idena-go/pull/768))
+- Restore mined transactions to mempool after blocks
+  rollback ([#768](https://github.com/idena-network/idena-go/pull/768))
 - Add mempool nonce into response of getBalance rpc method ([#779](https://github.com/idena-network/idena-go/pull/779))
-- Add the time parameter when the node loads all flips for the validation to the node configuration ([#773](https://github.com/idena-network/idena-go/pull/773))
+- Add the time parameter when the node loads all flips for the validation to the node
+  configuration ([#773](https://github.com/idena-network/idena-go/pull/773))
 - Update boot nodes ([#787](https://github.com/idena-network/idena-go/pull/787))
 - Add shared node profile ([#783](https://github.com/idena-network/idena-go/pull/783))
 
