@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.27.2-rc1 (Oct 1, 2021)
+## 0.27.2 (Oct 7, 2021)
 
 ### Changes
 
