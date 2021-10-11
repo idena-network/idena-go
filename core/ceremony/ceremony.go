@@ -463,6 +463,7 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
 		return
 	}
+	vc.appState.EvidenceMap.SetShortSessionStartTime(time.Now().UTC())
 
 	vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	vc.broadcastPublicFipKey(appState)
