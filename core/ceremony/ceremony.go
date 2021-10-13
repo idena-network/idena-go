@@ -328,7 +328,7 @@ func (vc *ValidationCeremony) shortSessionAnswersBroadcastLoop() {
 	for {
 		time.Sleep(time.Second * 5)
 		if vc.appState.State.ValidationPeriod() != state.NonePeriod {
-			if vc.appState.EvidenceMap.IsCompleted() {
+			if !vc.shortAnswersSent && vc.appState.EvidenceMap.IsCompleted() {
 				if vc.shouldInteractWithNetwork() {
 					time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
 					vc.broadcastShortAnswersTx()
