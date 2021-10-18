@@ -250,6 +250,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 
 	p.privateKeysMutex.Unlock()
 
+	p.appState.EvidenceMap.NewFlipKeyPackage(sender)
+
 	p.bus.Publish(&events.NewFlipKeysPackageEvent{
 		Key:     keysPackage,
 		ShardId: appState.State.ShardId(sender),

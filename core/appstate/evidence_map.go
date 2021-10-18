@@ -17,6 +17,7 @@ var (
 type EvidenceMap struct {
 	answersSet           mapset.Set
 	keysSet              mapset.Set
+	keyPackageSet        mapset.Set
 	bus                  eventbus.Bus
 	shortSessionTime     time.Time
 	shortSessionDuration time.Duration
@@ -25,9 +26,10 @@ type EvidenceMap struct {
 
 func NewEvidenceMap(bus eventbus.Bus) *EvidenceMap {
 	m := &EvidenceMap{
-		bus:        bus,
-		answersSet: mapset.NewSet(),
-		keysSet:    mapset.NewSet(),
+		bus:           bus,
+		answersSet:    mapset.NewSet(),
+		keysSet:       mapset.NewSet(),
+		keyPackageSet: mapset.NewSet(),
 	}
 	bus.Subscribe(events.NewTxEventID, func(e eventbus.Event) {
 		newTxEvent := e.(*events.NewTxEvent)
@@ -52,6 +54,12 @@ func (m *EvidenceMap) newTx(tx *types.Transaction) {
 func (m *EvidenceMap) NewFlipsKey(author common.Address) {
 	if time.Now().UTC().Sub(m.shortSessionTime) < ShortSessionFlipKeyDeadline {
 		m.keysSet.Add(author)
+	}
+}
+
+func (m *EvidenceMap) NewFlipKeyPackage(author common.Address) {
+	if time.Now().UTC().Sub(m.shortSessionTime) < ShortSessionFlipKeyDeadline {
+		m.keyPackageSet.Add(author)
 	}
 }
 
@@ -88,6 +96,9 @@ func (m *EvidenceMap) CalculateBitmap(candidates []common.Address, additional []
 		if !m.keysSet.Contains(candidate) && reqFlips(candidate) > 0 {
 			continue
 		}
+		if !m.keyPackageSet.Contains(candidate) && reqFlips(candidate) > 0 {
+			continue
+		}
 		if additionalSet.Contains(candidate) {
 			rmap.Add(uint32(i))
 			continue
@@ -104,12 +115,16 @@ func (m *EvidenceMap) ContainsAnswer(candidate common.Address) bool {
 }
 
 func (m *EvidenceMap) ContainsKey(candidate common.Address) bool {
-	return m.keysSet.Contains(candidate)
+	return m.keysSet.Contains(candidate) && m.keyPackageSet.Contains(candidate)
 }
 
 func (m *EvidenceMap) SetShortSessionTime(timestamp time.Time, shortSessionDuration time.Duration) {
 	m.shortSessionTime = timestamp
 	m.shortSessionDuration = shortSessionDuration
+}
+
+func (m *EvidenceMap) SetShortSessionStartTime(timestamp time.Time) {
+	m.shortSessionTime = timestamp
 }
 
 func (m *EvidenceMap) GetShortSessionBeginningTime() time.Time {
@@ -129,4 +144,5 @@ func (m *EvidenceMap) IsCompleted() bool {
 func (m *EvidenceMap) Clear() {
 	m.answersSet = mapset.NewSet()
 	m.keysSet = mapset.NewSet()
+	m.keyPackageSet = mapset.NewSet()
 }

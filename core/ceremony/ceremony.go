@@ -478,6 +478,7 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
 		return
 	}
+	vc.appState.EvidenceMap.SetShortSessionStartTime(time.Now().UTC())
 
 	vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	vc.broadcastPublicFipKey(appState)
@@ -896,7 +897,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
-	if cfg.FixDelegation && value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
+	if value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
 		transitiveDelegatee := appState.State.Delegatee(*value.delegatee)
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee

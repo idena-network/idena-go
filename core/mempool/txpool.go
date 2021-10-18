@@ -2,7 +2,6 @@ package mempool
 
 import (
 	"github.com/deckarep/golang-set"
-	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -13,7 +12,6 @@ import (
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/stats/collector"
-	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
@@ -255,14 +253,6 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 }
 
 func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
-
-	if !pool.cfg.Consensus.FixPoolRewardEvents && tx.Type == types.CallContractTx {
-		attachment := attachments.ParseCallContractAttachment(tx)
-		if attachment != nil && attachment.Method == embedded.FinishVotingMethod {
-			return errors.New("finishVoting is temporary disabled")
-		}
-	}
-
 	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
 		if pool.txKeeper != nil {
