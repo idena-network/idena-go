@@ -789,7 +789,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		return
 	}
 
-	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h))); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h), 1)); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
 		vc.shortAnswersSent = true
 	} else {
 		vc.log.Error("cannot send short answers tx", "err", err)

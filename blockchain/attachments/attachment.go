@@ -10,14 +10,16 @@ import (
 )
 
 type ShortAnswerAttachment struct {
-	Answers []byte
-	Rnd     uint64
+	Answers    []byte
+	Rnd        uint64
+	ClientType byte
 }
 
 func (s *ShortAnswerAttachment) ToBytes() ([]byte, error) {
 	protoAttachment := &models.ProtoShortAnswerAttachment{
-		Answers: s.Answers,
-		Rnd:     s.Rnd,
+		Answers:    s.Answers,
+		Rnd:        s.Rnd,
+		ClientType: uint32(s.ClientType),
 	}
 	return proto.Marshal(protoAttachment)
 }
@@ -29,13 +31,15 @@ func (s *ShortAnswerAttachment) FromBytes(data []byte) error {
 	}
 	s.Answers = protoAttachment.Answers
 	s.Rnd = protoAttachment.Rnd
+	s.ClientType = byte(protoAttachment.ClientType)
 	return nil
 }
 
-func CreateShortAnswerAttachment(answers []byte, rnd uint64) []byte {
+func CreateShortAnswerAttachment(answers []byte, rnd uint64, clientType byte) []byte {
 	attachment := &ShortAnswerAttachment{
-		Answers: answers,
-		Rnd:     rnd,
+		Answers:    answers,
+		Rnd:        rnd,
+		ClientType: clientType,
 	}
 
 	payload, _ := attachment.ToBytes()
