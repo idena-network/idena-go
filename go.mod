@@ -9,7 +9,6 @@ require (
 	github.com/cosmos/iavl v0.15.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
-	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-stack/stack v1.8.1
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.3 // indirect

@@ -29,6 +29,7 @@ import (
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
+	"github.com/idena-network/idena-go/resources"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/subscriptions"
@@ -229,7 +230,7 @@ func (chain *Blockchain) setHead(height uint64, batch dbm.Batch) {
 }
 
 func (chain *Blockchain) readBindataGenesis() (*types.Header, error) {
-	data, err := Asset("bindata/header.tar")
+	data, err := resources.IntermediateGenesisHeader()
 	if err != nil {
 		return nil, err
 	}
@@ -250,23 +251,25 @@ func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Bl
 	if err != nil {
 		return nil, err
 	}
-	stateDbData, err := Asset("bindata/statedb.tar")
+	stateDbData, err := resources.StateDb()
 	if err != nil {
 		return nil, err
 	}
+	defer stateDbData.Close()
 
-	if err = chain.appState.State.RecoverSnapshot(header.Height(), header.Root(), bytes.NewReader(stateDbData)); err != nil {
+	if err = chain.appState.State.RecoverSnapshot(header.Height(), header.Root(), stateDbData); err != nil {
 		return nil, err
 	}
 
 	chain.appState.State.CommitSnapshot(header.Height(), nil)
 
-	identityStateDbData, err := Asset("bindata/identitystatedb.tar")
+	identityStateDbData, err := resources.IdentityStateDb()
 	if err != nil {
 		return nil, err
 	}
+	defer identityStateDbData.Close()
 
-	if err = chain.appState.IdentityState.RecoverSnapshot(header.Height(), header.IdentityRoot(), bytes.NewReader(identityStateDbData)); err != nil {
+	if err = chain.appState.IdentityState.RecoverSnapshot(header.Height(), header.IdentityRoot(), identityStateDbData); err != nil {
 		return nil, err
 	}
 
@@ -322,7 +325,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		if chain.config.GenesisConf.GodAddressInvites > 0 {
 			chain.appState.State.SetGodAddressInvites(chain.config.GenesisConf.GodAddressInvites)
 		} else {
-			chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0, chain.config.Consensus.IncreaseGodInvitesLimit))
+			chain.appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(0))
 		}
 
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
@@ -580,9 +583,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		}
 		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, block.Seed(),
 			statsCollector)
-		if chain.config.Consensus.EnableValidationSharding {
-			balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
-		}
+		balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 	}
 
 	clearDustAccounts(appState, networkSize, statsCollector)
@@ -595,12 +596,10 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 
 	appState.State.SetFlipWordsSeed(block.Seed())
 
-	if chain.config.Consensus.EncourageEarlyInvitations {
-		appState.State.AddPrevEpochBlock(epochBlock)
-	}
+	appState.State.AddPrevEpochBlock(epochBlock)
 	appState.State.SetEpochBlock(block.Height())
 	appState.State.ClearEmptyBlocksByShard()
-	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize, chain.config.Consensus.IncreaseGodInvitesLimit))
+	appState.State.SetGodAddressInvites(common.GodAddressInvitesCount(networkSize))
 }
 
 func calculateNewIdentityStatusFlags(validationResults map[common.ShardId]*types.ValidationResults) map[common.Address]state.ValidationStatusFlag {
@@ -935,29 +934,21 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 				ceremonialTxsByShard[senderIdentity.ShiftedShardId()] = true
 			}
 		}
-		if !chain.config.Consensus.EnableValidationSharding {
-			if len(ceremonialTxsByShard) == 0 {
-				appState.State.IncBlocksCntWithoutCeremonialTxs()
-			} else if chain.config.Consensus.ResetBlocksWithoutCeremonialTxs && appState.State.BlocksCntWithoutCeremonialTxs() > 0 {
-				appState.State.ResetBlocksCntWithoutCeremonialTxs()
+		if len(ceremonialTxsByShard) == 0 {
+			if !proposer.State.NewbieOrBetter() {
+				randSeed := binary.LittleEndian.Uint64(block.Seed().Bytes())
+				random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
+				proposerShardId = common.ShardId(1 + random.Intn(int(appState.State.ShardsNum())))
 			}
+			appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
+			appState.State.IncBlocksCntWithoutCeremonialTxs()
 		} else {
-			if len(ceremonialTxsByShard) == 0 {
-				if !proposer.State.NewbieOrBetter() {
-					randSeed := binary.LittleEndian.Uint64(block.Seed().Bytes())
-					random := rand.New(rand.NewSource(int64(randSeed)*77 + 55))
-					proposerShardId = common.ShardId(1 + random.Intn(int(appState.State.ShardsNum())))
-				}
+			appState.State.ResetBlocksCntWithoutCeremonialTxs()
+			if proposer.State.NewbieOrBetter() && !ceremonialTxsByShard[proposerShardId] {
 				appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
-				appState.State.IncBlocksCntWithoutCeremonialTxs()
-			} else {
-				appState.State.ResetBlocksCntWithoutCeremonialTxs()
-				if proposer.State.NewbieOrBetter() && !ceremonialTxsByShard[proposerShardId] {
-					appState.State.AddEmptyBlockByShard(appState.ValidatorsCache.OnlineSize(), proposerShardId, proposerAddr)
-				}
-				for shardId := range ceremonialTxsByShard {
-					appState.State.ResetEmptyBlockByShard(shardId)
-				}
+			}
+			for shardId := range ceremonialTxsByShard {
+				appState.State.ResetEmptyBlockByShard(shardId)
 			}
 		}
 	}
@@ -990,7 +981,7 @@ func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *t
 
 	if flags.HasFlag(types.OfflineCommit) {
 		addr := block.Header.OfflineAddr()
-		chain.applyOfflinePenalty(appState, *addr, statsCollector)
+		chain.applyOfflinePenalty(appState, *addr)
 	}
 }
 
@@ -1007,28 +998,17 @@ func (chain *Blockchain) calculatePenalty(appState *appstate.AppState, addr comm
 	return math.ToInt(res)
 }
 
-func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr common.Address,
-	statsCollector collector.StatsCollector) {
+func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr common.Address) {
 	networkSize := appState.ValidatorsCache.NetworkSize()
 
 	if networkSize > 0 {
-		if chain.config.Consensus.EnableDelayedOfflinePenalty {
-			appState.State.AddDelayedPenalty(addr)
-			return
-		}
-		amount := chain.calculatePenalty(appState, addr)
-		collector.BeforeSetPenalty(statsCollector, addr, amount, appState)
-		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenalty(addr, amount)
-		collector.CompleteBalanceUpdate(statsCollector, appState)
+		appState.State.AddDelayedPenalty(addr)
+		return
 	}
 	appState.IdentityState.SetOnline(addr, false)
 }
 
 func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) {
-	if !chain.config.Consensus.EnableDelayedOfflinePenalty {
-		return
-	}
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
@@ -1196,19 +1176,15 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.AddBalance(recipient, balanceToTransfer)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
-		if chain.config.Consensus.EnableValidationSharding {
-			candidateShard := chain.MinimalShard(appState)
-			stateDB.SetShardId(recipient, candidateShard)
-			stateDB.IncreaseShardSize(candidateShard)
-		}
+		candidateShard := chain.MinimalShard(appState)
+		stateDB.SetShardId(recipient, candidateShard)
+		stateDB.IncreaseShardSize(candidateShard)
 		inviter := stateDB.GetInviter(sender)
 		if inviter != nil {
 			removeLinkWithInviter(appState.State, sender)
 			if inviter.Address == stateDB.GodAddress() || stateDB.GetIdentityState(inviter.Address).VerifiedOrBetter() {
 				var epochBlock uint32
-				if chain.config.Consensus.EncourageEarlyInvitations {
-					epochBlock = uint32(context.height - appState.State.EpochBlock())
-				}
+				epochBlock = uint32(context.height - appState.State.EpochBlock())
 				stateDB.AddInvitee(inviter.Address, recipient, inviter.TxHash)
 				stateDB.SetInviter(recipient, inviter.Address, inviter.TxHash, epochBlock)
 			}
@@ -1272,10 +1248,10 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		if inviteePrevState == state.Newbie {
 			stake := stateDB.GetStakeBalance(*tx.To)
 			stakeToTransfer := big.NewInt(0).Set(stake)
-			if chain.config.Consensus.BurnInviteeStake {
-				// 1/6 of stake moves to balance, rest burns
-				stakeToTransfer.Div(stake, big.NewInt(6))
-			}
+
+			// 1/6 of stake moves to balance, rest burns
+			stakeToTransfer.Div(stake, big.NewInt(6))
+
 			stateDB.AddBalance(sender, stakeToTransfer)
 			stateDB.SubStake(*tx.To, stake)
 			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake, stakeToTransfer)
@@ -1712,7 +1688,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 		flags |= types.AfterLongSessionStarted
 	}
 
-	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.CanCompleteEpoch(chain.config.Consensus.EnableValidationSharding) {
+	if stateDb.ValidationPeriod() == state.AfterLongSessionPeriod && stateDb.CanCompleteEpoch() {
 		flags |= types.ValidationFinished
 		flags |= types.IdentityUpdate
 	}
@@ -1720,10 +1696,6 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	if block.Height()-appState.State.LastSnapshot() >= chain.config.Consensus.SnapshotRange && appState.State.ValidationPeriod() == state.NonePeriod &&
 		!flags.HasFlag(types.ValidationFinished) && !flags.HasFlag(types.FlipLotteryStarted) {
 		flags |= types.Snapshot
-	}
-
-	if !chain.config.Consensus.EnableDelayedOfflinePenalty && block.Header.Flags().HasFlag(types.OfflineCommit) {
-		flags |= types.IdentityUpdate
 	}
 
 	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && (len(appState.State.StatusSwitchAddresses()) > 0 ||
@@ -2456,7 +2428,7 @@ func (chain *Blockchain) ReadTotalBurntCoins() []*types.BurntCoins {
 }
 
 func readPredefinedState() (*models.ProtoPredefinedState, error) {
-	data, err := Asset("stategen.out")
+	data, err := resources.PredefinedState()
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,28 @@ import (
 	"time"
 )
 
+var (
+	maxHash *big.Float
+)
+
+const (
+	oracleVotingStatePending  = byte(0)
+	oracleVotingStateStarted  = byte(1)
+	oracleVotingStateFinished = byte(2)
+)
+
+const FinishVotingMethod = "finishVoting"
+
+func init() {
+	var max [32]byte
+	for i := range max {
+		max[i] = 0xFF
+	}
+	i := new(big.Int)
+	i.SetBytes(max[:])
+	maxHash = new(big.Float).SetInt(i)
+}
+
 type OracleVoting3 struct {
 	*BaseContract
 	voteHashes  *env.Map
@@ -121,6 +143,16 @@ func (f *OracleVoting3) Deploy(args ...[]byte) error {
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
 		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee)
 	return nil
+}
+
+func minOracleReward(committeeSize uint64, networkSize int) *big.Int {
+	network := float64(networkSize)
+	if network == 0 {
+		network = 1
+	}
+	dnaReward := decimal.NewFromFloat(math2.Pow(math2.Log10(network), math2.Log10(float64(committeeSize)/network*100)/2))
+	decimalOneDna := decimal.NewFromBigInt(common.DnaBase, 0)
+	return math.ToInt(dnaReward.Mul(decimalOneDna))
 }
 
 func (f *OracleVoting3) startVoting() error {
@@ -682,4 +714,26 @@ func (f *OracleVoting3) Terminate(args ...[]byte) (common.Address, error) {
 		return f.Owner(), nil
 	}
 	return common.Address{}, errors.New("voting can not be terminated")
+}
+
+
+
+type ContractError struct {
+	error    string
+	tryLater bool
+}
+
+func NewContractError(text string, tryLater bool) *ContractError {
+	return &ContractError{
+		error:    text,
+		tryLater: tryLater,
+	}
+}
+
+func (e *ContractError) Error() string {
+	return e.error
+}
+
+func (e *ContractError) TryLater() bool {
+	return e.tryLater
 }
