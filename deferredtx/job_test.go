@@ -35,6 +35,10 @@ type fakeTxPool struct {
 	counter int
 }
 
+func (f *fakeTxPool) GetPriorityTransaction() []*types.Transaction {
+	panic("implement me")
+}
+
 func (f *fakeTxPool) AddInternalTx(tx *types.Transaction) error {
 	f.counter++
 	return nil
