@@ -889,7 +889,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
-	if cfg.FixDelegation && value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
+	if value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
 		transitiveDelegatee := appState.State.Delegatee(*value.delegatee)
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee

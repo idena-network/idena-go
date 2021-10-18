@@ -32,9 +32,6 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf := config.GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
-	config.ApplyConsensusVersion(config.ConsensusV4, conf)
-	config.ApplyConsensusVersion(config.ConsensusV5, conf)
-	config.ApplyConsensusVersion(config.ConsensusV6, conf)
 
 	memdb := db.NewMemDB()
 
@@ -220,14 +217,6 @@ func Test_getInvitationRewardCoef(t *testing.T) {
 
 	coef = getInvitationRewardCoef(4, 0, []uint32{}, consensusConf)
 	require.Equal(t, float32(0.0), coef)
-
-	coef = getInvitationRewardCoef(1, 0, []uint32{90}, consensusConf)
-	require.Equal(t, float32(1.0), coef)
-
-	coef = getInvitationRewardCoef(1, 90, []uint32{90}, consensusConf)
-	require.Equal(t, float32(1.0), coef)
-
-	consensusConf.EncourageEarlyInvitations = true
 
 	coef = getInvitationRewardCoef(1, 0, []uint32{90}, consensusConf)
 	require.Equal(t, float32(1.0), coef)

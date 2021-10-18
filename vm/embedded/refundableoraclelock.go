@@ -11,6 +11,13 @@ import (
 	"math/big"
 )
 
+const (
+	oracleLockLocked          = byte(1)
+	oracleLockUnlockedSuccess = byte(2)
+	oracleLockUnlockedFail    = byte(3)
+	oracleLockUnlockedRefund  = byte(4)
+)
+
 type RefundableOracleLock2 struct {
 	*BaseContract
 	deposits *env.Map
