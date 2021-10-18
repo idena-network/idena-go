@@ -46,8 +46,12 @@ func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
 	return nil
 }
 
-func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool, id common.ShardId, count bool) []*types.Transaction {
-	return pool.txPool.GetPendingTransaction(noFilter, id, count)
+func (pool *AsyncTxPool) GetPriorityTransaction() []*types.Transaction {
+	return pool.txPool.GetPriorityTransaction()
+}
+
+func (pool *AsyncTxPool) GetPendingTransaction(noFilter bool, addHighPriority bool, shardId common.ShardId, count bool) []*types.Transaction {
+	return pool.txPool.GetPendingTransaction(noFilter, addHighPriority, shardId, count)
 }
 
 func (pool *AsyncTxPool) loop() {

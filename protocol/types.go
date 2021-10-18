@@ -161,3 +161,37 @@ func (u *updateShardId) FromBytes(data []byte) error {
 	u.ShardId = common.ShardId(protoObj.ShardId)
 	return nil
 }
+
+type batchItem struct {
+	Payload []byte
+	ShardId common.ShardId
+}
+
+type msgBatch struct {
+	Data []*batchItem
+}
+
+func (m *msgBatch) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoMsgBatch{}
+	for idx := range m.Data {
+		protoObj.Data = append(protoObj.Data, &models.ProtoMsgBatch_BatchItem{
+			Payload: m.Data[idx].Payload,
+			ShardId: uint32(m.Data[idx].ShardId),
+		})
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (m *msgBatch) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoMsgBatch)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	for idx := range protoObj.Data {
+		m.Data = append(m.Data, &batchItem{
+			ShardId: common.ShardId(protoObj.Data[idx].ShardId),
+			Payload: protoObj.Data[idx].Payload,
+		})
+	}
+	return nil
+}

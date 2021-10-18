@@ -191,7 +191,7 @@ func (engine *Engine) loop() {
 		roundStart := time.Now().UTC()
 
 		shardId, _ := engine.chain.CoinbaseShard()
-		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(),"shardId", shardId , "p2p-shardId", engine.pm.OwnPeeringShardId(), "total-peers",
+		engine.log.Info("Start loop", "round", round, "head", head.Hash().Hex(), "shardId", shardId, "p2p-shardId", engine.pm.OwnPeeringShardId(), "total-peers",
 			engine.pm.PeersCount(), "own-shard-peers", engine.pm.OwnShardPeersCount(), "online-nodes", engine.appState.ValidatorsCache.OnlineSize(),
 			"network", engine.appState.ValidatorsCache.NetworkSize())
 

@@ -169,8 +169,10 @@ type Transaction struct {
 	hash128 atomic.Value
 	from    atomic.Value
 
-	shardId atomic.Value
+	shardId                      atomic.Value
 	validLongSessionAnswersProof atomic.Value
+
+	highPriority atomic.Value
 }
 
 type FullBlockCert struct {
@@ -777,7 +779,6 @@ func (v *Vote) VoterAddr() common.Address {
 	return addr
 }
 
-
 func (v *Vote) PubKey() ([]byte, error) {
 	hash := crypto.SignatureHash(v)
 	return crypto.Ecrecover(hash[:], v.Signature)
@@ -918,6 +919,17 @@ func (tx *Transaction) LoadShardId() common.ShardId {
 		return shardId.(common.ShardId)
 	}
 	return common.MultiShard
+}
+
+func (tx *Transaction) SetHighPriority(value bool) {
+	tx.highPriority.Store(value)
+}
+
+func (tx *Transaction) LoadHighPriority() bool {
+	if highPriority := tx.highPriority.Load(); highPriority != nil {
+		return highPriority.(bool)
+	}
+	return false
 }
 
 // Len returns the length of s.
@@ -1154,7 +1166,8 @@ type PublicFlipKey struct {
 	Epoch     uint16
 
 	from    atomic.Value
-	shardId atomic.Value
+	shardId      atomic.Value
+	highPriority atomic.Value
 }
 
 func (k *PublicFlipKey) ToSignatureBytes() ([]byte, error) {
@@ -1195,16 +1208,26 @@ func (k *PublicFlipKey) Hash() common.Hash {
 }
 
 func (k *PublicFlipKey) LoadShardId() common.ShardId {
-	if shardId := k.shardId.Load();shardId!=nil{
+	if shardId := k.shardId.Load(); shardId != nil {
 		return shardId.(common.ShardId)
 	}
 	return common.MultiShard
 }
 
-func (k *PublicFlipKey) SetShardId(shardId common.ShardId){
-	k.shardId.Store(shardId)
+func (k *PublicFlipKey) SetHighPriority(value bool) {
+	k.highPriority.Store(value)
 }
 
+func (k *PublicFlipKey) LoadHighPriority() bool {
+	if highPriority := k.highPriority.Load(); highPriority != nil {
+		return highPriority.(bool)
+	}
+	return false
+}
+
+func (k *PublicFlipKey) SetShardId(shardId common.ShardId) {
+	k.shardId.Store(shardId)
+}
 type PrivateFlipKeysPackage struct {
 	Data      []byte
 	Epoch     uint16

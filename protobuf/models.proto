@@ -130,6 +130,14 @@ message ProtoUpdateShardId {
     uint32 shardId = 1;
 }
 
+message ProtoMsgBatch {
+    message BatchItem {
+        bytes payload = 1;
+        uint32 shardId = 2;
+    }
+    repeated BatchItem data = 1;
+}
+
 message ProtoIdentityStateDiff {
     message IdentityStateDiffValue {
         bytes address = 1;

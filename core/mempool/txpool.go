@@ -36,7 +36,8 @@ var (
 type TransactionPool interface {
 	AddInternalTx(tx *types.Transaction) error
 	AddExternalTxs(txs ...*types.Transaction) error
-	GetPendingTransaction(noFilter bool, id common.ShardId, count bool) []*types.Transaction
+	GetPendingTransaction(noFilter bool, addHighPriority bool, shardId common.ShardId, count bool) []*types.Transaction
+	GetPriorityTransaction() []*types.Transaction
 	IsSyncing() bool
 }
 
@@ -320,6 +321,8 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 
 	pool.mutex.Unlock()
 
+	tx.SetHighPriority(own)
+
 	pool.bus.Publish(&events.NewTxEvent{
 		Tx:      tx,
 		Own:     own,
@@ -389,7 +392,18 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	return nil
 }
 
-func (pool *TxPool) GetPendingTransaction(noFilter bool, shardId common.ShardId, count bool) []*types.Transaction {
+func (pool *TxPool) GetPriorityTransaction() []*types.Transaction {
+	all := pool.all.List()
+	var result []*types.Transaction
+	for _, tx := range all {
+		if tx.LoadHighPriority() {
+			result = append(result, tx)
+		}
+	}
+	return result
+}
+
+func (pool *TxPool) GetPendingTransaction(noFilter bool, addHighPriority bool, shardId common.ShardId, count bool) []*types.Transaction {
 	all := pool.all.List()
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
@@ -399,6 +413,9 @@ func (pool *TxPool) GetPendingTransaction(noFilter bool, shardId common.ShardId,
 		result = make([]*types.Transaction, 0, len(all))
 	}
 	for _, tx := range all {
+		if tx.LoadHighPriority() && !addHighPriority {
+			continue
+		}
 		if noFilter || pool.txSyncCounts[tx.Hash()] <= maxTxSyncCounts {
 			if shardId == common.MultiShard || tx.LoadShardId() == shardId {
 				result = append(result, tx)
@@ -433,9 +450,6 @@ func (pool *TxPool) GetPendingByAddress(address common.Address) []*types.Transac
 }
 
 func (pool *TxPool) GetTx(hash common.Hash) *types.Transaction {
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
-
 	tx, ok := pool.all.Get(hash)
 	if ok {
 		return tx
@@ -697,7 +711,6 @@ func (m *txMap) Get(hash common.Hash) (*types.Transaction, bool) {
 }
 
 func (m *txMap) Add(tx *types.Transaction) error {
-
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

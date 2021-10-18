@@ -263,7 +263,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		},
 	})
 
-	txs := pool.GetPendingTransaction(true, common.MultiShard, false)
+	txs := pool.GetPendingTransaction(true, true, common.MultiShard, false)
 
 	require.Equal(4, len(txs))
 	require.Contains(txs, tx1)
