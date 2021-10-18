@@ -321,6 +321,21 @@ func (vc *ValidationCeremony) restoreState() {
 	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
 		vc.stopFlipKeysSync()
 	}
+	go vc.shortSessionAnswersBroadcastLoop()
+}
+
+func (vc *ValidationCeremony) shortSessionAnswersBroadcastLoop() {
+	for {
+		time.Sleep(time.Second * 5)
+		if vc.appState.State.ValidationPeriod() != state.NonePeriod {
+			if !vc.shortAnswersSent && vc.appState.EvidenceMap.IsCompleted() {
+				if vc.shouldInteractWithNetwork() {
+					time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
+					vc.broadcastShortAnswersTx()
+				}
+			}
+		}
+	}
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
@@ -473,7 +488,6 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
 		vc.logInfoWithInteraction("Long session started")
-		go vc.delayedShortAnswersTxBroadcast()
 	}
 
 	vc.processCeremonyTxs(block)
@@ -756,13 +770,6 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 				vc.epochDb.WriteEvidenceMap(sender, tx.Payload)
 			}
 		}
-	}
-}
-
-func (vc *ValidationCeremony) delayedShortAnswersTxBroadcast() {
-	if vc.shouldInteractWithNetwork() {
-		time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
-		vc.broadcastShortAnswersTx()
 	}
 }
 
