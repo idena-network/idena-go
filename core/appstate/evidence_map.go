@@ -115,7 +115,7 @@ func (m *EvidenceMap) ContainsAnswer(candidate common.Address) bool {
 }
 
 func (m *EvidenceMap) ContainsKey(candidate common.Address) bool {
-	return m.keysSet.Contains(candidate)
+	return m.keysSet.Contains(candidate) && m.keyPackageSet.Contains(candidate)
 }
 
 func (m *EvidenceMap) SetShortSessionTime(timestamp time.Time, shortSessionDuration time.Duration) {
