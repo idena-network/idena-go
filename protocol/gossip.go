@@ -360,7 +360,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			}
 			key := msgKey(i.Payload)
 			if h.isProcessed(key) {
-				return nil
+				continue
 			}
 			p.markKeyWithExpiration(key, flipKeyMsgCacheAliveTime)
 			if err := h.flipKeyPool.AddPublicFlipKey(flipKey, false); err == mempool.KeySkipped {
@@ -557,12 +557,11 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
-		if !canConnect {
-			log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
-			peer.disconnect()
-			return nil, errors.New("no slots")
-		}
+		log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
+		peer.disconnect()
+		return nil, errors.New("no slots")
 	}
+
 	var dcPeer string
 	var dcShard common.ShardId
 	if shouldDisconnectAnotherPeer {
@@ -960,7 +959,7 @@ func (h *IdenaGossipHandler) highPrioritySync(p *protoPeer) {
 
 	keys := h.flipKeyPool.GetPriorityFlipKeysForSync()
 	for _, key := range keys {
-		p.sendMsg(FlipKey, key, p.shardId, true)
+		p.sendMsg(FlipKey, key, key.LoadShardId(), true)
 	}
 
 	keysPackages := h.flipKeyPool.GetPriorityFlipPackagesHashesForSync()
@@ -969,6 +968,7 @@ func (h *IdenaGossipHandler) highPrioritySync(p *protoPeer) {
 			Type: pushKeyPackage,
 			Hash: hash,
 		}
+		// TODO: use actual key package shard
 		p.sendMsg(Push, payload, p.shardId, true)
 		bytes, _ := payload.ToBytes()
 		p.markKeyWithExpiration(msgKey(bytes), flipKeyMsgCacheAliveTime)

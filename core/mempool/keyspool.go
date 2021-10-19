@@ -264,8 +264,8 @@ func (p *KeysPool) putPrivateFlipKeysPackage(keysPackage *types.PrivateFlipKeysP
 }
 
 func (p *KeysPool) GetPriorityFlipKeysForSync() []*types.PublicFlipKey {
-	p.publicKeyMutex.Lock()
-	defer p.publicKeyMutex.Unlock()
+	p.publicKeyMutex.RLock()
+	defer p.publicKeyMutex.RUnlock()
 
 	var list []*types.PublicFlipKey
 	if !p.stopSync {
@@ -301,8 +301,8 @@ func (p *KeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*
 }
 
 func (p *KeysPool) GetPriorityFlipPackagesHashesForSync() []common.Hash128 {
-	p.privateKeysMutex.Lock()
-	defer p.privateKeysMutex.Unlock()
+	p.privateKeysMutex.RLock()
+	defer p.privateKeysMutex.RUnlock()
 	var list []common.Hash128
 	if !p.stopSync {
 		for k, pkg := range p.flipKeyPackagesByHash {

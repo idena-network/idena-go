@@ -154,7 +154,7 @@ func (p *protoPeer) addPushToBatch(payload interface{}, shardId common.ShardId) 
 	default:
 		atomic.AddUint32(&p.skippedRequestsCount, 1)
 		if p.skippedRequestsCount > queuedRequestsSize {
-			p.throttlingLogger.Warn("Skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
+			p.throttlingLogger.Warn("Skipped requests limit reached for pushes", "addr", p.stream.Conn().RemoteMultiaddr().String())
 			p.disconnect()
 		}
 	}
@@ -168,7 +168,7 @@ func (p *protoPeer) addFlipKeyToBatch(payload interface{}, shardId common.ShardI
 	default:
 		atomic.AddUint32(&p.skippedRequestsCount, 1)
 		if p.skippedRequestsCount > queuedRequestsSize {
-			p.throttlingLogger.Warn("Skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
+			p.throttlingLogger.Warn("Skipped requests limit reached for flip keys", "addr", p.stream.Conn().RemoteMultiaddr().String())
 			p.disconnect()
 		}
 	}
