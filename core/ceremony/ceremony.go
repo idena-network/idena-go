@@ -43,6 +43,7 @@ const (
 	MaxShortAnswersBroadcastDelaySec    = 30
 	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
 	FlipKeysSyncTimeFrame = 60 * 4 // seconds
+	ClientTypeDesktop = 1
 )
 
 type ValidationCeremony struct {
@@ -789,7 +790,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		return
 	}
 
-	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h), 1)); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h), ClientTypeDesktop)); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
 		vc.shortAnswersSent = true
 	} else {
 		vc.log.Error("cannot send short answers tx", "err", err)
