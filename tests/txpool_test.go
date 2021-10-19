@@ -86,7 +86,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 	pool.ResetTo(block)
 
 	for _, key := range keys {
-		require.NoError(t, pool.AddInternalTx(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+		require.NoError(t, pool.AddInternalTx(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 	}
 
 	result := pool.BuildBlockTransactions()
@@ -344,7 +344,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 2)
 	require.NoError(pool.AddInternalTx(GetTypedTx(3, 1, keys[addressIndex], types.EvidenceTx)))
 	require.NoError(pool.AddInternalTx(GetTypedTx(4, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.AddInternalTx(GetFullTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetFullTx(5, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 	require.NoError(pool.AddInternalTx(GetTypedTx(6, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.AddInternalTx(GetTypedTx(8, 1, keys[addressIndex], types.SendTx)))
 
@@ -353,12 +353,12 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	app.State.SetNonce(addresses[addressIndex], 1)
 	require.NoError(pool.AddInternalTx(GetTypedTx(2, 1, keys[addressIndex], types.SendTx)))
 	require.NoError(pool.AddInternalTx(GetTypedTx(3, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.AddInternalTx(GetFullTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetFullTx(4, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 
 	addressIndex++
 	app.State.SetEpoch(addresses[addressIndex], 1)
 	require.NoError(pool.AddInternalTx(GetTypedTx(1, 1, keys[addressIndex], types.SendTx)))
-	require.NoError(pool.AddInternalTx(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100))))
+	require.NoError(pool.AddInternalTx(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 
 	// when
 	result := pool.BuildBlockTransactions()

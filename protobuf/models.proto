@@ -298,6 +298,7 @@ message ProtoActivityMonitor {
 message ProtoShortAnswerAttachment {
     bytes answers = 1;
     uint64 rnd = 2;
+    uint32 clientType = 3;
 }
 
 message ProtoLongAnswerAttachment {

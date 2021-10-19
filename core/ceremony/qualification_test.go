@@ -257,8 +257,8 @@ func Test_qualifyCandidate(t *testing.T) {
 	h, proof := k.Evaluate([]byte("aabbcc"))
 
 	key, _ := crypto.GenerateKey()
-	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h))
-	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h))
+	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h), 1)
+	maliciousAttachment := attachments.CreateShortAnswerAttachment(shortAnswer, getWordsRnd(h), 1)
 
 	longAttachment := attachments.CreateLongAnswerAttachment(longAnswer, proof, salt, ecies.ImportECDSA(key))
 	maliciousLongAttachment := attachments.CreateLongAnswerAttachment(longAnswer, proof, []byte{0x6}, ecies.ImportECDSA(key))
@@ -317,7 +317,7 @@ func Test_qualifyCandidateWithFewFlips(t *testing.T) {
 	shortAnswer := short.Bytes()
 	salt := []byte{0x1, 0x10, 0x25, 0x28}
 	epochDb.WriteAnswerHash(candidate, crypto.Hash(append(shortAnswer, salt...)), time.Now())
-	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, 100)
+	attachment := attachments.CreateShortAnswerAttachment(shortAnswer, 100, 1)
 	q := qualification{
 		shortAnswers: map[common.Address][]byte{
 			candidate: attachment,
