@@ -80,7 +80,7 @@ func main() {
 			return err
 		}
 
-		stateRoot, err := state.WriteTreeTo(stateDb, genesis, file)
+		stateRoot, err := state.WriteTreeTo2(stateDb, genesis, file)
 		file.Close()
 		if err != nil {
 			return err
@@ -91,7 +91,7 @@ func main() {
 			return err
 		}
 
-		identityRoot, err := state.WriteTreeTo(identityStateDb, genesis, file)
+		identityRoot, err := state.WriteTreeTo2(identityStateDb, genesis, file)
 		file.Close()
 		if err != nil {
 			return err

@@ -257,7 +257,7 @@ func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Bl
 	}
 	defer stateDbData.Close()
 
-	if err = chain.appState.State.RecoverSnapshot(header.Height(), header.Root(), stateDbData); err != nil {
+	if err = chain.appState.State.RecoverSnapshot2(header.Height(), header.Root(), stateDbData); err != nil {
 		return nil, err
 	}
 
@@ -269,7 +269,7 @@ func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Bl
 	}
 	defer identityStateDbData.Close()
 
-	if err = chain.appState.IdentityState.RecoverSnapshot(header.Height(), header.IdentityRoot(), identityStateDbData); err != nil {
+	if err = chain.appState.IdentityState.RecoverSnapshot2(header.Height(), header.IdentityRoot(), identityStateDbData); err != nil {
 		return nil, err
 	}
 
@@ -2384,12 +2384,11 @@ func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff
 }
 
 func (chain *Blockchain) ReadSnapshotManifest() *snapshot.Manifest {
-	cid, cidV2, root, height, _ := chain.repo.LastSnapshotManifest()
-	if cid == nil {
+	cidV2, root, height, _ := chain.repo.LastSnapshotManifest()
+	if cidV2 == nil {
 		return nil
 	}
 	return &snapshot.Manifest{
-		Cid:    cid,
 		CidV2:  cidV2,
 		Root:   root,
 		Height: height,
