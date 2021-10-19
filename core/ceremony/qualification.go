@@ -223,18 +223,26 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 			}
 		}
 	}
-	flipAnswers = make(map[int]statsTypes.FlipAnswerStats, len(flipsToSolve)+availableExtraFlips)
+	flipAnswers = make(map[int]statsTypes.FlipAnswerStats, len(flipsToSolve))
 
 	for i, flipIdx := range flipsToSolve {
 		qual := flipQualificationMap[flipIdx]
 		status := getFlipStatusForCandidate(flipIdx, i, qual.status, notApprovedFlips, answers, shortSession)
 		answer, grade := answers.Answer(uint(i))
 
+		flipAnswerStats := statsTypes.FlipAnswerStats{
+			Index:      i,
+			Respondent: candidate,
+			Answer:     answer,
+			Grade:      grade,
+		}
+
 		//extra flip
 		if shortSession && i >= int(common.ShortSessionFlipsCount()) {
 			if availableExtraFlips > 0 && answer != types.None {
 				availableExtraFlips -= 1
 			} else {
+				flipAnswers[flipIdx] = flipAnswerStats
 				continue
 			}
 		}
@@ -247,28 +255,28 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 					answerPoint = 1
 				}
 				qualifiedFlipsCount += 1
+				flipAnswerStats.Considered = true
 			case WeaklyQualified:
 				switch {
 				case qual.answer == answer:
 					answerPoint = 1
 					qualifiedFlipsCount += 1
+					flipAnswerStats.Considered = true
 					break
 				case answer == types.None:
 					qualifiedFlipsCount += 1
+					flipAnswerStats.Considered = true
 					break
 				default:
 					answerPoint = 0.5
 					qualifiedFlipsCount += 1
+					flipAnswerStats.Considered = true
 				}
 			}
 			point += answerPoint
 		}
-		flipAnswers[flipIdx] = statsTypes.FlipAnswerStats{
-			Respondent: candidate,
-			Answer:     answer,
-			Point:      answerPoint,
-			Grade:      grade,
-		}
+		flipAnswerStats.Point = answerPoint
+		flipAnswers[flipIdx] = flipAnswerStats
 	}
 	return point, qualifiedFlipsCount, flipAnswers, qualifiedFlipsCount == 0, false
 }
