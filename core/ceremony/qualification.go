@@ -325,19 +325,16 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int,
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
 
-	reported := float32(reportsCount)/float32(len(answers)) > 0.5
-	if q.config.Consensus.FixSmallReportCommittee {
-		reported = false
-		switch len(answers) {
-		case 1, 2, 3:
-			reported = reportsCount >= len(answers)
-		case 4:
-			reported = reportsCount >= 3
-		case 5:
-			reported = reportsCount >= 4
-		default:
-			reported = float32(reportsCount)/float32(len(answers)) > 0.5
-		}
+	reported := false
+	switch len(answers) {
+	case 1, 2, 3:
+		reported = reportsCount >= len(answers)
+	case 4:
+		reported = reportsCount >= 3
+	case 5:
+		reported = reportsCount >= 4
+	default:
+		reported = float32(reportsCount)/float32(len(answers)) > 0.5
 	}
 
 	graded := float32(gradesCount)/float32(len(answers)) > 0.33

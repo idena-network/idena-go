@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/go-bindata/go-bindata/v3"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -14,7 +13,6 @@ import (
 	dbm "github.com/tendermint/tm-db"
 	"github.com/urfave/cli"
 	"os"
-	"path/filepath"
 	"runtime"
 )
 
@@ -116,16 +114,6 @@ func main() {
 			return err
 		}
 		file.Close()
-
-		err = bindata.Translate(&bindata.Config{
-			Input: []bindata.InputConfig{{
-				Path:      filepath.Clean("bindata"),
-				Recursive: false,
-			}},
-			Package: "blockchain",
-			Output:  "bindata.go",
-			NoCompress: true,
-		})
 		log.Info("Genesis block generated", "height", genesis, "hash", genesisBlock.Hash())
 		return nil
 	}

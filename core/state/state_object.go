@@ -1234,11 +1234,8 @@ func (s *stateGlobal) SetShardsNum(num uint32) {
 	s.touch()
 }
 
-func (s *stateGlobal) CanCompleteEpoch(enableValidationSharding bool) bool {
-	if !enableValidationSharding && s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks {
-		return true
-	}
-	if enableValidationSharding && s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks * 2 * s.ShardsNum() {
+func (s *stateGlobal) CanCompleteEpoch() bool {
+	if s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks * 2 * s.ShardsNum() {
 		return true
 	}
 	completedShard := 0

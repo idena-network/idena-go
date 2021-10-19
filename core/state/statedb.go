@@ -509,8 +509,8 @@ func (s *StateDB) SetGodAddressInvites(count uint16) {
 	s.GetOrNewGlobalObject().SetGodAddressInvites(count)
 }
 
-func (s *StateDB) CanCompleteEpoch(enableValidationSharding bool) bool {
-	return s.GetOrNewGlobalObject().CanCompleteEpoch(enableValidationSharding)
+func (s *StateDB) CanCompleteEpoch() bool {
+	return s.GetOrNewGlobalObject().CanCompleteEpoch()
 }
 
 func (s *StateDB) BlocksCntWithoutCeremonialTxs() uint32 {

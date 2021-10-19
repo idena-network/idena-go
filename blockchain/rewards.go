@@ -2,20 +2,17 @@ package blockchain
 
 import (
 	"bytes"
-	"encoding/binary"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/shopspring/decimal"
 	math2 "math"
 	"math/big"
-	"math/rand"
 	"sort"
 )
 
@@ -268,7 +265,7 @@ func getInvitationRewardCoef(age uint16, epochHeight uint32, epochDurations []ui
 	default:
 		return 0
 	}
-	if !config.EncourageEarlyInvitations || len(epochDurations) < int(age) {
+	if len(epochDurations) < int(age) {
 		return baseCoef
 	}
 	epochDuration := epochDurations[len(epochDurations)-int(age)]
@@ -283,15 +280,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	totalReward decimal.Decimal, seed types.Seed, epochDurations []uint32, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
-	addAddress := func(data []common.Hash, elem common.Hash) []common.Hash {
-		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i][:], elem[:]) > 0 })
-		data = append(data, common.Hash{})
-		copy(data[index+1:], data[index:])
-		data[index] = elem
-		return data
-	}
-
-	addresses := make([]common.Hash, 0)
 	totalWeight := float32(0)
 
 	type inviterWrapper struct {
@@ -317,29 +305,11 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 
 	for _, inviterWrapper := range goodInviters {
 		inviter := inviterWrapper.inviter
-		addr := inviterWrapper.address
 		if !inviter.PayInvitationReward {
 			continue
 		}
 		for _, successfulInvite := range inviter.SuccessfulInvites {
 			totalWeight += getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config)
-		}
-		if !config.DisableSavedInviteRewards {
-			for i := uint8(0); i < inviter.SavedInvites; i++ {
-				addresses = addAddress(addresses, crypto.Hash(append(addr[:], i)))
-			}
-		}
-	}
-
-	var win map[common.Hash]struct{}
-	if !config.DisableSavedInviteRewards {
-		p := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))*55 - 11)).Perm(len(addresses))
-		savedInvitesWinnersCount := len(addresses) / 2
-		totalWeight += float32(savedInvitesWinnersCount)*config.SavedInviteWinnerRewardCoef + float32(len(p)-savedInvitesWinnersCount)*config.SavedInviteRewardCoef
-
-		win = make(map[common.Hash]struct{})
-		for i := 0; i < savedInvitesWinnersCount; i++ {
-			win[addresses[p[i]]] = struct{}{}
 		}
 	}
 
@@ -377,18 +347,6 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			if weight := getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config); weight > 0 {
 				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
 				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
-			}
-		}
-		if !config.DisableSavedInviteRewards {
-			for i := uint8(0); i < inviter.SavedInvites; i++ {
-				hash := crypto.Hash(append(addr[:], i))
-				if _, ok := win[hash]; ok {
-					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteWinnerRewardCoef))
-					addReward(addr, totalReward, isNewbie, 0, nil, 0, true)
-				} else {
-					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(config.SavedInviteRewardCoef))
-					addReward(addr, totalReward, isNewbie, 0, nil, 0, false)
-				}
 			}
 		}
 	}

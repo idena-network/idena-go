@@ -321,6 +321,21 @@ func (vc *ValidationCeremony) restoreState() {
 	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
 		vc.stopFlipKeysSync()
 	}
+	go vc.shortSessionAnswersBroadcastLoop()
+}
+
+func (vc *ValidationCeremony) shortSessionAnswersBroadcastLoop() {
+	for {
+		time.Sleep(time.Second * 5)
+		if vc.appState.State.ValidationPeriod() != state.NonePeriod {
+			if !vc.shortAnswersSent && vc.appState.EvidenceMap.IsCompleted() {
+				if vc.shouldInteractWithNetwork() {
+					time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
+					vc.broadcastShortAnswersTx()
+				}
+			}
+		}
+	}
 }
 
 func (vc *ValidationCeremony) startValidationShortSessionTimer() {
@@ -463,6 +478,7 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 	if vc.appState.State.ValidationPeriod() < state.FlipLotteryPeriod {
 		return
 	}
+	vc.appState.EvidenceMap.SetShortSessionStartTime(time.Now().UTC())
 
 	vc.logInfoWithInteraction("Short session started", "at", vc.appState.State.NextValidationTime().String())
 	vc.broadcastPublicFipKey(appState)
@@ -472,7 +488,6 @@ func (vc *ValidationCeremony) startShortSession(appState *appstate.AppState) {
 func (vc *ValidationCeremony) handleLongSessionPeriod(block *types.Block) {
 	if block.Header.Flags().HasFlag(types.LongSessionStarted) {
 		vc.logInfoWithInteraction("Long session started")
-		go vc.delayedShortAnswersTxBroadcast()
 	}
 
 	vc.processCeremonyTxs(block)
@@ -758,13 +773,6 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) delayedShortAnswersTxBroadcast() {
-	if vc.shouldInteractWithNetwork() {
-		time.Sleep(time.Duration(rand.Intn(MaxShortAnswersBroadcastDelaySec)) * time.Second)
-		vc.broadcastShortAnswersTx()
-	}
-}
-
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() {
 		return
@@ -889,7 +897,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
-	if cfg.FixDelegation && value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
+	if value.state.NewbieOrBetter() && (value.prevState == state.Suspended || value.prevState == state.Zombie || value.prevState == state.Candidate) && value.delegatee != nil {
 		transitiveDelegatee := appState.State.Delegatee(*value.delegatee)
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee

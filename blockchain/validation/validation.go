@@ -105,6 +105,10 @@ func init() {
 		types.DeployContractTx:     validateDeployContractTx,
 		types.CallContractTx:       validateCallContractTx,
 		types.TerminateContractTx:  validateTerminateContractTx,
+		types.DelegateTx:           validateDelegateTx,
+		types.UndelegateTx:         validateUndelegateTx,
+		types.KillDelegatorTx:      validateKillDelegatorTx,
+		types.StoreToIpfsTx:        validateStoreToIpfsTx,
 	}
 }
 func SetAppConfig(cfg *config.Config) {
@@ -114,20 +118,6 @@ func SetAppConfig(cfg *config.Config) {
 func getValidator(txType types.TxType) (validator, bool) {
 	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
 		cfgInitVersion = appCfg.Consensus.Version
-		if appCfg.Consensus.EnablePools {
-			validators[types.DelegateTx] = validateDelegateTx
-			validators[types.UndelegateTx] = validateUndelegateTx
-			validators[types.KillDelegatorTx] = validateKillDelegatorTx
-		} else {
-			delete(validators, types.DelegateTx)
-			delete(validators, types.UndelegateTx)
-			delete(validators, types.KillDelegatorTx)
-		}
-		if appCfg.Consensus.EnableStoreToIpfsTx {
-			validators[types.StoreToIpfsTx] = validateStoreToIpfsTx
-		} else {
-			delete(validators, types.StoreToIpfsTx)
-		}
 	}
 	v, ok := validators[txType]
 	return v, ok
@@ -505,8 +495,7 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
 	}
-	if appCfg != nil && appCfg.Consensus.EnableValidationSharding &&
-		(identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee != nil) {
+	if identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee != nil {
 		return InvalidSender
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
@@ -572,9 +561,6 @@ func validateKillIdentityTx(appState *appstate.AppState, tx *types.Transaction, 
 	identityState := appState.State.GetIdentityState(sender)
 	if identityState == state.Candidate || identityState == state.Newbie || identityState == state.Killed {
 		return InvalidSender
-	}
-	if appCfg == nil || !appCfg.Consensus.ChangeKillTxValidation {
-		return nil
 	}
 	if sender == appState.State.GodAddress() {
 		return nil

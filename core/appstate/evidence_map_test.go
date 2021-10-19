@@ -25,6 +25,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	const candidatesCount = 10000
 	const txCandidate = 1
 	const delayedKeyAuthor = 10
+	const delayedKeyPackageAuthor = 100
 	var addrs []common.Address
 
 	for i := 0; i < candidatesCount; i++ {
@@ -54,11 +55,13 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	}
 
 	em.NewFlipsKey(addrs[txCandidate])
+	em.NewFlipKeyPackage(addrs[txCandidate])
 	time.Sleep(2 * time.Second)
 	em.NewFlipsKey(addrs[delayedKeyAuthor])
+	em.NewFlipKeyPackage(addrs[delayedKeyPackageAuthor])
 
 	m := em.CalculateBitmap(addrs, additional, func(a common.Address) uint8 {
-		if a == addrs[delayedKeyAuthor] || a == addrs[txCandidate] {
+		if a == addrs[delayedKeyAuthor] || a == addrs[txCandidate] || a == addrs[delayedKeyPackageAuthor]{
 			return 1
 		}
 		return 0
@@ -75,9 +78,10 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 
 	require.True(rmap.Contains(txCandidate))
 	require.False(rmap.Contains(delayedKeyAuthor))
+	require.False(rmap.Contains(delayedKeyPackageAuthor))
 
 	for i := 0; i < candidatesCount; i++ {
-		if i%2 == 0 && i != delayedKeyAuthor {
+		if i%2 == 0 && i != delayedKeyAuthor && i!= delayedKeyPackageAuthor{
 			require.True(rmap.Contains(uint32(i)))
 		} else if i != txCandidate {
 			require.False(rmap.Contains(uint32(i)))

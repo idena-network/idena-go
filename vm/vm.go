@@ -45,23 +45,11 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
-		if vm.cfg.Consensus.UpdateContracts {
-			if vm.cfg.Consensus.FixPoolRewardEvents {
-				return embedded.NewOracleVotingContract3(ctx, vm.env, vm.statsCollector)
-			}
-			return embedded.NewOracleVotingContract2(ctx, vm.env, vm.statsCollector)
-		}
-		return embedded.NewOracleVotingContract(ctx, vm.env, vm.statsCollector)
+		return embedded.NewOracleVotingContract3(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleLockContract:
-		if vm.cfg.Consensus.UpdateContracts {
-			return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
-		}
-		return embedded.NewOracleLock(ctx, vm.env, vm.statsCollector)
+		return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableOracleLockContract:
-		if vm.cfg.Consensus.UpdateContracts {
-			return embedded.NewRefundableOracleLock2(ctx, vm.env, vm.statsCollector)
-		}
-		return embedded.NewRefundableOracleLock(ctx, vm.env, vm.statsCollector)
+		return embedded.NewRefundableOracleLock2(ctx, vm.env, vm.statsCollector)
 	case embedded.MultisigContract:
 		return embedded.NewMultisig(ctx, vm.env, vm.statsCollector)
 	default:
