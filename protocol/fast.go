@@ -347,8 +347,6 @@ func (fs *fastSync) postConsuming() error {
 		return err
 	}
 	switch version {
-	case state.SnapshotVersionV1:
-		err = fs.appState.State.RecoverSnapshot(fs.manifest.Height, fs.manifest.Root, file)
 	case state.SnapshotVersionV2:
 		err = fs.appState.State.RecoverSnapshot2(fs.manifest.Height, fs.manifest.Root, file)
 	}
