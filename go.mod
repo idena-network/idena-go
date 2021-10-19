@@ -14,29 +14,22 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
-	github.com/ipfs/fs-repo-migrations v1.7.1
 	github.com/ipfs/go-blockservice v0.1.7
 	github.com/ipfs/go-cid v0.0.7
-	github.com/ipfs/go-datastore v0.4.5
-	github.com/ipfs/go-filestore v0.0.3
-	github.com/ipfs/go-ipfs v0.9.1
-	github.com/ipfs/go-ipfs-blockstore v0.1.6
-	github.com/ipfs/go-ipfs-config v0.14.0
-	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
+	github.com/ipfs/go-ipfs v0.10.0
+	github.com/ipfs/go-ipfs-config v0.16.0
 	github.com/ipfs/go-ipfs-files v0.0.8
-	github.com/ipfs/go-ipfs-pinner v0.1.1
-	github.com/ipfs/go-ipld-format v0.2.0
-	github.com/ipfs/go-merkledag v0.3.2
+	github.com/ipfs/go-merkledag v0.4.0
 	github.com/ipfs/go-mfs v0.1.2
 	github.com/ipfs/go-unixfs v0.2.5
-	github.com/ipfs/interface-go-ipfs-core v0.4.0
+	github.com/ipfs/interface-go-ipfs-core v0.5.1
 	github.com/klauspost/compress v1.13.6
-	github.com/libp2p/go-libp2p-core v0.8.5
-	github.com/libp2p/go-libp2p-pubsub v0.4.2
+	github.com/libp2p/go-libp2p-core v0.9.0
+	github.com/libp2p/go-libp2p-pubsub v0.5.4
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/libp2p/go-yamux v1.4.1
-	github.com/mholt/archiver/v3 v3.5.1-0.20210112195346-074da64920d3
-	github.com/multiformats/go-multiaddr v0.3.3
+	github.com/multiformats/go-multiaddr v0.4.0
+	github.com/mholt/archiver/v3 v3.5.1-0.20210112195346-074da64920d3	
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.1
@@ -52,9 +45,9 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
-	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
-	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
+	golang.org/x/crypto v0.0.0-20210813211128-0a44fdfbc16e
+	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
+	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce

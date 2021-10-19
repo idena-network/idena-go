@@ -134,7 +134,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	}
 
 	nilNode, err := core.NewNode(context.Background(), &core.BuildCfg{
-		NilRepo:   true,
+		NilRepo: true,
 	})
 	if err != nil {
 		return nil, err
@@ -367,7 +367,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 
 	file, _ := files.NewReaderPathFile(absPath, data, fi)
 	defer file.Close()
-	path, err := api.Unixfs().Add(ctx, file,  options.Unixfs.Pin(true), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs from reader")
@@ -697,13 +697,13 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 
 		repo, err := fsrepo.Open(datadir)
 
-		if err == fsrepo.ErrNeedMigration {
+		/*if err == fsrepo.ErrNeedMigration {
 			err = Migrate(datadir, fsrepo.RepoVersion)
 			if err != nil {
 				return nil, err
 			}
 			repo, err = fsrepo.Open(datadir)
-		}
+		}*/
 
 		if err != nil {
 			return nil, err
