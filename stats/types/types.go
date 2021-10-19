@@ -36,10 +36,12 @@ type FlipStats struct {
 }
 
 type FlipAnswerStats struct {
+	Index      int
 	Respondent common.Address
 	Answer     types.Answer
 	Grade      types.Grade
 	Point      float32
+	Considered bool
 }
 
 func NewValidationStats() *ValidationShardStats {
