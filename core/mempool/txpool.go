@@ -393,7 +393,7 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 }
 
 func (pool *TxPool) GetPriorityTransaction() []*types.Transaction {
-	all := pool.all.List()
+	all := pool.all.List(Priority)
 	var result []*types.Transaction
 	for _, tx := range all {
 		if tx.LoadHighPriority() {
@@ -404,7 +404,11 @@ func (pool *TxPool) GetPriorityTransaction() []*types.Transaction {
 }
 
 func (pool *TxPool) GetPendingTransaction(noFilter bool, addHighPriority bool, shardId common.ShardId, count bool) []*types.Transaction {
-	all := pool.all.List()
+	filter := NotPriority
+	if addHighPriority {
+		filter = All
+	}
+	all := pool.all.List(filter)
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
 
@@ -413,9 +417,6 @@ func (pool *TxPool) GetPendingTransaction(noFilter bool, addHighPriority bool, s
 		result = make([]*types.Transaction, 0, len(all))
 	}
 	for _, tx := range all {
-		if tx.LoadHighPriority() && !addHighPriority {
-			continue
-		}
 		if noFilter || pool.txSyncCounts[tx.Hash()] <= maxTxSyncCounts {
 			if shardId == common.MultiShard || tx.LoadShardId() == shardId {
 				result = append(result, tx)
@@ -547,7 +548,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 		pool.log.Warn("failed to reload nonce cache", "err", err)
 	}
 
-	pending := pool.all.List()
+	pending := pool.all.List(All)
 
 	appState, _ := pool.appState.Readonly(pool.head.Height())
 
@@ -696,6 +697,14 @@ var (
 	sortedTxNonceErr = errors.New("nonce is not sequential")
 )
 
+type TxMapFilter = byte
+
+const (
+	All         = TxMapFilter(1)
+	Priority    = TxMapFilter(2)
+	NotPriority = TxMapFilter(3)
+)
+
 type txMap struct {
 	mutex  sync.RWMutex
 	txs    map[common.Hash]*types.Transaction
@@ -754,13 +763,27 @@ func (m *txMap) Sorted() []*types.Transaction {
 	return result
 }
 
-func (m *txMap) List() []*types.Transaction {
+func (m *txMap) List(filter TxMapFilter) []*types.Transaction {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	result := make([]*types.Transaction, 0, len(m.txs))
+	var result []*types.Transaction
+	if filter == All {
+		result = make([]*types.Transaction, 0, len(m.txs))
+	}
 
 	for _, tx := range m.txs {
-		result = append(result, tx)
+		switch filter {
+		case All:
+			result = append(result, tx)
+		case Priority:
+			if tx.LoadHighPriority() {
+				result = append(result, tx)
+			}
+		case NotPriority:
+			if !tx.LoadHighPriority() {
+				result = append(result, tx)
+			}
+		}
 	}
 	return result
 }
