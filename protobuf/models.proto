@@ -226,7 +226,6 @@ message ProtoFlipKey {
 }
 
 message ProtoManifest {
-    bytes cid = 1;
     uint64 height = 2;
     bytes root = 3;
     bytes cidV2 = 4;
@@ -250,9 +249,7 @@ message ProtoPullPushHash {
 // Db models
 
 message ProtoSnapshotManifestDb {
-    bytes cid = 1;
     uint64 height = 2;
-    string fileName = 3;
     bytes root = 4;
     bytes cidV2 = 5;
     string fileNameV2 = 6;

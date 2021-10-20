@@ -1268,16 +1268,6 @@ func (s *StateDB) RecoverSnapshot2(height uint64, treeRoot common.Hash, from io.
 	return ReadTreeFrom2(pdb, height, treeRoot, from)
 }
 
-
-func (s *StateDB) WriteSnapshot(height uint64, to io.Writer) (root common.Hash, err error) {
-	return WriteTreeTo(s.db, height, to)
-}
-
-func (s *StateDB) RecoverSnapshot(height uint64, treeRoot common.Hash, from io.Reader) error {
-	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
-	return ReadTreeFrom(pdb, height, treeRoot, from)
-}
-
 func (s *StateDB) CommitSnapshot(height uint64, batch dbm.Batch) (dropDb dbm.DB) {
 	pdb := dbm.NewPrefixDB(s.original, StateDbKeys.BuildDbPrefix(height))
 

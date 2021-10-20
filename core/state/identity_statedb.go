@@ -448,9 +448,9 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedS
 	}
 }
 
-func (s *IdentityStateDB) RecoverSnapshot(height uint64, treeRoot common.Hash, from io.Reader) error {
+func (s *IdentityStateDB) RecoverSnapshot2(height uint64, treeRoot common.Hash, from io.Reader) error {
 	pdb := dbm.NewPrefixDB(s.original, IdentityStateDbKeys.buildDbPrefix(height))
-	return ReadTreeFrom(pdb, height, treeRoot, from)
+	return ReadTreeFrom2(pdb, height, treeRoot, from)
 }
 
 func (s *IdentityStateDB) CommitSnapshot(height uint64) (dropDb dbm.DB) {

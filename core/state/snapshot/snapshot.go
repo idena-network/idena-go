@@ -15,7 +15,6 @@ type Manifest struct {
 
 func (m *Manifest) ToBytes() ([]byte, error) {
 	protoObj := &models.ProtoManifest{
-		Cid:    m.Cid,
 		Height: m.Height,
 		Root:   m.Root[:],
 		CidV2:  m.CidV2,
@@ -30,7 +29,6 @@ func (m *Manifest) FromBytes(data []byte) error {
 	}
 	m.Root = common.BytesToHash(protoObj.Root)
 	m.Height = protoObj.Height
-	m.Cid = protoObj.Cid
 	m.CidV2 = protoObj.CidV2
 	return nil
 }
