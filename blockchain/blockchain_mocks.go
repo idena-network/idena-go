@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -137,7 +138,7 @@ type TestBlockchain struct {
 }
 
 func (chain *TestBlockchain) AddTx(tx *types.Transaction) error {
-	return chain.txpool.AddExternalTxs(tx)
+	return chain.txpool.AddExternalTxs(validation.InboundTx, tx)
 }
 
 func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
@@ -202,7 +203,7 @@ func (chain *TestBlockchain) GenerateBlocks(count int, txsInBlock int) *TestBloc
 			if err != nil {
 				panic(err)
 			}
-			if err = chain.txpool.AddExternalTxs(tx); err != nil {
+			if err = chain.txpool.AddExternalTxs(validation.InboundTx, tx); err != nil {
 				panic(err)
 			}
 		}

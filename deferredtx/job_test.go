@@ -3,6 +3,7 @@ package deferredtx
 import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -39,7 +40,7 @@ func (f *fakeTxPool) AddInternalTx(tx *types.Transaction) error {
 	f.counter++
 	return nil
 }
-func (f *fakeTxPool) AddExternalTxs(txs ...*types.Transaction) error {
+func (f *fakeTxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Transaction) error {
 	panic("implement me")
 }
 

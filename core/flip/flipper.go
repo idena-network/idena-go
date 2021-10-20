@@ -8,6 +8,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -177,7 +178,7 @@ func (fp *Flipper) addNewFlip(flip *types.Flip, local bool) error {
 	if local {
 		err = fp.txpool.AddInternalTx(flip.Tx)
 	} else {
-		err = fp.txpool.AddExternalTxs(flip.Tx)
+		err = fp.txpool.AddExternalTxs(validation.InboundTx, flip.Tx)
 	}
 	if err != nil && err != mempool.DuplicateTxError {
 		return err
