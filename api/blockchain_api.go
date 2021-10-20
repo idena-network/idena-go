@@ -173,7 +173,7 @@ func (api *BlockchainApi) TxReceipt(hash common.Hash) *TxReceipt {
 }
 
 func (api *BlockchainApi) Mempool() []common.Hash {
-	pending := api.pool.GetPendingTransaction(true, common.MultiShard, false)
+	pending := api.pool.GetPendingTransaction(true, true, common.MultiShard, false)
 
 	var txs []common.Hash
 	for _, tx := range pending {

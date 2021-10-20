@@ -21,6 +21,7 @@ import (
 	"github.com/idena-network/idena-go/pengings"
 	models "github.com/idena-network/idena-go/protobuf"
 	core "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/helpers"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -32,7 +33,10 @@ import (
 	"time"
 )
 
-var IdenaProtocol core.ProtocolID = "/idena/gossip/1.0.0"
+var IdenaProtocolPath = "/idena/gossip"
+var IdenaProtocol = core.ProtocolID(IdenaProtocolPath + "/1.1.0")
+
+const MempoolSyncDelay = time.Second * 5
 
 var (
 	batchId = uint32(1)
@@ -120,7 +124,8 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
-		h.host.SetStreamHandler(IdenaProtocol, h.acceptStream)
+		matcher, _ := helpers.MultistreamSemverMatcher(IdenaProtocol)
+		h.host.SetStreamHandlerMatch(IdenaProtocol, matcher, h.acceptStream)
 		h.connManager = NewConnManager(h.host, h.cfg)
 		notifiee := &notifiee{
 			connManager: h.connManager,
@@ -344,6 +349,27 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			h.throttlingLogger.Warn(fmt.Sprintf("Failed to add public flip key: %s", err.Error()))
 			p.unmarkKey(key)
 		}
+	case BatchFlipKey:
+		batch := new(msgBatch)
+		if err := batch.FromBytes(msg.Payload); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		for _, i := range batch.Data {
+			flipKey := new(types.PublicFlipKey)
+			if err := flipKey.FromBytes(i.Payload); err != nil {
+				return errResp(DecodeErr, "%v: %v", msg, err)
+			}
+			key := msgKey(i.Payload)
+			if h.isProcessed(key) {
+				continue
+			}
+			p.markKeyWithExpiration(key, flipKeyMsgCacheAliveTime)
+			if err := h.flipKeyPool.AddPublicFlipKey(flipKey, false); err == mempool.KeySkipped {
+				h.throttlingLogger.Warn(fmt.Sprintf("Failed to add public flip key: %s", err.Error()))
+				p.unmarkKey(key)
+			}
+		}
+
 	case SnapshotManifest:
 		manifest := new(snapshot.Manifest)
 		if err := manifest.FromBytes(msg.Payload); err != nil {
@@ -371,6 +397,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 		if err := pushHash.FromBytes(msg.Payload); err != nil {
 			return errResp(DecodeErr, "%v: %v", msg, err)
 		}
+
 		if !pushHash.IsValid() {
 			return errResp(ValidationErr, "%v", msg)
 		}
@@ -381,6 +408,27 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			p.markKey(key)
 		}
 		h.pushPullManager.addPush(p.id, *pushHash)
+	case BatchPush:
+		batch := new(msgBatch)
+		if err := batch.FromBytes(msg.Payload); err != nil {
+			return errResp(DecodeErr, "%v: %v", msg, err)
+		}
+		for _, item := range batch.Data {
+			pushHash := new(pushPullHash)
+			if err := pushHash.FromBytes(item.Payload); err != nil {
+				return errResp(DecodeErr, "%v: %v", msg, err)
+			}
+			if !pushHash.IsValid() {
+				return errResp(ValidationErr, "%v", msg)
+			}
+			key := msgKey(item.Payload)
+			if pushHash.Type == pushKeyPackage {
+				p.markKeyWithExpiration(key, flipKeyMsgCacheAliveTime)
+			} else {
+				p.markKey(key)
+			}
+			h.pushPullManager.addPush(p.id, *pushHash)
+		}
 	case Pull:
 		pullHash := new(pushPullHash)
 		if err := pullHash.FromBytes(msg.Payload); err != nil {
@@ -510,15 +558,19 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
-		if !canConnect {
-			log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
-			peer.disconnect()
-		}
+		log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
+		peer.disconnect()
+		return nil, errors.New("no slots")
 	}
+
+	var dcPeer string
+	var dcShard common.ShardId
 	if shouldDisconnectAnotherPeer {
 		peerId := h.connManager.PeerForDisconnect(inbound, peer.shardId)
 		peer := h.peers.Peer(peerId)
 		if peer != nil {
+			dcPeer = peer.ID()
+			dcShard = peer.shardId
 			peer.disconnect()
 		}
 	}
@@ -530,12 +582,21 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	go h.runListening(peer)
 	go peer.broadcast()
 
-	go h.syncTxPool(peer)
-	go h.syncFlipKeyPool(peer)
+	go h.highPrioritySync(peer)
+	go func() {
+		time.Sleep(MempoolSyncDelay)
+		if !peer.closed {
+			h.syncTxPool(peer)
+			h.syncFlipKeyPool(peer)
+		}
+	}()
 
 	h.sendManifest(peer)
 
-	h.log.Info("Peer connected", "id", peer.id.Pretty(), "inbound", inbound)
+	h.log.Info("Peer connected", "id", peer.id.Pretty(), "inbound", inbound, "shardId", peer.shardId)
+	if shouldDisconnectAnotherPeer {
+		h.log.Info("Selected to dc", "id", dcPeer, "shardId", dcShard)
+	}
 	return peer, nil
 }
 
@@ -547,6 +608,7 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	if err := h.peers.Unregister(peerId); err != nil {
 		return
 	}
+	peer.closed = true
 	close(peer.term)
 	peer.disconnect()
 
@@ -777,7 +839,7 @@ func (h *IdenaGossipHandler) ProposeProof(proposal *types.ProofProposal) {
 		Type: pushProof,
 		Hash: proposal.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, proposal, common.MultiShard, false)
+	h.pushPullManager.AddEntry(hash, proposal, common.MultiShard, true)
 	h.sendPush(hash, common.MultiShard)
 }
 
@@ -786,7 +848,7 @@ func (h *IdenaGossipHandler) ProposeBlock(block *types.BlockProposal) {
 		Type: pushBlock,
 		Hash: block.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, block, common.MultiShard, false)
+	h.pushPullManager.AddEntry(hash, block, common.MultiShard, true)
 	h.sendPush(hash, common.MultiShard)
 }
 
@@ -795,7 +857,7 @@ func (h *IdenaGossipHandler) SendVote(vote *types.Vote) {
 		Type: pushVote,
 		Hash: vote.Hash128(),
 	}
-	h.pushPullManager.AddEntry(hash, vote, common.MultiShard, false)
+	h.pushPullManager.AddEntry(hash, vote, common.MultiShard, true)
 	h.sendPush(hash, common.MultiShard)
 }
 
@@ -883,9 +945,40 @@ func (h *IdenaGossipHandler) RequestBlockByHash(hash common.Hash) {
 	}, common.MultiShard)
 }
 
+func (h *IdenaGossipHandler) highPrioritySync(p *protoPeer) {
+	txs := h.txpool.GetPriorityTransaction()
+	for _, tx := range txs {
+		payload := pushPullHash{
+			Type: pushTx,
+			Hash: tx.Hash128(),
+		}
+		h.pushPullManager.AddEntry(payload, tx, tx.LoadShardId(), true)
+		p.sendMsg(Push, payload, tx.LoadShardId(), true)
+		bytes, _ := payload.ToBytes()
+		p.markKey(msgKey(bytes))
+	}
+
+	keys := h.flipKeyPool.GetPriorityFlipKeysForSync()
+	for _, key := range keys {
+		p.sendMsg(FlipKey, key, key.LoadShardId(), true)
+	}
+
+	keysPackages := h.flipKeyPool.GetPriorityFlipPackagesHashesForSync()
+	for _, hash := range keysPackages {
+		payload := pushPullHash{
+			Type: pushKeyPackage,
+			Hash: hash,
+		}
+		// TODO: use actual key package shard
+		p.sendMsg(Push, payload, p.shardId, true)
+		bytes, _ := payload.ToBytes()
+		p.markKeyWithExpiration(msgKey(bytes), flipKeyMsgCacheAliveTime)
+	}
+}
+
 func (h *IdenaGossipHandler) syncTxPool(p *protoPeer) {
 	const maximalPeersNumberForFullSync = 3
-	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync, p.shardId, true)
+	pending := h.txpool.GetPendingTransaction(p.peers <= maximalPeersNumberForFullSync, false, p.shardId, true)
 	for _, tx := range pending {
 		payload := pushPullHash{
 			Type: pushTx,

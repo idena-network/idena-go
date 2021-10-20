@@ -6,11 +6,14 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
 	core "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/helpers"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-yamux"
 	"github.com/pkg/errors"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 )
@@ -62,7 +65,23 @@ func (m *ConnManager) CanConnect(id peer.ID) bool {
 	if discTime, ok := m.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
 		return false
 	}
-	return true
+
+	if resetTime, ok := m.resetTimes[id]; ok && time.Now().UTC().Sub(resetTime) < ReconnectAfterResetTimeout {
+		return false
+	}
+	if m.host.Network().Connectedness(id) != network.Connected {
+		return false
+	}
+	protos, err := m.host.Peerstore().GetProtocols(id)
+	if err != nil {
+		return false
+	}
+	for _, p := range protos {
+		if strings.Contains(p, IdenaProtocolPath) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *ConnManager) Connected(id peer.ID, inbound bool, shardId common.ShardId) {
@@ -157,8 +176,9 @@ func (m *ConnManager) DialRandomPeer() (network.Stream, error) {
 
 func (m *ConnManager) findOrOpenStream(conn network.Conn) (network.Stream, error) {
 	streams := conn.GetStreams()
+	matcher, _ := helpers.MultistreamSemverMatcher(IdenaProtocol)
 	for _, s := range streams {
-		if s.Protocol() == IdenaProtocol {
+		if matcher(string(s.Protocol())) {
 			return s, nil
 		}
 	}
@@ -168,7 +188,24 @@ func (m *ConnManager) findOrOpenStream(conn network.Conn) (network.Stream, error
 func (m *ConnManager) newStream(peerID peer.ID) (network.Stream, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	stream, err := m.host.NewStream(ctx, peerID, IdenaProtocol)
+	defer cancel()
+
+	protos, err := m.host.Peerstore().GetProtocols(peerID)
+	if err != nil {
+		return nil, err
+	}
+
+	var idenaProtocol protocol.ID
+	for _, p := range protos {
+		if strings.Contains(p, IdenaProtocolPath) {
+			idenaProtocol = protocol.ID(p)
+			break
+		}
+	}
+	if idenaProtocol == "" {
+		return nil, errors.New("peer doesn't support idena protocol")
+	}
+	stream, err := m.host.NewStream(ctx, peerID, idenaProtocol)
 
 	select {
 	case <-ctx.Done():
@@ -176,34 +213,8 @@ func (m *ConnManager) newStream(peerID peer.ID) (network.Stream, error) {
 	default:
 		break
 	}
-	cancel()
+
 	return stream, err
-}
-
-func (m *ConnManager) filterUselessConnections(conns []network.Conn) []network.Conn {
-	var result []network.Conn
-	m.peerMutex.RLock()
-	defer m.peerMutex.RUnlock()
-	for _, c := range conns {
-		id := c.RemotePeer()
-		if m.bannedPeers.Contains(id) {
-			continue
-		}
-		if discTime, ok := m.discTimes[id]; ok && time.Now().UTC().Sub(discTime) < ReconnectAfterDiscTimeout {
-			continue
-		}
-		if resetTime, ok := m.resetTimes[id]; ok && time.Now().UTC().Sub(resetTime) < ReconnectAfterResetTimeout {
-			continue
-		}
-		if m.host.Network().Connectedness(id) != network.Connected {
-			continue
-		}
-
-		if protos, err := m.host.Peerstore().SupportsProtocols(id, string(IdenaProtocol)); err == nil && len(protos) > 0 {
-			result = append(result, c)
-		}
-	}
-	return result
 }
 
 func (m *ConnManager) AddConnection(conn network.Conn) {
@@ -238,7 +249,7 @@ func (m *ConnManager) NeedPeerFromSomeShard(shardsNum int) bool {
 		return false
 	}
 	for i := common.ShardId(1); i <= common.ShardId(shardsNum); i++ {
-		if m.PeersFromShard(i) == 0{
+		if m.PeersFromShard(i) == 0 {
 			return true
 		}
 	}
@@ -363,12 +374,12 @@ func (m *ConnManager) PeersFromShard(shardId common.ShardId) int {
 func (m *ConnManager) peersCntFromShard(shardId common.ShardId) int {
 	var cnt int
 	for _, s := range m.outboundPeers {
-		if s == m.ownShardId {
+		if s == shardId {
 			cnt++
 		}
 	}
 	for _, s := range m.inboundPeers {
-		if s == m.ownShardId {
+		if s == shardId {
 			cnt++
 		}
 	}

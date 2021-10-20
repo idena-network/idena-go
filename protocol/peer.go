@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -17,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"math"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,8 +34,11 @@ const (
 
 	minCompressionSize = 386 // bytes
 
+	pushQueueSize    = 30000
+	flipKeyQueueSize = 30000
+
 	queuedRequestsSize             = 15000
-	queuedHighPriorityRequestsSize = 3000
+	queuedHighPriorityRequestsSize = 4000
 )
 
 type compression = byte
@@ -46,6 +51,11 @@ const (
 type syncHeight struct {
 	value uint64
 	lock  sync.RWMutex
+}
+
+type queueItem struct {
+	payload interface{}
+	shardId common.ShardId
 }
 
 func (s *syncHeight) Store(value uint64) {
@@ -74,6 +84,8 @@ type protoPeer struct {
 	manifest             *snapshot.Manifest
 	queuedRequests       chan *request
 	highPriorityRequests chan *request
+	pushQueue            chan *queueItem
+	flipKeyQueue         chan *queueItem
 	term                 chan struct{}
 	finished             chan struct{}
 	msgCache             *cache.Cache
@@ -87,6 +99,9 @@ type protoPeer struct {
 	metrics              *metricCollector
 	skippedRequestsCount uint32
 	shardId              common.ShardId
+	version              *semver.Version
+	closed               bool
+	supportedFeatures    map[PeerFeature]struct{}
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -97,6 +112,13 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 	prettyId := id.Pretty()
 	logger := log.New("id", prettyId)
 	throttlingLogger := log.NewThrottlingLogger(logger)
+
+	parts := strings.Split(string(stream.Protocol()), "/")
+	vers, err := semver.NewVersion(parts[len(parts)-1])
+	if err != nil {
+		vers, _ = semver.NewVersion("1.0.0")
+	}
+
 	p := &protoPeer{
 		id:                   id,
 		prettyId:             prettyId,
@@ -104,6 +126,8 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		rw:                   rw,
 		queuedRequests:       make(chan *request, queuedRequestsSize),
 		highPriorityRequests: make(chan *request, queuedHighPriorityRequestsSize),
+		pushQueue:            make(chan *queueItem, pushQueueSize),
+		flipKeyQueue:         make(chan *queueItem, flipKeyQueueSize),
 		term:                 make(chan struct{}),
 		finished:             make(chan struct{}),
 		maxDelayMs:           maxDelayMs,
@@ -115,8 +139,39 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 		transportErr:         make(chan error, 1),
 		knownHeight:          &syncHeight{},
 		potentialHeight:      &syncHeight{},
+		version:              vers,
+		supportedFeatures:    map[PeerFeature]struct{}{},
 	}
+	SetSupportedFeatures(p)
 	return p
+}
+
+func (p *protoPeer) addPushToBatch(payload interface{}, shardId common.ShardId) {
+	select {
+	case p.pushQueue <- &queueItem{payload: payload, shardId: shardId}:
+		atomic.StoreUint32(&p.skippedRequestsCount, 0)
+	case <-p.finished:
+	default:
+		atomic.AddUint32(&p.skippedRequestsCount, 1)
+		if p.skippedRequestsCount > queuedRequestsSize {
+			p.throttlingLogger.Warn("Skipped requests limit reached for pushes", "addr", p.stream.Conn().RemoteMultiaddr().String())
+			p.disconnect()
+		}
+	}
+}
+
+func (p *protoPeer) addFlipKeyToBatch(payload interface{}, shardId common.ShardId) {
+	select {
+	case p.flipKeyQueue <- &queueItem{payload: payload, shardId: shardId}:
+		atomic.StoreUint32(&p.skippedRequestsCount, 0)
+	case <-p.finished:
+	default:
+		atomic.AddUint32(&p.skippedRequestsCount, 1)
+		if p.skippedRequestsCount > queuedRequestsSize {
+			p.throttlingLogger.Warn("Skipped requests limit reached for flip keys", "addr", p.stream.Conn().RemoteMultiaddr().String())
+			p.disconnect()
+		}
+	}
 }
 
 func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.ShardId, highPriority bool) {
@@ -131,6 +186,18 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.
 		case <-p.finished:
 		}
 	} else {
+		if msgcode == Push || msgcode == FlipKey {
+			if _, ok := p.supportedFeatures[Batches]; ok {
+				switch msgcode {
+				case Push:
+					p.addPushToBatch(payload, shardId)
+				case FlipKey:
+					p.addFlipKeyToBatch(payload, shardId)
+				}
+				return
+			}
+		}
+
 		select {
 		case p.queuedRequests <- &request{msgcode: msgcode, data: payload, shardId: shardId}:
 			atomic.StoreUint32(&p.skippedRequestsCount, 0)
@@ -145,7 +212,60 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.
 	}
 }
 
+func (p *protoPeer) makeBatches() {
+	const batchSize = 100
+
+	convertItem := func(queueItem *queueItem) *batchItem {
+		var data []byte
+		switch queueItem.payload.(type) {
+		case pushPullHash:
+			pushPull := queueItem.payload.(pushPullHash)
+			data, _ = pushPull.ToBytes()
+		case *types.PublicFlipKey:
+			flipKey := queueItem.payload.(*types.PublicFlipKey)
+			data, _ = flipKey.ToBytes()
+		}
+		return &batchItem{Payload: data, ShardId: queueItem.shardId}
+	}
+
+	for {
+		select {
+		case push := <-p.pushQueue:
+			batch := new(msgBatch)
+			batch.Data = make([]*batchItem, 0, batchSize)
+			batch.Data = append(batch.Data, convertItem(push))
+		pushLoop:
+			for i := 0; i < batchSize-1; i++ {
+				select {
+				case push = <-p.pushQueue:
+					batch.Data = append(batch.Data, convertItem(push))
+				default:
+					break pushLoop
+				}
+			}
+			p.sendMsg(BatchPush, batch, common.MultiShard, false)
+		case flipKey := <-p.flipKeyQueue:
+			batch := new(msgBatch)
+			batch.Data = make([]*batchItem, 0, batchSize)
+			batch.Data = append(batch.Data, convertItem(flipKey))
+		flipKeyLoop:
+			for i := 0; i < batchSize-1; i++ {
+				select {
+				case flipKey = <-p.pushQueue:
+					batch.Data = append(batch.Data, convertItem(flipKey))
+				default:
+					break flipKeyLoop
+				}
+			}
+			p.sendMsg(BatchFlipKey, batch, common.MultiShard, false)
+		case <-p.term:
+			return
+		}
+	}
+}
+
 func (p *protoPeer) broadcast() {
+	go p.makeBatches()
 	defer close(p.finished)
 	defer p.disconnect()
 	send := func(request *request) error {
@@ -260,6 +380,8 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 		return payload.(*types.Block).ToBytes()
 	case UpdateShardId:
 		return payload.(*updateShardId).ToBytes()
+	case BatchPush, BatchFlipKey:
+		return payload.(*msgBatch).ToBytes()
 	}
 	return nil, errors.Errorf("type %T is not serializable", payload)
 }

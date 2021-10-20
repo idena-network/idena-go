@@ -1,5 +1,11 @@
 package protocol
 
+import "github.com/coreos/go-semver/semver"
+
+type PeerFeature = string
+
+const Batches = PeerFeature("batches")
+
 const (
 	Handshake         = 0x01
 	ProposeBlock      = 0x02
@@ -18,4 +24,18 @@ const (
 	Pull              = 0x0F
 	Block             = 0x10
 	UpdateShardId     = 0x11
+	BatchPush         = 0x12
+	BatchFlipKey      = 0x13
 )
+
+var batchSupportVersion *semver.Version
+
+func init() {
+	batchSupportVersion, _ = semver.NewVersion("1.1.0")
+}
+
+func SetSupportedFeatures(peer *protoPeer) {
+	if peer.version.Compare(*batchSupportVersion) >= 0 {
+		peer.supportedFeatures[Batches] = struct{}{}
+	}
+}

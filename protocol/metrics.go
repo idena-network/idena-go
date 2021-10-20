@@ -180,12 +180,18 @@ func (h *IdenaGossipHandler) registerMetrics() {
 			return "flipKeysPackage"
 		case Block:
 			return "block"
+		case BatchPush:
+			return "batchPush"
+		case BatchFlipKey:
+			return "batchFlipKey"
 		default:
 			return fmt.Sprintf("unknown code %v", code)
 		}
 	}
 
 	sortedMetricCodes := []uint64{
+		BatchFlipKey,
+		BatchPush,
 		Block,
 		BlocksRange,
 		FlipBody,

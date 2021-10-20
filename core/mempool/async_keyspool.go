@@ -48,6 +48,14 @@ func (pool *AsyncKeysPool) GetFlipKeysForSync(shardId common.ShardId, noFilter b
 	return pool.inner.GetFlipKeysForSync(shardId, noFilter)
 }
 
+func (pool *AsyncKeysPool) GetPriorityFlipPackagesHashesForSync() []common.Hash128 {
+	return pool.inner.GetPriorityFlipPackagesHashesForSync()
+}
+
+func (pool *AsyncKeysPool) GetPriorityFlipKeysForSync() []*types.PublicFlipKey {
+	return pool.inner.GetPriorityFlipKeysForSync()
+}
+
 func (pool *AsyncKeysPool) readPrivateQueue() {
 	for {
 
