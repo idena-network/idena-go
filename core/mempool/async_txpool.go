@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 )
 
@@ -31,7 +32,7 @@ func (pool *AsyncTxPool) AddInternalTx(tx *types.Transaction) error {
 	panic("not implemented")
 }
 
-func (pool *AsyncTxPool) AddExternalTxs(txs ...*types.Transaction) error {
+func (pool *AsyncTxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Transaction) error {
 	skipped := 0
 	for _, tx := range txs {
 		select {
@@ -69,6 +70,6 @@ func (pool *AsyncTxPool) loop() {
 				break batchLoop
 			}
 		}
-		pool.txPool.AddExternalTxs(batch...)
+		pool.txPool.AddExternalTxs(validation.InboundTx, batch...)
 	}
 }

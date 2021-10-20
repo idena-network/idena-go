@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/common/math"
@@ -162,7 +163,7 @@ func (engine *Engine) loop() {
 			if engine.forkResolver.HasLoadedFork() {
 				if revertedTxs, err := engine.forkResolver.ApplyFork(); err == nil {
 					if len(revertedTxs) > 0 {
-						engine.txpool.AddExternalTxs(revertedTxs...)
+						engine.txpool.AddExternalTxs(validation.MempoolTx, revertedTxs...)
 					}
 				} else {
 					engine.log.Warn("fork apply error", "err", err)
@@ -240,7 +241,7 @@ func (engine *Engine) loop() {
 					engine.log.Error("error occurred during applying of fork", "err", err)
 				} else {
 					if len(revertedTxs) > 0 {
-						engine.txpool.AddExternalTxs(revertedTxs...)
+						engine.txpool.AddExternalTxs(validation.MempoolTx, revertedTxs...)
 					}
 				}
 			}

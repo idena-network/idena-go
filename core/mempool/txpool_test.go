@@ -2,11 +2,14 @@ package mempool
 
 import (
 	"crypto/ecdsa"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
@@ -311,14 +314,14 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	}
 	pool.txKeeper.persist()
 	for i := 0; i < 20; i++ {
-		require.NoError(t, pool.AddExternalTxs(getTx(keys[i])))
+		require.NoError(t, pool.AddExternalTxs(validation.InboundTx, getTx(keys[i])))
 	}
 	time.Sleep(time.Second)
 	require.Len(t, pool.txKeeper.txs, 320)
 
 	pool.txKeeper.RemoveTxs([]common.Hash{pool.GetPendingTransaction(false, true, common.MultiShard, false)[0].Hash()})
 	time.Sleep(time.Second)
-	
+
 	prevPool := pool
 
 	prevPool.ResetTo(&types.Block{Header: &types.Header{
@@ -364,4 +367,83 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	txKeeper := NewTxKeeper(pool.cfg.DataDir)
 	txKeeper.Load()
 	require.Len(t, pool.txKeeper.txs, 0)
+}
+
+func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
+
+	txKeeperPersistInterval = time.Millisecond * 200
+
+	pool := getPool()
+
+	key, _ := crypto.GenerateKey()
+	address := crypto.PubkeyToAddress(key.PublicKey)
+	pool.appState.State.SetBalance(address, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
+	pool.appState.State.SetState(address, state.Candidate)
+
+	pool.appState.State.SetValidationPeriod(state.LongSessionPeriod)
+
+	pool.appState.Commit(nil)
+	pool.appState.Initialize(1)
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 1,
+		},
+	}, common.Address{0x1}, true)
+
+	getTx := func(key *ecdsa.PrivateKey) *types.Transaction {
+
+		address := crypto.PubkeyToAddress(key.PublicKey)
+
+		nonce := pool.appState.NonceCache.GetNonce(address, 0)
+
+		attachment := attachments.CreateShortAnswerAttachment([]byte{0x1}, 1, 1)
+
+		tx := &types.Transaction{
+			AccountNonce: nonce + 1,
+			Epoch:        0,
+			Type:         types.SubmitShortAnswersTx,
+			Payload:      attachment,
+		}
+
+		tx, _ = types.SignTx(tx, key)
+		return tx
+	}
+
+	require.NoError(t, pool.AddExternalTxs(validation.InboundTx, getTx(key)))
+
+	time.Sleep(time.Millisecond * 500)
+	prevPool := pool
+	pool = getPool()
+	pool.appState = prevPool.appState
+	pool.appState.State.SetValidationPeriod(state.AfterLongSessionPeriod)
+
+	pool.appState.Commit(nil)
+
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 2,
+		},
+	}, common.Address{0x1}, true)
+
+	require.Len(t, pool.all.txs, 1)
+
+	key2, _ := crypto.GenerateKey()
+	address2 := crypto.PubkeyToAddress(key2.PublicKey)
+	pool.appState.State.SetBalance(address2, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
+	pool.appState.State.SetState(address2, state.Candidate)
+	pool.appState.Commit(nil)
+
+	pool = getPool()
+	pool.appState = prevPool.appState
+
+	pool.Initialize(&types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Height: 3,
+		},
+	}, common.Address{0x1}, true)
+
+	require.Error(t, pool.AddInternalTx(getTx(key2)))
+	require.Error(t, pool.AddExternalTxs(validation.InboundTx, getTx(key2)))
+	require.Len(t, pool.all.txs, 1)
+	require.NoError(t, pool.AddExternalTxs(validation.InBlockTx, getTx(key2)))
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/maputil"
@@ -292,7 +293,7 @@ func (h *IdenaGossipHandler) handle(p *protoPeer) error {
 			return nil
 		}
 		p.markKey(key)
-		if err := h.txpool.AddExternalTxs(tx); err != nil {
+		if err := h.txpool.AddExternalTxs(validation.InboundTx, tx); err != nil {
 			h.throttlingLogger.Warn("Failed to add external txs", "err", err)
 		}
 	case GetBlockByHash:
