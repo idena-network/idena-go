@@ -22,12 +22,12 @@ const (
 	GodValidUntilNetworkSize = 10
 )
 
-type TxType int
+type TxType = int
 
 const (
-	InBlockTx = 1
-	MempoolTx = 2
-	InboundTx = 3
+	InBlockTx = TxType(1)
+	MempoolTx = TxType(2)
+	InboundTx = TxType(3)
 )
 
 var (
