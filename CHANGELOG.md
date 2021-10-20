@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.27.3-rc1 (Oct 20, 2021)
+
+### Changes
+
+- Truncate blockchain to block #3417451 ([#818](https://github.com/idena-network/idena-go/pull/818))
+- Implement Idena gossip 1.1.0 (support push and flip key
+  batches) ([#821](https://github.com/idena-network/idena-go/pull/821))
+- Add client type into open short session answers ([#822](https://github.com/idena-network/idena-go/pull/822) &
+  [#832](https://github.com/idena-network/idena-go/pull/832))
+- Respect flip keyPackages in evidence map ([#816](https://github.com/idena-network/idena-go/pull/816))
+- Disable generation of fast sync snapshots v1 ([#827](https://github.com/idena-network/idena-go/pull/827))
+- Broadcast open short answers 2 minutes after the start of validation and after successful long answers broadcast 
+  ([#819](https://github.com/idena-network/idena-go/pull/819) & ([#828](https://github.com/idena-network/idena-go/pull/828)))
+- Collect answers order and flag that flip is allowed to solve (
+  indexer) ([#820](https://github.com/idena-network/idena-go/pull/820))
+- Update deps ([#830](https://github.com/idena-network/idena-go/pull/830) &
+  [#778](https://github.com/idena-network/idena-go/pull/778) &
+  [#826](https://github.com/idena-network/idena-go/pull/826) &
+  [#806](https://github.com/idena-network/idena-go/pull/806) &
+  [#808](https://github.com/idena-network/idena-go/pull/808) &
+  [#801](https://github.com/idena-network/idena-go/pull/801) &
+  [#824](https://github.com/idena-network/idena-go/pull/824) &
+  [#823](https://github.com/idena-network/idena-go/pull/823))
+
 ## 0.27.2 (Oct 7, 2021)
 
 ### Changes
