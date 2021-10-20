@@ -42,8 +42,9 @@ const (
 	MaxFlipKeysPackageBroadcastDelaySec = 120
 	MaxShortAnswersBroadcastDelaySec    = 30
 	// Flip keys will stop syncing with peers in FlipKeysSyncTimeFrame seconds after short session start
-	FlipKeysSyncTimeFrame = 60 * 4 // seconds
-	ClientTypeDesktop = 1
+	FlipKeysSyncTimeFrame            = 60 * 4 // seconds
+	ClientTypeDesktop                = 1
+	ClientTypeDesktopWithBuiltInNode = 2
 )
 
 type ValidationCeremony struct {
@@ -774,6 +775,13 @@ func (vc *ValidationCeremony) processCeremonyTxs(block *types.Block) {
 	}
 }
 
+func (vc *ValidationCeremony) determineClientType() byte {
+	if vc.config.RPC.HTTPPort == config.DefaultRpcPortBuiltInNode {
+		return ClientTypeDesktopWithBuiltInNode
+	}
+	return ClientTypeDesktop
+}
+
 func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 	if vc.shortAnswersSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() {
 		return
@@ -790,7 +798,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 		return
 	}
 
-	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h), ClientTypeDesktop)); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
+	if _, err := vc.sendTx(types.SubmitShortAnswersTx, attachments.CreateShortAnswerAttachment(answers, getWordsRnd(h), vc.determineClientType())); err == nil || err == validation.DuplicatedTx || err == mempool.DuplicateTxError {
 		vc.shortAnswersSent = true
 	} else {
 		vc.log.Error("cannot send short answers tx", "err", err)
