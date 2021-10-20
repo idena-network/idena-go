@@ -15,7 +15,7 @@ require (
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/ipfs/go-blockservice v0.1.7
-	github.com/ipfs/go-cid v0.0.7
+	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/ipfs/go-ipfs-config v0.16.0
 	github.com/ipfs/go-ipfs-files v0.0.8
