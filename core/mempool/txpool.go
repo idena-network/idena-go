@@ -35,7 +35,7 @@ var (
 
 type TransactionPool interface {
 	AddInternalTx(tx *types.Transaction) error
-	AddExternalTxs(txs ...*types.Transaction) error
+	AddExternalTxs(txType validation.TxType, txs ...*types.Transaction) error
 	GetPendingTransaction(noFilter bool, id common.ShardId, count bool) []*types.Transaction
 	IsSyncing() bool
 }
@@ -112,7 +112,7 @@ func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useT
 
 		keeperTxs := pool.txKeeper.List()
 		pool.txKeeper.Clear()
-		pool.AddExternalTxs(keeperTxs...)
+		pool.AddExternalTxs(validation.MempoolTx, keeperTxs...)
 	}
 }
 
@@ -214,7 +214,7 @@ func (pool *TxPool) validate(tx *types.Transaction, appState *appstate.AppState,
 	return validation.ValidateTx(appState, tx, minFeePerGas, txType)
 }
 
-func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
+func (pool *TxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Transaction) error {
 	appState, err := pool.appState.Readonly(pool.head.Height())
 
 	if err != nil {
@@ -240,7 +240,7 @@ func (pool *TxPool) AddExternalTxs(txs ...*types.Transaction) error {
 			continue
 		}
 
-		if err = pool.add(tx, appState, sender == pool.coinbase); err != nil && len(txs) == 1 {
+		if err = pool.add(tx, appState, sender == pool.coinbase, txType); err != nil && len(txs) == 1 {
 			return err
 		}
 		if err == nil {
@@ -259,7 +259,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 			pool.txKeeper.AddTx(tx)
 		}
 		appState, _ := pool.appState.Readonly(pool.head.Height())
-		if err := pool.add(tx, appState, true); err != nil {
+		if err := pool.add(tx, appState, true, validation.InboundTx); err != nil {
 			if _, ok := priorityTypes[tx.Type]; ok {
 				sender, _ := types.Sender(tx)
 				pool.bus.Publish(&events.NewTxEvent{
@@ -279,7 +279,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	if err != nil {
 		return errors.WithMessage(err, "tx can't be validated")
 	}
-	if err = pool.add(tx, appState, true); err == nil {
+	if err = pool.add(tx, appState, true, validation.InboundTx); err == nil {
 		if pool.txKeeper != nil {
 			pool.txKeeper.AddTx(tx)
 		}
@@ -287,7 +287,7 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	return err
 }
 
-func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool) error {
+func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool, txType validation.TxType) error {
 	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
 	}
@@ -302,7 +302,7 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 
 	sender, _ := types.Sender(tx)
 
-	if err := pool.validate(tx, appState, validation.InboundTx); err != nil {
+	if err := pool.validate(tx, appState, txType); err != nil {
 		pool.mutex.Unlock()
 		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
