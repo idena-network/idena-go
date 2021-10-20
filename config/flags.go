@@ -3,17 +3,18 @@ package config
 import "github.com/urfave/cli"
 
 const (
-	DefaultDataDir        = "datadir"
-	DefaultPort           = 40404
-	DefaultRpcHost        = "localhost"
-	DefaultRpcPort        = 9009
-	DefaultIpfsDataDir    = "ipfs"
-	DefaultIpfsPort       = 40405
-	DefaultGodAddress     = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
-	DefaultCeremonyTime   = int64(1567171800)
-	DefaultSwarmKey       = "00d6f96bb2b02a7308ad87938d6139a974b555cc029ce416641a60c46db2f531"
-	DefaultForceFullSync  = 100
-	DefaultStoreCertRange = 2000
+	DefaultDataDir            = "datadir"
+	DefaultPort               = 40404
+	DefaultRpcHost            = "localhost"
+	DefaultRpcPort            = 9009
+	DefaultRpcPortBuiltInNode = 9119
+	DefaultIpfsDataDir        = "ipfs"
+	DefaultIpfsPort           = 40405
+	DefaultGodAddress         = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
+	DefaultCeremonyTime       = int64(1567171800)
+	DefaultSwarmKey           = "00d6f96bb2b02a7308ad87938d6139a974b555cc029ce416641a60c46db2f531"
+	DefaultForceFullSync      = 100
+	DefaultStoreCertRange     = 2000
 
 	DefaultMaxInboundOwnShardPeers     = 6
 	DefaultMaxOutboundOwnShardPeers    = 3
@@ -21,7 +22,6 @@ const (
 	DefaultMaxOutboundNotOwnShardPeers = 1
 
 	DefaultBurntTxRange = 180
-
 
 	LowPowerMaxInboundOwnShardPeers     = 3
 	LowPowerMaxOutboundOwnShardPeers    = 2
