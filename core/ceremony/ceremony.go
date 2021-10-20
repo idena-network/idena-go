@@ -305,6 +305,7 @@ func (vc *ValidationCeremony) SubmitLongAnswers(answers *types.Answers) (common.
 	hash, err := vc.sendTx(types.SubmitLongAnswersTx, attachments.CreateLongAnswerAttachment(answers.Bytes(), vc.flipWordsInfo.proof, salt, key))
 	if err == nil {
 		vc.broadcastEvidenceMap()
+		vc.broadcastShortAnswersTx()
 	} else {
 		vc.log.Error("cannot send long answers tx", "err", err)
 	}
