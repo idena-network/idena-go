@@ -6,7 +6,7 @@ Golang implementation of the Idena network node
 
 ## Building the source
 
-Building `idena-go` required a Go (version 1.13 or later) and a C compiler. `idena-go` uses Go modules as a dependency manager. 
+Building `idena-go` required a Go (version 1.16 or later) and a C compiler. `idena-go` uses Go modules as a dependency manager. 
 Once the dependencies are installed, run
 
 ```shell
