@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/validators"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -117,6 +118,8 @@ type StatsCollector interface {
 	AddTxReceipt(txReceipt *types.TxReceipt, appState *appstate.AppState)
 
 	RemoveMemPoolTx(tx *types.Transaction)
+	SubmitVoteCountingStepResult(round uint64, step uint8, votesByBlock map[common.Hash]map[common.Address]*types.Vote, necessaryVotesCount, checkedRoundVotes int)
+	SubmitVoteCountingResult(round uint64, step uint8, validators *validators.StepValidators, hash common.Hash, cert *types.FullBlockCert, err error)
 
 	AddRemovedTransitiveDelegation(delegator, delegatee common.Address)
 }
@@ -135,6 +138,14 @@ func (c *collectorStub) EnableCollecting() {
 }
 
 func (c *collectorStub) RemoveMemPoolTx(tx *types.Transaction) {
+	// do nothing
+}
+
+func (c *collectorStub) SubmitVoteCountingStepResult(round uint64, step uint8, votesByBlock map[common.Hash]map[common.Address]*types.Vote, necessaryVotesCount, checkedRoundVotes int) {
+	// do nothing
+}
+
+func (c *collectorStub) SubmitVoteCountingResult(round uint64, step uint8, validators *validators.StepValidators, hash common.Hash, cert *types.FullBlockCert, err error) {
 	// do nothing
 }
 

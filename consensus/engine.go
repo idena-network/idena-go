@@ -481,19 +481,24 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 	byBlock := make(map[common.Hash]map[common.Address]*types.Vote)
 	validators := engine.appState.ValidatorsCache.GetOnlineValidators(engine.chain.Head.Seed(), round, step, engine.chain.GetCommitteeSize(engine.appState.ValidatorsCache, step == types.Final))
 	if validators == nil {
-		return common.Hash{}, nil, errors.Errorf("validators were not setup, step=%v", step)
+		hash := common.Hash{}
+		err := errors.Errorf("validators were not setup, step=%v", step)
+		engine.statsCollector.SubmitVoteCountingResult(round, step, validators, hash, nil, err)
+		return hash, nil, err
 	}
 
 	necessaryVotesCount -= validators.VotesCountSubtrahend(engine.cfg.Consensus.AgreementThreshold)
 
 	for start := time.Now(); time.Since(start) < timeout; {
 		m := engine.votes.GetVotesOfRound(round)
+		var checkedRoundVotes int
 		if m != nil {
 
 			found := false
 			var bestHash common.Hash
 			var cert types.FullBlockCert
 			m.Range(func(key, value interface{}) bool {
+				checkedRoundVotes++
 				vote := value.(*types.Vote)
 
 				roundVotes, ok := byBlock[vote.Header.VotedHash]
@@ -533,13 +538,19 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 				return true
 			})
 
+			engine.statsCollector.SubmitVoteCountingStepResult(round, step, byBlock, necessaryVotesCount, checkedRoundVotes)
+
 			if found {
+				engine.statsCollector.SubmitVoteCountingResult(round, step, validators, bestHash, &cert, nil)
 				return bestHash, &cert, nil
 			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return common.Hash{}, nil, errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
+	hash := common.Hash{}
+	err := errors.New(fmt.Sprintf("votes for step is not received, step=%v", step))
+	engine.statsCollector.SubmitVoteCountingResult(round, step, validators, hash, nil, err)
+	return hash, nil, err
 }
 
 func (engine *Engine) getBlockByHash(round uint64, hash common.Hash) (*types.Block, error) {
