@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.27.3-rc1 (Oct 20, 2021)
+## 0.27.3 (Oct 25, 2021)
 
 ### Changes
 
@@ -17,6 +17,7 @@
   ([#819](https://github.com/idena-network/idena-go/pull/819) & ([#828](https://github.com/idena-network/idena-go/pull/828)))
 - Collect answers order and flag that flip is allowed to solve (
   indexer) ([#820](https://github.com/idena-network/idena-go/pull/820))
+- Recover validation txs on after long session from tx keeper ([#831](https://github.com/idena-network/idena-go/pull/831))
 - Update deps ([#830](https://github.com/idena-network/idena-go/pull/830) &
   [#778](https://github.com/idena-network/idena-go/pull/778) &
   [#826](https://github.com/idena-network/idena-go/pull/826) &
