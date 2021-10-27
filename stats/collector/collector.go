@@ -8,6 +8,7 @@ import (
 	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"time"
 )
 
 type StatsCollector interface {
@@ -120,6 +121,8 @@ type StatsCollector interface {
 	RemoveMemPoolTx(tx *types.Transaction)
 	SubmitVoteCountingStepResult(round uint64, step uint8, votesByBlock map[common.Hash]map[common.Address]*types.Vote, necessaryVotesCount, checkedRoundVotes int)
 	SubmitVoteCountingResult(round uint64, step uint8, validators *validators.StepValidators, hash common.Hash, cert *types.FullBlockCert, err error)
+	SubmitProofProposal(round uint64, hash common.Hash, proposerPubKey []byte, modifier int)
+	SubmitBlockProposal(proposal *types.BlockProposal, receivingTime time.Time)
 
 	AddRemovedTransitiveDelegation(delegator, delegatee common.Address)
 }
@@ -146,6 +149,14 @@ func (c *collectorStub) SubmitVoteCountingStepResult(round uint64, step uint8, v
 }
 
 func (c *collectorStub) SubmitVoteCountingResult(round uint64, step uint8, validators *validators.StepValidators, hash common.Hash, cert *types.FullBlockCert, err error) {
+	// do nothing
+}
+
+func (c *collectorStub) SubmitProofProposal(round uint64, hash common.Hash, proposerPubKey []byte, modifier int) {
+	// do nothing
+}
+
+func (c *collectorStub) SubmitBlockProposal(proposal *types.BlockProposal, receivingTime time.Time) {
 	// do nothing
 }
 

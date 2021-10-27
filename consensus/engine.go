@@ -33,11 +33,6 @@ var (
 	ForkDetected = errors.New("fork is detected")
 )
 
-type appStateCache struct {
-	block    uint64
-	appState *appstate.AppState
-}
-
 type Engine struct {
 	chain             *blockchain.Blockchain
 	pm                *protocol.IdenaGossipHandler
