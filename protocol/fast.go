@@ -330,14 +330,14 @@ func (fs *fastSync) postConsuming() error {
 		return errors.New("preliminary head is lower than manifest's head")
 	}
 
-	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
-		fs.sm.AddInvalidManifest(fs.manifest.Cid)
+/*	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
+		fs.sm.AddInvalidManifest(fs.manifest.CidV2)
 		return errors.New("preliminary head's root doesn't equal manifest's root")
-	}
+	}*/
 	fs.log.Info("Start loading of snapshot", "height", fs.manifest.Height)
 	filePath, version,  err := fs.sm.DownloadSnapshot(fs.manifest)
 	if err != nil {
-		fs.sm.AddTimeoutManifest(fs.manifest.Cid)
+		fs.sm.AddTimeoutManifest(fs.manifest.CidV2)
 		return errors.WithMessage(err, "snapshot's downloading has been failed")
 	}
 	fs.log.Info("Snapshot has been loaded", "height", fs.manifest.Height)
@@ -348,12 +348,12 @@ func (fs *fastSync) postConsuming() error {
 	}
 	switch version {
 	case state.SnapshotVersionV2:
-		err = fs.appState.State.RecoverSnapshot2(fs.manifest.Height, fs.manifest.Root, file)
+		err = fs.appState.State.RecoverSnapshot2(fs.manifest.Height, fs.chain.PreliminaryHead.Root(), file)
 	}
 
 	file.Close()
 	if err != nil {
-		fs.sm.AddInvalidManifest(fs.manifest.Cid)
+		fs.sm.AddInvalidManifest(fs.manifest.CidV2)
 		//TODO : add snapshot to ban list
 		return err
 	}
