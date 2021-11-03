@@ -145,7 +145,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 			data[flipIdx].answers = append(data[flipIdx].answers, answer)
 			if grade == types.GradeReported {
-				reportersToReward.addReport(flipIdx, candidate.Address)
+				reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
 			} else if grade != types.GradeNone {
 				data[flipIdx].totalGrade += int(grade)
 				data[flipIdx].gradesCount++
