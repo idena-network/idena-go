@@ -62,8 +62,8 @@ func Test_rewardValidIdentities(t *testing.T) {
 				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
 			},
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
-				auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Verified)},
-				auth2:  {PayInvitationReward: true, SavedInvites: 1, NewIdentityState: uint8(state.Newbie)},
+				auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, NewIdentityState: uint8(state.Verified)},
+				auth2:  {PayInvitationReward: true, NewIdentityState: uint8(state.Newbie)},
 				auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
 				auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
 				failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
@@ -109,7 +109,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
-	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, types.Seed{1}, nil)
+	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil)
 
 	appState.Commit(nil)
 

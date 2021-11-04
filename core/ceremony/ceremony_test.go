@@ -729,7 +729,7 @@ func Test_analyzeAuthors2(t *testing.T) {
 	require.Equal(t, 3, len(reporters.reportedFlipsByReporter[reporter3]))
 }
 
-func Test_incSuccessfulInvites(t *testing.T) {
+func Test_incSuccessfulInvites_beforeUpgrade7(t *testing.T) {
 	epoch := uint16(5)
 	god := common.Address{0x1}
 	auth1 := common.Address{0x2}
@@ -745,28 +745,28 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: god,
 		},
-	}, 0, state.Newbie, epoch)
+	}, 0, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 5, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: badAuth,
 		},
-	}, 5, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: god,
 		},
-	}, 5, state.Newbie, epoch)
+	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	// 4th validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -774,7 +774,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 2, state.Newbie, epoch)
+	}, 2, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	// 4th validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -782,7 +782,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 2, state.Verified, epoch)
+	}, 2, state.Verified, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	// 3rd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -790,7 +790,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 3, state.Newbie, epoch)
+	}, 3, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	// 2nd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -798,7 +798,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 4, state.Newbie, epoch)
+	}, 4, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
 
 	// 3rd validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -806,7 +806,106 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 3, state.Verified, epoch)
+	}, 3, state.Verified, epoch, map[common.Address]*types.InviterValidationResult{}, false)
+
+	require.Equal(t, len(validationResults.GoodInviters[auth1].SuccessfulInvites), 4)
+	var ages []uint16
+	for _, si := range validationResults.GoodInviters[auth1].SuccessfulInvites {
+		ages = append(ages, si.Age)
+	}
+	require.Equal(t, []uint16{1, 3, 2, 3}, ages)
+
+	require.Equal(t, len(validationResults.GoodInviters[god].SuccessfulInvites), 1)
+	require.Equal(t, uint16(1), validationResults.GoodInviters[god].SuccessfulInvites[0].Age)
+	require.True(t, validationResults.GoodInviters[god].PayInvitationReward)
+	require.NotContains(t, validationResults.GoodInviters, badAuth)
+}
+
+func Test_incSuccessfulInvites(t *testing.T) {
+	allGoodInviters := make(map[common.Address]*types.InviterValidationResult)
+	enableUpgrade7 := true
+
+	epoch := uint16(5)
+	god := common.Address{0x1}
+	auth1 := common.Address{0x2}
+	badAuth := common.Address{0x3}
+
+	validationResults := &types.ValidationResults{
+		BadAuthors:   map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
+		GoodInviters: make(map[common.Address]*types.InviterValidationResult),
+	}
+
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Verified,
+		Inviter: &state.Inviter{
+			Address: god,
+		},
+	}, 0, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Candidate,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Candidate,
+		Inviter: &state.Inviter{
+			Address: badAuth,
+		},
+	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Candidate,
+		Inviter: &state.Inviter{
+			Address: god,
+		},
+	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	// 4th validation (Newbie->Newbie)
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 2, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	// 4th validation (Newbie->Verified)
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 2, state.Verified, epoch, allGoodInviters, enableUpgrade7)
+
+	// 3rd validation (Newbie->Newbie)
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 3, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	// 2nd validation (Newbie->Newbie)
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 4, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+
+	// 3rd validation (Newbie->Verified)
+	incSuccessfulInvites(validationResults, god, state.Identity{
+		State: state.Newbie,
+		Inviter: &state.Inviter{
+			Address: auth1,
+		},
+	}, 3, state.Verified, epoch, allGoodInviters, enableUpgrade7)
+
+	setValidationResultToGoodInviter(validationResults, auth1, state.Newbie, allGoodInviters, enableUpgrade7)
+	setValidationResultToGoodInviter(validationResults, god, state.Human, allGoodInviters, enableUpgrade7)
+	setValidationResultToGoodInviter(validationResults, badAuth, state.Human, allGoodInviters, enableUpgrade7)
 
 	require.Equal(t, len(validationResults.GoodInviters[auth1].SuccessfulInvites), 4)
 	var ages []uint16
