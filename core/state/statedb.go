@@ -1590,7 +1590,7 @@ func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 
 func (s *StateDB) ShardId(address common.Address) common.ShardId {
 	identity := s.GetOrNewIdentityObject(address)
-	if identity.State() == Undefined || identity.State() == Killed || identity.State() == Invite {
+	if !identity.State().IsInShard() {
 		shardId := big.NewInt(0).Mod(address.Big(), big.NewInt(int64(s.ShardsNum())))
 		return common.ShardId(shardId.Uint64() + 1)
 	}
