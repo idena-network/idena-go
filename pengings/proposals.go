@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ type Proposals struct {
 	chain           *blockchain.Blockchain
 	offlineDetector *blockchain.OfflineDetector
 	upgrader        *upgrade.Upgrader
+	statsCollector  collector.StatsCollector
 
 	// proposed blocks are grouped by round
 	blocksByRound *sync.Map
@@ -68,12 +70,13 @@ type bestHash struct {
 
 type ProposerByRound func(round uint64) (hash common.Hash, proposer []byte, ok bool)
 
-func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, detector *blockchain.OfflineDetector, upgrader *upgrade.Upgrader) (*Proposals, *sync.Map) {
+func NewProposals(chain *blockchain.Blockchain, appState *appstate.AppState, detector *blockchain.OfflineDetector, upgrader *upgrade.Upgrader, statsCollector collector.StatsCollector) (*Proposals, *sync.Map) {
 	p := &Proposals{
 		chain:                chain,
 		appState:             appState,
 		offlineDetector:      detector,
 		upgrader:             upgrader,
+		statsCollector:       statsCollector,
 		log:                  log.New(),
 		blocksByRound:        &sync.Map{},
 		pendingBlocks:        &sync.Map{},
@@ -138,6 +141,7 @@ func (proposals *Proposals) AddProposeProof(proposal *types.ProofProposal) (adde
 		}
 
 		proposals.setBestHash(currentRound, hash, pubKeyBytes, modifier)
+		proposals.statsCollector.SubmitProofProposal(currentRound, hash, pubKeyBytes, modifier)
 
 		return true, false
 	} else if currentRound < proposal.Round && proposal.Round-currentRound < DeferFutureProposalsPeriod {
@@ -272,6 +276,7 @@ func (proposals *Proposals) AddProposedBlock(proposal *types.BlockProposal, peer
 
 		round.Store(block.Hash(), &proposedBlock{proposal: proposal, receivingTime: receivingTime})
 		proposals.setBestHash(currentRound, vrfHash, block.Header.ProposedHeader.ProposerPubKey, modifier)
+		proposals.statsCollector.SubmitBlockProposal(proposal, receivingTime)
 		return true, false
 	} else if currentRound < block.Height() && block.Height()-currentRound < DeferFutureProposalsPeriod {
 		proposals.pendingBlocks.LoadOrStore(block.Hash(), &blockPeer{
@@ -370,10 +375,10 @@ func (proposals *Proposals) GetBlock(hash common.Hash) *types.Block {
 }
 
 func (proposals *Proposals) compareWithBestHash(round uint64, hash common.Hash, modifier int) bool {
+	q := common.HashToFloat(hash, int64(modifier))
+
 	proposals.bestProofsMutex.RLock()
 	defer proposals.bestProofsMutex.RUnlock()
-
-	q := common.HashToFloat(hash, int64(modifier))
 
 	if bestHash, ok := proposals.bestProofs[round]; ok {
 		return q.Cmp(bestHash.floatValue) >= 0
@@ -382,9 +387,10 @@ func (proposals *Proposals) compareWithBestHash(round uint64, hash common.Hash, 
 }
 
 func (proposals *Proposals) setBestHash(round uint64, hash common.Hash, proposerPubKey []byte, modifier int) {
+	q := common.HashToFloat(hash, int64(modifier))
+
 	proposals.bestProofsMutex.Lock()
 	defer proposals.bestProofsMutex.Unlock()
-	q := common.HashToFloat(hash, int64(modifier))
 
 	if stored, ok := proposals.bestProofs[round]; ok {
 		if q.Cmp(stored.floatValue) >= 0 {
