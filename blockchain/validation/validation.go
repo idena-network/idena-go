@@ -219,6 +219,9 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 	if appState.State.ValidationPeriod() == state.NonePeriod {
 		return EarlyTx
 	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade7 {
+		return nil
+	}
 	if appState.State.BlocksCntWithoutCeremonialTxs() >= state.AfterLongRequiredBlocks {
 		return LateTx
 	}
