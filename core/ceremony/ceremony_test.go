@@ -384,6 +384,7 @@ func Test_flipPos(t *testing.T) {
 }
 
 func Test_analyzeAuthors(t *testing.T) {
+	const enableUpgrade7 = false
 	vc := ValidationCeremony{}
 
 	auth1 := common.Address{1}
@@ -478,20 +479,20 @@ func Test_analyzeAuthors(t *testing.T) {
 		{status: QualifiedByNone, grade: types.GradeA},
 	}
 	reporters := newReportersToReward()
-	reporters.addReport(5, reporter1)
-	reporters.addReport(5, auth2)
-	reporters.addReport(13, reporter1)
-	reporters.addReport(13, reporter2)
-	reporters.addReport(15, reporter1)
-	reporters.addReport(15, reporter3)
-	reporters.addReport(15, auth2)
-	reporters.addReport(17, reporter1)
-	reporters.addReport(17, reporter2)
-	reporters.addReport(17, reporter3)
-	reporters.addReport(19, reporter2)
-	reporters.addReport(19, reporter3)
-	reporters.addReport(21, reporter1)
-	reporters.addReport(21, reporter2)
+	reporters.addReport(5, reporter1, enableUpgrade7)
+	reporters.addReport(5, auth2, enableUpgrade7)
+	reporters.addReport(13, reporter1, enableUpgrade7)
+	reporters.addReport(13, reporter2, enableUpgrade7)
+	reporters.addReport(15, reporter1, enableUpgrade7)
+	reporters.addReport(15, reporter3, enableUpgrade7)
+	reporters.addReport(15, auth2, enableUpgrade7)
+	reporters.addReport(17, reporter1, enableUpgrade7)
+	reporters.addReport(17, reporter2, enableUpgrade7)
+	reporters.addReport(17, reporter3, enableUpgrade7)
+	reporters.addReport(19, reporter2, enableUpgrade7)
+	reporters.addReport(19, reporter3, enableUpgrade7)
+	reporters.addReport(21, reporter1, enableUpgrade7)
+	reporters.addReport(21, reporter2, enableUpgrade7)
 
 	conf := &config.ConsensusConf{}
 	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0, conf)
@@ -557,6 +558,7 @@ func Test_analyzeAuthors(t *testing.T) {
 }
 
 func Test_analyzeAuthors2(t *testing.T) {
+	const enableUpgrade7 = false
 	vc := ValidationCeremony{}
 
 	auth1 := common.Address{1}
@@ -651,20 +653,20 @@ func Test_analyzeAuthors2(t *testing.T) {
 		{status: QualifiedByNone, grade: types.GradeA},
 	}
 	reporters := newReportersToReward()
-	reporters.addReport(5, reporter1)
-	reporters.addReport(5, auth2)
-	reporters.addReport(13, reporter1)
-	reporters.addReport(13, reporter2)
-	reporters.addReport(15, reporter1)
-	reporters.addReport(15, reporter3)
-	reporters.addReport(15, auth2)
-	reporters.addReport(17, reporter1)
-	reporters.addReport(17, reporter2)
-	reporters.addReport(17, reporter3)
-	reporters.addReport(19, reporter2)
-	reporters.addReport(19, reporter3)
-	reporters.addReport(21, reporter1)
-	reporters.addReport(21, reporter2)
+	reporters.addReport(5, reporter1, enableUpgrade7)
+	reporters.addReport(5, auth2, enableUpgrade7)
+	reporters.addReport(13, reporter1, enableUpgrade7)
+	reporters.addReport(13, reporter2, enableUpgrade7)
+	reporters.addReport(15, reporter1, enableUpgrade7)
+	reporters.addReport(15, reporter3, enableUpgrade7)
+	reporters.addReport(15, auth2, enableUpgrade7)
+	reporters.addReport(17, reporter1, enableUpgrade7)
+	reporters.addReport(17, reporter2, enableUpgrade7)
+	reporters.addReport(17, reporter3, enableUpgrade7)
+	reporters.addReport(19, reporter2, enableUpgrade7)
+	reporters.addReport(19, reporter3, enableUpgrade7)
+	reporters.addReport(21, reporter1, enableUpgrade7)
+	reporters.addReport(21, reporter2, enableUpgrade7)
 
 	conf := &config.ConsensusConf{
 		ReportsRewardPercent: 0.01,
