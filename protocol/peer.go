@@ -300,7 +300,7 @@ func (p *protoPeer) broadcast() {
 	}
 	logIfNeeded := func(r *request) {
 		if r.msgcode == Push || r.msgcode == NewTx || r.msgcode == FlipKey {
-			p.log.Info(fmt.Sprintf("Sent high priority msg, code %v", r.msgcode))
+			p.log.Debug(fmt.Sprintf("Sent high priority msg, code %v", r.msgcode))
 		}
 	}
 	for {

@@ -98,7 +98,7 @@ func (d *DefaultPushTracker) Run() {
 func (d *DefaultPushTracker) loop() {
 	for {
 		if d.pendingPushes.Len() == 0 {
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(time.Millisecond * 10)
 			continue
 		}
 		obj := d.pendingPushes.Peek(0)
