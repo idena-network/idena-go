@@ -115,7 +115,7 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 	handler.pushPullManager.AddEntryHolder(pushProof, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*1)))
 	handler.pushPullManager.AddEntryHolder(pushFlip, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*5)))
 	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
-	handler.pushPullManager.AddEntryHolder(pushTx, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Millisecond*300)))
+	handler.pushPullManager.AddEntryHolder(pushTx, txpool)
 	handler.pushPullManager.Run()
 	handler.registerMetrics()
 	return handler
@@ -895,7 +895,7 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 		p.sendMsg(NewTx, entry, shardId, highPriority)
 		if highPriority {
 			tx := entry.(*types.Transaction)
-			p.log.Info("Sent high priority tx", "hash", tx.Hash().Hex())
+			p.log.Debug("Sent high priority tx", "hash", tx.Hash().Hex())
 		}
 	default:
 		h.throttlingLogger.Warn(fmt.Sprintf("Unknown push/pull hash type: %v", hash.Type))
