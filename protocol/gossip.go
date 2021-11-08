@@ -498,6 +498,8 @@ func (h *IdenaGossipHandler) OwnPeeringShardId() common.ShardId {
 	return ownShardId
 }
 
+
+
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
@@ -528,40 +530,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		return nil, err
 	}
 
-	needPeerFromShard := func(inbound bool, shardId common.ShardId) (bool, bool) {
-		canConnect := false
-		shouldDisconnectAnotherPeer := false
-
-		if h.OwnPeeringShardId() == common.MultiShard {
-			if shardId != common.MultiShard && h.connManager.PeersFromShard(shardId) == 0 {
-				if inbound {
-					shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream()
-				} else {
-					shouldDisconnectAnotherPeer = !h.connManager.CanDial()
-				}
-				return true, shouldDisconnectAnotherPeer
-			}
-		}
-
-		if inbound {
-			if h.connManager.IsFromOwnShards(peer.shardId) {
-				canConnect = h.connManager.NeedInboundOwnShardPeers()
-				shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream() && canConnect
-			} else {
-				canConnect = h.connManager.CanAcceptStream()
-			}
-		} else {
-			if h.connManager.IsFromOwnShards(peer.shardId) {
-				canConnect = h.connManager.NeedOutboundOwnShardPeers()
-				shouldDisconnectAnotherPeer = !h.connManager.CanDial() && canConnect
-			} else {
-				canConnect = h.connManager.CanDial()
-			}
-		}
-		return canConnect, shouldDisconnectAnotherPeer
-	}
-
-	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
+	canConnect, shouldDisconnectAnotherPeer := h.connManager.NeedPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
 		log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)

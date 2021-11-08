@@ -27,6 +27,11 @@ const (
 	LowPowerMaxOutboundOwnShardPeers    = 2
 	LowPowerMaxInboundNotOwnShardPeers  = 1
 	LowPowerMaxOutboundNotOwnShardPeers = 1
+
+	SharedNodeMaxInboundOwnShardPeers     = 8
+	SharedNodeMaxOutboundOwnShardPeers    = 4
+	SharedNodeMaxInboundNotOwnShardPeers  = 4
+	SharedNodeMaxOutboundNotOwnShardPeers = 2
 )
 
 var (

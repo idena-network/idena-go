@@ -249,7 +249,7 @@ func (m *ConnManager) NeedPeerFromSomeShard(shardsNum int) bool {
 		return false
 	}
 	for i := common.ShardId(1); i <= common.ShardId(shardsNum); i++ {
-		if m.PeersFromShard(i) == 0 {
+		if m.PeersFromShard(i) < m.minimalNumberOfPeersFromShard() {
 			return true
 		}
 	}
@@ -318,7 +318,7 @@ func (m *ConnManager) GetRandomPeer(inbound bool) peer.ID {
 		if s != m.ownShardId && m.ownShardId != common.MultiShard {
 			return k
 		}
-		if m.peersCntFromShard(s) > 1 {
+		if m.peersCntFromShard(s) > m.minimalNumberOfPeersFromShard() {
 			return k
 		}
 	}
@@ -337,7 +337,7 @@ func (m *ConnManager) PeerForDisconnect(inbound bool, newPeerShardId common.Shar
 			return false
 		}
 		if m.ownShardId == common.MultiShard {
-			return m.peersCntFromShard(oldPeerShardId) > 1
+			return m.peersCntFromShard(oldPeerShardId) > m.minimalNumberOfPeersFromShard()
 		}
 		return oldPeerShardId != newPeerShardId
 	}
@@ -363,6 +363,44 @@ func (m *ConnManager) IsFromOwnShards(id common.ShardId) bool {
 		return false
 	}
 	return m.ownShardId == id
+}
+
+func (m *ConnManager) NeedPeerFromShard(inbound bool, shardId common.ShardId) (canConnect bool, shouldDisconnectAnotherPeer bool) {
+
+	if m.ownShardId == common.MultiShard {
+		if shardId != common.MultiShard && m.PeersFromShard(shardId) < m.minimalNumberOfPeersFromShard() {
+			if inbound {
+				shouldDisconnectAnotherPeer = !m.CanAcceptStream()
+			} else {
+				shouldDisconnectAnotherPeer = !m.CanDial()
+			}
+			return true, shouldDisconnectAnotherPeer
+		}
+	}
+
+	if inbound {
+		if m.IsFromOwnShards(shardId) {
+			canConnect = m.NeedInboundOwnShardPeers()
+			shouldDisconnectAnotherPeer = !m.CanAcceptStream() && canConnect
+		} else {
+			canConnect = m.CanAcceptStream()
+		}
+	} else {
+		if m.IsFromOwnShards(shardId) {
+			canConnect = m.NeedOutboundOwnShardPeers()
+			shouldDisconnectAnotherPeer = !m.CanDial() && canConnect
+		} else {
+			canConnect = m.CanDial()
+		}
+	}
+	return canConnect, shouldDisconnectAnotherPeer
+}
+
+func (m *ConnManager) minimalNumberOfPeersFromShard() int {
+	if m.cfg.Shared {
+		return 2
+	}
+	return 1
 }
 
 func (m *ConnManager) PeersFromShard(shardId common.ShardId) int {
