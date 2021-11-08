@@ -138,6 +138,10 @@ message ProtoMsgBatch {
     repeated BatchItem data = 1;
 }
 
+message ProtoDisconnect {
+    string Reason = 1;
+}
+
 message ProtoIdentityStateDiff {
     message IdentityStateDiffValue {
         bytes address = 1;

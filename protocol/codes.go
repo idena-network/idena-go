@@ -26,6 +26,7 @@ const (
 	UpdateShardId     = 0x11
 	BatchPush         = 0x12
 	BatchFlipKey      = 0x13
+	Disconnect        = 0x14
 )
 
 var batchSupportVersion *semver.Version

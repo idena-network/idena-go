@@ -49,6 +49,7 @@ type ConsensusConf struct {
 	UpgradeIntervalBeforeValidation   time.Duration
 	ReductionOneDelay                 time.Duration
 	NewKeyWordsEpoch                  uint16
+	EnableUpgrade7                    bool
 }
 
 type ConsensusVerson uint16
@@ -56,10 +57,13 @@ type ConsensusVerson uint16
 const (
 	// Enables validation sharding
 	ConsensusV6 ConsensusVerson = 6
+
+	ConsensusV7 ConsensusVerson = 7
 )
 
 var (
 	v6                ConsensusConf
+	v7                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -102,13 +106,23 @@ func init() {
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
-		NewKeyWordsEpoch: 76,
+		NewKeyWordsEpoch:                  76,
 	}
 	ConsensusVersions[ConsensusV6] = &v6
+
+	v7 = v6
+	ApplyConsensusVersion(ConsensusV7, &v7)
+	ConsensusVersions[ConsensusV7] = &v7
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	switch ver {
+	case ConsensusV7:
+		cfg.EnableUpgrade7 = true
+		cfg.Version = ConsensusV7
+		cfg.StartActivationDate = time.Date(2021, 11, 15, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2021, 11, 18, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.MigrationTimeout = 0
 	}
 }
 

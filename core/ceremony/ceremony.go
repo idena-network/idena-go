@@ -967,6 +967,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	epochApplyingValues := make(map[common.Address]cacheValue)
 	validationResults := map[common.ShardId]*types.ValidationResults{}
 	god := appState.State.GodAddress()
+	allGoodInviters := make(map[common.Address]*types.InviterValidationResult)
+	var isGodCeremonyCandidate bool
+	isGodUndefined := appState.State.GetIdentity(god).State == state.Undefined
 	for shardId := range vc.shardCandidates {
 		shard := vc.shardCandidates[shardId]
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
@@ -1003,6 +1006,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		for idx, candidate := range shard.candidates {
 			addr := candidate.Address
+			if !isGodUndefined && !isGodCeremonyCandidate && addr == god {
+				isGodCeremonyCandidate = true
+			}
 			var totalFlips uint32
 			var shortScore, longScore, totalScore float32
 			shortFlipsToSolve := shard.shortFlipsPerCandidate[idx]
@@ -1035,9 +1041,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				totalFlips, missed, noQualShort, noQualLong)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch)
+			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
-			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, identity.Invites)
+			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor, vc.config.Consensus)
 
 			value := cacheValue{
@@ -1070,6 +1076,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		shardValidationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
 		validationResults[shardId] = shardValidationResults
 	}
+	if vc.config.Consensus.EnableUpgrade7 && !isGodCeremonyCandidate {
+		setValidationResultToGoodInviter(validationResults[common.ShardId(1)], god, state.Human, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
+	}
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		vc.validationStats.Failed = true
@@ -1084,17 +1093,11 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for addr, value := range epochApplyingValues {
 		identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
 	}
-	for shardId, shard := range vc.shardCandidates {
+	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
 			identity := appState.State.GetIdentity(addr)
 			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
-
-			if identity.State == state.Invite && identity.Inviter != nil && identity.Inviter.Address != god {
-				if goodInviter, ok := validationResults[shardId].GoodInviters[identity.Inviter.Address]; ok {
-					goodInviter.SavedInvites += 1
-				}
-			}
 
 			value := cacheValue{
 				state:                    newIdentityState,
@@ -1139,18 +1142,17 @@ func setValidationResultToGoodAuthor(address common.Address, newState state.Iden
 	}
 }
 
-func setValidationResultToGoodInviter(validationResults *types.ValidationResults, address common.Address, newState state.IdentityState, invites uint8) {
-	goodInviter, ok := getOrPutGoodInviter(validationResults, address)
+func setValidationResultToGoodInviter(validationResults *types.ValidationResults, address common.Address, newState state.IdentityState, allGoodInviters map[common.Address]*types.InviterValidationResult, enableUpgrade7 bool) {
+	goodInviter, ok := getOrPutGoodInviter(validationResults, address, allGoodInviters, true, enableUpgrade7)
 	if !ok {
 		return
 	}
 	goodInviter.PayInvitationReward = newState.NewbieOrBetter()
-	goodInviter.SavedInvites = invites
 	goodInviter.NewIdentityState = uint8(newState)
 }
 
 func incSuccessfulInvites(validationResults *types.ValidationResults, god common.Address, invitee state.Identity,
-	birthday uint16, newState state.IdentityState, currentEpoch uint16) {
+	birthday uint16, newState state.IdentityState, currentEpoch uint16, allGoodInviters map[common.Address]*types.InviterValidationResult, enableUpgrade7 bool) {
 	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
 		return
 	}
@@ -1158,7 +1160,7 @@ func incSuccessfulInvites(validationResults *types.ValidationResults, god common
 	if newAge > 3 {
 		return
 	}
-	goodInviter, ok := getOrPutGoodInviter(validationResults, invitee.Inviter.Address)
+	goodInviter, ok := getOrPutGoodInviter(validationResults, invitee.Inviter.Address, allGoodInviters, false, enableUpgrade7)
 	if !ok {
 		return
 	}
@@ -1172,14 +1174,28 @@ func incSuccessfulInvites(validationResults *types.ValidationResults, god common
 	}
 }
 
-func getOrPutGoodInviter(validationResults *types.ValidationResults, address common.Address) (*types.InviterValidationResult, bool) {
-	if _, isBadAuthor := validationResults.BadAuthors[address]; isBadAuthor {
-		return nil, false
+func getOrPutGoodInviter(validationResults *types.ValidationResults, address common.Address, allGoodInviters map[common.Address]*types.InviterValidationResult, putToShardResults, enableUpgrade7 bool) (*types.InviterValidationResult, bool) {
+	if !enableUpgrade7 || putToShardResults {
+		if _, isBadAuthor := validationResults.BadAuthors[address]; isBadAuthor {
+			return nil, false
+		}
 	}
 	inviter, ok := validationResults.GoodInviters[address]
 	if !ok {
-		inviter = &types.InviterValidationResult{}
-		validationResults.GoodInviters[address] = inviter
+		if enableUpgrade7 {
+			if v, ok := allGoodInviters[address]; ok {
+				inviter = v
+			} else {
+				inviter = &types.InviterValidationResult{}
+				allGoodInviters[address] = inviter
+			}
+			if putToShardResults {
+				validationResults.GoodInviters[address] = inviter
+			}
+		} else {
+			inviter = &types.InviterValidationResult{}
+			validationResults.GoodInviters[address] = inviter
+		}
 	}
 	return inviter, true
 }
