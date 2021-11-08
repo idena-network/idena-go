@@ -533,7 +533,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	}
 	collector.CompleteBalanceUpdate(statsCollector, appState)
 	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
-	collector.AfterAddStake(statsCollector, stakeDest, stake, appState)
+	collector.AfterAddStake(statsCollector, stakeDest, stakeAdd, appState)
 	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
 	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake)
@@ -1067,7 +1067,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, r)
 		collector.AddMintedCoins(statsCollector, s)
-		collector.AfterAddStake(statsCollector, addr, s, appState)
+		collector.AfterAddStake(statsCollector, addr, stakeAdd, appState)
 		collector.AfterSubPenalty(statsCollector, penaltySource, penaltySub, appState)
 		collector.AddPenaltyBurntCoins(statsCollector, penaltySource, penaltySub)
 		collector.AddFinalCommitteeReward(statsCollector, balanceDest, addr, r, s)
