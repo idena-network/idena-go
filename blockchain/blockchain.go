@@ -581,8 +581,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		for i := 0; i < epochDurationsLen; i++ {
 			epochDurations = append(epochDurations, uint32(epochBlocks[i+1]-epochBlocks[i]))
 		}
-		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, block.Seed(),
-			statsCollector)
+		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, statsCollector)
 		balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 	}
 
@@ -2609,6 +2608,17 @@ func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardI
 
 	minSize := uint32(math.MaxUint32)
 	var minShard common.ShardId
+
+	if chain.config.Consensus.EnableUpgrade7 {
+		for shardId := common.ShardId(1); shardId <= common.ShardId(appState.State.ShardsNum()); shardId++ {
+			size, ok := sizes[shardId]
+			if ok && size < minSize {
+				minSize = size
+				minShard = shardId
+			}
+		}
+		return minShard
+	}
 
 	for shardId := common.ShardId(1); shardId < common.ShardId(appState.State.ShardsNum()); shardId++ {
 		size, ok := sizes[shardId]
