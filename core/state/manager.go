@@ -122,7 +122,7 @@ func (m *SnapshotManager) createShapshotForVersion(height uint64, version Snapsh
 
 func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 
-	cidV2, _, filePath := m.createShapshotForVersion(height, SnapshotVersionV2)
+	cidV2, root, filePath := m.createShapshotForVersion(height, SnapshotVersionV2)
 	if cidV2 != nil {
 		m.clearFs([]string{filePath})
 		m.writeLastManifest(cidV2, root, height, filePath)

@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+## 0.27.4 (Oct 30, 2021)
+### Changes
+- Fix fast sync ([#839](https://github.com/idena-network/idena-go/pull/839))
 
 ## 0.27.3 (Oct 25, 2021)
 

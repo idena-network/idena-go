@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/events"
@@ -15,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"sort"
 	"sync"
+	"time"
 )
 
 const (
@@ -45,6 +47,7 @@ type TxPool struct {
 	knownDeferredTxs mapset.Set
 	deferredTxs      chan *types.Transaction
 	all              *txMap
+	shortHashAll     *shortHashTxMap
 	txSyncCounts     map[common.Hash]int
 	executableTxs    map[common.Address]*sortedTxs
 	pendingTxs       map[common.Address]*txMap
@@ -61,17 +64,13 @@ type TxPool struct {
 	coinbase         common.Address
 	statsCollector   collector.StatsCollector
 	txKeeper         *txKeeper
-}
-
-func (pool *TxPool) IsSyncing() bool {
-	pool.isSyncingLock.RLock()
-	defer pool.isSyncingLock.RUnlock()
-	return pool.isSyncing
+	pushTracker      pushpull.PendingPushTracker
 }
 
 func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config, statsCollector collector.StatsCollector) *TxPool {
 	pool := &TxPool{
 		all:              newTxMap(-1),
+		shortHashAll:     newShortHashTxMap(),
 		executableTxs:    make(map[common.Address]*sortedTxs),
 		pendingTxs:       make(map[common.Address]*txMap),
 		txSyncCounts:     map[common.Hash]int{},
@@ -84,7 +83,9 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 		bus:              bus,
 		statsCollector:   statsCollector,
 		deferredTxs:      make(chan *types.Transaction, MaxDeferredTxs),
+		pushTracker:      pushpull.NewDefaultPushTracker(time.Millisecond * 300),
 	}
+	pool.pushTracker.SetHolder(pool)
 
 	_ = pool.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -104,9 +105,45 @@ func NewTxPool(appState *appstate.AppState, bus eventbus.Bus, cfg *config.Config
 	return pool
 }
 
+func (pool *TxPool) Add(hash common.Hash128, entry interface{}, shardId common.ShardId, highPriority bool) {
+	//ignore
+}
+
+func (pool *TxPool) Has(hash common.Hash128) bool {
+	_, has := pool.shortHashAll.Get(hash)
+	return has
+}
+
+func (pool *TxPool) Get(hash common.Hash128) (entry interface{}, shardId common.ShardId, highPriority bool, present bool) {
+	tx, has := pool.shortHashAll.Get(hash)
+	if has {
+		return tx, tx.LoadShardId(), tx.LoadHighPriority(), true
+	}
+	return nil, common.MultiShard, false, false
+}
+
+func (pool *TxPool) MaxParallelPulls() uint32 {
+	return 1
+}
+
+func (pool *TxPool) SupportPendingRequests() bool {
+	return true
+}
+
+func (pool *TxPool) PushTracker() pushpull.PendingPushTracker {
+	return pool.pushTracker
+}
+
+func (pool *TxPool) IsSyncing() bool {
+	pool.isSyncingLock.RLock()
+	defer pool.isSyncingLock.RUnlock()
+	return pool.isSyncing
+}
+
 func (pool *TxPool) Initialize(head *types.Header, coinbase common.Address, useTxKeeper bool) {
 	pool.head = head
 	pool.coinbase = coinbase
+	pool.pushTracker.Run()
 	if useTxKeeper {
 		pool.txKeeper = NewTxKeeper(pool.cfg.DataDir)
 		pool.txKeeper.Load()
@@ -219,7 +256,6 @@ func (pool *TxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Trans
 	appState, err := pool.appState.Readonly(pool.head.Height())
 
 	if err != nil {
-		pool.log.Warn("txpool: failed to create readonly appState", "err", err)
 		return err
 	}
 	for _, tx := range txs {
@@ -237,7 +273,6 @@ func (pool *TxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Trans
 					Deferred: true,
 				})
 			}
-
 			continue
 		}
 
@@ -254,6 +289,7 @@ func (pool *TxPool) AddExternalTxs(txType validation.TxType, txs ...*types.Trans
 }
 
 func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
+	tx.SetHighPriority(true)
 	if pool.IsSyncing() {
 		pool.addDeferredTx(tx)
 		if pool.txKeeper != nil {
@@ -321,8 +357,6 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 
 	pool.mutex.Unlock()
 
-	tx.SetHighPriority(own)
-
 	pool.bus.Publish(&events.NewTxEvent{
 		Tx:      tx,
 		Own:     own,
@@ -386,6 +420,7 @@ func (pool *TxPool) put(tx *types.Transaction) error {
 	}
 
 	pool.all.Add(tx)
+	pool.shortHashAll.Add(tx)
 
 	pool.appState.NonceCache.SetNonce(sender, tx.Epoch, tx.AccountNonce)
 
@@ -468,7 +503,10 @@ func (pool *TxPool) BuildBlockTransactions() []*types.Transaction {
 func (pool *TxPool) Remove(transaction *types.Transaction) {
 	pool.mutex.Lock()
 	defer pool.mutex.Unlock()
+
 	pool.all.Remove(transaction.Hash())
+	pool.shortHashAll.Remove(transaction.Hash128())
+
 	delete(pool.txSyncCounts, transaction.Hash())
 	sender, _ := types.Sender(transaction)
 
@@ -679,16 +717,19 @@ loop:
 	for {
 		select {
 		case tx := <-pool.deferredTxs:
-			pool.AddInternalTx(tx)
+			if tx.LoadHighPriority() {
+				pool.AddInternalTx(tx)
+			} else {
+				pool.AddExternalTxs(validation.MempoolTx, tx)
+			}
 		default:
 			break loop
 		}
 	}
 	pool.knownDeferredTxs.Clear()
 	if pool.txKeeper != nil {
-		for _, tx := range pool.txKeeper.List() {
-			pool.AddInternalTx(tx)
-		}
+		keeperTxs := pool.txKeeper.List()
+		pool.AddExternalTxs(validation.MempoolTx, keeperTxs...)
 	}
 }
 
@@ -837,4 +878,35 @@ func (s *sortedTxs) Remove(transaction *types.Transaction) {
 
 func (s *sortedTxs) Empty() bool {
 	return len(s.txs) == 0
+}
+
+type shortHashTxMap struct {
+	mutex sync.RWMutex
+	txs   map[common.Hash128]*types.Transaction
+}
+
+func newShortHashTxMap() *shortHashTxMap {
+	return &shortHashTxMap{
+		txs: make(map[common.Hash128]*types.Transaction),
+	}
+}
+
+func (m *shortHashTxMap) Get(hash common.Hash128) (*types.Transaction, bool) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	tx, ok := m.txs[hash]
+	return tx, ok
+}
+
+func (m *shortHashTxMap) Add(tx *types.Transaction) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.txs[tx.Hash128()] = tx
+}
+
+func (m *shortHashTxMap) Remove(hash common.Hash128) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	delete(m.txs, hash)
 }

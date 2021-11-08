@@ -10,4 +10,5 @@ type P2P struct {
 	MaxDelay       int
 	DisableMetrics bool
 	Multishard     bool
+	Shared         bool
 }

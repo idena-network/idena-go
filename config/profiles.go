@@ -13,7 +13,12 @@ func applyLowPowerProfile(cfg *Config) {
 }
 
 func applySharedNodeProfile(cfg *Config) {
+	cfg.P2P.MaxInboundPeers = SharedNodeMaxInboundNotOwnShardPeers
+	cfg.P2P.MaxOutboundPeers = SharedNodeMaxOutboundNotOwnShardPeers
+	cfg.P2P.MaxInboundOwnShardPeers = SharedNodeMaxInboundOwnShardPeers
+	cfg.P2P.MaxOutboundOwnShardPeers = SharedNodeMaxOutboundOwnShardPeers
 	cfg.P2P.Multishard = true
+	cfg.P2P.Shared = true
 	cfg.Sync.LoadAllFlips = true
 	cfg.IpfsConf.LowWater = 50
 	cfg.IpfsConf.HighWater = 100

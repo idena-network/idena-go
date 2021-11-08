@@ -102,6 +102,7 @@ type protoPeer struct {
 	version              *semver.Version
 	closed               bool
 	supportedFeatures    map[PeerFeature]struct{}
+	disconnectReason     string
 }
 
 func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *protoPeer {
@@ -155,7 +156,7 @@ func (p *protoPeer) addPushToBatch(payload interface{}, shardId common.ShardId) 
 		atomic.AddUint32(&p.skippedRequestsCount, 1)
 		if p.skippedRequestsCount > queuedRequestsSize {
 			p.throttlingLogger.Warn("Skipped requests limit reached for pushes", "addr", p.stream.Conn().RemoteMultiaddr().String())
-			p.disconnect()
+			p.disconnect("too many skipped pushes")
 		}
 	}
 }
@@ -169,7 +170,7 @@ func (p *protoPeer) addFlipKeyToBatch(payload interface{}, shardId common.ShardI
 		atomic.AddUint32(&p.skippedRequestsCount, 1)
 		if p.skippedRequestsCount > queuedRequestsSize {
 			p.throttlingLogger.Warn("Skipped requests limit reached for flip keys", "addr", p.stream.Conn().RemoteMultiaddr().String())
-			p.disconnect()
+			p.disconnect("too many skipped flip keys")
 		}
 	}
 }
@@ -182,7 +183,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.
 		case p.highPriorityRequests <- &request{msgcode: msgcode, data: payload, shardId: shardId}:
 		case <-timer.C:
 			p.log.Error("TIMEOUT while sending message (high priority)", "addr", p.stream.Conn().RemoteMultiaddr().String(), "len", len(p.highPriorityRequests))
-			p.disconnect()
+			p.disconnect("timeout while sending message (high priority)")
 		case <-p.finished:
 		}
 	} else {
@@ -206,7 +207,7 @@ func (p *protoPeer) sendMsg(msgcode uint64, payload interface{}, shardId common.
 			atomic.AddUint32(&p.skippedRequestsCount, 1)
 			if p.skippedRequestsCount > queuedRequestsSize/2 {
 				p.throttlingLogger.Warn("Skipped requests limit reached", "addr", p.stream.Conn().RemoteMultiaddr().String())
-				p.disconnect()
+				p.disconnect("too many skipped requests")
 			}
 		}
 	}
@@ -267,7 +268,7 @@ func (p *protoPeer) makeBatches() {
 func (p *protoPeer) broadcast() {
 	go p.makeBatches()
 	defer close(p.finished)
-	defer p.disconnect()
+	defer p.disconnect("")
 	send := func(request *request) error {
 		msg := makeMsg(request.msgcode, request.data, request.shardId)
 
@@ -299,7 +300,7 @@ func (p *protoPeer) broadcast() {
 	}
 	logIfNeeded := func(r *request) {
 		if r.msgcode == Push || r.msgcode == NewTx || r.msgcode == FlipKey {
-			p.log.Info(fmt.Sprintf("Sent high priority msg, code %v", r.msgcode))
+			p.log.Debug(fmt.Sprintf("Sent high priority msg, code %v", r.msgcode))
 		}
 	}
 	for {
@@ -382,6 +383,8 @@ func toBytes(msgcode uint64, payload interface{}) ([]byte, error) {
 		return payload.(*updateShardId).ToBytes()
 	case BatchPush, BatchFlipKey:
 		return payload.(*msgBatch).ToBytes()
+	case Disconnect:
+		return payload.(*disconnect).ToBytes()
 	}
 	return nil, errors.Errorf("type %T is not serializable", payload)
 }
@@ -544,7 +547,13 @@ func (p *protoPeer) resetTimeouts() {
 	p.timeouts = 0
 }
 
-func (p *protoPeer) disconnect() {
+func (p *protoPeer) disconnect(reason string) {
+	if reason != "" {
+		var dc = &disconnect{reason}
+		msg := makeMsg(Disconnect, dc, common.MultiShard)
+		p.rw.WriteMsg(msg)
+		time.Sleep(time.Second)
+	}
 	if err := p.stream.Reset(); err != nil {
 		p.log.Error("error while resetting peer stream", "err", err)
 	}

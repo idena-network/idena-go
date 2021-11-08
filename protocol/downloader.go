@@ -319,7 +319,7 @@ func (d *Downloader) getBestManifest() *snapshot.Manifest {
 
 	var best *snapshot.Manifest
 	for _, m := range manifests {
-		if (best == nil || best.Height < m.Height) && !d.sm.IsInvalidManifest(m.Cid) {
+		if (best == nil || best.Height < m.Height) && !d.sm.IsInvalidManifest(m.CidV2) {
 			best = m
 		}
 	}
