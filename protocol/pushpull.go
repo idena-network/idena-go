@@ -32,7 +32,7 @@ type PushPullManager struct {
 func NewPushPullManager() *PushPullManager {
 	return &PushPullManager{
 		pendingPushes:    cache.New(time.Minute*3, time.Minute*5),
-		requests:         make(chan pullRequest, 2000),
+		requests:         make(chan pullRequest, 5000),
 		entryHolders:     make(map[pushType]pushpull.Holder),
 		throttlingLogger: log.NewThrottlingLogger(log.New("component", "pushPullManager")),
 	}

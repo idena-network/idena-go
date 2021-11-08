@@ -115,7 +115,7 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 	handler.pushPullManager.AddEntryHolder(pushProof, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*1)))
 	handler.pushPullManager.AddEntryHolder(pushFlip, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Second*5)))
 	handler.pushPullManager.AddEntryHolder(pushKeyPackage, flipKeyPool)
-	handler.pushPullManager.AddEntryHolder(pushTx, pushpull.NewDefaultHolder(1, pushpull.NewDefaultPushTracker(time.Millisecond*300)))
+	handler.pushPullManager.AddEntryHolder(pushTx, txpool)
 	handler.pushPullManager.Run()
 	handler.registerMetrics()
 	return handler
@@ -498,6 +498,8 @@ func (h *IdenaGossipHandler) OwnPeeringShardId() common.ShardId {
 	return ownShardId
 }
 
+
+
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
@@ -528,40 +530,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		return nil, err
 	}
 
-	needPeerFromShard := func(inbound bool, shardId common.ShardId) (bool, bool) {
-		canConnect := false
-		shouldDisconnectAnotherPeer := false
-
-		if h.OwnPeeringShardId() == common.MultiShard {
-			if shardId != common.MultiShard && h.connManager.PeersFromShard(shardId) == 0 {
-				if inbound {
-					shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream()
-				} else {
-					shouldDisconnectAnotherPeer = !h.connManager.CanDial()
-				}
-				return true, shouldDisconnectAnotherPeer
-			}
-		}
-
-		if inbound {
-			if h.connManager.IsFromOwnShards(peer.shardId) {
-				canConnect = h.connManager.NeedInboundOwnShardPeers()
-				shouldDisconnectAnotherPeer = !h.connManager.CanAcceptStream() && canConnect
-			} else {
-				canConnect = h.connManager.CanAcceptStream()
-			}
-		} else {
-			if h.connManager.IsFromOwnShards(peer.shardId) {
-				canConnect = h.connManager.NeedOutboundOwnShardPeers()
-				shouldDisconnectAnotherPeer = !h.connManager.CanDial() && canConnect
-			} else {
-				canConnect = h.connManager.CanDial()
-			}
-		}
-		return canConnect, shouldDisconnectAnotherPeer
-	}
-
-	canConnect, shouldDisconnectAnotherPeer := needPeerFromShard(inbound, peer.shardId)
+	canConnect, shouldDisconnectAnotherPeer := h.connManager.NeedPeerFromShard(inbound, peer.shardId)
 
 	if !canConnect {
 		log.Info("no slots for shard, peer will be disconnected", "peerId", peer.id, "shardId", peer.shardId)
@@ -895,7 +864,7 @@ func (h *IdenaGossipHandler) sendEntry(p *protoPeer, hash pushPullHash, entry in
 		p.sendMsg(NewTx, entry, shardId, highPriority)
 		if highPriority {
 			tx := entry.(*types.Transaction)
-			p.log.Info("Sent high priority tx", "hash", tx.Hash().Hex())
+			p.log.Debug("Sent high priority tx", "hash", tx.Hash().Hex())
 		}
 	default:
 		h.throttlingLogger.Warn(fmt.Sprintf("Unknown push/pull hash type: %v", hash.Type))
