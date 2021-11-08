@@ -1165,7 +1165,7 @@ type PublicFlipKey struct {
 	Signature []byte
 	Epoch     uint16
 
-	from    atomic.Value
+	from         atomic.Value
 	shardId      atomic.Value
 	highPriority atomic.Value
 }
@@ -1228,6 +1228,7 @@ func (k *PublicFlipKey) LoadHighPriority() bool {
 func (k *PublicFlipKey) SetShardId(shardId common.ShardId) {
 	k.shardId.Store(shardId)
 }
+
 type PrivateFlipKeysPackage struct {
 	Data      []byte
 	Epoch     uint16
@@ -1385,7 +1386,6 @@ type FlipToReward struct {
 
 type InviterValidationResult struct {
 	SuccessfulInvites   []*SuccessfulInvite
-	SavedInvites        uint8
 	NewIdentityState    uint8
 	PayInvitationReward bool
 }

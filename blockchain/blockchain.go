@@ -581,8 +581,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		for i := 0; i < epochDurationsLen; i++ {
 			epochDurations = append(epochDurations, uint32(epochBlocks[i+1]-epochBlocks[i]))
 		}
-		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, block.Seed(),
-			statsCollector)
+		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, statsCollector)
 		balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 	}
 

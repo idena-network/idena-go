@@ -17,7 +17,7 @@ import (
 )
 
 func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
-	epochDurations []uint32, seed types.Seed, statsCollector collector.StatsCollector) {
+	epochDurations []uint32, statsCollector collector.StatsCollector) {
 
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	currentEpochDuration := epochDurations[len(epochDurations)-1]
@@ -31,7 +31,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addFlipReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addReportReward(appState, config, validationResults, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, validationResults, totalRewardD, seed, epochDurations, statsCollector)
+	addInvitationReward(appState, config, validationResults, totalRewardD, epochDurations, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
@@ -277,7 +277,7 @@ func getInvitationRewardCoef(age uint16, epochHeight uint32, epochDurations []ui
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
-	totalReward decimal.Decimal, seed types.Seed, epochDurations []uint32, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, epochDurations []uint32, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
 	totalWeight := float32(0)
@@ -295,10 +295,25 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	}
 	goodInviters := make([]inviterWrapper, 0)
 
-	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-		if shard, ok := validationResults[common.ShardId(i)]; ok {
-			for addr, inviter := range shard.GoodInviters {
-				goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+	if config.EnableUpgrade7 {
+		for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+			if shard, ok := validationResults[common.ShardId(i)]; ok {
+				if len(shard.GoodInviters) == 0 {
+					continue
+				}
+				shardGoodInviters := make([]inviterWrapper, 0, len(shard.GoodInviters))
+				for addr, inviter := range shard.GoodInviters {
+					shardGoodInviters = addInviter(shardGoodInviters, inviterWrapper{addr, inviter})
+				}
+				goodInviters = append(goodInviters, shardGoodInviters...)
+			}
+		}
+	} else {
+		for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+			if shard, ok := validationResults[common.ShardId(i)]; ok {
+				for addr, inviter := range shard.GoodInviters {
+					goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
+				}
 			}
 		}
 	}
