@@ -195,3 +195,22 @@ func (m *msgBatch) FromBytes(data []byte) error {
 	}
 	return nil
 }
+
+type disconnect struct {
+	Reason string
+}
+
+func (d *disconnect) ToBytes() ([]byte, error) {
+	protoObj := &models.ProtoDisconnect{}
+	protoObj.Reason = d.Reason
+	return proto.Marshal(protoObj)
+}
+
+func (d *disconnect) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoDisconnect)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	d.Reason = protoObj.Reason
+	return nil
+}
