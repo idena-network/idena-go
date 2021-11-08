@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const TargetVersion = config.ConsensusV6
+const TargetVersion = config.ConsensusV7
 
 type Upgrader struct {
 	config           *config.Config
@@ -115,7 +115,7 @@ func (u *Upgrader) CanUpgrade() bool {
 		}
 	}
 	u.mutex.RUnlock()
-	return cnt >= int(0.80*float64(u.appState.ValidatorsCache.OnlineSize())) && cnt >= int(2.0/3.0*float64(u.appState.ValidatorsCache.ForkCommitteeSize()))
+	return cnt >= int(0.80*float64(u.appState.ValidatorsCache.OnlineSize())) && cnt >= int(0.6*float64(u.appState.ValidatorsCache.ForkCommitteeSize()))
 }
 
 func (u *Upgrader) processVote(vote *types.Vote) {
