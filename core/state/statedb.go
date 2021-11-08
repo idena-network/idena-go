@@ -1257,7 +1257,6 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 	})
 }
 
-
 func (s *StateDB) WriteSnapshot2(height uint64, to io.Writer) (root common.Hash, err error) {
 	return WriteTreeTo2(s.db, height, to)
 }
@@ -1590,7 +1589,12 @@ func (s *StateDB) RemoveDelayedOfflinePenalty(addr common.Address) {
 }
 
 func (s *StateDB) ShardId(address common.Address) common.ShardId {
-	return s.GetOrNewIdentityObject(address).ShardId()
+	identity := s.GetOrNewIdentityObject(address)
+	if identity.State() == Undefined || identity.State() == Killed || identity.State() == Invite {
+		shardId := big.NewInt(0).Mod(address.Big(), big.NewInt(int64(s.ShardsNum())))
+		return common.ShardId(shardId.Uint64() + 1)
+	}
+	return identity.ShardId()
 }
 func (s *StateDB) HasVersion(h uint64) bool {
 	return s.tree.ExistVersion(int64(h))
@@ -1612,7 +1616,7 @@ func (s *StateDB) EmptyBlocksByShard() map[common.ShardId][]common.Address {
 	return s.GetOrNewGlobalObject().data.EmptyBlocksByShards
 }
 
-func (s *StateDB) ClearEmptyBlocksByShard(){
+func (s *StateDB) ClearEmptyBlocksByShard() {
 	s.GetOrNewGlobalObject().ClearEmptyBlocksByShard()
 }
 
