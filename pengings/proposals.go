@@ -296,8 +296,9 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 			round.Range(func(key, value interface{}) bool {
 				p := value.(*proposedBlock)
 				if bytes.Compare(p.proposal.Block.Header.ProposedHeader.ProposerPubKey, proposerPubKey) == 0 {
-					result = p.proposal.Block
-					return false
+					if result == nil || bytes.Compare(result.Hash().Bytes(), p.proposal.Block.Hash().Bytes()) < 0 {
+						result = p.proposal.Block
+					}
 				}
 				return true
 			})
