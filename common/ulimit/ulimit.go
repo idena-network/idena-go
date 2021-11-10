@@ -16,11 +16,7 @@ var (
 	setLimit func(uint64, uint64) error
 )
 
-// minimum file descriptor limit before we complain
-const minFds = 65536
-
-// default max file descriptor limit.
-const maxFds = 1000000
+var fdLevels = []uint64{1000000, 500000, 100000, 65000, 32000, 16000, 8000, 4000, 2000}
 
 // ManageFdLimit raise the current max file descriptor count to maxFds
 func ManageFdLimit() (changed bool, newLimit uint64, err error) {
@@ -28,58 +24,44 @@ func ManageFdLimit() (changed bool, newLimit uint64, err error) {
 		return false, 0, nil
 	}
 
-	targetLimit := uint64(maxFds)
 	soft, hard, err := getLimit()
 	if err != nil {
 		return false, 0, err
 	}
+loop:
+	for _, targetLimit := range fdLevels {
 
-	if targetLimit <= soft {
-		return false, 0, nil
+		if targetLimit <= soft {
+			continue
+		}
+
+		// the soft limit is the value that the kernel enforces for the
+		// corresponding resource
+		// the hard limit acts as a ceiling for the soft limit
+		// an unprivileged process may only set it's soft limit to a
+		// alue in the range from 0 up to the hard limit
+		err = setLimit(targetLimit, targetLimit)
+		switch err {
+		case nil:
+			newLimit = targetLimit
+			break loop
+		case syscall.EPERM:
+			// lower limit if necessary.
+			if targetLimit > hard {
+				targetLimit = hard
+			}
+
+			// the process does not have permission so we should only
+			// set the soft value
+			err = setLimit(targetLimit, hard)
+			if err != nil {
+				continue
+			}
+			newLimit = targetLimit
+			break loop
+		default:
+			err = fmt.Errorf("error setting: ulimit: %s", err)
+		}
 	}
-
-	// the soft limit is the value that the kernel enforces for the
-	// corresponding resource
-	// the hard limit acts as a ceiling for the soft limit
-	// an unprivileged process may only set it's soft limit to a
-	// alue in the range from 0 up to the hard limit
-	err = setLimit(targetLimit, targetLimit)
-	switch err {
-	case nil:
-		newLimit = targetLimit
-	case syscall.EPERM:
-		// lower limit if necessary.
-		if targetLimit > hard {
-			targetLimit = hard
-		}
-
-		// the process does not have permission so we should only
-		// set the soft value
-		err = setLimit(targetLimit, hard)
-		if err != nil {
-			err = fmt.Errorf("error setting ulimit wihout hard limit: %s", err)
-			break
-		}
-		newLimit = targetLimit
-
-		// Warn on lowered limit.
-
-		if newLimit < maxFds {
-			err = fmt.Errorf("failed to raise ulimit to (%d): set to %d", maxFds, newLimit)
-			break
-		}
-
-		if newLimit < minFds {
-			err = fmt.Errorf(
-				"failed to raise ulimit to minimum %d: set to %d",
-				minFds,
-				newLimit,
-			)
-			break
-		}
-	default:
-		err = fmt.Errorf("error setting: ulimit: %s", err)
-	}
-
 	return newLimit > 0, newLimit, err
 }
