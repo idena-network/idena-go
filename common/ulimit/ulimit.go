@@ -32,7 +32,7 @@ loop:
 	for _, targetLimit := range fdLevels {
 
 		if targetLimit <= soft {
-			continue
+			break
 		}
 
 		// the soft limit is the value that the kernel enforces for the
