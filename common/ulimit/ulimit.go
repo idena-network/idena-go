@@ -17,10 +17,10 @@ var (
 )
 
 // minimum file descriptor limit before we complain
-const minFds = 2048
+const minFds = 65536
 
 // default max file descriptor limit.
-const maxFds = 65535
+const maxFds = 1000000
 
 // ManageFdLimit raise the current max file descriptor count to maxFds
 func ManageFdLimit() (changed bool, newLimit uint64, err error) {
