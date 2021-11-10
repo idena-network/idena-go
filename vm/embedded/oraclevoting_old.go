@@ -16,29 +16,7 @@ import (
 	"time"
 )
 
-var (
-	maxHash *big.Float
-)
-
-const (
-	oracleVotingStatePending  = byte(0)
-	oracleVotingStateStarted  = byte(1)
-	oracleVotingStateFinished = byte(2)
-)
-
-const FinishVotingMethod = "finishVoting"
-
-func init() {
-	var max [32]byte
-	for i := range max {
-		max[i] = 0xFF
-	}
-	i := new(big.Int)
-	i.SetBytes(max[:])
-	maxHash = new(big.Float).SetInt(i)
-}
-
-type OracleVoting4 struct {
+type OracleVoting3 struct {
 	*BaseContract
 	voteHashes  *env.Map
 	votes       *env.Map
@@ -47,8 +25,8 @@ type OracleVoting4 struct {
 	allVotes    *env.Map
 }
 
-func NewOracleVotingContract4(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting4 {
-	return &OracleVoting4{
+func NewOracleVotingContract3(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting3 {
+	return &OracleVoting3{
 		&BaseContract{
 			ctx:            ctx,
 			env:            e,
@@ -62,7 +40,7 @@ func NewOracleVotingContract4(ctx env.CallContext, e env.Env, statsCollector col
 	}
 }
 
-func (f *OracleVoting4) Call(method string, args ...[]byte) error {
+func (f *OracleVoting3) Call(method string, args ...[]byte) error {
 	switch method {
 	case "startVoting":
 		return f.startVoting()
@@ -81,7 +59,7 @@ func (f *OracleVoting4) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (f *OracleVoting4) Deploy(args ...[]byte) error {
+func (f *OracleVoting3) Deploy(args ...[]byte) error {
 	fact, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -145,17 +123,17 @@ func (f *OracleVoting4) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func minOracleReward4(networkSize int) *big.Int {
+func minOracleReward(committeeSize uint64, networkSize int) *big.Int {
 	network := float64(networkSize)
 	if network == 0 {
 		network = 1
 	}
-	dnaReward := decimal.NewFromFloat(5000).Div(decimal.NewFromFloat(network))
+	dnaReward := decimal.NewFromFloat(math2.Pow(math2.Log10(network), math2.Log10(float64(committeeSize)/network*100)/2))
 	decimalOneDna := decimal.NewFromBigInt(common.DnaBase, 0)
 	return math.ToInt(dnaReward.Mul(decimalOneDna))
 }
 
-func (f *OracleVoting4) startVoting() error {
+func (f *OracleVoting3) startVoting() error {
 	if f.GetByte("state") != oracleVotingStatePending {
 		return errors.New("contract is not in pending state")
 	}
@@ -166,7 +144,7 @@ func (f *OracleVoting4) startVoting() error {
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
 	networkSize := f.env.NetworkSize()
-	oracleReward := minOracleReward4(networkSize)
+	oracleReward := minOracleReward(committeeSize, networkSize)
 	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("contract balance is less than minimal oracles reward")
@@ -190,7 +168,7 @@ func (f *OracleVoting4) startVoting() error {
 	return nil
 }
 
-func (f *OracleVoting4) sendVoteProof(args ...[]byte) error {
+func (f *OracleVoting3) sendVoteProof(args ...[]byte) error {
 	voteHash, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -249,7 +227,7 @@ func (f *OracleVoting4) sendVoteProof(args ...[]byte) error {
 	return nil
 }
 
-func (f *OracleVoting4) sendVote(args ...[]byte) error {
+func (f *OracleVoting3) sendVote(args ...[]byte) error {
 
 	//vote = [0..255]
 	vote, err := helpers.ExtractByte(0, args...)
@@ -347,7 +325,7 @@ func (f *OracleVoting4) sendVote(args ...[]byte) error {
 	return nil
 }
 
-func (f *OracleVoting4) finishVoting(args ...[]byte) error {
+func (f *OracleVoting3) finishVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
@@ -470,7 +448,7 @@ func (f *OracleVoting4) finishVoting(args ...[]byte) error {
 	return errors.New("not enough votes to finish voting")
 }
 
-func (f *OracleVoting4) prolongVoting(args ...[]byte) error {
+func (f *OracleVoting3) prolongVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
@@ -544,7 +522,7 @@ func (f *OracleVoting4) prolongVoting(args ...[]byte) error {
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *OracleVoting4) addStake(args ...[]byte) error {
+func (f *OracleVoting3) addStake(args ...[]byte) error {
 	var err error
 	if f.ctx.PayAmount() != nil && f.ctx.PayAmount().Sign() > 0 {
 		err = f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
@@ -555,7 +533,7 @@ func (f *OracleVoting4) addStake(args ...[]byte) error {
 	return err
 }
 
-func (f *OracleVoting4) Read(method string, args ...[]byte) ([]byte, error) {
+func (f *OracleVoting3) Read(method string, args ...[]byte) ([]byte, error) {
 
 	switch method {
 	case "proof":
@@ -613,7 +591,7 @@ func (f *OracleVoting4) Read(method string, args ...[]byte) ([]byte, error) {
 	}
 }
 
-func (f *OracleVoting4) getSecretVotesCount() uint64 {
+func (f *OracleVoting3) getSecretVotesCount() uint64 {
 	data := f.env.GetValue(f.ctx, []byte("secretVotesCount"))
 	if data != nil {
 		ret, _ := helpers.ExtractUInt64(0, data)
@@ -628,11 +606,11 @@ func (f *OracleVoting4) getSecretVotesCount() uint64 {
 	return secretVotes
 }
 
-func (f *OracleVoting4) setSecretVotesCount(newValue uint64) {
+func (f *OracleVoting3) setSecretVotesCount(newValue uint64) {
 	f.SetUint64("secretVotesCount", newValue)
 }
 
-func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
+func (f *OracleVoting3) Terminate(args ...[]byte) (common.Address, error) {
 
 	if f.GetByte("state") == oracleVotingStatePending {
 
@@ -714,26 +692,4 @@ func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
 		return f.Owner(), nil
 	}
 	return common.Address{}, errors.New("voting can not be terminated")
-}
-
-
-
-type ContractError struct {
-	error    string
-	tryLater bool
-}
-
-func NewContractError(text string, tryLater bool) *ContractError {
-	return &ContractError{
-		error:    text,
-		tryLater: tryLater,
-	}
-}
-
-func (e *ContractError) Error() string {
-	return e.error
-}
-
-func (e *ContractError) TryLater() bool {
-	return e.tryLater
 }

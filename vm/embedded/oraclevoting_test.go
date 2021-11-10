@@ -4,8 +4,10 @@ import (
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/vm/helpers"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
@@ -150,6 +152,16 @@ func (c *oracleVotingCaller) prolong() error {
 	return c.contractTester.OwnerCall(OracleVotingContract, "prolongVoting")
 }
 
+func ConvertToInt(amount decimal.Decimal) *big.Int {
+	if amount == (decimal.Decimal{}) {
+		return nil
+	}
+	initial := decimal.NewFromBigInt(common.DnaBase, 0)
+	result := amount.Mul(initial)
+
+	return math.ToInt(result)
+}
+
 func TestOracleVoting_successScenario(t *testing.T) {
 	deployContractStake := common.DnaBase
 
@@ -165,16 +177,20 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	caller.contractTester.Commit()
 	caller.contractTester.setHeight(3)
 	caller.contractTester.setTimestamp(30)
+
+	contractBalance := decimal.NewFromFloat(5000.0 / 2000.0 * 99)
+	caller.contractTester.SetBalance(ConvertToInt(contractBalance))
+
 	require.Error(t, caller.StartVoting())
 
-	contractBalance := big.NewInt(0).Mul(common.DnaBase, big.NewInt(2000))
-	caller.contractTester.SetBalance(contractBalance)
+	contractBalance = decimal.NewFromFloat(2000)
+	caller.contractTester.SetBalance(ConvertToInt(contractBalance))
 
 	require.NoError(t, caller.StartVoting())
 	caller.contractTester.Commit()
 
 	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("state"))
-	require.Equal(t, big.NewInt(0).Quo(contractBalance, big.NewInt(20)).Bytes(), caller.contractTester.ReadData("votingMinPayment"))
+	require.Equal(t, big.NewInt(0).Quo(ConvertToInt(contractBalance), big.NewInt(20)).Bytes(), caller.contractTester.ReadData("votingMinPayment"))
 
 	seed := types.Seed{}
 	seed.SetBytes(common.ToBytes(uint64(3)))
@@ -235,7 +251,7 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	}
 
 	stakeAfterFinish := caller.contractTester.ContractStake()
-	ownerFeeAmount := big.NewInt(0).Quo(contractBalance, big.NewInt(int64(100/ownerFee)))
+	ownerFeeAmount := big.NewInt(0).Quo(ConvertToInt(contractBalance), big.NewInt(int64(100/ownerFee)))
 	require.Equal(t, deployContractStake.Bytes(), stakeAfterFinish.Bytes())
 
 	require.Equal(t, []byte{winnerVote}, caller.contractTester.ReadData("result"))
@@ -622,7 +638,6 @@ func TestOracleVoting_RewardPools(t *testing.T) {
 
 	require.Equal(t, events, events2)
 	caller.contractTester.appState.Commit(nil)
-
 
 	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
 	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("result"))
