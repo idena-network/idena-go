@@ -970,7 +970,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	allGoodInviters := make(map[common.Address]*types.InviterValidationResult)
 	var isGodCeremonyCandidate bool
 	isGodUndefined := appState.State.GetIdentity(god).State == state.Undefined
-	for shardId := range vc.shardCandidates {
+	for shardId := common.ShardId(1); shardId <= common.ShardId(len(vc.shardCandidates)); shardId++ {
 		shard := vc.shardCandidates[shardId]
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
 		stats := vc.validationStats.Shards[shardId]
@@ -1076,9 +1076,6 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		shardValidationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
 		validationResults[shardId] = shardValidationResults
 	}
-	if vc.config.Consensus.EnableUpgrade7 && !isGodCeremonyCandidate {
-		setValidationResultToGoodInviter(validationResults[common.ShardId(1)], god, state.Human, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
-	}
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		vc.validationStats.Failed = true
@@ -1088,6 +1085,9 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			validationFailed:    true,
 		}
 		return vc.appState.ValidatorsCache.NetworkSize(), validationResults, true
+	}
+	if vc.config.Consensus.EnableUpgrade7 && !isGodCeremonyCandidate {
+		setValidationResultToGoodInviter(validationResults[common.ShardId(1)], god, state.Human, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 	}
 
 	for addr, value := range epochApplyingValues {
