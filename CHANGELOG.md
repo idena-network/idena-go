@@ -1,6 +1,31 @@
 # Changelog
 
 ## Unreleased
+
+## 0.28.0 (Nov 12, 2021)
+
+### Fork (Upgrade 7)
+
+- Update oracle voting ([#853](https://github.com/idena-network/idena-go/pull/853))
+- Fix validation of ceremonial txs ([#848](https://github.com/idena-network/idena-go/pull/848))
+- Fix rewards for cross-shard invites ([#846](https://github.com/idena-network/idena-go/pull/846))
+- Fix report reward stake for newbies ([#845](https://github.com/idena-network/idena-go/pull/845))
+- Fix calculation of shardId for candidates ([#843](https://github.com/idena-network/idena-go/pull/843))
+
+### Changes
+
+- Send reason of disconnection to peer ([#844](https://github.com/idena-network/idena-go/pull/844))
+- Change boot node ([#842](https://github.com/idena-network/idena-go/pull/842))
+- Use transaction mempool as entry holder for Push&Pull ([#849](https://github.com/idena-network/idena-go/pull/849))
+- Update shared node config profile ([#847](https://github.com/idena-network/idena-go/pull/847))
+- Update deps ([#838](https://github.com/idena-network/idena-go/pull/838))
+- Fix burnt coins indexing ([#841](https://github.com/idena-network/idena-go/pull/841))
+- Collect block proposals and vote counting info ([#851](https://github.com/idena-network/idena-go/pull/851))
+- Calculate shardId for non validated addresses ([#850](https://github.com/idena-network/idena-go/pull/850))
+- Use block with maximal hash when proposer proposes multiple blocks ([#852](https://github.com/idena-network/idena-go/pull/852))
+- Increase file descriptor limit ([#854](https://github.com/idena-network/idena-go/pull/854))
+- Fix shard iteration ([#855](https://github.com/idena-network/idena-go/pull/855))
+
 ## 0.27.4 (Oct 30, 2021)
 ### Changes
 - Fix fast sync ([#839](https://github.com/idena-network/idena-go/pull/839))
