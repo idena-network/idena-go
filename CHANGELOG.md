@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.28.1 (Nov 15, 2021)
+
+### Changes
+
+- Fix offline penalty commitment ([#862])
+
+[#862]: https://github.com/idena-network/idena-go/pull/862
+
 ## 0.28.0 (Nov 12, 2021)
 
 ### Fork (Upgrade 7)
