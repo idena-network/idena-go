@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
@@ -28,6 +29,7 @@ type OfflineDetector struct {
 	bus              eventbus.Bus
 	repo             *database.Repo
 	config           *config.OfflineDetectionConfig
+	cfg              *config.Config
 	secStore         *secstore.SecStore
 	throttlingLogger log.ThrottlingLogger
 
@@ -40,6 +42,10 @@ type OfflineDetector struct {
 	startTime               time.Time
 	selfAddress             common.Address
 	offlineCommitteeMaxSize int
+	head                    *types.Header
+
+	validatorsMutex   sync.Mutex
+	validatorsByRound map[uint64][]*validators.StepValidators
 }
 
 type voteList struct {
@@ -47,8 +53,16 @@ type voteList struct {
 	voters mapset.Set
 }
 
+var allowedVoteSteps = map[byte]bool{
+	types.ReductionOne: true,
+	types.ReductionTwo: true,
+	types.Final:        true,
+	1:                  true,
+}
+
 func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.AppState, secStore *secstore.SecStore, bus eventbus.Bus) *OfflineDetector {
 	return &OfflineDetector{
+		cfg:                     config,
 		config:                  config.OfflineDetection,
 		repo:                    database.NewRepo(db),
 		votesChan:               make(chan *types.Vote, 10000),
@@ -61,6 +75,7 @@ func NewOfflineDetector(config *config.Config, db dbm.DB, appState *appstate.App
 		secStore:                secStore,
 		offlineCommitteeMaxSize: config.Consensus.MaxCommitteeSize * 3,
 		throttlingLogger:        log.NewThrottlingLogger(log.New("component", "offlineDetector")),
+		validatorsByRound:       map[uint64][]*validators.StepValidators{},
 	}
 }
 
@@ -75,6 +90,7 @@ func (dt *OfflineDetector) Start(head *types.Header) {
 			if block.Header.Flags().HasFlag(types.ValidationFinished) {
 				dt.restart()
 			}
+			dt.head = block.Header
 			go dt.processBlock(block)
 		})
 
@@ -284,7 +300,7 @@ func (dt *OfflineDetector) processVote(vote *types.Vote) {
 	votesAddr := vote.VoterAddr()
 
 	// process offline\online vote
-	if vote.Header.TurnOffline {
+	if vote.Header.TurnOffline && allowedVoteSteps[vote.Header.Step] {
 		if dt.offlineVoting[vote.Header.VotedHash] == nil {
 			dt.offlineVoting[vote.Header.VotedHash] = &voteList{
 				round:  vote.Header.Round,
@@ -334,6 +350,10 @@ func (dt *OfflineDetector) restore() {
 }
 
 func (dt *OfflineDetector) verifyOfflineProposing(hash common.Hash) bool {
+
+	dt.mutex.Lock()
+	defer dt.mutex.Unlock()
+
 	if dt.offlineVoting[hash] == nil {
 		return false
 	}
@@ -345,6 +365,21 @@ func (dt *OfflineDetector) verifyOfflineProposing(hash common.Hash) bool {
 		threshold = dt.offlineCommitteeMaxSize
 	}
 
+	if dt.head != nil && dt.head.Height() > 3634300 {
+		dt.validatorsMutex.Lock()
+		roundValidators := dt.validatorsByRound[dt.head.Height()]
+		dt.validatorsMutex.Unlock()
+		if len(roundValidators) != len(allowedVoteSteps) {
+			return false
+		}
+
+		all := mapset.NewSet()
+		for _, v := range roundValidators {
+			all = all.Union(v.Addresses)
+		}
+		votedForPenalty := all.Intersect(dt.offlineVoting[hash].voters)
+		return float64(votedForPenalty.Cardinality()) >= 0.75*float64(all.Cardinality())
+	}
 	return dt.offlineVoting[hash].voters.Cardinality() >= threshold
 }
 
@@ -357,4 +392,26 @@ func (dt *OfflineDetector) restart() {
 	dt.offlineProposals = make(map[common.Address]time.Time)
 	dt.activityMap = make(map[common.Address]time.Time)
 	dt.offlineVoting = make(map[common.Hash]*voteList)
+}
+
+func (dt *OfflineDetector) PushValidators(round uint64, step uint8, stepValidators *validators.StepValidators) {
+	if !allowedVoteSteps[step] {
+		return
+	}
+	dt.validatorsMutex.Lock()
+	defer dt.validatorsMutex.Unlock()
+	list := dt.validatorsByRound[round]
+	if list == nil {
+		list = []*validators.StepValidators{}
+	}
+	list = append(list, stepValidators)
+	dt.validatorsByRound[round] = list
+
+	const storedRounds = 3
+
+	for r := range dt.validatorsByRound {
+		if r < round && round-r >= storedRounds {
+			delete(dt.validatorsByRound, r)
+		}
+	}
 }
