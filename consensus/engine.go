@@ -482,6 +482,8 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 		return hash, nil, err
 	}
 
+	engine.offlineDetector.PushValidators(round, step, validators)
+
 	necessaryVotesCount -= validators.VotesCountSubtrahend(engine.cfg.Consensus.AgreementThreshold)
 
 	for start := time.Now(); time.Since(start) < timeout; {
