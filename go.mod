@@ -14,14 +14,14 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
-	github.com/ipfs/go-blockservice v0.1.7
+	github.com/ipfs/go-blockservice v0.2.0
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-ipfs v0.10.0
 	github.com/ipfs/go-ipfs-config v0.16.0
 	github.com/ipfs/go-ipfs-files v0.0.9
-	github.com/ipfs/go-merkledag v0.4.1
+	github.com/ipfs/go-merkledag v0.5.0
 	github.com/ipfs/go-mfs v0.1.2
-	github.com/ipfs/go-unixfs v0.2.5
+	github.com/ipfs/go-unixfs v0.3.0
 	github.com/ipfs/interface-go-ipfs-core v0.5.2
 	github.com/klauspost/compress v1.13.6
 	github.com/libp2p/go-libp2p-core v0.9.0
