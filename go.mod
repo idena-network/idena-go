@@ -17,7 +17,7 @@ require (
 	github.com/ipfs/go-blockservice v0.1.7
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-ipfs v0.10.0
-	github.com/ipfs/go-ipfs-config v0.16.0
+	github.com/ipfs/go-ipfs-config v0.17.0
 	github.com/ipfs/go-ipfs-files v0.0.9
 	github.com/ipfs/go-merkledag v0.4.1
 	github.com/ipfs/go-mfs v0.1.2
