@@ -28,8 +28,8 @@ const (
 	LowPowerMaxInboundNotOwnShardPeers  = 1
 	LowPowerMaxOutboundNotOwnShardPeers = 1
 
-	SharedNodeMaxInboundOwnShardPeers     = 8
-	SharedNodeMaxOutboundOwnShardPeers    = 4
+	SharedNodeMaxInboundOwnShardPeers     = 9
+	SharedNodeMaxOutboundOwnShardPeers    = 5
 	SharedNodeMaxInboundNotOwnShardPeers  = 4
 	SharedNodeMaxOutboundNotOwnShardPeers = 2
 )

@@ -498,8 +498,6 @@ func (h *IdenaGossipHandler) OwnPeeringShardId() common.ShardId {
 	return ownShardId
 }
 
-
-
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
