@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/common/pushpull"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/stats/collector"
@@ -575,6 +576,10 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	}
 
 	pool.movePendingTxsToExecutable()
+
+	if pool.appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+		return
+	}
 
 	globalEpoch := pool.appState.State.Epoch()
 
