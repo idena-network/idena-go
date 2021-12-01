@@ -248,7 +248,7 @@ func (m *ConnManager) NeedPeerFromSomeShard(shardsNum int) bool {
 	if m.ownShardId != common.MultiShard {
 		return false
 	}
-	for i := common.ShardId(1); i <= common.ShardId(shardsNum); i++ {
+	for i := common.ShardId(0); i <= common.ShardId(shardsNum); i++ {
 		if m.PeersFromShard(i) < m.minimalNumberOfPeersFromShard() {
 			return true
 		}
@@ -330,9 +330,6 @@ func (m *ConnManager) PeerForDisconnect(inbound bool, newPeerShardId common.Shar
 	defer m.peerMutex.RUnlock()
 
 	canDisconnect := func(oldPeerShardId common.ShardId) bool {
-		if oldPeerShardId == common.MultiShard {
-			return true
-		}
 		if oldPeerShardId == newPeerShardId {
 			return false
 		}
@@ -368,7 +365,7 @@ func (m *ConnManager) IsFromOwnShards(id common.ShardId) bool {
 func (m *ConnManager) NeedPeerFromShard(inbound bool, shardId common.ShardId) (canConnect bool, shouldDisconnectAnotherPeer bool) {
 
 	if m.ownShardId == common.MultiShard {
-		if shardId != common.MultiShard && m.PeersFromShard(shardId) < m.minimalNumberOfPeersFromShard() {
+		if m.PeersFromShard(shardId) < m.minimalNumberOfPeersFromShard() {
 			if inbound {
 				shouldDisconnectAnotherPeer = !m.CanAcceptStream()
 			} else {
