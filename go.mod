@@ -11,7 +11,6 @@ require (
 	github.com/deckarep/golang-set v1.7.1
 	github.com/go-stack/stack v1.8.1
 	github.com/golang/protobuf v1.5.2
-	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/ipfs/go-blockservice v0.1.7
@@ -45,15 +44,15 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	golang.org/x/crypto v0.0.0-20210813211128-0a44fdfbc16e
-	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
-	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/net v0.0.0-20211005001312-d4b1ae081e3b
+	golang.org/x/sys v0.0.0-20211013075003-97ac67df715c
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
 
-replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20210604085842-854e73deab29
+replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20211130075100-d242b0689e75
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
 
