@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+
+## 0.28.2-rc0 (Dec 3, 2021)
+
+### Changes
+
+- Add bootstrap node ([#873])
+- Update deps  ([#877])
+- Improve peering for multishard nodes ([#878])
+- Reset tx pool in validation ceremony partially ([#879])
+
+[#873]: https://github.com/idena-network/idena-go/pull/873
+[#877]: https://github.com/idena-network/idena-go/pull/877
+[#878]: https://github.com/idena-network/idena-go/pull/878
+[#879]: https://github.com/idena-network/idena-go/pull/879
+
 ## 0.28.1 (Nov 15, 2021)
 
 ### Changes
