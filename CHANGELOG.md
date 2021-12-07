@@ -3,7 +3,7 @@
 ## Unreleased
 
 
-## 0.28.2-rc0 (Dec 3, 2021)
+## 0.28.2 (Dec 7, 2021)
 
 ### Changes
 
