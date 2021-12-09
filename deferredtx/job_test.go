@@ -7,7 +7,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
-	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/embedded"
@@ -63,7 +62,7 @@ func TestJob_tryLater(t *testing.T) {
 	os.RemoveAll("test")
 
 	txPool := &fakeTxPool{}
-	job, _ := NewJob(chain.Bus(), "test", appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
+	job, _ := NewJob(chain.Bus(), "test", appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
 		return &fakeVm{}
 	})
 	coinbase := chain.SecStore().GetAddress()

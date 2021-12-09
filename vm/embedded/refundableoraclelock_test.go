@@ -9,7 +9,6 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
@@ -37,8 +36,6 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	appState.State.SetBalance(addr, common.DnaBase)
 	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
 	appState.IdentityState.Add(addr)
-
-	secStore := secstore.NewSecStore()
 
 	var identities []*ecdsa.PrivateKey
 
