@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/keywords"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/idena-network/idena-go/vm"
 	"github.com/ipfs/go-cid"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -93,6 +94,12 @@ type BurntCoins struct {
 	Address common.Address  `json:"address"`
 	Amount  decimal.Decimal `json:"amount"`
 	Key     string          `json:"key"`
+}
+
+type EstimateRawTxResponse struct {
+	Receipt *TxReceipt      `json:"receipt"`
+	TxHash  common.Hash     `json:"txHash"`
+	TxFee   decimal.Decimal `json:"txFee"`
 }
 
 func (api *BlockchainApi) LastBlock() *Block {
@@ -290,6 +297,39 @@ func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
 	}
 
 	return data, nil
+}
+
+func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes) (*EstimateRawTxResponse, error) {
+	var tx *types.Transaction
+	if err := tx.FromBytes(bytesTx); err != nil {
+		return nil, err
+	}
+	err := api.baseApi.txpool.Validate(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EstimateRawTxResponse{
+		TxHash: tx.Hash(),
+		TxFee:  blockchain.ConvertToFloat(fee.CalculateFee(1, api.baseApi.getReadonlyAppState().State.FeePerGas(), tx)),
+	}
+
+	if tx.Type == types.CallContractTx || tx.Type == types.DeployContractTx || tx.Type == types.TerminateContractTx {
+		appState := api.baseApi.getAppStateForCheck()
+		vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+		if tx.Type == types.CallContractTx && !common.ZeroOrNil(tx.Amount) {
+			sender, _ := types.Sender(tx)
+			appState.State.SubBalance(sender, tx.Amount)
+			appState.State.AddBalance(*tx.To, tx.Amount)
+		}
+		r := vm.Run(tx, -1)
+		r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
+		receipt := convertReceipt(tx, r, appState.State.FeePerGas())
+		response.Receipt = receipt
+		response.TxFee = response.TxFee.Add(receipt.GasCost)
+	}
+
+	return response, nil
 }
 
 func (api *BlockchainApi) EstimateTx(args SendTxArgs) (*EstimateTxResponse, error) {

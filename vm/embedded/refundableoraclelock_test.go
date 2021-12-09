@@ -74,7 +74,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	gas.Reset(-1)
 
 	// deploy
-	e := env.NewEnvImp(appState, createHeader(2, 1), gas, secStore, nil)
+	e := env.NewEnvImp(appState, createHeader(2, 1), gas, nil)
 	contract := NewRefundableOracleLock2(ctx, e, nil)
 
 	contractAddr := ctx.ContractAddr()
@@ -103,7 +103,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 		ctx := env.NewCallContextImpl(tx, RefundableOracleLockContract)
 		gas.Reset(-1)
-		e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
+		e = env.NewEnvImp(appState, createHeader(4, 21), gas, nil)
 		contract = NewRefundableOracleLock2(ctx, e, nil)
 		err = contract.Call(attachment.Method, attachment.Args...)
 		e.Commit()
@@ -133,7 +133,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
+	e = env.NewEnvImp(appState, createHeader(4, 21), gas, nil)
 	contract = NewRefundableOracleLock2(env.NewCallContextImpl(tx, RefundableOracleLockContract), e, nil)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)
@@ -152,7 +152,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	gas.Reset(-1)
-	e = env.NewEnvImp(appState, createHeader(4, 21), gas, secStore, nil)
+	e = env.NewEnvImp(appState, createHeader(4, 21), gas, nil)
 	contract = NewRefundableOracleLock2(env.NewCallContextImpl(tx, RefundableOracleLockContract), e, nil)
 	err = contract.Call(callAttach.Method, callAttach.Args...)
 	require.Error(t, err)
