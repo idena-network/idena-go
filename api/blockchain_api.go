@@ -300,7 +300,7 @@ func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
 }
 
 func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes) (*EstimateRawTxResponse, error) {
-	var tx *types.Transaction
+	tx := new(types.Transaction)
 	if err := tx.FromBytes(bytesTx); err != nil {
 		return nil, err
 	}
