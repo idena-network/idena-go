@@ -1201,6 +1201,10 @@ func (s *StateDB) GetIdentity(addr common.Address) Identity {
 	return Identity{}
 }
 
+func (s *StateDB) GetIdentityWithProof(addr common.Address) ([]byte, error) {
+	return s.tree.GetImmutable().GetWithProof(StateDbKeys.IdentityKey(addr))
+}
+
 func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, identity Identity)) {
 	s.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {

@@ -2,7 +2,9 @@ package state
 
 import (
 	"github.com/cosmos/iavl"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
+	models "github.com/idena-network/idena-go/protobuf"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
 )
@@ -34,13 +36,13 @@ func NewMutableTree(db dbm.DB) *MutableTree {
 		panic(err)
 	}
 	return &MutableTree{
-		tree:       tree,
+		tree: tree,
 	}
 }
 
 type MutableTree struct {
-	tree       *iavl.MutableTree
-	lock       sync.RWMutex
+	tree *iavl.MutableTree
+	lock sync.RWMutex
 }
 
 func (t *MutableTree) ValidateTree() bool {
@@ -268,6 +270,53 @@ func (t *ImmutableTree) SetVirtualVersion(version int64) {
 	t.tree.SetVirtualVersion(version)
 }
 
-func (t *ImmutableTree) Exporter() *iavl.Exporter{
+func (t *ImmutableTree) Exporter() *iavl.Exporter {
 	return t.tree.Export()
+}
+
+type valueWithProof struct {
+	Value []byte
+	Leaf  iavl.ProofLeafNode
+	Proof iavl.PathToLeaf
+}
+
+func (v *valueWithProof) toBytes() ([]byte, error) {
+	protoObj := &models.ValueWithProof{
+		Value: v.Value,
+		Leaf: &models.ValueWithProof_Leaf{
+			Key:       v.Leaf.Key,
+			ValueHash: v.Leaf.ValueHash,
+			Version:   uint64(v.Leaf.Version),
+		},
+	}
+	if len(v.Proof) > 0 {
+		protoObj.Proof = make([]*models.ValueWithProof_Item, 0, len(v.Proof))
+		for idx := range v.Proof {
+			item := v.Proof[idx]
+			protoProofItem := &models.ValueWithProof_Item{
+				Height:  uint32(item.Height),
+				Size:    uint64(item.Size),
+				Version: uint64(item.Version),
+				Left:    item.Left,
+				Right:   item.Right,
+			}
+			protoObj.Proof = append(protoObj.Proof, protoProofItem)
+		}
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (t *ImmutableTree) GetWithProof(key []byte) ([]byte, error) {
+	value, proof, err := t.tree.GetWithProof(key)
+	if err != nil {
+		return nil, err
+	}
+	if value == nil || len(proof.Leaves) != 1 {
+		return nil, err
+	}
+	return (&valueWithProof{
+		Value: value,
+		Leaf:  proof.Leaves[0],
+		Proof: proof.LeftPath,
+	}).toBytes()
 }
