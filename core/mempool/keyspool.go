@@ -28,7 +28,7 @@ import (
 const (
 	maxPrivateKeysPackageDataSize = 1024 * 100
 	publicFlipKeySize             = 32
-	maxFlipKeySyncCounts          = 10
+	maxFlipKeySyncCounts          = 20
 )
 
 var (
