@@ -213,8 +213,9 @@ func (engine *Engine) loop() {
 		engine.log.Info("Selected proposer", "proposer", proposer)
 		emptyBlock := engine.chain.GenerateEmptyBlock()
 
-		extraDelayForReductionOne := time.Duration(0)
+		var extraDelayForReductionOne time.Duration
 		if proposerPubKey == nil {
+			extraDelayForReductionOne = engine.cfg.Consensus.WaitBlockDelay
 			block = emptyBlock
 		} else {
 
