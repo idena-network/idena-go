@@ -7,7 +7,6 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
 	"math/big"
@@ -39,7 +38,6 @@ type Env interface {
 	Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) bool)
 	BurnAll(ctx CallContext)
 	ReadContractData(contractAddr common.Address, key []byte) []byte
-	Vrf(msg []byte) ([32]byte, []byte)
 	Event(name string, args ...[]byte)
 	Epoch() uint16
 	ContractStake(common.Address) *big.Int
@@ -56,7 +54,6 @@ type EnvImp struct {
 	state          *appstate.AppState
 	block          *types.Header
 	gasCounter     *GasCounter
-	secStore       *secstore.SecStore
 	statsCollector collector.StatsCollector
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
@@ -67,8 +64,8 @@ type EnvImp struct {
 	contractStakeCache    map[common.Address]*big.Int
 }
 
-func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore, statsCollector collector.StatsCollector) *EnvImp {
-	return &EnvImp{state: s, block: block, gasCounter: gasCounter, secStore: secStore,
+func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, statsCollector collector.StatsCollector) *EnvImp {
+	return &EnvImp{state: s, block: block, gasCounter: gasCounter,
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
 		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]*state.ContractData{},
@@ -258,11 +255,6 @@ func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byt
 	value := e.state.State.GetContractValue(contractAddr, key)
 	e.gasCounter.AddReadBytesAsGas(10 * len(value))
 	return value
-}
-
-func (e *EnvImp) Vrf(msg []byte) (hash [32]byte, proof []byte) {
-	e.gasCounter.AddGas(30)
-	return e.secStore.VrfEvaluate(msg)
 }
 
 func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {

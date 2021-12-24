@@ -166,7 +166,7 @@ func (c *contractTester) Deploy(config configurableDeploy) error {
 	gas.Reset(-1)
 
 	// deploy
-	c.env = env.NewEnvImp(c.appState, createHeader(2, 1), gas, c.secStore, nil)
+	c.env = env.NewEnvImp(c.appState, createHeader(2, 1), gas, nil)
 	c.contractAddr = ctx.ContractAddr()
 	c.contractInstance = c.createContract(ctx, c.env)
 	err = c.contractInstance.Deploy(attachment.Args...)
@@ -191,7 +191,7 @@ func (c *contractTester) Call(key *ecdsa.PrivateKey, contract EmbeddedContractTy
 
 	ctx := env.NewCallContextImpl(tx, contract)
 
-	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, c.secStore, nil)
+	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)
 	return c.contractInstance.Call(callAttach.Method, callAttach.Args...)
 }
@@ -213,7 +213,7 @@ func (c *contractTester) Terminate(key *ecdsa.PrivateKey, contract EmbeddedContr
 
 	ctx := env.NewCallContextImpl(tx, contract)
 
-	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, c.secStore, nil)
+	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)
 	dest, err := c.contractInstance.Terminate(terminateAttach.Args...)
 	if err == nil {

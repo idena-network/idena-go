@@ -8,7 +8,6 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
-	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/embedded"
 	env2 "github.com/idena-network/idena-go/vm/env"
@@ -32,11 +31,11 @@ type VmImpl struct {
 	cfg            *config.Config
 }
 
-type VmCreator = func(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM
+type VmCreator = func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
 
-func NewVmImpl(appState *appstate.AppState, block *types.Header, store *secstore.SecStore, statsCollector collector.StatsCollector, cfg *config.Config) VM {
+func NewVmImpl(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM {
 	gasCounter := new(env2.GasCounter)
-	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, store, statsCollector), appState: appState, gasCounter: gasCounter,
+	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, statsCollector), appState: appState, gasCounter: gasCounter,
 		statsCollector: statsCollector, cfg: cfg}
 }
 

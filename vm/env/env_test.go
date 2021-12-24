@@ -7,7 +7,6 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/secstore"
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tm-db"
 	"math/big"
@@ -48,11 +47,9 @@ func TestEnvImp_basicMethods(t *testing.T) {
 	db := db2.NewMemDB()
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 
-	secStore := secstore.NewSecStore()
-
 	gas := &GasCounter{gasLimit: -1}
 
-	env := NewEnvImp(appState, createHeader(3, 21), gas, secStore, nil)
+	env := NewEnvImp(appState, createHeader(3, 21), gas, nil)
 
 	require.Error(t, env.Send(ctx, common.Address{0x1}, big.NewInt(1)))
 	env.Reset()
