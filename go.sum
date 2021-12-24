@@ -630,8 +630,8 @@ github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed h1:jM02TxNgO/S2p/LCq7UKNmCBXWmKg6PK8W6C7LZ4re0=
 github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed/go.mod h1:Qqvq6JH/oMZGwqs3N1Fqhv8NVhrdYcO0BW4wssv21LA=
-github.com/idena-network/iavl v0.12.3-0.20211130075100-d242b0689e75 h1:302NTG++EQrE8NDAz451xi1Iu89ZcG4tKe54Cee6wuo=
-github.com/idena-network/iavl v0.12.3-0.20211130075100-d242b0689e75/go.mod h1:++H8jTv9JFwzyZ55ahnGcGCDjhxJacSYbZKojVdVPOo=
+github.com/idena-network/iavl v0.12.3-0.20211223100228-a33b117aa31e h1:z+r2ppfQEPV6qCeO7PwI5u0VY86hZ5NRek1/gpbPZAU=
+github.com/idena-network/iavl v0.12.3-0.20211223100228-a33b117aa31e/go.mod h1:++H8jTv9JFwzyZ55ahnGcGCDjhxJacSYbZKojVdVPOo=
 github.com/imdario/mergo v0.3.4/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.8/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=

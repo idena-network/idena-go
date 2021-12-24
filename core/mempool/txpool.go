@@ -22,7 +22,7 @@ import (
 
 const (
 	MaxDeferredTxs  = 100
-	maxTxSyncCounts = 7
+	maxTxSyncCounts = 15
 )
 
 var (

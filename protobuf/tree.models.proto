@@ -1,0 +1,20 @@
+syntax = "proto3";
+package models;
+
+message ValueWithProof {
+    message Leaf {
+        bytes key = 1;
+        bytes valueHash = 2;
+        uint64 version = 3;
+    }
+    message Item {
+        uint32 height = 1;
+        uint64 size = 2;
+        uint64 version = 3;
+        bytes left = 4;
+        bytes right = 5;
+    }
+    bytes value = 1;
+    Leaf leaf = 2;
+    repeated Item proof = 3;
+}
