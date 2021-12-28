@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.28.3 (Dec 28, 2021)
+
+- Increase number of active peers ([#889])
+- Fix extra delay in case of absence of proposer ([#888])
+- Update iavl tree ([#890])
+- Add method to provide identity state data with merkle proof ([#891])
+- Add rpc method to estimate raw tx ([#885])
+
+[#889]: https://github.com/idena-network/idena-go/pull/889
+[#888]: https://github.com/idena-network/idena-go/pull/888
+[#890]: https://github.com/idena-network/idena-go/pull/890
+[#891]: https://github.com/idena-network/idena-go/pull/891
+[#885]: https://github.com/idena-network/idena-go/pull/885
+
 
 ## 0.28.2 (Dec 7, 2021)
 
