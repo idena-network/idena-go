@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"fmt"
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -325,7 +326,15 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 	return err
 }
 
-func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool, txType validation.TxType) error {
+func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool, txType validation.TxType) (err error) {
+
+	defer func() {
+		// handle panics of iavl tree
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprint(r))
+		}
+	}()
+
 	if _, ok := pool.all.Get(tx.Hash()); ok {
 		return DuplicateTxError
 	}
@@ -348,7 +357,7 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 		return err
 	}
 
-	err := pool.put(tx)
+	err = pool.put(tx)
 	if err != nil {
 		pool.mutex.Unlock()
 		return err
