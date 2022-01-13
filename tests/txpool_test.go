@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func TestTxPool_BuildBlockTransactions(t *testing.T) {
@@ -401,6 +402,41 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	for i := 17; i < len(result); i++ {
 		// Start with nonce=6
 		require.Equal(uint32(i-10), result[i].AccountNonce)
+	}
+}
+
+func TestTxPool_AddTxDuringValidation(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	alloc[addr] = config.GenesisAllocation{
+		Balance: getAmount(110),
+	}
+	_, appState, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+
+	appState.State.SetValidationPeriod(state.LongSessionPeriod)
+
+	for height := 2; height <= 500; height++ {
+		appState.Precommit()
+		block := buildBlock(uint64(height))
+		require.NoError(t, appState.Commit(block))
+		pool.ResetTo(block)
+	}
+
+	require.NoError(t, pool.AddInternalTx(GetTx(1, 0, key)))
+}
+
+func buildBlock(height uint64) *types.Block {
+	return &types.Block{
+		Header: &types.Header{
+			ProposedHeader: &types.ProposedHeader{
+				Height: height,
+				Time:   time.Now().UTC().Unix(),
+			},
+		},
+		Body: &types.Body{
+			Transactions: []*types.Transaction{},
+		},
 	}
 }
 
