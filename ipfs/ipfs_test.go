@@ -47,7 +47,7 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 	p := proxy.(*ipfsProxy)
 	require.Len(p.cidCache.Items(), 1)
 
-	cases := []int{1, 100, 500, 1024, 10000, 50000, 100000, 220000, 280000, 350000, 500000, 1000000}
+	cases := []int{1, 100, 500, 1024, 10000, 50000, 100000, 220000, 280000, 350000, 500000, 10000000}
 
 	for _, item := range cases {
 		data := random.GetRandomBytes(uint32(item))
@@ -55,6 +55,11 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 		cid, err := proxy.Add(data, false)
 
 		require.NoError(err)
+
+		cid2, err = proxy.Add(data, true)
+		require.NoError(err)
+
+		require.Equal(cid.String(), cid2.String())
 
 		localCid, err := proxy.Cid(data)
 

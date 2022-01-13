@@ -607,7 +607,7 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	fileAdder.SetMfsRoot(mr)
 	file := files.NewBytesFile(data)
 	defer file.Close()
-	nd, err := fileAdder.AddAllAndPin(file)
+	nd, err := fileAdder.AddAllAndPin(ctx, file)
 	if err != nil {
 		return EmptyCid, err
 	}
@@ -636,7 +636,8 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		ipfsConfig.Reprovider.Strategy = "pinned"
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
-		ipfsConfig.Swarm.EnableRelayHop = false
+		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
+		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
 
 		if cfg.Profile != "" {
 			transformer, ok := config2.Profiles[cfg.Profile]
@@ -659,9 +660,9 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		ipfsConfig.Swarm.EnableAutoRelay = true
-		ipfsConfig.Swarm.EnableRelayHop = false
 		ipfsConfig.Experimental.FilestoreEnabled = true
+		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
+		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
 
 		transformer, _ := config2.Profiles["badgerds"]
 
