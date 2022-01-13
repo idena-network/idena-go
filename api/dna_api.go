@@ -579,6 +579,12 @@ type ChangeProfileArgs struct {
 	MaxFee   decimal.Decimal `json:"maxFee"`
 }
 
+type SendChangeProfileTxArgs struct {
+	Sender *common.Address `json:"sender"`
+	Cid    string          `json:"cid"`
+	MaxFee decimal.Decimal `json:"maxFee"`
+}
+
 type ChangeProfileResponse struct {
 	TxHash common.Hash `json:"txHash"`
 	Hash   string      `json:"hash"`
@@ -589,6 +595,7 @@ type ProfileResponse struct {
 	Nickname string         `json:"nickname"`
 }
 
+// Deprecated: Use SendChangeProfileTx
 func (api *DnaApi) ChangeProfile(ctx context.Context, args ChangeProfileArgs) (ChangeProfileResponse, error) {
 	profileData := profile.Profile{}
 	if args.Info != nil && len(*args.Info) > 0 {
@@ -620,6 +627,7 @@ func (api *DnaApi) ChangeProfile(ctx context.Context, args ChangeProfileArgs) (C
 	}, nil
 }
 
+// Deprecated: Use Identity
 func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 	if address == nil {
 		coinbase := api.GetCoinbaseAddr()
@@ -642,6 +650,40 @@ func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 		Nickname: string(identityProfile.Nickname),
 		Info:     info,
 	}, nil
+}
+
+func (api *DnaApi) SendChangeProfileTx(ctx context.Context, args SendChangeProfileTxArgs) (common.Hash, error) {
+	var address = args.Sender
+	if address == nil {
+		coinbase := api.GetCoinbaseAddr()
+		address = &coinbase
+	}
+
+	if len(args.Cid) == 0 {
+		return common.Hash{}, errors.New("cid should be presented")
+	}
+
+	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(*address)
+	if len(identity.ProfileHash) > 0 {
+		_ = api.baseApi.ipfs.Unpin(identity.ProfileHash)
+	}
+
+	c, err := cid.Parse(args.Cid)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	txHash, err := api.baseApi.sendTx(ctx, *address, nil, types.ChangeProfileTx, decimal.Zero,
+		args.MaxFee, decimal.Zero, 0, 0, attachments.CreateChangeProfileAttachment(c.Bytes()), nil)
+
+	if err != nil {
+		return common.Hash{}, errors.Wrap(err, "failed to send tx to change profile")
+	}
+
+	if err := api.baseApi.ipfs.Pin(c.Bytes()); err != nil {
+		return common.Hash{}, err
+	}
+
+	return txHash, nil
 }
 
 func (api *DnaApi) Sign(value string) hexutil.Bytes {
