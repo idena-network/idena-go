@@ -61,7 +61,7 @@ func toInt64Array(list *sortedPendingPushes) []int64 {
 }
 
 func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
-	tracker := NewDefaultPushTracker(time.Millisecond * 300)
+	tracker := NewDefaultPushTracker(time.Millisecond * 500)
 	holder := NewDefaultHolder(2, tracker)
 
 	hash1 := common.Hash128{0x1}
@@ -76,12 +76,12 @@ func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
 
 	tracker.AddPendingPush("1", hash1)
 	tracker.AddPendingPush("2", hash1)
-	time.Sleep(time.Millisecond * 350)
+	time.Sleep(time.Millisecond * 550)
 
 	require.Equal(t, peer.ID("1"), pulls[0].Id)
 	require.Equal(t, peer.ID(""), pulls[1].Id)
 
-	time.Sleep(time.Millisecond * 350)
+	time.Sleep(time.Millisecond * 1100)
 	require.Equal(t, peer.ID("2"), pulls[1].Id)
 
 	wg := sync.WaitGroup{}
@@ -92,7 +92,7 @@ func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
 		pulls[1] = <-tracker.Requests()
 		select {
 		case pulls[2] = <-tracker.Requests():
-		case <-time.After(time.Millisecond * 400):
+		case <-time.After(time.Millisecond * 600):
 		}
 		wg.Done()
 	}()
