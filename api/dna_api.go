@@ -627,7 +627,7 @@ func (api *DnaApi) ChangeProfile(ctx context.Context, args ChangeProfileArgs) (C
 	}, nil
 }
 
-// Deprecated: Use GetProfileCid
+// Deprecated: Use Identity
 func (api *DnaApi) Profile(address *common.Address) (ProfileResponse, error) {
 	if address == nil {
 		coinbase := api.GetCoinbaseAddr()
@@ -684,22 +684,6 @@ func (api *DnaApi) SendChangeProfileTx(ctx context.Context, args SendChangeProfi
 	}
 
 	return txHash, nil
-}
-
-func (api *DnaApi) GetProfileCid(address *common.Address) (string, error) {
-	if address == nil {
-		coinbase := api.GetCoinbaseAddr()
-		address = &coinbase
-	}
-	identity := api.baseApi.getReadonlyAppState().State.GetIdentity(*address)
-	if len(identity.ProfileHash) == 0 {
-		return "nil", errors.New("profile is empty")
-	}
-	c, err := cid.Cast(identity.ProfileHash)
-	if err != nil {
-		return "", err
-	}
-	return c.String(), nil
 }
 
 func (api *DnaApi) Sign(value string) hexutil.Bytes {
