@@ -29,6 +29,7 @@ const (
 type Config struct {
 	DataDir          string
 	Network          uint32
+	AutoOnline       bool
 	Consensus        *ConsensusConf
 	P2P              P2P
 	RPC              *rpc.Config
@@ -268,6 +269,7 @@ func getDefaultConfig(dataDir string) *Config {
 
 func applyFlags(ctx *cli.Context, cfg *Config) {
 	applyProfile(ctx, cfg)
+	applyCommonFlags(ctx, cfg)
 	applyP2PFlags(ctx, cfg)
 	applyConsensusFlags(ctx, cfg)
 	applyRpcFlags(ctx, cfg)
@@ -275,6 +277,12 @@ func applyFlags(ctx *cli.Context, cfg *Config) {
 	applyIpfsFlags(ctx, cfg)
 	applyValidationFlags(ctx, cfg)
 	applySyncFlags(ctx, cfg)
+}
+
+func applyCommonFlags(ctx *cli.Context, cfg *Config) {
+	if ctx.IsSet(AutoOnline.Name) {
+		cfg.AutoOnline = ctx.Bool(AutoOnline.Name)
+	}
 }
 
 func applySyncFlags(ctx *cli.Context, cfg *Config) {

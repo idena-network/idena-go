@@ -49,6 +49,7 @@ func main() {
 		config.ApiKeyFlag,
 		config.LogFileSizeFlag,
 		config.LogColoring,
+		config.AutoOnline,
 	}
 
 	app.Action = func(context *cli.Context) error {

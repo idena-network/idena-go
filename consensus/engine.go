@@ -3,6 +3,7 @@ package consensus
 import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
@@ -11,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/mempool"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
@@ -175,6 +177,10 @@ func (engine *Engine) loop() {
 			engine.synced = false
 			continue
 		}
+		if err := engine.checkOnlineStatus(); err != nil {
+			log.Warn("error while trying to ensure online status", "err", err)
+		}
+
 		engine.synced = true
 		head := engine.chain.Head
 
@@ -585,4 +591,45 @@ func (engine *Engine) ntpTimeDriftUpdate() {
 
 func (engine *Engine) Synced() bool {
 	return engine.synced
+}
+
+func (engine *Engine) checkOnlineStatus() error {
+
+	if !engine.cfg.AutoOnline {
+		return nil
+	}
+
+	appState, err := engine.ReadonlyAppState()
+	if err != nil {
+		return err
+	}
+	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+		return nil
+	}
+
+	coinbase := engine.secStore.GetAddress()
+	if appState.ValidatorsCache.IsOnlineIdentity(coinbase) {
+		return nil
+	}
+	if !appState.ValidatorsCache.Contains(coinbase) && !appState.ValidatorsCache.IsPool(coinbase) {
+		return nil
+	}
+	if appState.State.HasStatusSwitchAddresses(coinbase) {
+		return nil
+	}
+
+	for _, existedTx := range engine.txpool.GetPendingByAddress(coinbase) {
+		if existedTx.Type == types.OnlineStatusTx {
+			return nil
+		}
+	}
+
+	tx := blockchain.BuildTxWithFeeEstimating(appState, coinbase, nil, types.OnlineStatusTx, decimal.Zero, decimal.Zero, decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true))
+
+	tx, err = engine.secStore.SignTx(tx)
+	if err != nil {
+		return err
+	}
+
+	return engine.txpool.AddInternalTx(tx)
 }
