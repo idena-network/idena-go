@@ -586,18 +586,24 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 
 	pool.movePendingTxsToExecutable()
 
-	pool.appState.NonceCache.Lock()
-	pool.appState.NonceCache.Clear()
-	if err := pool.appState.NonceCache.ReloadFallback(pool.appState.State); err != nil {
-		pool.log.Warn("failed to reload nonce cache", "err", err)
-	}
-
 	if pool.appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+		pool.appState.NonceCache.Lock()
+		if err := pool.appState.NonceCache.ReloadFallback(pool.appState.State); err != nil {
+			pool.log.Warn("failed to reload nonce cache", "err", err)
+		}
 		pool.appState.NonceCache.UnLock()
 		return
 	}
 
 	globalEpoch := pool.appState.State.Epoch()
+
+	pool.appState.NonceCache.Lock()
+
+	pool.appState.NonceCache.Clear()
+
+	if err := pool.appState.NonceCache.ReloadFallback(pool.appState.State); err != nil {
+		pool.log.Warn("failed to reload nonce cache", "err", err)
+	}
 
 	pending := pool.all.List(All)
 
