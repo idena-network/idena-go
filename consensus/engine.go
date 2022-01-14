@@ -603,7 +603,7 @@ func (engine *Engine) checkOnlineStatus() error {
 	if err != nil {
 		return err
 	}
-	if appState.State.ValidationPeriod() > state.FlipLotteryPeriod {
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return nil
 	}
 
