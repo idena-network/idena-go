@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+
+## 0.28.4 (Jan 14, 2022)
+
+- Add an option to allow the node to turn on online mining status ([#907])
+- Reload nonce cache fallback during ceremony ([#899])
+- Update ipfs to 0.11.0 ([#900])
+- Update rpc methods to interact with the profile ([#898])
+- Handle panics of iavl tree while adding tx to mempool ([#895])
+
+[#907]: https://github.com/idena-network/idena-go/pull/907
+[#899]: https://github.com/idena-network/idena-go/pull/899
+[#900]: https://github.com/idena-network/idena-go/pull/900
+[#898]: https://github.com/idena-network/idena-go/pull/898
+[#895]: https://github.com/idena-network/idena-go/pull/895
+
 ## 0.28.3 (Dec 28, 2021)
 
 - Increase number of active peers ([#889])
