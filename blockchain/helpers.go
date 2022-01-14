@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
@@ -9,6 +10,18 @@ import (
 	"github.com/shopspring/decimal"
 	"math/big"
 )
+
+func BuildTxWithFeeEstimating(state *appstate.AppState, from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,
+	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte) *types.Transaction {
+	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {
+		tx := BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
+		txFee := fee.CalculateFee(state.ValidatorsCache.NetworkSize(), state.State.FeePerGas(), tx)
+		maxFee = ConvertToFloat(new(big.Int).Mul(txFee, big.NewInt(2)))
+	}
+
+	tx := BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
+	return tx
+}
 
 func BuildTx(appState *appstate.AppState, from common.Address, to *common.Address, txType types.TxType,
 	amount decimal.Decimal, maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"github.com/idena-network/idena-go/blockchain"
-	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/consensus"
@@ -15,7 +14,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/shopspring/decimal"
-	"math/big"
 )
 
 type BaseApi struct {
@@ -59,17 +57,7 @@ func (api *BaseApi) getTx(from common.Address, to *common.Address, txType types.
 	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte) *types.Transaction {
 
 	state := api.getReadonlyAppState()
-
-	// if maxFee is not set, we set it as 2x from fee
-	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {
-		tx := blockchain.BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
-		txFee := fee.CalculateFee(state.ValidatorsCache.NetworkSize(), state.State.FeePerGas(), tx)
-		maxFee = blockchain.ConvertToFloat(new(big.Int).Mul(txFee, big.NewInt(2)))
-	}
-
-	tx := blockchain.BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
-
-	return tx
+	return blockchain.BuildTxWithFeeEstimating(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
 }
 
 func (api *BaseApi) getSignedTx(from common.Address, to *common.Address, txType types.TxType, amount decimal.Decimal,

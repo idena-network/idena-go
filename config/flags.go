@@ -127,4 +127,8 @@ var (
 		Name:  "logcoloring",
 		Usage: "Use log coloring",
 	}
+	AutoOnline = cli.BoolFlag{
+		Name:  "autoonline",
+		Usage: "Node will automatically turn on online mining status",
+	}
 )
