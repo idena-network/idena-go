@@ -3,7 +3,7 @@
 ## Unreleased
 
 
-## 0.28.4 (Jan 14, 2022)
+## 0.28.4 (Jan 18, 2022)
 
 - Add an option to allow the node to turn on online mining status ([#907])
 - Reload nonce cache fallback during ceremony ([#899])
