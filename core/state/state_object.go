@@ -1235,7 +1235,7 @@ func (s *stateGlobal) SetShardsNum(num uint32) {
 }
 
 func (s *stateGlobal) CanCompleteEpoch() bool {
-	if s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks * 2 * s.ShardsNum() {
+	if s.data.BlocksCntWithoutCeremonialTxs >= AfterLongRequiredBlocks*2*s.ShardsNum() {
 		return true
 	}
 	completedShard := 0
@@ -1305,9 +1305,12 @@ func (s *stateApprovedIdentity) RemoveDelegatee() {
 }
 
 func IsCeremonyCandidate(identity Identity) bool {
-	state := identity.State
+	return IsCeremonyCandidateData(identity.State, identity.HasDoneAllRequiredFlips())
+}
+
+func IsCeremonyCandidateData(state IdentityState, hasDoneAllRequiredFlips bool) bool {
 	return (state == Candidate || state.NewbieOrBetter() || state == Suspended ||
-		state == Zombie) && identity.HasDoneAllRequiredFlips()
+		state == Zombie) && hasDoneAllRequiredFlips
 }
 
 func (s *stateStatusSwitch) empty() bool {
