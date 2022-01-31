@@ -318,7 +318,7 @@ func (vc *ValidationCeremony) restoreState() {
 	vc.qualification.restore()
 	vc.startValidationShortSessionTimer()
 	if vc.appState.State.ValidationPeriod() != state.NonePeriod {
-		vc.calculateCeremonyCandidates()
+		vc.calculateCeremonyCandidates(true)
 	}
 	stopFlipKeysStopTime := vc.appState.State.NextValidationTime().Add(FlipKeysSyncTimeFrame * time.Second)
 	if stopFlipKeysStopTime.Before(time.Now().UTC()) {
@@ -451,7 +451,7 @@ func (vc *ValidationCeremony) tryToBroadcastFlipKeysPackage() {
 func (vc *ValidationCeremony) asyncFlipLotteryCalculations() {
 	vc.lottery.wg.Add(1)
 	vc.logInfoWithInteraction("Flip lottery calculations started")
-	vc.calculateCeremonyCandidates()
+	vc.calculateCeremonyCandidates(false)
 	vc.logInfoWithInteraction("Flip lottery calculations finished")
 	vc.lottery.wg.Done()
 
@@ -522,7 +522,7 @@ func (vc *ValidationCeremony) handleAfterLongSessionPeriod(block *types.Block) {
 	}
 }
 
-func (vc *ValidationCeremony) calculateCeremonyCandidates() {
+func (vc *ValidationCeremony) calculateCeremonyCandidates(restore bool) {
 	if vc.shardCandidates != nil {
 		return
 	}
@@ -532,7 +532,7 @@ func (vc *ValidationCeremony) calculateCeremonyCandidates() {
 		return
 	}
 
-	vc.shardCandidates = vc.getCandidatesAndFlips()
+	vc.shardCandidates = vc.getCandidatesAndFlips(restore)
 
 	//cache indexes for fast searching
 	m := make(map[common.Address]int)
@@ -671,7 +671,7 @@ func (vc *ValidationCeremony) broadcastPrivateFlipKeysPackage(appState *appstate
 	}
 }
 
-func (vc *ValidationCeremony) getCandidatesAndFlips() map[common.ShardId]*candidatesOfShard {
+func (vc *ValidationCeremony) getCandidatesAndFlips(restore bool) map[common.ShardId]*candidatesOfShard {
 
 	candidatesDistibution := make(map[common.ShardId]*candidatesOfShard)
 	shardsNum := vc.appState.State.ShardsNum()
@@ -687,42 +687,75 @@ func (vc *ValidationCeremony) getCandidatesAndFlips() map[common.ShardId]*candid
 		}
 	}
 
-	addFlips := func(author common.Address, shardId common.ShardId, identityFlips []state.IdentityFlip) {
+	addFlips := func(author common.Address, shardId common.ShardId, identityFlipCids [][]byte) {
 		shard := candidatesDistibution[shardId]
 		authorIndex := len(shard.candidates)
-		for _, f := range identityFlips {
-			shard.flips = append(shard.flips, f.Cid)
-			shard.flipsPerAuthor[authorIndex] = append(shard.flipsPerAuthor[authorIndex], f.Cid)
-			shard.flipAuthorMap[string(f.Cid)] = author
+		for _, flipCid := range identityFlipCids {
+			shard.flips = append(shard.flips, flipCid)
+			shard.flipsPerAuthor[authorIndex] = append(shard.flipsPerAuthor[authorIndex], flipCid)
+			shard.flipAuthorMap[string(flipCid)] = author
 		}
 	}
 
-	vc.appState.State.IterateIdentities(func(key []byte, value []byte) bool {
-		if key == nil {
-			return true
+	toDbLotteryIdentity := func(addr common.Address, data state.Identity) database.DbLotteryIdentity {
+		res := database.DbLotteryIdentity{
+			Address:                 addr,
+			ShiftedShardId:          data.ShiftedShardId(),
+			PubKey:                  data.PubKey,
+			State:                   uint8(data.State),
+			HasDoneAllRequiredFlips: data.HasDoneAllRequiredFlips(),
 		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
+		if len(data.Flips) > 0 {
+			res.FlipCids = make([][]byte, 0, len(data.Flips))
+			for _, identityFlip := range data.Flips {
+				res.FlipCids = append(res.FlipCids, identityFlip.Cid)
+			}
+		}
+		return res
+	}
 
-		var data state.Identity
-		if err := data.FromBytes(value); err != nil {
-			return false
-		}
-		shard := candidatesDistibution[data.ShiftedShardId()]
-		if state.IsCeremonyCandidate(data) {
-			addFlips(addr, data.ShiftedShardId(), data.Flips)
+	handleIdentity := func(identity database.DbLotteryIdentity) {
+		shard := candidatesDistibution[identity.ShiftedShardId]
+		addr := identity.Address
+		if state.IsCeremonyCandidateData(state.IdentityState(identity.State), identity.HasDoneAllRequiredFlips) {
+			addFlips(addr, identity.ShiftedShardId, identity.FlipCids)
 			c := &candidate{
 				Address:  addr,
-				PubKey:   data.PubKey,
-				IsAuthor: len(data.Flips) > 0,
+				PubKey:   identity.PubKey,
+				IsAuthor: len(identity.FlipCids) > 0,
 			}
 			shard.candidates = append(shard.candidates, c)
 		} else {
 			shard.nonCandidates = append(shard.nonCandidates, addr)
 		}
+	}
 
-		return false
-	})
+	var lotteryIdentities []database.DbLotteryIdentity
+	if restore {
+		lotteryIdentities = vc.epochDb.ReadLotteryIdentities()
+	}
+	if len(lotteryIdentities) == 0 {
+		vc.appState.State.IterateIdentities(func(key []byte, value []byte) bool {
+			if key == nil {
+				return true
+			}
+			addr := common.Address{}
+			addr.SetBytes(key[1:])
+			var data state.Identity
+			if err := data.FromBytes(value); err != nil {
+				return false
+			}
+			lotteryIdentity := toDbLotteryIdentity(addr, data)
+			handleIdentity(lotteryIdentity)
+			lotteryIdentities = append(lotteryIdentities, lotteryIdentity)
+			return false
+		})
+		vc.epochDb.WriteLotteryIdentities(lotteryIdentities)
+	} else {
+		for _, identity := range lotteryIdentities {
+			handleIdentity(identity)
+		}
+	}
 
 	return candidatesDistibution
 }

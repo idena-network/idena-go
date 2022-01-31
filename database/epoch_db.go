@@ -23,6 +23,7 @@ var (
 	FlipCidPrefix         = []byte("cid")
 	PublicFlipKeyPrefix   = []byte("pubk")
 	PrivateFlipKeyPrefix  = []byte("pk")
+	LotteryIdentities     = []byte("li")
 )
 
 type EpochDb struct {
@@ -42,6 +43,15 @@ type DbProof struct {
 type DbEvidenceMap struct {
 	Sender common.Address
 	Map    []byte
+}
+
+type DbLotteryIdentity struct {
+	Address                 common.Address
+	ShiftedShardId          common.ShardId
+	FlipCids                [][]byte
+	PubKey                  []byte
+	State                   uint8
+	HasDoneAllRequiredFlips bool
 }
 
 func NewEpochDb(db dbm.DB, epoch uint16) *EpochDb {
@@ -207,7 +217,7 @@ func (edb *EpochDb) ReadEvidenceMaps() []*DbEvidenceMap {
 	defer it.Close()
 	var result []*DbEvidenceMap
 	for ; it.Valid(); it.Next() {
-		result = append(result, &DbEvidenceMap{ Sender : common.BytesToAddress(it.Key()[len(EvidencePrefix):]), Map:  it.Value()})
+		result = append(result, &DbEvidenceMap{Sender: common.BytesToAddress(it.Key()[len(EvidencePrefix):]), Map: it.Value()})
 	}
 	return result
 }
@@ -336,4 +346,81 @@ func (edb *EpochDb) ReadPrivateFlipKeys() []*types.PrivateFlipKeysPackage {
 		result = append(result, key)
 	}
 	return result
+}
+
+func (edb *EpochDb) WriteLotteryIdentities(identities []DbLotteryIdentity) {
+
+	if len(identities) == 0 {
+		return
+	}
+
+	toBytes := func(identities []DbLotteryIdentity) ([]byte, error) {
+		protoIdentities := new(models.ProtoLotteryIdentitiesDb)
+		protoIdentities.Identities = make([]*models.ProtoLotteryIdentitiesDb_Identity, 0, len(identities))
+		for idx := range identities {
+			item := identities[idx]
+			protoIdentity := &models.ProtoLotteryIdentitiesDb_Identity{
+				Address:                 item.Address[:],
+				ShiftedShardId:          uint32(item.ShiftedShardId),
+				PubKey:                  item.PubKey,
+				State:                   uint32(item.State),
+				HasDoneAllRequiredFlips: item.HasDoneAllRequiredFlips,
+			}
+			if len(item.FlipCids) > 0 {
+				protoIdentity.FlipCids = make([][]byte, 0, len(item.FlipCids))
+				for flipIdx := range item.FlipCids {
+					protoIdentity.FlipCids = append(protoIdentity.FlipCids, item.FlipCids[flipIdx])
+				}
+			}
+			protoIdentities.Identities = append(protoIdentities.Identities, protoIdentity)
+		}
+		return proto.Marshal(protoIdentities)
+	}
+	bytes, err := toBytes(identities)
+	if err != nil {
+		log.Warn("Failed to serialize lottery identities", "err", err)
+		return
+	}
+	if err = edb.db.Set(LotteryIdentities, bytes); err != nil {
+		log.Warn("Failed to persist lottery identities", "err", err)
+	}
+}
+
+func (edb *EpochDb) ReadLotteryIdentities() []DbLotteryIdentity {
+	fromBytes := func(data []byte) ([]DbLotteryIdentity, error) {
+		protoData := new(models.ProtoLotteryIdentitiesDb)
+		if err := proto.Unmarshal(data, protoData); err != nil {
+			return nil, err
+		}
+		if len(protoData.Identities) == 0 {
+			return nil, nil
+		}
+		res := make([]DbLotteryIdentity, 0, len(protoData.Identities))
+		for idx := range protoData.Identities {
+			protoItem := protoData.Identities[idx]
+			identity := DbLotteryIdentity{
+				Address:                 common.BytesToAddress(protoItem.Address),
+				ShiftedShardId:          common.ShardId(protoItem.ShiftedShardId),
+				PubKey:                  protoItem.PubKey,
+				State:                   uint8(protoItem.State),
+				HasDoneAllRequiredFlips: protoItem.HasDoneAllRequiredFlips,
+			}
+			if len(protoItem.FlipCids) > 0 {
+				identity.FlipCids = make([][]byte, 0, len(protoItem.FlipCids))
+				for flipIdx := range protoItem.FlipCids {
+					identity.FlipCids = append(identity.FlipCids, protoItem.FlipCids[flipIdx])
+				}
+			}
+			res = append(res, identity)
+		}
+		return res, nil
+	}
+	bytes, err := edb.db.Get(LotteryIdentities)
+	assertNoError(err)
+	var res []DbLotteryIdentity
+	if bytes != nil {
+		res, err = fromBytes(bytes)
+		assertNoError(err)
+	}
+	return res
 }
