@@ -9,6 +9,7 @@ type Mempool struct {
 	TxPoolAddrQueueLimit      int
 	TxPoolAddrExecutableLimit int
 	TxLifetime                time.Duration
+	ResetInCeremony           bool
 }
 
 func GetDefaultMempoolConfig() *Mempool {
