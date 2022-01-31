@@ -618,3 +618,16 @@ message ProtoUpgradeVotes {
     }
     repeated ProtoUpgradeVote votes = 1;
 }
+
+message ProtoLotteryIdentitiesDb {
+    message Identity {
+        bytes address = 1;
+        uint32 shiftedShardId = 2;
+        repeated bytes flipCids = 3;
+        bytes pubKey = 4;
+        uint32 state = 5;
+        bool hasDoneAllRequiredFlips = 6;
+    }
+
+    repeated Identity identities = 1;
+}
