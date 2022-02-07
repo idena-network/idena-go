@@ -3,6 +3,14 @@
 ## Unreleased
 
 
+## 0.28.5 (Feb 7, 2022)
+
+- Persist lottery identities ([#918])
+- Make tx pool resetting optional in ceremony ([#919])
+
+[#918]: https://github.com/idena-network/idena-go/pull/918
+[#919]: https://github.com/idena-network/idena-go/pull/919
+
 ## 0.28.4 (Jan 18, 2022)
 
 - Add an option to allow the node to turn on online mining status ([#907])
