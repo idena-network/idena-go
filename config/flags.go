@@ -21,7 +21,7 @@ const (
 	DefaultMaxInboundNotOwnShardPeers  = 4
 	DefaultMaxOutboundNotOwnShardPeers = 2
 
-	DefaultBurntTxRange = 180
+	DefaultBurntTxRange = 4320
 
 	LowPowerMaxInboundOwnShardPeers     = 3
 	LowPowerMaxOutboundOwnShardPeers    = 2
