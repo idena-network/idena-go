@@ -757,3 +757,13 @@ func (api *DnaApi) WordsSeed() hexutil.Bytes {
 	seed := api.baseApi.getReadonlyAppState().State.FlipWordsSeed()
 	return seed[:]
 }
+
+type GlobalState struct {
+	NetworkSize int `json:"networkSize"`
+}
+
+func (api *DnaApi) GlobalState() GlobalState {
+	return GlobalState{
+		NetworkSize: api.baseApi.getReadonlyAppState().ValidatorsCache.NetworkSize(),
+	}
+}
