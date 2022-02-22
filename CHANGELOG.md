@@ -3,6 +3,16 @@
 ## Unreleased
 
 
+## 0.28.6 (Feb 22, 2022)
+
+- Change burnt coins lifetime to 1 day ([#922])
+- Add rpc method to get network size ([#923])
+- Add SendToIpfs rpc method ([#926])
+
+[#922]: https://github.com/idena-network/idena-go/pull/922
+[#923]: https://github.com/idena-network/idena-go/pull/923
+[#926]: https://github.com/idena-network/idena-go/pull/926
+
 ## 0.28.5 (Feb 7, 2022)
 
 - Persist lottery identities ([#918])
