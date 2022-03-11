@@ -6,15 +6,11 @@
 ## 0.28.7 (Mar 11, 2022)
 
 - Increase offline penalty interval ([#932])
-
-[#932]: https://github.com/idena-network/idena-go/pull/932
-
-## 0.28.6 (Feb 22, 2022)
-
 - Change burnt coins lifetime to 1 day ([#922])
 - Add rpc method to get network size ([#923])
 - Add SendToIpfs rpc method ([#926])
 
+[#932]: https://github.com/idena-network/idena-go/pull/932
 [#922]: https://github.com/idena-network/idena-go/pull/922
 [#923]: https://github.com/idena-network/idena-go/pull/923
 [#926]: https://github.com/idena-network/idena-go/pull/926
