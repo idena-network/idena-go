@@ -1,20 +1,24 @@
 package ipfs
-/*
 
 import (
 	"fmt"
-	gomigrate "github.com/ipfs/fs-repo-migrations/go-migrate"
-	mg7 "github.com/ipfs/fs-repo-migrations/ipfs-7-to-8/migration"
-	mg8 "github.com/ipfs/fs-repo-migrations/ipfs-8-to-9/migration"
-	mg9 "github.com/ipfs/fs-repo-migrations/ipfs-9-to-10/migration"
-	mg10 "github.com/ipfs/fs-repo-migrations/fs-repo-10-to-11"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/events"
+	mg11 "github.com/ipfs/fs-repo-migrations/fs-repo-11-to-12/migration"
+	gomigrate "github.com/ipfs/fs-repo-migrations/tools/go-migrate"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	mfsr "github.com/ipfs/go-ipfs/repo/fsrepo/migrations"
 	"os"
 )
 
-var migrations = map[int]gomigrate.Migration{
+type migrationState struct {
+	eventBus eventbus.Bus
+}
 
+func (state *migrationState) Submit(message string) {
+	state.eventBus.Publish(&events.IpfsMigrationProgressEvent{
+		Message: message,
+	})
 }
 
 func GetVersion(ipfsdir string) (int, error) {
@@ -29,7 +33,7 @@ func GetVersion(ipfsdir string) (int, error) {
 	return ver, nil
 }
 
-func runMigration(ipfsdir string, from int, to int) error {
+func runMigration(ipfsdir string, from int, to int, migrations map[int]gomigrate.Migration) error {
 	fmt.Printf("===> Running migration %d to %d...\n", from, to)
 	var err error
 	opts := gomigrate.Options{}
@@ -55,13 +59,13 @@ func runMigration(ipfsdir string, from int, to int) error {
 	return nil
 }
 
-func doMigrate(ipfsdir string, from, to int) error {
+func doMigrate(ipfsdir string, from, to int, migrations map[int]gomigrate.Migration) error {
 	if from > to {
 		return fmt.Errorf("version cannot be reverted")
 	}
 
 	for cur := from; cur != to; cur += 1 {
-		err := runMigration(ipfsdir, cur, cur+1)
+		err := runMigration(ipfsdir, cur, cur+1, migrations)
 		if err != nil {
 			return err
 		}
@@ -69,10 +73,21 @@ func doMigrate(ipfsdir string, from, to int) error {
 	return nil
 }
 
-func Migrate(ipfsdir string, to int) error {
+func Migrate(ipfsdir string, to int, eventBus eventbus.Bus) error {
+	eventBus.Publish(&events.IpfsMigrationProgressEvent{
+		Message: "preparing... this may take several minutes",
+	})
+	defer eventBus.Publish(&events.IpfsMigrationCompletedEvent{})
+	migrations := map[int]gomigrate.Migration{
+		11: &mg11.Migration{
+			State: &migrationState{
+				eventBus: eventBus,
+			},
+		},
+	}
 	version, err := GetVersion(ipfsdir)
 	if err != nil {
 		return err
 	}
-	return doMigrate(ipfsdir, version, to)
-}*/
+	return doMigrate(ipfsdir, version, to, migrations)
+}

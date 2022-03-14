@@ -11,16 +11,18 @@ import (
 )
 
 const (
-	NewTxEventID           = eventbus.EventID("transaction-new")
-	AddBlockEventID        = eventbus.EventID("block-add")
-	NewFlipKeyID           = eventbus.EventID("flip-key-new")
-	FastSyncCompleted      = eventbus.EventID("fast-sync-completed")
-	NewFlipEventID         = eventbus.EventID("flip-new")
-	NewFlipKeysPackageID   = eventbus.EventID("flip-keys-package-new")
-	IpfsPortChangedEventId = eventbus.EventID("ipfs-port-changed")
-	DeleteFlipEventID      = eventbus.EventID("flip-delete")
-	PeersEventID           = eventbus.EventID("peers")
-	BlockchainResetEventID = eventbus.EventID("chain-reset")
+	NewTxEventID                  = eventbus.EventID("transaction-new")
+	AddBlockEventID               = eventbus.EventID("block-add")
+	NewFlipKeyID                  = eventbus.EventID("flip-key-new")
+	FastSyncCompleted             = eventbus.EventID("fast-sync-completed")
+	NewFlipEventID                = eventbus.EventID("flip-new")
+	NewFlipKeysPackageID          = eventbus.EventID("flip-keys-package-new")
+	IpfsPortChangedEventId        = eventbus.EventID("ipfs-port-changed")
+	DeleteFlipEventID             = eventbus.EventID("flip-delete")
+	PeersEventID                  = eventbus.EventID("peers")
+	BlockchainResetEventID        = eventbus.EventID("chain-reset")
+	IpfsMigrationProgressEventID  = eventbus.EventID("ipfs-migration-progress")
+	IpfsMigrationCompletedEventID = eventbus.EventID("ipfs-migration-completed")
 )
 
 type NewTxEvent struct {
@@ -110,4 +112,19 @@ type BlockchainResetEvent struct {
 
 func (e *BlockchainResetEvent) EventID() eventbus.EventID {
 	return BlockchainResetEventID
+}
+
+type IpfsMigrationProgressEvent struct {
+	Message string
+}
+
+func (e *IpfsMigrationProgressEvent) EventID() eventbus.EventID {
+	return IpfsMigrationProgressEventID
+}
+
+type IpfsMigrationCompletedEvent struct {
+}
+
+func (e *IpfsMigrationCompletedEvent) EventID() eventbus.EventID {
+	return IpfsMigrationCompletedEventID
 }

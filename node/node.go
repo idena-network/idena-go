@@ -25,11 +25,13 @@ import (
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
+	state2 "github.com/idena-network/idena-go/state"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/pkg/errors"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +57,7 @@ type Node struct {
 	rpcAPIs         []rpc.API
 	httpListener    net.Listener // HTTP RPC listener socket to server API requests
 	httpHandler     *rpc.Server  // HTTP RPC request handler to process the API requests
+	httpServer      *http.Server
 	log             log.Logger
 	keyStore        *keystore.KeyStore
 	fp              *flip.Flipper
@@ -140,6 +143,13 @@ func NewNode(config *config.Config, appVersion string) (*Node, error) {
 
 func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollector collector.StatsCollector, appVersion string) (*NodeCtx, error) {
 
+	logger := log.New()
+	nodeState := state2.NewNodeState(bus)
+	httpListener, httpHandler, httpServer, err := startInitialRPC(config, nodeState)
+	if err != nil {
+		logger.Error("Cannot start initial RPC endpoint", "error", err.Error())
+	}
+
 	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
 
 	if err != nil {
@@ -210,7 +220,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		appState:        appState,
 		consensusEngine: consensusEngine,
 		txpool:          txpool,
-		log:             log.New(),
+		log:             logger,
 		keyStore:        keyStore,
 		fp:              flipper,
 		ipfsProxy:       ipfsProxy,
@@ -226,6 +236,9 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		deferJob:        deferJob,
 		subManager:      subManager,
 		upgrader:        upgrader,
+		httpListener:    httpListener,
+		httpHandler:     httpHandler,
+		httpServer:      httpServer,
 	}
 	return &NodeCtx{
 		Node:            node,
@@ -292,6 +305,7 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.pm.Start()
 	node.upgrader.Start()
 
+	node.stopInitialRPC()
 	// Configure RPC
 	if err := node.startRPC(); err != nil {
 		node.log.Error("Cannot start RPC endpoint", "error", err.Error())
@@ -301,6 +315,39 @@ func (node *Node) StartWithHeight(height uint64) {
 func (node *Node) WaitForStop() {
 	<-node.stop
 	node.secStore.Destroy()
+}
+
+func startInitialRPC(nodeConfig *config.Config, nodeState *state2.NodeState) (net.Listener, *rpc.Server, *http.Server, error) {
+	apis := initialApis(nodeState)
+	listener, handler, httpServer, err := startInitialHTTP(nodeConfig.RPC.HTTPEndpoint(), apis, nodeConfig.RPC.HTTPModules, nodeConfig.RPC.HTTPCors, nodeConfig.RPC.HTTPVirtualHosts, nodeConfig.RPC.HTTPTimeouts, nodeConfig.RPC.APIKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return listener, handler, httpServer, nil
+}
+
+func initialApis(nodeState *state2.NodeState) []rpc.API {
+	return []rpc.API{
+		{
+			Namespace: "bcn",
+			Version:   "1.0",
+			Service:   api.NewBlockchainInitialApi(nodeState),
+			Public:    true,
+		},
+	}
+}
+
+func startInitialHTTP(endpoint string, apis []rpc.API, modules []string, cors []string, vhosts []string, timeouts rpc.HTTPTimeouts, apiKey string) (net.Listener, *rpc.Server, *http.Server, error) {
+	if endpoint == "" {
+		return nil, nil, nil, nil
+	}
+	listener, handler, httpServer, err := rpc.StartHTTPEndpoint(endpoint, apis, modules, cors, vhosts, timeouts, apiKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	log.Info("initial HTTP endpoint opened", "url", fmt.Sprintf("http://%s", endpoint), "cors", strings.Join(cors, ","), "vhosts", strings.Join(vhosts, ","))
+
+	return listener, handler, httpServer, err
 }
 
 // startRPC is a helper method to start all the various RPC endpoint during node
@@ -324,7 +371,7 @@ func (node *Node) startHTTP(endpoint string, apis []rpc.API, modules []string, c
 	if endpoint == "" {
 		return nil
 	}
-	listener, handler, err := rpc.StartHTTPEndpoint(endpoint, apis, modules, cors, vhosts, timeouts, apiKey)
+	listener, handler, httpServer, err := rpc.StartHTTPEndpoint(endpoint, apis, modules, cors, vhosts, timeouts, apiKey)
 	if err != nil {
 		return err
 	}
@@ -332,8 +379,13 @@ func (node *Node) startHTTP(endpoint string, apis []rpc.API, modules []string, c
 
 	node.httpListener = listener
 	node.httpHandler = handler
+	node.httpServer = httpServer
 
 	return nil
+}
+
+func (node *Node) stopInitialRPC() {
+	node.stopHTTP()
 }
 
 // stopHTTP terminates the HTTP RPC endpoint.
@@ -347,6 +399,10 @@ func (node *Node) stopHTTP() {
 	if node.httpHandler != nil {
 		node.httpHandler.Stop()
 		node.httpHandler = nil
+	}
+	if node.httpServer != nil {
+		node.httpServer.Close()
+		node.httpServer = nil
 	}
 }
 
