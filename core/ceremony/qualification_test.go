@@ -33,7 +33,7 @@ func Test_getAnswersCount(t *testing.T) {
 func Test_qualifyOneFlip(t *testing.T) {
 	require := require.New(t)
 	cfg := &config.Config{
-		Consensus: config.ConsensusVersions[config.ConsensusV6],
+		Consensus: config.ConsensusVersions[config.ConsensusV8],
 	}
 	qual := &qualification{config: cfg}
 	ans := fillArray(6, 1, 1)
@@ -61,7 +61,7 @@ func Test_qualifyOneFlip(t *testing.T) {
 	require.Equal(types.GradeB, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qual.qualifyOneFlip(ans, 4, 13, 3)
+	q = qual.qualifyOneFlip(ans, 3, 13, 3)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeB, q.grade)
@@ -120,12 +120,22 @@ func Test_qualifyOneFlip(t *testing.T) {
 	require.Equal(types.None, q.answer)
 	require.Equal(types.GradeD, q.grade)
 
+	ans = fillArray(0, 15, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0)
+	require.Equal(Qualified, q.status)
+	require.Equal(types.Right, q.answer)
+	require.Equal(types.GradeD, q.grade)
+
 	ans = fillArray(1, 2, 00)
 	q = qual.qualifyOneFlip(ans, 3, 0, 0)
 	require.Equal(types.GradeReported, q.grade)
 
 	ans = fillArray(1, 2, 00)
 	q = qual.qualifyOneFlip(ans, 2, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(1, 2, 00)
+	q = qual.qualifyOneFlip(ans, 2, 0, 1)
 	require.NotEqual(types.GradeReported, q.grade)
 
 	ans = fillArray(2, 2, 00)
@@ -133,15 +143,23 @@ func Test_qualifyOneFlip(t *testing.T) {
 	require.Equal(types.GradeReported, q.grade)
 
 	ans = fillArray(3, 2, 00)
-	q = qual.qualifyOneFlip(ans, 3, 0, 0)
+	q = qual.qualifyOneFlip(ans, 3, 0, 2)
 	require.NotEqual(types.GradeReported, q.grade)
 
 	ans = fillArray(3, 2, 00)
 	q = qual.qualifyOneFlip(ans, 4, 0, 0)
 	require.Equal(types.GradeReported, q.grade)
 
+	ans = fillArray(3, 2, 00)
+	q = qual.qualifyOneFlip(ans, 4, 0, 1)
+	require.Equal(types.GradeReported, q.grade)
+
 	ans = fillArray(3, 3, 00)
 	q = qual.qualifyOneFlip(ans, 4, 0, 0)
+	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(3, 3, 00)
+	q = qual.qualifyOneFlip(ans, 4, 0, 2)
 	require.Equal(types.GradeReported, q.grade)
 }
 
@@ -476,7 +494,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 			addr4:                  longAttachment5,
 		},
 		config: &config.Config{
-			Consensus: config.ConsensusVersions[config.ConsensusV6],
+			Consensus: config.ConsensusVersions[config.ConsensusV8],
 		},
 	}
 

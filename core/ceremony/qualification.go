@@ -325,16 +325,23 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int,
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
 
+	var reportCommitteeSize int
+	if q.config.Consensus.EnableUpgrade8 {
+		reportCommitteeSize = reportsCount + gradesCount
+	} else {
+		reportCommitteeSize = len(answers)
+	}
 	reported := false
-	switch len(answers) {
+	switch reportCommitteeSize {
+	case 0:
 	case 1, 2, 3:
-		reported = reportsCount >= len(answers)
+		reported = reportsCount >= reportCommitteeSize
 	case 4:
 		reported = reportsCount >= 3
 	case 5:
 		reported = reportsCount >= 4
 	default:
-		reported = float32(reportsCount)/float32(len(answers)) > 0.5
+		reported = float32(reportsCount)/float32(reportCommitteeSize) > 0.5
 	}
 
 	graded := float32(gradesCount)/float32(len(answers)) > 0.33
