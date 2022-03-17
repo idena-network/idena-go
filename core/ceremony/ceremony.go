@@ -958,7 +958,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 	appState.State.SetState(addr, value.state)
 	collector.CompleteBalanceUpdate(statsCollector, appState)
 	if !value.missed {
-		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount))
+		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount), cfg.EnableUpgrade8)
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
