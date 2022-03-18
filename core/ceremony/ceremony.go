@@ -1184,6 +1184,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				birthday:                 identityBirthday,
 				delegatee:                identity.Delegatee(),
 				participated:             false,
+				missed:                   vc.config.Consensus.EnableUpgrade8,
 			}
 			epochApplyingValues[addr] = value
 			identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
