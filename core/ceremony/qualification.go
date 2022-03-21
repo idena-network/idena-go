@@ -119,9 +119,10 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	defer q.lock.RUnlock()
 
 	data := make([]struct {
-		answers     []types.Answer
-		totalGrade  int
-		gradesCount int
+		answers             []types.Answer
+		totalGrade          int
+		gradesCount         int
+		reportCommitteeSize int
 	}, totalFlipsCount)
 
 	reportersToReward := newReportersToReward()
@@ -139,22 +140,25 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 		flipsCount := len(flips)
 		answers := types.NewAnswersFromBits(uint(flipsCount), attachment.Answers)
+		reportsCount := answers.Reports()
+		hasReports := reportsCount > 0
+		ignoreReports := hasReports && float32(reportsCount)/float32(flipsCount) >= 0.34
 		for j := uint(0); j < uint(flipsCount); j++ {
 			answer, grade := answers.Answer(j)
 			flipIdx := flips[j]
 
 			data[flipIdx].answers = append(data[flipIdx].answers, answer)
 			if grade == types.GradeReported {
-				reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
+				if !ignoreReports {
+					reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
+					data[flipIdx].reportCommitteeSize++
+				}
 			} else if grade != types.GradeNone {
 				data[flipIdx].totalGrade += int(grade)
 				data[flipIdx].gradesCount++
-			}
-		}
-		if flipsCount > 0 {
-			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) >= 0.34
-			if ignoreReports {
-				reportersToReward.deleteReporter(candidate.Address)
+				data[flipIdx].reportCommitteeSize++
+			} else if hasReports {
+				data[flipIdx].reportCommitteeSize++
 			}
 		}
 	}
@@ -162,7 +166,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	result := make([]FlipQualification, totalFlipsCount)
 
 	for flipIdx := 0; flipIdx < len(data); flipIdx++ {
-		result[flipIdx] = q.qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount)
+		result[flipIdx] = q.qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount, data[flipIdx].reportCommitteeSize)
 		if result[flipIdx].grade != types.GradeReported {
 			reportersToReward.deleteFlip(flipIdx)
 		}
@@ -321,14 +325,11 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, none uint) {
 	return left, right, none
 }
 
-func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int) FlipQualification {
+func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int, reportCommitteeSize int) FlipQualification {
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
 
-	var reportCommitteeSize int
-	if q.config.Consensus.EnableUpgrade8 {
-		reportCommitteeSize = reportsCount + gradesCount
-	} else {
+	if !q.config.Consensus.EnableUpgrade8 {
 		reportCommitteeSize = len(answers)
 	}
 	reported := false

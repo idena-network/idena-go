@@ -1363,15 +1363,30 @@ func (a *Answers) Answer(flipIndex uint) (answer Answer, grade Grade) {
 	} else if a.Bits.Bit(int(flipIndex+a.FlipsCount)) == 1 {
 		answer = Right
 	}
+	grade = a.determineGrade(flipIndex)
+	return
+}
+
+func (a *Answers) determineGrade(flipIndex uint) Grade {
 	t := new(big.Int)
 	t.SetBit(t, 0, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2)))
 	t.SetBit(t, 1, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+1)))
 	t.SetBit(t, 2, a.Bits.Bit(int(flipIndex*3+a.FlipsCount*2+2)))
-	grade = Grade(t.Uint64())
+	grade := Grade(t.Uint64())
 	if grade > GradeA {
 		grade = GradeNone
 	}
-	return
+	return grade
+}
+
+func (a *Answers) Reports() int {
+	var res int
+	for flipIndex := uint(0); flipIndex < a.FlipsCount; flipIndex++ {
+		if a.determineGrade(flipIndex) == GradeReported {
+			res++
+		}
+	}
+	return res
 }
 
 type ValidationResult struct {
