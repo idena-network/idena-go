@@ -31,7 +31,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 	//addr := crypto.PubkeyToAddress(key.PublicKey)
-	attachment := attachments.CreateDeployContractAttachment(common.Hash{0x1})
+	attachment := attachments.CreateDeployContractAttachment(common.Hash{0x1}, nil)
 	payload, _ := attachment.ToBytes()
 
 	tx := &types.Transaction{

@@ -52,7 +52,7 @@ func (m *Multisig) Deploy(args ...[]byte) error {
 	state := multisigUninitialized
 	m.SetByte("state", state)
 	m.SetByte("count", 0)
-	m.SetOwner(m.ctx.Sender())
+	m.SetOwner(m.ctx.Caller())
 	collector.AddMultisigDeploy(m.statsCollector, m.ctx.ContractAddr(), minVotes, maxVotes, state)
 	return nil
 }
@@ -115,13 +115,13 @@ func (m *Multisig) send(args ...[]byte) error {
 	if err != nil {
 		return err
 	}
-	voteAmount := m.voteAmount.Get(m.ctx.Sender().Bytes())
+	voteAmount := m.voteAmount.Get(m.ctx.Caller().Bytes())
 	if voteAmount == nil {
 		return errors.New("unknown sender")
 	}
 
-	m.voteAmount.Set(m.ctx.Sender().Bytes(), amount)
-	m.voteAddress.Set(m.ctx.Sender().Bytes(), dest.Bytes())
+	m.voteAmount.Set(m.ctx.Caller().Bytes(), amount)
+	m.voteAddress.Set(m.ctx.Caller().Bytes(), dest.Bytes())
 	collector.AddMultisigCallSend(m.statsCollector, dest, amount)
 	return nil
 }

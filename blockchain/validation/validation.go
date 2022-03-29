@@ -732,7 +732,7 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 	if attachment == nil {
 		return InvalidPayload
 	}
-	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok {
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok && len(attachment.Code) == 0 {
 		return InvalidPayload
 	}
 	return nil

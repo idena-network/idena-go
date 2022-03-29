@@ -45,7 +45,7 @@ func (e *OracleLock2) Deploy(args ...[]byte) error {
 	}
 	e.SetArray("failAddr", failAddr.Bytes())
 
-	e.SetOwner(e.ctx.Sender())
+	e.SetOwner(e.ctx.Caller())
 	collector.AddOracleLockDeploy(e.statsCollector, e.ctx.ContractAddr(), oracleVotingAddr, value, successAddr, failAddr)
 	return nil
 }

@@ -27,6 +27,7 @@ var (
 	delegationSwitchKey      = []byte{0x6}
 	delayedOfflinePenaltyKey = []byte{0x7}
 	burntCoinsPrefix         = []byte{0x8}
+	contractCodePrefix       = []byte{0x9}
 )
 
 var (
@@ -112,6 +113,11 @@ func (s *stateDbKeys) BurntCoinsKey(height uint64) []byte {
 func (s *stateDbKeys) BurntCoinsKeyToHeight(key []byte) uint64 {
 	return binary.BigEndian.Uint64(key[len(burntCoinsPrefix):])
 }
+
+func (s *stateDbKeys) ContractCodeKey(codeHash common.Hash) []byte {
+	return append(contractCodePrefix, codeHash[:]...)
+}
+
 
 type identityStateDbPrefix struct {
 }
