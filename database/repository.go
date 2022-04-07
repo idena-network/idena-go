@@ -475,6 +475,9 @@ func (r *Repo) GetTotalBurntCoins() []*types.BurntCoins {
 			log.Error("cannot parse burnt coins", "key", key)
 			continue
 		}
+		if common.ZeroOrNil(burntCoins.Amount) {
+			continue
+		}
 		if coinsByAddressAndKey == nil {
 			coinsByAddressAndKey = make(map[common.Address]map[string]*types.BurntCoins)
 		}
