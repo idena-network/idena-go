@@ -3,6 +3,12 @@
 ## Unreleased
 
 
+## 0.28.8 (Apr 7, 2022)
+
+- Fix RPC method to get burnt coins ([#940])
+
+[#940]: https://github.com/idena-network/idena-go/pull/940
+
 ## 0.28.7 (Mar 11, 2022)
 
 - Increase offline penalty interval ([#932])
