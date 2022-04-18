@@ -393,6 +393,7 @@ message ProtoStateIdentity {
     uint32 delegationEpoch = 21;
     uint32 shardId = 22;
     bool pendingUndelegation = 23;
+    bytes addedStake = 24;
 }
 
 message ProtoStateGlobal {
@@ -525,6 +526,7 @@ message ProtoPredefinedState {
         uint32 delegationEpoch = 22;
         uint32 shardId = 23;
         bool pendingUndelegation = 24;
+        bytes addedStake = 25;
     }
 
     message ApprovedIdentity {

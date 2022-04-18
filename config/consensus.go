@@ -29,6 +29,8 @@ type ConsensusConf struct {
 	SnapshotRange                     uint64
 	OfflinePenaltyBlocksCount         int64
 	SuccessfulValidationRewardPercent float32
+	StakingRewardPercent              float32
+	CandidateRewardPercent            float32
 	FlipRewardPercent                 float32
 	ValidInvitationRewardPercent      float32
 	ReportsRewardPercent              float32
@@ -92,6 +94,8 @@ func init() {
 		SnapshotRange:                     1000,
 		OfflinePenaltyBlocksCount:         1800,
 		SuccessfulValidationRewardPercent: 0.2,
+		StakingRewardPercent:              0.18,
+		CandidateRewardPercent:            0.02,
 		FlipRewardPercent:                 0.35,
 		ValidInvitationRewardPercent:      0.18,
 		ReportsRewardPercent:              0.15,

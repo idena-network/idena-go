@@ -537,6 +537,42 @@ func Test_DeleteFlipTx(t *testing.T) {
 	require.Equal(t, 2, len(identity.Flips))
 }
 
+func Test_ApplyAddStakeTx(t *testing.T) {
+	senderKey, _ := crypto.GenerateKey()
+	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
+	recipient := tests.GetRandAddr()
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	sender := crypto.PubkeyToAddress(senderKey.PublicKey)
+	alloc[sender] = config.GenesisAllocation{
+		Balance: balance,
+	}
+	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	tx := &types.Transaction{
+		Type:         types.AddStakeTx,
+		To:           &recipient,
+		AccountNonce: 1,
+		Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
+		Tips:         new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
+	}
+	signedTx, _ := types.SignTx(tx, senderKey)
+	appState := chain.appState
+	appState.State.SetFeePerGas(new(big.Int).Div(common.DnaBase, big.NewInt(1000)))
+	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
+	expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
+	expectedBalance.Sub(expectedBalance, fee)
+	context := &txExecutionContext{
+		appState: chain.appState,
+	}
+
+	_, _, _, err := chain.applyTxOnState(signedTx, context)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, fee.Sign())
+	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
+	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetStakeBalance(recipient))
+	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetAddedStakeBalance(recipient))
+}
+
 func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
