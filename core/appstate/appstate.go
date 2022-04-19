@@ -145,18 +145,18 @@ func (s *AppState) Initialize(height uint64) error {
 	return nil
 }
 
-func (s *AppState) Precommit() ([]*state.StateTreeDiff, *state.IdentityStateDiff) {
+func (s *AppState) Precommit(enableUpgrade8 bool) ([]*state.StateTreeDiff, *state.IdentityStateDiff) {
 	diff := s.State.Precommit(true)
-	s.prevPrecommitDiff = s.IdentityState.Precommit(true)
+	s.prevPrecommitDiff = s.IdentityState.Precommit(true, enableUpgrade8)
 	return diff, s.prevPrecommitDiff
 }
 
-func (s *AppState) FinalizePrecommit(block *types.Block) error {
+func (s *AppState) FinalizePrecommit(block *types.Block, enableUpgrade8 bool) error {
 	_, _, _, err := s.State.Commit(true)
 	if err != nil {
 		return err
 	}
-	_, _, _, err = s.IdentityState.Commit(true)
+	_, _, _, err = s.IdentityState.Commit(true, enableUpgrade8)
 	if err != nil {
 		return err
 	}
@@ -173,12 +173,12 @@ func (s *AppState) Reset() {
 	s.IdentityState.Reset()
 }
 
-func (s *AppState) Commit(block *types.Block) error {
+func (s *AppState) Commit(block *types.Block, enableUpgrade8 bool) error {
 	_, _, _, err := s.State.Commit(true)
 	if err != nil {
 		return err
 	}
-	_, _, diff, err := s.IdentityState.Commit(true)
+	_, _, diff, err := s.IdentityState.Commit(true, enableUpgrade8)
 	if err != nil {
 		return err
 	}

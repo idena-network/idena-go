@@ -306,6 +306,7 @@ type Identity struct {
 	Delegatee           *common.Address `json:"delegatee"`
 	DelegationEpoch     uint16          `json:"delegationEpoch"`
 	DelegationNonce     uint32          `json:"delegationNonce"`
+	PendingUndelegation *common.Address `json:"pendingUndelegation"`
 	IsPool              bool            `json:"isPool"`
 	Inviter             *Inviter        `json:"inviter"`
 	ShardId             uint32          `json:"shardId"`
@@ -431,13 +432,15 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		isOnline = false
 	}
 
-	delegatee := data.Delegatee
+	delegatee := data.Delegatee()
+	pendingUndelegation := data.PendingUndelegation()
 	switchDelegation := appState.State.DelegationSwitch(address)
 	if switchDelegation != nil {
 		if switchDelegation.Delegatee.IsEmpty() {
 			delegatee = nil
 		} else {
 			delegatee = &switchDelegation.Delegatee
+			pendingUndelegation = nil
 		}
 	}
 
@@ -473,6 +476,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Delegatee:           delegatee,
 		DelegationEpoch:     data.DelegationEpoch,
 		DelegationNonce:     data.DelegationNonce,
+		PendingUndelegation: pendingUndelegation,
 		Online:              isOnline,
 		IsPool:              appState.ValidatorsCache.IsPool(address),
 		Inviter:             inviter,

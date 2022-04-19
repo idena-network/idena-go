@@ -221,7 +221,16 @@ func (vc *ValidationCeremony) isCandidate() bool {
 
 func (vc *ValidationCeremony) isDelegator() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	return identity.Delegatee != nil
+	return identity.Delegatee() != nil
+}
+
+func (vc *ValidationCeremony) isDiscriminated() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return identity.IsDiscriminated()
+}
+
+func (vc *ValidationCeremony) isGod() bool {
+	return vc.secStore.GetAddress() == vc.appState.State.GodAddress()
 }
 
 func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState) bool {
@@ -841,7 +850,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent ||
-		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) || vc.isDelegator() {
+		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) || vc.isDelegator() || (vc.isDiscriminated() && !vc.isGod()) {
 		return
 	}
 
@@ -945,7 +954,12 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee
 			value.delegatee = nil
-			appState.State.RemoveDelegatee(addr)
+			if !cfg.EnableUpgrade8 {
+				appState.State.RemoveDelegatee(addr)
+			} else {
+				appState.State.SetDelegationEpoch(addr, appState.State.Epoch())
+				appState.State.SetPendingUndelegation(addr)
+			}
 			collector.AddRemovedTransitiveDelegation(statsCollector, addr, delegatee)
 		}
 	}
@@ -1086,7 +1100,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortFlipPoint:           shortFlipPoint,
 				birthday:                 identityBirthday,
 				missed:                   missed,
-				delegatee:                identity.Delegatee,
+				delegatee:                identity.Delegatee(),
 			}
 
 			epochApplyingValues[addr] = value
@@ -1137,7 +1151,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortQualifiedFlipsCount: 0,
 				shortFlipPoint:           0,
 				birthday:                 identityBirthday,
-				delegatee:                identity.Delegatee,
+				delegatee:                identity.Delegatee(),
 			}
 			epochApplyingValues[addr] = value
 			identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
