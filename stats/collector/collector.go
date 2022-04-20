@@ -31,7 +31,7 @@ type StatsCollector interface {
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(balanceDest, stakeDest common.Address, age uint16, balance, stake *big.Int)
 	AddCandidateReward(balanceDest, stakeDest common.Address, balance, stake *big.Int)
-	AddStakingReward(balanceDest, stakeDest common.Address, stakeWeight float64, balance, stake *big.Int)
+	AddStakingReward(balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int)
 	AddFlipsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, flipsToReward []*types.FlipToReward)
 	AddReportedFlipsReward(balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int)
 	AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16, txHash *common.Hash,
@@ -305,15 +305,15 @@ func AddValidationReward(c StatsCollector, balanceDest, stakeDest common.Address
 	c.AddValidationReward(balanceDest, stakeDest, age, balance, stake)
 }
 
-func (c *collectorStub) AddStakingReward(balanceDest, stakeDest common.Address, stakeWeight float64, balance, stake *big.Int) {
+func (c *collectorStub) AddStakingReward(balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int) {
 	// do nothing
 }
 
-func AddStakingReward(c StatsCollector, balanceDest, stakeDest common.Address, stakeWeight float64, balance, stake *big.Int) {
+func AddStakingReward(c StatsCollector, balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddStakingReward(balanceDest, stakeDest, stakeWeight, balance, stake)
+	c.AddStakingReward(balanceDest, stakeDest, stakedAmount, balance, stake)
 }
 
 func (c *collectorStub) AddCandidateReward(balanceDest, stakeDest common.Address, balance, stake *big.Int) {

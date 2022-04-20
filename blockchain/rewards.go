@@ -113,7 +113,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, balance)
 			collector.AddMintedCoins(statsCollector, stake)
-			collector.AddStakingReward(statsCollector, rewardDest, addr, weight, balance, stake)
+			collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
 			collector.AfterAddStake(statsCollector, addr, stake, appState)
 		})
 
