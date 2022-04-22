@@ -437,6 +437,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	switchDelegation := appState.State.DelegationSwitch(address)
 	if switchDelegation != nil {
 		if switchDelegation.Delegatee.IsEmpty() {
+			pendingUndelegation = delegatee
 			delegatee = nil
 		} else {
 			delegatee = &switchDelegation.Delegatee
