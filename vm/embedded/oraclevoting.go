@@ -246,7 +246,7 @@ func (f *OracleVoting5) sendVoteProof(args ...[]byte) error {
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
 	var discriminated bool
-	if discriminate := f.GetByte("dis") == 1; discriminate {
+	if enabledDiscrimination := f.GetByte("dis") == 1; enabledDiscrimination {
 		if notDiscriminatedProof := f.GetByte("notDisP"); notDiscriminatedProof == 0 {
 			discriminated = f.env.IsDiscriminated(f.ctx.Sender())
 			if !discriminated {
@@ -296,8 +296,8 @@ func (f *OracleVoting5) sendVote(args ...[]byte) error {
 	if noQuorum {
 		return NewContractError("quorum is not reachable", true)
 	}
-	discriminate := f.GetByte("dis") == 1
-	if discriminate {
+	enabledDiscrimination := f.GetByte("dis") == 1
+	if enabledDiscrimination {
 		if notDiscriminatedProof := f.GetByte("notDisP") == 1; !notDiscriminatedProof {
 			return NewContractError("all vote proofs are discriminated", true)
 		}
@@ -321,7 +321,7 @@ func (f *OracleVoting5) sendVote(args ...[]byte) error {
 	}
 
 	var discriminated bool
-	if discriminate {
+	if enabledDiscrimination {
 		discriminated = f.env.IsDiscriminated(f.ctx.Sender())
 		if !discriminated {
 			if notDiscriminatedVote := f.GetByte("notDisV"); notDiscriminatedVote == 0 {
@@ -381,8 +381,8 @@ func (f *OracleVoting5) finishVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
-	discriminate := f.GetByte("dis") == 1
-	if discriminate {
+	enabledDiscrimination := f.GetByte("dis") == 1
+	if enabledDiscrimination {
 		if notDiscriminatedVote := f.GetByte("notDisV") == 1; !notDiscriminatedVote {
 			return errors.New("all votes are discriminated")
 		}
@@ -547,9 +547,9 @@ func (f *OracleVoting5) prolongVoting(args ...[]byte) error {
 	var newProlongVoteCount *uint64
 	noWinnerAfterPublicVoting := duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum
 	noConsensusAfterSecretVoting := duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum)
-	discriminate := f.GetByte("dis") == 1
-	allVotesDiscriminatedAfterSecretVoting := duration >= votingDuration && discriminate && f.GetByte("notDisP") == 0
-	allVotesDiscriminatedAfterPublicVoting := duration >= votingDuration+publicVotingDuration && discriminate && f.GetByte("notDisV") == 0
+	enabledDiscrimination := f.GetByte("dis") == 1
+	allVotesDiscriminatedAfterSecretVoting := duration >= votingDuration && enabledDiscrimination && f.GetByte("notDisP") == 0
+	allVotesDiscriminatedAfterPublicVoting := duration >= votingDuration+publicVotingDuration && enabledDiscrimination && f.GetByte("notDisV") == 0
 	if f.env.Epoch() != f.GetUint16("epoch") || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting || allVotesDiscriminatedAfterSecretVoting || allVotesDiscriminatedAfterPublicVoting {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
