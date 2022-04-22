@@ -104,6 +104,7 @@ type cacheValue struct {
 	shortFlipPoint           float32
 	birthday                 uint16
 	missed                   bool
+	participated             bool
 	delegatee                *common.Address
 }
 
@@ -945,7 +946,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if cfg.EnableUpgrade8 {
 		if value.state == state.Killed {
-			if !value.missed {
+			if value.participated {
 				stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
 				stake := appState.State.GetStakeBalance(addr)
 				stakeToBurn := new(big.Int).Mul(stake, big.NewInt(int64(stakeShareToBurn)))
@@ -1002,8 +1003,6 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 
 func determineStakeShareToBurn(identityState state.IdentityState, birthday uint16, curEpoch uint16) int {
 	switch identityState {
-	case state.Candidate, state.Newbie, state.Verified:
-		return 100
 	case state.Human:
 		return 0
 	case state.Suspended, state.Zombie:
@@ -1124,6 +1123,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
 			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor, vc.config.Consensus)
+			participated := identity.HasValidationTx(types.SubmitAnswersHashTx) || identity.HasValidationTx(types.SubmitShortAnswersTx) || identity.HasValidationTx(types.EvidenceTx) || identity.HasValidationTx(types.SubmitLongAnswersTx)
 
 			value := cacheValue{
 				state:                    newIdentityState,
@@ -1132,6 +1132,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortFlipPoint:           shortFlipPoint,
 				birthday:                 identityBirthday,
 				missed:                   missed,
+				participated:             participated,
 				delegatee:                identity.Delegatee(),
 			}
 
@@ -1184,6 +1185,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortFlipPoint:           0,
 				birthday:                 identityBirthday,
 				delegatee:                identity.Delegatee(),
+				participated:             false,
 			}
 			epochApplyingValues[addr] = value
 			identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)

@@ -53,10 +53,10 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(auth2, state.Candidate)
 	appState.State.SetState(addr1, state.Candidate)
 	appState.State.SetState(addr2, state.Candidate)
+	appState.State.AddStake(addr2, big.NewInt(1100))
 	appState.State.SetState(auth3, state.Human)
 	appState.State.AddStake(auth3, big.NewInt(95))
 	appState.State.SetState(auth4, state.Suspended)
-	appState.State.AddStake(auth4, big.NewInt(1100))
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetShardsNum(2)
 	appState.Commit(nil, true)
@@ -156,17 +156,18 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(addr1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(addr1)) == 0)
 
+	reward, stake = splitAndSum(conf, true, stakingReward*546.076411, candidateReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(addr2)) == 0)
-	require.True(t, stake.Cmp(appState.State.GetStakeBalance(addr2)) == 0)
+	require.True(t, new(big.Int).Add(big.NewInt(1100), stake).Cmp(appState.State.GetStakeBalance(addr2)) == 0)
 
 	reward, stake = splitAndSum(conf, false, stakingReward*60.2491944, flipReward*11.0, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, new(big.Int).Add(big.NewInt(95), stake).Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
-	reward, stake = splitAndSum(conf, false, stakingReward*546.076411, invitationReward*conf.ThirdInvitationRewardCoef)
+	reward, stake = splitAndSum(conf, false, invitationReward*conf.ThirdInvitationRewardCoef)
 
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth4)) == 0)
-	require.True(t, new(big.Int).Add(big.NewInt(1100), stake).Cmp(appState.State.GetStakeBalance(auth4)) == 0)
+	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth4)) == 0)
 
 	reward, stake = splitAndSum(conf, false, invitationReward*conf.FirstInvitationRewardCoef, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.ThirdInvitationRewardCoef)
 	reward.Add(reward, float32ToBigInt(godPayout))

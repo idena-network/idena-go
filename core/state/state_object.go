@@ -564,6 +564,14 @@ func (i *Identity) AddedStake() *big.Int {
 	return i.addedStake
 }
 
+func (i *Identity) HasValidationTx(txType types.TxType) bool {
+	mask := validationTxBitMask(txType)
+	if mask == 0 {
+		return false
+	}
+	return i.ValidationTxsBits&mask > 0
+}
+
 type ApprovedIdentity struct {
 	Validated     bool
 	Online        bool
@@ -1059,11 +1067,7 @@ func (s *stateIdentity) SetValidationTxBit(txType types.TxType) {
 }
 
 func (s *stateIdentity) HasValidationTx(txType types.TxType) bool {
-	mask := validationTxBitMask(txType)
-	if mask == 0 {
-		return false
-	}
-	return s.data.ValidationTxsBits&mask > 0
+	return s.data.HasValidationTx(txType)
 }
 
 func (s *stateIdentity) ResetValidationTxBits() {

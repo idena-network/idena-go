@@ -55,6 +55,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			}
 			if identity.Birthday == epoch {
 				totalCandidates++
+			}
+			if common.ZeroOrNil(identity.Stake) {
 				return
 			}
 			stake, _ := ConvertToFloat(identity.Stake).Float64()
@@ -97,6 +99,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				collector.AddMintedCoins(statsCollector, stake)
 				collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
 				collector.AfterAddStake(statsCollector, addr, stake, appState)
+			}
+			if common.ZeroOrNil(identity.Stake) {
 				return
 			}
 			identityStake, _ := ConvertToFloat(identity.Stake).Float64()
