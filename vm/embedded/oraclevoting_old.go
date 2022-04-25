@@ -222,7 +222,7 @@ func (f *OracleVoting3) sendVoteProof(args ...[]byte) error {
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
-	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount)
+	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount, false)
 
 	return nil
 }
@@ -301,7 +301,7 @@ func (f *OracleVoting3) sendVote(args ...[]byte) error {
 
 	if delegatee == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil, false)
 		return nil
 	}
 
@@ -310,7 +310,7 @@ func (f *OracleVoting3) sendVote(args ...[]byte) error {
 
 	if prevPoolVote == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil, false)
 		return nil
 	}
 	var newOptionVotes, newPrevOptionVotes *uint64
@@ -321,7 +321,7 @@ func (f *OracleVoting3) sendVote(args ...[]byte) error {
 		v2 := changeVoteOptions(vote, 1)
 		newOptionVotes = &v2
 	}
-	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes)
+	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, false)
 	return nil
 }
 

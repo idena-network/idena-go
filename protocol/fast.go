@@ -107,7 +107,6 @@ func (fs *fastSync) tryUpgradeConsensus(header *types.Header) {
 		fs.log.Info("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
 		fs.prevConfig = fs.upgrader.UpgradeConfigTo(header.ProposedHeader.Upgrade)
 		fs.chain.WritePreliminaryConsensusVersion(header.ProposedHeader.Upgrade)
-		fs.upgrader.MigrateIdentityStateDb()
 	}
 }
 
@@ -330,12 +329,12 @@ func (fs *fastSync) postConsuming() error {
 		return errors.New("preliminary head is lower than manifest's head")
 	}
 
-/*	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
+	/*	if fs.chain.PreliminaryHead.Root() != fs.manifest.Root {
 		fs.sm.AddInvalidManifest(fs.manifest.CidV2)
 		return errors.New("preliminary head's root doesn't equal manifest's root")
 	}*/
 	fs.log.Info("Start loading of snapshot", "height", fs.manifest.Height)
-	filePath, version,  err := fs.sm.DownloadSnapshot(fs.manifest)
+	filePath, version, err := fs.sm.DownloadSnapshot(fs.manifest)
 	if err != nil {
 		fs.sm.AddTimeoutManifest(fs.manifest.CidV2)
 		return errors.WithMessage(err, "snapshot's downloading has been failed")

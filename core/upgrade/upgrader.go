@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const TargetVersion = config.ConsensusV7
+const TargetVersion = config.ConsensusV8
 
 type Upgrader struct {
 	config           *config.Config
@@ -108,14 +108,15 @@ func (u *Upgrader) CanUpgrade() bool {
 	var cnt int
 	u.mutex.RLock()
 	for voter, upgrade := range u.votes.Dict {
-		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) {
+		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) && !u.appState.ValidatorsCache.IsDiscriminated(voter) {
 			if upgrade == uint32(u.Target()) {
 				cnt++
 			}
 		}
 	}
 	u.mutex.RUnlock()
-	return cnt >= int(0.80*float64(u.appState.ValidatorsCache.OnlineSize())) && cnt >= int(0.6*float64(u.appState.ValidatorsCache.ForkCommitteeSize()))
+	forkValidatedCommitteeSize, forkOnlineCommitteeSize := u.appState.ValidatorsCache.ForkCommitteeSizes()
+	return cnt >= int(0.80*float64(forkOnlineCommitteeSize)) && cnt >= int(0.6*float64(forkValidatedCommitteeSize))
 }
 
 func (u *Upgrader) processVote(vote *types.Vote) {
@@ -168,17 +169,12 @@ func (u *Upgrader) CompleteMigration() {
 	u.votes = types.NewUpgradeVotes()
 }
 
-// use to migrate identity state db in fast sync mode
-func (u *Upgrader) MigrateIdentityStateDb() {
-	// no migration for v2
-}
-
 func (u *Upgrader) GetVotes() map[common.Address]uint32 {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 	res := make(map[common.Address]uint32, len(u.votes.Dict))
 	for voter, upgrade := range u.votes.Dict {
-		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) {
+		if u.appState.ValidatorsCache.IsOnlineIdentity(voter) && !u.appState.ValidatorsCache.IsDiscriminated(voter) {
 			res[voter] = upgrade
 		}
 	}

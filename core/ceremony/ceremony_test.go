@@ -976,7 +976,7 @@ func Test_applyOnState(t *testing.T) {
 		delegatee:                &delegatee,
 	})
 	identity = appstate.State.GetIdentity(addr1)
-	require.Nil(t, identity.Delegatee)
+	require.Nil(t, identity.Delegatee())
 }
 
 func Test_calculateNewTotalScore(t *testing.T) {

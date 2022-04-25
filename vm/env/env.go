@@ -43,6 +43,7 @@ type Env interface {
 	ContractStake(common.Address) *big.Int
 	MoveToStake(ctx CallContext, amount *big.Int) error
 	Delegatee(addr common.Address) *common.Address
+	IsDiscriminated(addr common.Address) bool
 }
 
 type contractValue struct {
@@ -206,6 +207,12 @@ func (e *EnvImp) PubKey(addr common.Address) []byte {
 func (e *EnvImp) Delegatee(addr common.Address) *common.Address {
 	e.gasCounter.AddReadBytesAsGas(10)
 	return e.state.State.Delegatee(addr)
+}
+
+func (e *EnvImp) IsDiscriminated(addr common.Address) bool {
+	e.gasCounter.AddReadBytesAsGas(10)
+	identity := e.state.State.GetIdentity(addr)
+	return identity.IsDiscriminated()
 }
 
 func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) (stopped bool)) {

@@ -392,6 +392,7 @@ message ProtoStateIdentity {
     uint32 delegationNonce = 20;
     uint32 delegationEpoch = 21;
     uint32 shardId = 22;
+    bool pendingUndelegation = 23;
 }
 
 message ProtoStateGlobal {
@@ -425,9 +426,10 @@ message ProtoStateGlobal {
 }
 
 message ProtoStateApprovedIdentity {
-    bool approved = 1;
+    bool validated = 1;
     bool online = 2;
     bytes delegatee = 3;
+    uint32 flags = 4;
 }
 
 message ProtoStateIdentityStatusSwitch {
@@ -522,13 +524,15 @@ message ProtoPredefinedState {
         uint32 delegationNonce = 21;
         uint32 delegationEpoch = 22;
         uint32 shardId = 23;
+        bool pendingUndelegation = 24;
     }
 
     message ApprovedIdentity {
         bytes address = 1;
-        bool approved = 2;
+        bool validated = 2;
         bool online = 3;
         bytes delegatee = 4;
+        uint32 flags = 5;
     }
 
     message ContractKeyValue {

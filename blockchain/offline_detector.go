@@ -375,7 +375,7 @@ func (dt *OfflineDetector) verifyOfflineProposing(hash common.Hash) bool {
 
 		all := mapset.NewSet()
 		for _, v := range roundValidators {
-			all = all.Union(v.Addresses)
+			all = all.Union(v.Validators)
 		}
 		votedForPenalty := all.Intersect(dt.offlineVoting[hash].voters)
 		return float64(votedForPenalty.Cardinality()) >= 0.75*float64(all.Cardinality())

@@ -67,8 +67,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
 				reward, stake := splitReward(math.ToInt(totalReward), identity.State == state.Newbie, config)
 				rewardDest := addr
-				if identity.Delegatee != nil {
-					rewardDest = *identity.Delegatee
+				if delegatee := identity.Delegatee(); delegatee != nil {
+					rewardDest = *delegatee
 				}
 				collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
 				appState.State.AddBalance(rewardDest, reward)

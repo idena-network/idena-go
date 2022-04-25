@@ -16,29 +16,7 @@ import (
 	"time"
 )
 
-var (
-	maxHash *big.Float
-)
-
-const (
-	oracleVotingStatePending  = byte(0)
-	oracleVotingStateStarted  = byte(1)
-	oracleVotingStateFinished = byte(2)
-)
-
-const FinishVotingMethod = "finishVoting"
-
-func init() {
-	var max [32]byte
-	for i := range max {
-		max[i] = 0xFF
-	}
-	i := new(big.Int)
-	i.SetBytes(max[:])
-	maxHash = new(big.Float).SetInt(i)
-}
-
-type OracleVoting5 struct {
+type OracleVoting4 struct {
 	*BaseContract
 	voteHashes  *env.Map
 	votes       *env.Map
@@ -47,8 +25,8 @@ type OracleVoting5 struct {
 	allVotes    *env.Map
 }
 
-func NewOracleVotingContract5(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting5 {
-	return &OracleVoting5{
+func NewOracleVotingContract4(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting4 {
+	return &OracleVoting4{
 		&BaseContract{
 			ctx:            ctx,
 			env:            e,
@@ -62,7 +40,7 @@ func NewOracleVotingContract5(ctx env.CallContext, e env.Env, statsCollector col
 	}
 }
 
-func (f *OracleVoting5) Call(method string, args ...[]byte) error {
+func (f *OracleVoting4) Call(method string, args ...[]byte) error {
 	switch method {
 	case "startVoting":
 		return f.startVoting()
@@ -81,7 +59,7 @@ func (f *OracleVoting5) Call(method string, args ...[]byte) error {
 	}
 }
 
-func (f *OracleVoting5) Deploy(args ...[]byte) error {
+func (f *OracleVoting4) Deploy(args ...[]byte) error {
 	fact, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -139,14 +117,13 @@ func (f *OracleVoting5) Deploy(args ...[]byte) error {
 	if votingMinPayment != nil {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
-	f.SetByte("dis", 1)
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
 		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee)
 	return nil
 }
 
-func minOracleReward5(networkSize int) *big.Int {
+func minOracleReward4(networkSize int) *big.Int {
 	network := float64(networkSize)
 	if network == 0 {
 		network = 1
@@ -156,7 +133,7 @@ func minOracleReward5(networkSize int) *big.Int {
 	return math.ToInt(dnaReward.Mul(decimalOneDna))
 }
 
-func (f *OracleVoting5) startVoting() error {
+func (f *OracleVoting4) startVoting() error {
 	if f.GetByte("state") != oracleVotingStatePending {
 		return errors.New("contract is not in pending state")
 	}
@@ -167,7 +144,7 @@ func (f *OracleVoting5) startVoting() error {
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
 	networkSize := f.env.NetworkSize()
-	oracleReward := minOracleReward5(networkSize)
+	oracleReward := minOracleReward4(networkSize)
 	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("contract balance is less than minimal oracles reward")
@@ -191,7 +168,7 @@ func (f *OracleVoting5) startVoting() error {
 	return nil
 }
 
-func (f *OracleVoting5) sendVoteProof(args ...[]byte) error {
+func (f *OracleVoting4) sendVoteProof(args ...[]byte) error {
 	voteHash, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -245,22 +222,12 @@ func (f *OracleVoting5) sendVoteProof(args ...[]byte) error {
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
 
-	var discriminated bool
-	if enabledDiscrimination := f.GetByte("dis") == 1; enabledDiscrimination {
-		if notDiscriminatedProof := f.GetByte("notDisP"); notDiscriminatedProof == 0 {
-			discriminated = f.env.IsDiscriminated(f.ctx.Sender())
-			if !discriminated {
-				f.SetByte("notDisP", 1)
-			}
-		}
-	}
-
-	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount, discriminated)
+	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount, false)
 
 	return nil
 }
 
-func (f *OracleVoting5) sendVote(args ...[]byte) error {
+func (f *OracleVoting4) sendVote(args ...[]byte) error {
 
 	//vote = [0..255]
 	vote, err := helpers.ExtractByte(0, args...)
@@ -296,12 +263,6 @@ func (f *OracleVoting5) sendVote(args ...[]byte) error {
 	if noQuorum {
 		return NewContractError("quorum is not reachable", true)
 	}
-	enabledDiscrimination := f.GetByte("dis") == 1
-	if enabledDiscrimination {
-		if notDiscriminatedProof := f.GetByte("notDisP") == 1; !notDiscriminatedProof {
-			return NewContractError("all vote proofs are discriminated", true)
-		}
-	}
 
 	storedHash := f.voteHashes.Get(f.ctx.Sender().Bytes())
 
@@ -320,14 +281,13 @@ func (f *OracleVoting5) sendVote(args ...[]byte) error {
 		f.setSecretVotesCount(v)
 	}
 
-	var discriminated bool
-	if enabledDiscrimination {
-		discriminated = f.env.IsDiscriminated(f.ctx.Sender())
-		if !discriminated {
-			if notDiscriminatedVote := f.GetByte("notDisV"); notDiscriminatedVote == 0 {
-				f.SetByte("notDisV", 1)
-			}
+	var changeVoteOptions = func(vote byte, diff int64) uint64 {
+		cnt, _ := helpers.ExtractUInt64(0, f.voteOptions.Get(common.ToBytes(vote)))
+		if diff >= 0 || cnt > 0 {
+			cnt = uint64(int64(cnt) + diff)
 		}
+		f.voteOptions.Set(common.ToBytes(vote), common.ToBytes(cnt))
+		return cnt
 	}
 
 	cnt, _ := helpers.ExtractUInt64(0, f.allVotes.Get(common.ToBytes(vote)))
@@ -339,53 +299,35 @@ func (f *OracleVoting5) sendVote(args ...[]byte) error {
 
 	delegatee := f.env.Delegatee(f.ctx.Sender())
 
-	var changeVoteOptions = func(vote byte, diff int64) *uint64 {
-		if discriminated {
-			return nil
-		}
-		cnt, _ := helpers.ExtractUInt64(0, f.voteOptions.Get(common.ToBytes(vote)))
-		if diff >= 0 || cnt > 0 {
-			cnt = uint64(int64(cnt) + diff)
-		}
-		f.voteOptions.Set(common.ToBytes(vote), common.ToBytes(cnt))
-		return &cnt
-	}
-
 	if delegatee == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil, discriminated)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil, false)
 		return nil
 	}
 
 	prevPoolVote := f.poolVotes.Get(delegatee.Bytes())
-	if !discriminated {
-		f.poolVotes.Set(delegatee.Bytes(), common.ToBytes(vote))
-	}
+	f.poolVotes.Set(delegatee.Bytes(), common.ToBytes(vote))
 
 	if prevPoolVote == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil, discriminated)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, &newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil, false)
 		return nil
 	}
 	var newOptionVotes, newPrevOptionVotes *uint64
 	if bytes.Compare(prevPoolVote, common.ToBytes(vote)) != 0 {
 		prevVote, _ := helpers.ExtractByte(0, prevPoolVote)
-		newPrevOptionVotes = changeVoteOptions(prevVote, -1)
-		newOptionVotes = changeVoteOptions(vote, 1)
+		v1 := changeVoteOptions(prevVote, -1)
+		newPrevOptionVotes = &v1
+		v2 := changeVoteOptions(vote, 1)
+		newOptionVotes = &v2
 	}
-	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, discriminated)
+	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, false)
 	return nil
 }
 
-func (f *OracleVoting5) finishVoting(args ...[]byte) error {
+func (f *OracleVoting4) finishVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
-	}
-	enabledDiscrimination := f.GetByte("dis") == 1
-	if enabledDiscrimination {
-		if notDiscriminatedVote := f.GetByte("notDisV") == 1; !notDiscriminatedVote {
-			return errors.New("all votes are discriminated")
-		}
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
@@ -506,7 +448,7 @@ func (f *OracleVoting5) finishVoting(args ...[]byte) error {
 	return errors.New("not enough votes to finish voting")
 }
 
-func (f *OracleVoting5) prolongVoting(args ...[]byte) error {
+func (f *OracleVoting4) prolongVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
@@ -547,14 +489,11 @@ func (f *OracleVoting5) prolongVoting(args ...[]byte) error {
 	var newProlongVoteCount *uint64
 	noWinnerAfterPublicVoting := duration >= votingDuration+publicVotingDuration && noWinnerVotes && noQuorum
 	noConsensusAfterSecretVoting := duration >= votingDuration && float64(votedCount+secretVotes) < f.CalcPercent(committeeSize, quorum)
-	enabledDiscrimination := f.GetByte("dis") == 1
-	allVotesDiscriminatedAfterSecretVoting := duration >= votingDuration && enabledDiscrimination && f.GetByte("notDisP") == 0
-	allVotesDiscriminatedAfterPublicVoting := duration >= votingDuration+publicVotingDuration && enabledDiscrimination && f.GetByte("notDisV") == 0
-	if f.env.Epoch() != f.GetUint16("epoch") || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting || allVotesDiscriminatedAfterSecretVoting || allVotesDiscriminatedAfterPublicVoting {
+	if f.env.Epoch() != f.GetUint16("epoch") || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
 		var startBlock *uint64
-		if noWinnerAfterPublicVoting || noConsensusAfterSecretVoting || allVotesDiscriminatedAfterSecretVoting || allVotesDiscriminatedAfterPublicVoting {
+		if noWinnerAfterPublicVoting || noConsensusAfterSecretVoting {
 			v := f.env.BlockNumber()
 			startBlock = &v
 			f.SetUint64("startBlock", v)
@@ -583,7 +522,7 @@ func (f *OracleVoting5) prolongVoting(args ...[]byte) error {
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *OracleVoting5) addStake(args ...[]byte) error {
+func (f *OracleVoting4) addStake(args ...[]byte) error {
 	var err error
 	if f.ctx.PayAmount() != nil && f.ctx.PayAmount().Sign() > 0 {
 		err = f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
@@ -594,7 +533,7 @@ func (f *OracleVoting5) addStake(args ...[]byte) error {
 	return err
 }
 
-func (f *OracleVoting5) Read(method string, args ...[]byte) ([]byte, error) {
+func (f *OracleVoting4) Read(method string, args ...[]byte) ([]byte, error) {
 
 	switch method {
 	case "proof":
@@ -652,7 +591,7 @@ func (f *OracleVoting5) Read(method string, args ...[]byte) ([]byte, error) {
 	}
 }
 
-func (f *OracleVoting5) getSecretVotesCount() uint64 {
+func (f *OracleVoting4) getSecretVotesCount() uint64 {
 	data := f.env.GetValue(f.ctx, []byte("secretVotesCount"))
 	if data != nil {
 		ret, _ := helpers.ExtractUInt64(0, data)
@@ -667,11 +606,11 @@ func (f *OracleVoting5) getSecretVotesCount() uint64 {
 	return secretVotes
 }
 
-func (f *OracleVoting5) setSecretVotesCount(newValue uint64) {
+func (f *OracleVoting4) setSecretVotesCount(newValue uint64) {
 	f.SetUint64("secretVotesCount", newValue)
 }
 
-func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
+func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
 
 	if f.GetByte("state") == oracleVotingStatePending {
 
@@ -753,24 +692,4 @@ func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
 		return f.Owner(), nil
 	}
 	return common.Address{}, errors.New("voting can not be terminated")
-}
-
-type ContractError struct {
-	error    string
-	tryLater bool
-}
-
-func NewContractError(text string, tryLater bool) *ContractError {
-	return &ContractError{
-		error:    text,
-		tryLater: tryLater,
-	}
-}
-
-func (e *ContractError) Error() string {
-	return e.error
-}
-
-func (e *ContractError) TryLater() bool {
-	return e.tryLater
 }
