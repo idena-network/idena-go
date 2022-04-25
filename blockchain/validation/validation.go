@@ -878,7 +878,7 @@ func validateAddStakeTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return RecipientRequired
 	}
 	recipient := appState.State.GetIdentity(*tx.To)
-	canAddStake := recipient.State.NewbieOrBetter() || recipient.State == state.Invite || recipient.State == state.Candidate || recipient.State == state.Suspended || recipient.State == state.Zombie
+	canAddStake := recipient.State != state.Undefined && recipient.State != state.Killed
 	if !canAddStake {
 		return InvalidRecipient
 	}

@@ -945,16 +945,14 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if cfg.EnableUpgrade8 {
-		if value.state == state.Killed {
-			if value.participated {
-				stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
-				stake := appState.State.GetStakeBalance(addr)
-				stakeToBurn := new(big.Int).Mul(stake, big.NewInt(int64(stakeShareToBurn)))
-				stakeToBurn.Div(stakeToBurn, big.NewInt(100))
-				stakeToSave := new(big.Int).Sub(stake, stakeToBurn)
-				appState.State.AddBalance(addr, stakeToSave)
-				appState.State.SubStake(addr, stakeToSave)
-			}
+		if value.state == state.Killed && value.participated {
+			stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
+			stake := appState.State.GetStakeBalance(addr)
+			stakeToBurn := new(big.Int).Mul(stake, big.NewInt(int64(stakeShareToBurn)))
+			stakeToBurn.Div(stakeToBurn, big.NewInt(100))
+			stakeToSave := new(big.Int).Sub(stake, stakeToBurn)
+			appState.State.AddBalance(addr, stakeToSave)
+			appState.State.SubStake(addr, stakeToSave)
 		}
 	}
 	appState.State.SetState(addr, value.state)

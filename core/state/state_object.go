@@ -872,23 +872,10 @@ func (s *stateIdentity) AddedStake() *big.Int {
 }
 
 func (s *stateIdentity) AddAddedStake(amount *big.Int) {
-	if amount.Sign() == 0 {
-		if s.empty() {
-			s.touch()
-		}
-		return
-	}
 	s.SetAddedStake(new(big.Int).Add(s.AddedStake(), amount))
 }
 
 func (s *stateIdentity) SubAddedStake(amount *big.Int) {
-	if amount.Sign() == 0 {
-		if s.empty() {
-			s.touch()
-		}
-		return
-	}
-
 	s.SetAddedStake(new(big.Int).Sub(s.AddedStake(), amount))
 }
 

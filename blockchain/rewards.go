@@ -78,35 +78,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			collector.SetTotalCandidateReward(statsCollector, math.ToInt(candidateRewardD), math.ToInt(candidateRewardShare))
 		}
 
-		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-			if !identity.State.NewbieOrBetter() {
-				return
-			}
-			if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
-				return
-			}
-			if identity.Birthday == epoch {
-				balance, stake := splitReward(math.ToInt(candidateRewardShare), identity.State == state.Newbie, config)
-				rewardDest := addr
-				if delegatee := identity.Delegatee(); delegatee != nil {
-					rewardDest = *delegatee
-				}
-				collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
-				appState.State.AddBalance(rewardDest, balance)
-				appState.State.AddStake(addr, stake)
-				collector.CompleteBalanceUpdate(statsCollector, appState)
-				collector.AddMintedCoins(statsCollector, balance)
-				collector.AddMintedCoins(statsCollector, stake)
-				collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
-				collector.AfterAddStake(statsCollector, addr, stake, appState)
-			}
-			if common.ZeroOrNil(identity.Stake) {
-				return
-			}
-			identityStake, _ := ConvertToFloat(identity.Stake).Float64()
-			weight := math2.Pow(identityStake, 0.9)
-			reward := stakingRewardShare.Mul(decimal.NewFromFloat(weight))
-			balance, stake := splitReward(math.ToInt(reward), identity.State == state.Newbie, config)
+		addReward := func(addr common.Address, identity state.Identity, reward *big.Int, addRewardToCollectorFunc func(rewardDest common.Address, balance, stake *big.Int)) {
+			balance, stake := splitReward(reward, identity.State == state.Newbie, config)
 			rewardDest := addr
 			if delegatee := identity.Delegatee(); delegatee != nil {
 				rewardDest = *delegatee
@@ -117,8 +90,31 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 			collector.AddMintedCoins(statsCollector, balance)
 			collector.AddMintedCoins(statsCollector, stake)
-			collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
+			addRewardToCollectorFunc(rewardDest, balance, stake)
 			collector.AfterAddStake(statsCollector, addr, stake, appState)
+		}
+
+		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+			if !identity.State.NewbieOrBetter() {
+				return
+			}
+			if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
+				return
+			}
+			if identity.Birthday == epoch {
+				addReward(addr, identity, math.ToInt(candidateRewardShare), func(rewardDest common.Address, balance, stake *big.Int) {
+					collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
+				})
+			}
+			if common.ZeroOrNil(identity.Stake) {
+				return
+			}
+			identityStake, _ := ConvertToFloat(identity.Stake).Float64()
+			weight := math2.Pow(identityStake, 0.9)
+			reward := stakingRewardShare.Mul(decimal.NewFromFloat(weight))
+			addReward(addr, identity, math.ToInt(reward), func(rewardDest common.Address, balance, stake *big.Int) {
+				collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
+			})
 		})
 
 		return

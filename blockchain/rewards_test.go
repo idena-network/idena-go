@@ -143,7 +143,8 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	reportReward := float32(50) // 150 / 3
 
-	reward, stake := splitAndSum(conf, false, stakingReward*7.9432823, flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
+	const stake10Weight = 7.9432823 // 10^0.9
+	reward, stake := splitAndSum(conf, false, stakingReward*stake10Weight, flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
 
 	require.Equal(t, reward.String(), appState.State.GetBalance(poolOfAuth1).String())
 	require.True(t, new(big.Int).Add(big.NewInt(10), stake).Cmp(appState.State.GetStakeBalance(auth1)) == 0)
@@ -156,11 +157,13 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(addr1)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(addr1)) == 0)
 
-	reward, stake = splitAndSum(conf, true, stakingReward*546.076411, candidateReward)
+	const stake1100Weight = 546.076411 // 1100^0.9
+	reward, stake = splitAndSum(conf, true, stakingReward*stake1100Weight, candidateReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(addr2)) == 0)
 	require.True(t, new(big.Int).Add(big.NewInt(1100), stake).Cmp(appState.State.GetStakeBalance(addr2)) == 0)
 
-	reward, stake = splitAndSum(conf, false, stakingReward*60.2491944, flipReward*11.0, reportReward)
+	const stake95Weight = 60.2491944 // 95^0.9
+	reward, stake = splitAndSum(conf, false, stakingReward*stake95Weight, flipReward*11.0, reportReward)
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, new(big.Int).Add(big.NewInt(95), stake).Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
