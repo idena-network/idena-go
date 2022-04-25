@@ -450,7 +450,7 @@ func (engine *Engine) vote(round uint64, step uint8, block common.Hash) {
 	if stepValidators == nil {
 		return
 	}
-	if stepValidators.Contains(engine.addr) {
+	if stepValidators.CanVote(engine.addr) {
 		vote := types.Vote{
 			Header: &types.VoteHeader{
 				Round:      round,
@@ -515,10 +515,10 @@ func (engine *Engine) countVotes(round uint64, step uint8, parentHash common.Has
 					if vote.Header.ParentHash != parentHash {
 						return true
 					}
-					if !validators.Addresses.Contains(vote.VoterAddr()) {
+					if vote.Header.Step != step {
 						return true
 					}
-					if vote.Header.Step != step {
+					if !validators.Approved(vote.VoterAddr()) {
 						return true
 					}
 					roundVotes[vote.VoterAddr()] = vote
@@ -611,7 +611,7 @@ func (engine *Engine) checkOnlineStatus() error {
 	if appState.ValidatorsCache.IsOnlineIdentity(coinbase) {
 		return nil
 	}
-	if !appState.ValidatorsCache.Contains(coinbase) && !appState.ValidatorsCache.IsPool(coinbase) {
+	if !appState.ValidatorsCache.IsValidated(coinbase) && !appState.ValidatorsCache.IsPool(coinbase) {
 		return nil
 	}
 	if appState.State.HasStatusSwitchAddresses(coinbase) {

@@ -20,26 +20,35 @@ type ValidatorsCache struct {
 	identityState    *state.IdentityStateDB
 	sortedValidators *sortedAddresses
 
-	pools       map[common.Address]*sortedAddresses
+	pools       map[common.Address]*pool
 	delegations map[common.Address]common.Address
 
-	nodesSet       mapset.Set
-	onlineNodesSet mapset.Set
-	log            log.Logger
-	god            common.Address
-	mutex          sync.Mutex
-	height         uint64
+	validatedAddresses     mapset.Set
+	onlineAddresses        mapset.Set
+	discriminatedAddresses mapset.Set
+
+	forkCommitteeCache *forkCommittee
+
+	log    log.Logger
+	god    common.Address
+	mutex  sync.Mutex
+	height uint64
+}
+
+type forkCommittee struct {
+	validatedSize, onlineSize int
 }
 
 func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.Address) *ValidatorsCache {
 	return &ValidatorsCache{
-		identityState:  identityState,
-		nodesSet:       mapset.NewSet(),
-		onlineNodesSet: mapset.NewSet(),
-		log:            log.New(),
-		god:            godAddress,
-		pools:          map[common.Address]*sortedAddresses{},
-		delegations:    map[common.Address]common.Address{},
+		identityState:          identityState,
+		validatedAddresses:     mapset.NewSet(),
+		onlineAddresses:        mapset.NewSet(),
+		log:                    log.New(),
+		god:                    godAddress,
+		pools:                  map[common.Address]*pool{},
+		delegations:            map[common.Address]common.Address{},
+		discriminatedAddresses: mapset.NewSet(),
 	}
 }
 
@@ -50,17 +59,27 @@ func (v *ValidatorsCache) Load() {
 	v.loadValidNodes()
 }
 
-func (v *ValidatorsCache) replaceByDelegatee(set mapset.Set) (netSet mapset.Set) {
-	mapped := mapset.NewSet()
+func (v *ValidatorsCache) determineValidators(set mapset.Set) (validators, approvedValidators mapset.Set) {
+	validators, approvedValidators = mapset.NewSet(), mapset.NewSet()
 	for _, item := range set.ToSlice() {
 		addr := item.(common.Address)
-		if d, ok := v.delegations[addr]; ok {
-			mapped.Add(d)
+		if delegatee, ok := v.delegations[addr]; ok {
+			validators.Add(delegatee)
+			if pool, ok := v.pools[delegatee]; ok {
+				if !pool.discriminated() {
+					approvedValidators.Add(delegatee)
+				}
+			} else {
+				v.log.Warn("Pool not found", "delegator", addr.Hex(), "delegatee", delegatee.Hex())
+			}
 		} else {
-			mapped.Add(addr)
+			validators.Add(addr)
+			if !v.discriminatedAddresses.Contains(addr) {
+				approvedValidators.Add(addr)
+			}
 		}
 	}
-	return mapped
+	return validators, approvedValidators
 }
 
 func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, step uint8, limit int) *StepValidators {
@@ -68,14 +87,14 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 	set := mapset.NewSet()
 	if v.OnlineSize() == 0 {
 		set.Add(v.god)
-		return &StepValidators{Original: set, Addresses: set, Size: 1}
+		return &StepValidators{Original: set, Validators: set, ApprovedValidators: set}
 	}
 	if len(v.sortedValidators.list) == limit {
 		for _, n := range v.sortedValidators.list {
 			set.Add(n)
 		}
-		newSet := v.replaceByDelegatee(set)
-		return &StepValidators{Original: set, Addresses: newSet, Size: newSet.Cardinality()}
+		validators, approvedValidators := v.determineValidators(set)
+		return &StepValidators{Original: set, Validators: validators, ApprovedValidators: approvedValidators}
 	}
 
 	if len(v.sortedValidators.list) < limit {
@@ -91,51 +110,104 @@ func (v *ValidatorsCache) GetOnlineValidators(seed types.Seed, round uint64, ste
 	for i := 0; i < limit; i++ {
 		set.Add(v.sortedValidators.list[indexes[i]])
 	}
-	newSet := v.replaceByDelegatee(set)
-	return &StepValidators{Original: set, Addresses: newSet, Size: newSet.Cardinality()}
+	validators, approvedValidators := v.determineValidators(set)
+	return &StepValidators{Original: set, Validators: validators, ApprovedValidators: approvedValidators}
 }
 
 func (v *ValidatorsCache) NetworkSize() int {
-	return v.nodesSet.Cardinality()
+	return v.validatedAddresses.Cardinality()
 }
 
-func (v *ValidatorsCache) ForkCommitteeSize() int {
+func (v *ValidatorsCache) ForkCommitteeSizes() (validatedCommitteeSize int, onlineCommitteeSize int) {
+	if fk := v.forkCommitteeCache; fk != nil {
+		return fk.validatedSize, fk.onlineSize
+	}
 	v.mutex.Lock()
 	defer v.mutex.Unlock()
+	if fk := v.forkCommitteeCache; fk != nil {
+		return fk.validatedSize, fk.onlineSize
+	}
+	fk := v.buildForkCommittee()
+	v.forkCommitteeCache = &fk
+	return fk.validatedSize, fk.onlineSize
+}
 
-	size := v.NetworkSize() - len(v.delegations)
-	for pool, _ := range v.pools {
-		if !v.nodesSet.Contains(pool) {
-			size++
+func (v *ValidatorsCache) buildForkCommittee() forkCommittee {
+	var res forkCommittee
+
+	v.validatedAddresses.Each(func(value interface{}) bool {
+		addr := value.(common.Address)
+		_, delegated := v.delegations[addr]
+		if delegated {
+			return false
+		}
+		pool, isPool := v.pools[addr]
+		if isPool {
+			if !pool.discriminated() {
+				res.validatedSize++
+			}
+			return false
+		}
+		if !v.discriminatedAddresses.Contains(addr) {
+			res.validatedSize++
+		}
+		return false
+	})
+	for poolAddress, pool := range v.pools {
+		if !v.validatedAddresses.Contains(poolAddress) && !pool.discriminated() {
+			res.validatedSize++
 		}
 	}
-	return size
+
+	v.onlineAddresses.Each(func(value interface{}) bool {
+		addr := value.(common.Address)
+		pool, isPool := v.pools[addr]
+		if isPool {
+			if !pool.discriminated() {
+				res.onlineSize++
+			}
+			return false
+		}
+		if !v.discriminatedAddresses.Contains(addr) {
+			res.onlineSize++
+		}
+		return false
+	})
+
+	return res
 }
 
 func (v *ValidatorsCache) OnlineSize() int {
-	return v.onlineNodesSet.Cardinality()
+	return v.onlineAddresses.Cardinality()
 }
 
 func (v *ValidatorsCache) ValidatorsSize() int {
 	return len(v.sortedValidators.list)
 }
 
-func (v *ValidatorsCache) Contains(addr common.Address) bool {
-	return v.nodesSet.Contains(addr)
+func (v *ValidatorsCache) IsValidated(addr common.Address) bool {
+	return v.validatedAddresses.Contains(addr)
 }
 
 func (v *ValidatorsCache) IsOnlineIdentity(addr common.Address) bool {
-	return v.onlineNodesSet.Contains(addr)
+	return v.onlineAddresses.Contains(addr)
+}
+
+func (v *ValidatorsCache) IsDiscriminated(addr common.Address) bool {
+	if p, ok := v.pools[addr]; ok {
+		return p.discriminated()
+	}
+	return v.discriminatedAddresses.Contains(addr)
 }
 
 func (v *ValidatorsCache) GetAllOnlineValidators() mapset.Set {
-	return v.onlineNodesSet.Clone()
+	return v.onlineAddresses.Clone()
 }
 
 func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *types.Block, diff *state.IdentityStateDiff) {
 	if block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		v.UpdateFromIdentityStateDiff(diff)
-		v.log.Info("Validators updated", "total", v.nodesSet.Cardinality(), "online", v.onlineNodesSet.Cardinality())
+		v.log.Info("Validators updated", "validated", v.validatedAddresses.Cardinality(), "online", v.onlineAddresses.Cardinality(), "discriminated", v.discriminatedAddresses.Cardinality())
 	}
 	v.god = godAddress
 	v.height = block.Height()
@@ -144,10 +216,12 @@ func (v *ValidatorsCache) RefreshIfUpdated(godAddress common.Address, block *typ
 func (v *ValidatorsCache) loadValidNodes() {
 
 	var onlineNodes []common.Address
-	v.nodesSet.Clear()
-	v.onlineNodesSet.Clear()
+	v.validatedAddresses.Clear()
+	v.onlineAddresses.Clear()
 	v.delegations = map[common.Address]common.Address{}
-	v.pools = map[common.Address]*sortedAddresses{}
+	v.pools = map[common.Address]*pool{}
+	v.discriminatedAddresses.Clear()
+	v.forkCommitteeCache = nil
 
 	v.identityState.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
@@ -162,33 +236,41 @@ func (v *ValidatorsCache) loadValidNodes() {
 		}
 
 		if data.Online {
-			v.onlineNodesSet.Add(addr)
+			v.onlineAddresses.Add(addr)
 			onlineNodes = append(onlineNodes, addr)
 		}
 		if data.Delegatee != nil {
-			list, ok := v.pools[*data.Delegatee]
+			pool, ok := v.pools[*data.Delegatee]
 			if !ok {
-				list = &sortedAddresses{list: []common.Address{}}
-				v.pools[*data.Delegatee] = list
+				poolApproved := v.validatedAddresses.Contains(*data.Delegatee) && !v.discriminatedAddresses.Contains(*data.Delegatee)
+				pool = newPool(*data.Delegatee, poolApproved)
+				v.pools[*data.Delegatee] = pool
 			}
-			list.add(addr)
+			approved := data.Validated && !data.Discriminated
+			pool.add(addr, approved)
 			v.delegations[addr] = *data.Delegatee
 		}
-		if data.Approved {
-			v.nodesSet.Add(addr)
+		if data.Validated {
+			v.validatedAddresses.Add(addr)
+		}
+		if data.Discriminated {
+			v.discriminatedAddresses.Add(addr)
+		}
+		if pool, ok := v.pools[addr]; ok {
+			pool.setApproved(addr, data.Validated && !data.Discriminated)
 		}
 
 		return false
 	})
 
-	v.sortedValidators = &sortedAddresses{descending: true, list: []common.Address{}}
+	v.sortedValidators = newSortedAddresses()
 
 	for _, n := range onlineNodes {
-		if v.nodesSet.Contains(n) {
+		if v.validatedAddresses.Contains(n) {
 			v.sortedValidators.add(n)
 		}
-		if delegators, ok := v.pools[n]; ok {
-			for _, addr := range delegators.list {
+		if pool, ok := v.pools[n]; ok {
+			for _, addr := range pool.delegators {
 				v.sortedValidators.add(addr)
 			}
 		}
@@ -201,6 +283,9 @@ func (v *ValidatorsCache) UpdateFromIdentityStateDiff(diff *state.IdentityStateD
 	v.mutex.Lock()
 	defer v.mutex.Unlock()
 	v.height = v.identityState.Version()
+	v.forkCommitteeCache = nil
+
+	newApprovals := map[common.Address]bool{}
 	for _, d := range diff.Values {
 
 		var data state.ApprovedIdentity
@@ -212,16 +297,18 @@ func (v *ValidatorsCache) UpdateFromIdentityStateDiff(diff *state.IdentityStateD
 			if ok {
 				delete(v.delegations, d.Address)
 				v.pools[delegatee].remove(d.Address)
-				if len(v.pools[delegatee].list) == 0 {
+				if len(v.pools[delegatee].delegators) == 0 {
 					delete(v.pools, delegatee)
 				}
 			}
 		}
 
 		if d.Deleted {
-			v.onlineNodesSet.Remove(d.Address)
-			v.nodesSet.Remove(d.Address)
+			v.onlineAddresses.Remove(d.Address)
+			v.validatedAddresses.Remove(d.Address)
 			removeDelegation()
+			v.discriminatedAddresses.Remove(d.Address)
+			newApprovals[d.Address] = false
 			continue
 		}
 
@@ -229,45 +316,68 @@ func (v *ValidatorsCache) UpdateFromIdentityStateDiff(diff *state.IdentityStateD
 			removeDelegation()
 		} else {
 			delegator, ok := v.delegations[d.Address]
+			approved := data.Validated && !data.Discriminated
 			if !ok || delegator != *data.Delegatee {
 				if ok {
 					removeDelegation()
 				}
 				v.delegations[d.Address] = *data.Delegatee
-				list, ok := v.pools[*data.Delegatee]
+				pool, ok := v.pools[*data.Delegatee]
 				if !ok {
-					list = &sortedAddresses{list: []common.Address{}}
-					v.pools[*data.Delegatee] = list
+					var poolApproved bool
+					if approved, vOk := newApprovals[*data.Delegatee]; vOk {
+						poolApproved = approved
+					} else {
+						poolApproved = v.validatedAddresses.Contains(*data.Delegatee) && !v.discriminatedAddresses.Contains(*data.Delegatee)
+					}
+					pool = newPool(*data.Delegatee, poolApproved)
+					v.pools[*data.Delegatee] = pool
 				}
-				list.add(d.Address)
+				pool.add(d.Address, approved)
+			} else {
+				v.pools[*data.Delegatee].setApproved(d.Address, approved)
 			}
 		}
 
 		if data.Online {
-			v.onlineNodesSet.Add(d.Address)
+			v.onlineAddresses.Add(d.Address)
 		} else {
-			v.onlineNodesSet.Remove(d.Address)
+			v.onlineAddresses.Remove(d.Address)
 		}
 
-		if data.Approved {
-			v.nodesSet.Add(d.Address)
+		if data.Validated {
+			v.validatedAddresses.Add(d.Address)
 		} else {
-			v.nodesSet.Remove(d.Address)
+			v.validatedAddresses.Remove(d.Address)
 			if data.Delegatee != nil {
 				removeDelegation()
 			}
 		}
+
+		if data.Discriminated {
+			v.discriminatedAddresses.Add(d.Address)
+		} else {
+			v.discriminatedAddresses.Remove(d.Address)
+		}
+
+		newApprovals[d.Address] = data.Validated && !data.Discriminated
 	}
 
-	v.sortedValidators = &sortedAddresses{descending: true, list: []common.Address{}}
+	for address, approved := range newApprovals {
+		if pool, ok := v.pools[address]; ok {
+			pool.setApproved(address, approved)
+		}
+	}
 
-	for _, n := range v.onlineNodesSet.ToSlice() {
+	v.sortedValidators = newSortedAddresses()
+
+	for _, n := range v.onlineAddresses.ToSlice() {
 		addr := n.(common.Address)
-		if v.nodesSet.Contains(addr) {
+		if v.validatedAddresses.Contains(addr) {
 			v.sortedValidators.add(addr)
 		}
-		if delegators, ok := v.pools[addr]; ok {
-			for _, delegator := range delegators.list {
+		if pool, ok := v.pools[addr]; ok {
+			for _, delegator := range pool.delegators {
 				v.sortedValidators.add(delegator)
 			}
 		}
@@ -279,15 +389,16 @@ func (v *ValidatorsCache) Clone() *ValidatorsCache {
 	defer v.mutex.Unlock()
 
 	return &ValidatorsCache{
-		height:           v.height,
-		identityState:    v.identityState,
-		god:              v.god,
-		log:              v.log,
-		sortedValidators: &sortedAddresses{descending: true, list: append(v.sortedValidators.list[:0:0], v.sortedValidators.list...)},
-		nodesSet:         v.nodesSet.Clone(),
-		onlineNodesSet:   v.onlineNodesSet.Clone(),
-		pools:            clonePools(v.pools),
-		delegations:      cloneDelegations(v.delegations),
+		height:                 v.height,
+		identityState:          v.identityState,
+		god:                    v.god,
+		log:                    v.log,
+		sortedValidators:       cloneSortedAddresses(v.sortedValidators),
+		validatedAddresses:     v.validatedAddresses.Clone(),
+		onlineAddresses:        v.onlineAddresses.Clone(),
+		pools:                  clonePools(v.pools),
+		delegations:            cloneDelegations(v.delegations),
+		discriminatedAddresses: v.discriminatedAddresses.Clone(),
 	}
 }
 
@@ -297,8 +408,8 @@ func (v *ValidatorsCache) Height() uint64 {
 
 func (v *ValidatorsCache) PoolSize(pool common.Address) int {
 	if set, ok := v.pools[pool]; ok {
-		size := len(set.list)
-		if v.nodesSet.Contains(pool) {
+		size := len(set.delegators)
+		if v.validatedAddresses.Contains(pool) {
 			size++
 		}
 		return size
@@ -308,8 +419,8 @@ func (v *ValidatorsCache) PoolSize(pool common.Address) int {
 
 func (v *ValidatorsCache) PoolSizeExceptNodes(pool common.Address, exceptNodes []common.Address) int {
 	if set, ok := v.pools[pool]; ok {
-		size := len(set.list)
-		if v.nodesSet.Contains(pool) {
+		size := len(set.delegators)
+		if v.validatedAddresses.Contains(pool) {
 			size++
 		}
 		for _, exceptNode := range exceptNodes {
@@ -328,8 +439,8 @@ func (v *ValidatorsCache) IsPool(pool common.Address) bool {
 }
 
 func (v *ValidatorsCache) FindSubIdentity(pool common.Address, nonce uint32) (common.Address, uint32) {
-	set := v.pools[pool].list
-	if v.nodesSet.Contains(pool) {
+	set := v.pools[pool].delegators
+	if v.validatedAddresses.Contains(pool) {
 		set = append([]common.Address{pool}, set...)
 	}
 	if nonce >= uint32(len(set)) {
@@ -342,16 +453,20 @@ func (v *ValidatorsCache) Delegator(addr common.Address) common.Address {
 	return v.delegations[addr]
 }
 
-func clonePools(source map[common.Address]*sortedAddresses) map[common.Address]*sortedAddresses {
-	result := map[common.Address]*sortedAddresses{}
+func cloneSortedAddresses(src *sortedAddresses) *sortedAddresses {
+	return &sortedAddresses{list: append(src.list[:0:0], src.list...)}
+}
+
+func clonePools(source map[common.Address]*pool) map[common.Address]*pool {
+	result := make(map[common.Address]*pool, len(source))
 	for k, v := range source {
-		result[k] = v
+		result[k] = &pool{delegators: append(v.delegators[:0:0], v.delegators...), approved: v.approved.Clone()}
 	}
 	return result
 }
 
 func cloneDelegations(source map[common.Address]common.Address) map[common.Address]common.Address {
-	result := map[common.Address]common.Address{}
+	result := make(map[common.Address]common.Address, len(source))
 	for k, v := range source {
 		result[k] = v
 	}
@@ -359,32 +474,37 @@ func cloneDelegations(source map[common.Address]common.Address) map[common.Addre
 }
 
 type StepValidators struct {
-	Original  mapset.Set
-	Addresses mapset.Set
-	Size      int
+	Original           mapset.Set
+	Validators         mapset.Set
+	ApprovedValidators mapset.Set
 }
 
-func (sv *StepValidators) Contains(addr common.Address) bool {
-	return sv.Addresses.Contains(addr)
+func (sv *StepValidators) CanVote(addr common.Address) bool {
+	return sv.Validators.Contains(addr)
+}
+
+func (sv *StepValidators) Approved(addr common.Address) bool {
+	return sv.ApprovedValidators.Contains(addr)
 }
 
 func (sv *StepValidators) VotesCountSubtrahend(agreementThreshold float64) int {
-	v := sv.Original.Cardinality() - sv.Size
+	v := sv.Original.Cardinality() - sv.ApprovedValidators.Cardinality()
 	return int(math2.Round(float64(v) * agreementThreshold))
 }
 
 type sortedAddresses struct {
-	descending bool
-	list       []common.Address
+	list []common.Address
+}
+
+func newSortedAddresses() *sortedAddresses {
+	return &sortedAddresses{
+		list: []common.Address{},
+	}
 }
 
 func (s *sortedAddresses) add(addr common.Address) {
 	i := sort.Search(len(s.list), func(i int) bool {
-		if !s.descending {
-			return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) >= 0
-		} else {
-			return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) <= 0
-		}
+		return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) <= 0
 	})
 	if i < len(s.list) && bytes.Compare(s.list[i].Bytes(), addr.Bytes()) == 0 {
 		return
@@ -395,29 +515,69 @@ func (s *sortedAddresses) add(addr common.Address) {
 	s.list[i] = addr
 }
 
-func (s *sortedAddresses) remove(addr common.Address) {
-	i := s.index(addr)
-	if i >= 0 {
-		copy(s.list[i:], s.list[i+1:])
-		s.list[len(s.list)-1] = common.Address{}
-		s.list = s.list[:len(s.list)-1]
+type pool struct {
+	delegators []common.Address
+	approved   mapset.Set
+}
+
+func newPool(address common.Address, approved bool) *pool {
+	res := &pool{
+		delegators: []common.Address{},
+		approved:   mapset.NewSet(),
+	}
+	if approved {
+		res.approved.Add(address)
+	}
+	return res
+}
+
+func (p *pool) discriminated() bool {
+	return p.approved.Cardinality() == 0
+}
+
+func (p *pool) add(addr common.Address, approved bool) {
+	i := sort.Search(len(p.delegators), func(i int) bool {
+		return bytes.Compare(p.delegators[i].Bytes(), addr.Bytes()) >= 0
+	})
+	if i < len(p.delegators) && bytes.Compare(p.delegators[i].Bytes(), addr.Bytes()) == 0 {
+		return
+	}
+	p.delegators = append(p.delegators, common.Address{})
+	copy(p.delegators[i+1:], p.delegators[i:])
+	p.delegators[i] = addr
+	if approved {
+		p.approved.Add(addr)
 	}
 }
 
-func (s *sortedAddresses) index(addr common.Address) int {
+func (p *pool) remove(addr common.Address) {
+	p.approved.Remove(addr)
+	i := p.index(addr)
+	if i >= 0 {
+		copy(p.delegators[i:], p.delegators[i+1:])
+		p.delegators[len(p.delegators)-1] = common.Address{}
+		p.delegators = p.delegators[:len(p.delegators)-1]
+	}
+}
 
-	i := sort.Search(len(s.list), func(i int) bool {
-		if !s.descending {
-			return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) >= 0
-		} else {
-			return bytes.Compare(s.list[i].Bytes(), addr.Bytes()) <= 0
-		}
+func (p *pool) index(addr common.Address) int {
+	i := sort.Search(len(p.delegators), func(i int) bool {
+		return bytes.Compare(p.delegators[i].Bytes(), addr.Bytes()) >= 0
 	})
-	if i == len(s.list) {
+	if i == len(p.delegators) {
 		return -1
 	}
-	if bytes.Compare(s.list[i].Bytes(), addr.Bytes()) == 0 {
+	v := p.delegators[i]
+	if bytes.Compare(v.Bytes(), addr.Bytes()) == 0 {
 		return i
 	}
 	return -1
+}
+
+func (p *pool) setApproved(addr common.Address, approved bool) {
+	if approved {
+		p.approved.Add(addr)
+	} else {
+		p.approved.Remove(addr)
+	}
 }

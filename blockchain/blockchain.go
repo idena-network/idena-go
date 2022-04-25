@@ -288,7 +288,12 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		}
 		chain.appState.State.SetState(addr, state.IdentityState(alloc.State))
 		if state.IdentityState(alloc.State).NewbieOrBetter() {
-			chain.appState.IdentityState.Add(addr)
+			chain.appState.IdentityState.SetValidated(addr)
+			if chain.config.Consensus.EnableUpgrade8 {
+				if state.IdentityState(alloc.State) == state.Newbie {
+					chain.appState.IdentityState.SetDiscriminated(addr, true)
+				}
+			}
 		}
 	}
 
@@ -331,7 +336,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}
 
-	if err := chain.appState.Commit(nil); err != nil {
+	if err := chain.appState.Commit(nil, chain.config.Consensus.EnableUpgrade8); err != nil {
 		return nil, err
 	}
 
@@ -468,7 +473,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyNextBlockFee(appState, block, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 
-	stateDiff, diff = appState.Precommit()
+	stateDiff, diff = appState.Precommit(chain.config.Consensus.EnableUpgrade8)
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, diff
 }
@@ -487,7 +492,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyVrfProposerThreshold(appState, block)
-	stateDiff, identityStateDiff = appState.Precommit()
+	stateDiff, identityStateDiff = appState.Precommit(chain.config.Consensus.EnableUpgrade8)
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, identityStateDiff
 }
@@ -570,7 +575,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	}
 	networkSize, validationResults, failed := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, chain.config.Consensus.EnableUpgrade8, totalInvitesCount, networkSize, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -681,7 +686,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool, totalInvitesCount float32, networkSize int, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -700,6 +705,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 	suspendedByShard := map[common.ShardId]int{}
 
 	var totalNewbies, totalVerified, totalSuspended int
+	epoch := appState.State.Epoch()
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		if !validationFailed {
@@ -713,17 +719,24 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 					state:   identity.State,
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
-				appState.IdentityState.Add(addr)
-				if identity.Delegatee != nil {
-					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
+				appState.IdentityState.SetValidated(addr)
+				if enableUpgrade8 {
+					discriminated := identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch < 2
+					appState.IdentityState.SetDiscriminated(addr, discriminated)
+				}
+				if delegatee := identity.Delegatee(); identity.Delegatee() != nil {
+					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
 				verifiedByShard[identity.ShiftedShardId()]++
 				totalVerified++
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
-				appState.IdentityState.Add(addr)
-				if identity.Delegatee != nil {
-					appState.IdentityState.SetDelegatee(addr, *identity.Delegatee)
+				appState.IdentityState.SetValidated(addr)
+				if enableUpgrade8 {
+					appState.IdentityState.SetDiscriminated(addr, true)
+				}
+				if delegatee := identity.Delegatee(); delegatee != nil {
+					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
 				newbiesByShard[identity.ShiftedShardId()]++
 				totalNewbies++
@@ -754,6 +767,11 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			appState.State.SetValidationStatus(addr, status)
 		} else {
 			appState.State.SetValidationStatus(addr, 0)
+		}
+
+		if identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch >= 2 {
+			appState.State.SetDelegationEpoch(addr, 0)
+			appState.State.RemovePendingUndelegation(addr)
 		}
 	})
 
@@ -1029,7 +1047,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		return
 	}
 	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
-	if identities == nil || identities.Addresses.Cardinality() == 0 {
+	if identities == nil || identities.Validators.Cardinality() == 0 {
 		return
 	}
 	totalReward := big.NewInt(0)
@@ -1462,7 +1480,7 @@ func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *t
 			appState.IdentityState.SetOnline(addr, false)
 			continue
 		}
-		if appState.IdentityState.IsApproved(addr) || appState.ValidatorsCache.IsPool(addr) {
+		if appState.IdentityState.IsValidated(addr) || appState.ValidatorsCache.IsPool(addr) {
 			appState.IdentityState.SetOnline(addr, true)
 		}
 	}
@@ -1482,14 +1500,29 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 		if delegation.Delegatee.IsEmpty() {
 			delegatee := appState.State.Delegatee(delegation.Delegator)
 			appState.IdentityState.RemoveDelegatee(delegation.Delegator)
-			appState.State.RemoveDelegatee(delegation.Delegator)
+			if !chain.config.Consensus.EnableUpgrade8 {
+				appState.State.RemoveDelegatee(delegation.Delegator)
+			}
 			if delegatee != nil {
 				undelegations = append(undelegations, &state.Delegation{Delegator: delegation.Delegator, Delegatee: *delegatee})
+				if chain.config.Consensus.EnableUpgrade8 {
+					appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
+					appState.State.SetPendingUndelegation(delegation.Delegator)
+				}
+			}
+			if chain.config.Consensus.EnableUpgrade8 {
+				discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie || appState.State.PendingUndelegation(delegation.Delegator) != nil
+				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 			}
 		} else {
 			_, becamePool := newPools[delegation.Delegator]
-			if appState.State.Delegatee(delegation.Delegatee) == nil && !becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) {
+			if appState.State.Delegatee(delegation.Delegatee) == nil && appState.State.PendingUndelegation(delegation.Delegatee) == nil && !becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) {
 				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
+				if chain.config.Consensus.EnableUpgrade8 {
+					appState.State.RemovePendingUndelegation(delegation.Delegator)
+					discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie
+					appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
+				}
 				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
 				appState.IdentityState.SetOnline(delegation.Delegator, false)
@@ -1514,7 +1547,7 @@ func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undel
 
 	for _, addr := range appState.State.CollectKilledDelegators() {
 		identity := appState.State.GetIdentity(addr)
-		addToLostPoolNode(*identity.Delegatee, addr)
+		addToLostPoolNode(*identity.Delegatee(), addr)
 	}
 
 	for _, delegation := range undelegations {
@@ -1958,7 +1991,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 			addr = vote.VoterAddr()
 		}
 
-		if !validators.Contains(addr) {
+		if !validators.Approved(addr) {
 			return errors.Errorf("invalid voter %v", addr.String())
 		}
 		if vote.Header.Round != block.Height() {
@@ -2226,7 +2259,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 				return err
 			}
 		}
-		if err := checkState.Commit(b.Block); err != nil {
+		if err := checkState.Commit(b.Block, chain.config.Consensus.EnableUpgrade8); err != nil {
 			return err
 		}
 		prevBlock = b.Block.Header

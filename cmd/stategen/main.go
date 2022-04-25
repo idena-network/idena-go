@@ -135,25 +135,26 @@ func main() {
 			}
 
 			identity := &models.ProtoPredefinedState_Identity{
-				Address:          addr.Bytes(),
-				State:            uint32(data.State),
-				Birthday:         uint32(data.Birthday),
-				Code:             data.Code,
-				Generation:       data.Generation,
-				Invites:          uint32(data.Invites),
-				ProfileHash:      data.ProfileHash,
-				PubKey:           data.PubKey,
-				QualifiedFlips:   data.QualifiedFlips,
-				RequiredFlips:    uint32(data.RequiredFlips),
-				ShortFlipPoints:  data.ShortFlipPoints,
-				Stake:            common.BigIntBytesOrNil(data.Stake),
-				Flips:            flips,
-				Penalty:          common.BigIntBytesOrNil(data.Penalty),
-				ValidationBits:   uint32(data.ValidationTxsBits),
-				ValidationStatus: uint32(data.LastValidationStatus),
-				Scores:           data.Scores,
-				DelegationNonce:  data.DelegationNonce,
-				DelegationEpoch:  uint32(data.DelegationEpoch),
+				Address:             addr.Bytes(),
+				State:               uint32(data.State),
+				Birthday:            uint32(data.Birthday),
+				Code:                data.Code,
+				Generation:          data.Generation,
+				Invites:             uint32(data.Invites),
+				ProfileHash:         data.ProfileHash,
+				PubKey:              data.PubKey,
+				QualifiedFlips:      data.QualifiedFlips,
+				RequiredFlips:       uint32(data.RequiredFlips),
+				ShortFlipPoints:     data.ShortFlipPoints,
+				Stake:               common.BigIntBytesOrNil(data.Stake),
+				Flips:               flips,
+				Penalty:             common.BigIntBytesOrNil(data.Penalty),
+				ValidationBits:      uint32(data.ValidationTxsBits),
+				ValidationStatus:    uint32(data.LastValidationStatus),
+				Scores:              data.Scores,
+				DelegationNonce:     data.DelegationNonce,
+				DelegationEpoch:     uint32(data.DelegationEpoch),
+				PendingUndelegation: data.PendingUndelegation() != nil,
 			}
 
 			if data.Inviter != nil {
@@ -163,8 +164,12 @@ func main() {
 					EpochHeight: data.Inviter.EpochHeight,
 				}
 			}
-			if data.Delegatee != nil {
-				identity.Delegatee = data.Delegatee.Bytes()
+			delegatee := data.Delegatee()
+			if delegatee == nil {
+				delegatee = data.PendingUndelegation()
+			}
+			if delegatee != nil {
+				identity.Delegatee = delegatee.Bytes()
 			}
 			for idx := range data.Invitees {
 				identity.Invitees = append(identity.Invitees, &models.ProtoPredefinedState_Identity_TxAddr{
@@ -198,10 +203,16 @@ func main() {
 				return false
 			}
 			identity := &models.ProtoPredefinedState_ApprovedIdentity{
-				Address:  addr[:],
-				Approved: data.Approved,
-				Online:   false,
+				Address: addr[:],
 			}
+			var flags state.ApprovedIdentityFlag
+			if data.Validated {
+				flags |= state.Validated
+			}
+			if data.Discriminated {
+				flags |= state.Discriminated
+			}
+			identity.Flags = uint32(flags)
 			if data.Delegatee != nil {
 				identity.Delegatee = data.Delegatee.Bytes()
 			}

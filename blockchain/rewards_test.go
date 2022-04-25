@@ -50,7 +50,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(auth4, state.Suspended)
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetShardsNum(2)
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
 	validationResults := map[common.ShardId]*types.ValidationResults{
 		1: {
@@ -111,7 +111,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil)
 
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
 	validationReward := float32(200) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
 	flipReward := float32(350) / 23

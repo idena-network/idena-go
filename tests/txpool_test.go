@@ -48,7 +48,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	}
 
 	app.State.IncEpoch()
-	app.Commit(nil)
+	app.Commit(nil, true)
 
 	pool.AddInternalTx(GetTx(3, 0, key1))
 	pool.AddInternalTx(GetTx(1, 0, key1))
@@ -80,7 +80,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 
 	chain, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
 	app.State.SetValidationPeriod(state.ShortSessionPeriod)
-	app.Commit(nil)
+	app.Commit(nil, true)
 
 	block := chain.GenerateEmptyBlock()
 	chain.Head = block.Header
@@ -157,12 +157,12 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 
 	app.State.IncEpoch()
 
-	app.Commit(nil)
+	app.Commit(nil, true)
 
 	// need to emulate new block
 	chain.Head.ProposedHeader.Height++
 
-	app.Commit(nil)
+	app.Commit(nil, true)
 	err := pool.AddInternalTx(GetTx(1, 1, key))
 	require.NoError(t, err)
 
@@ -251,7 +251,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 	app.State.SubBalance(addr, getAmount(25))
 	app.State.IncEpoch()
 
-	app.Commit(nil)
+	app.Commit(nil, true)
 
 	pool.ResetTo(&types.Block{
 		Header: &types.Header{
@@ -302,7 +302,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	// Current epoch = 1
 	app.State.IncEpoch()
 	app.State.SetValidationPeriod(state.LongSessionPeriod)
-	app.Commit(nil)
+	app.Commit(nil, true)
 
 	block := chain.GenerateEmptyBlock()
 	chain.Head = block.Header
@@ -417,9 +417,9 @@ func TestTxPool_AddTxDuringValidation(t *testing.T) {
 	appState.State.SetValidationPeriod(state.LongSessionPeriod)
 
 	for height := 2; height <= 500; height++ {
-		appState.Precommit()
+		appState.Precommit(true)
 		block := buildBlock(uint64(height))
-		require.NoError(t, appState.Commit(block))
+		require.NoError(t, appState.Commit(block, true))
 		pool.ResetTo(block)
 	}
 

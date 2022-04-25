@@ -1367,6 +1367,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Scores = identity.Scores
 		stateObject.data.DelegationEpoch = uint16(identity.DelegationEpoch)
 		stateObject.data.DelegationNonce = identity.DelegationNonce
+		stateObject.data.pendingUndelegation = identity.PendingUndelegation
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &Inviter{
@@ -1377,7 +1378,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		}
 		if identity.Delegatee != nil {
 			addr := common.BytesToAddress(identity.Delegatee)
-			stateObject.data.Delegatee = &addr
+			stateObject.data.delegatee = &addr
 		}
 		for _, item := range identity.Invitees {
 			stateObject.data.Invitees = append(stateObject.data.Invitees, TxAddr{
@@ -1556,8 +1557,20 @@ func (s *StateDB) SetDelegationEpoch(addr common.Address, epoch uint16) {
 	s.GetOrNewIdentityObject(addr).SetDelegationEpoch(epoch)
 }
 
+func (s *StateDB) SetPendingUndelegation(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).SetPendingUndelegation()
+}
+
+func (s *StateDB) PendingUndelegation(addr common.Address) *common.Address {
+	return s.GetOrNewIdentityObject(addr).PendingUndelegation()
+}
+
 func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
 	return s.GetOrNewIdentityObject(addr).DelegationEpoch()
+}
+
+func (s *StateDB) RemovePendingUndelegation(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).RemovePendingUndelegation()
 }
 
 func (s *StateDB) CollectKilledDelegators() []common.Address {

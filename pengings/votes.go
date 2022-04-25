@@ -4,7 +4,6 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/upgrade"
@@ -20,7 +19,6 @@ const (
 
 type Votes struct {
 	votesByRound    *sync.Map
-	votesByHash     *sync.Map
 	knownVotes      mapset.Set
 	state           *appstate.AppState
 	head            *types.Header
@@ -33,7 +31,6 @@ type Votes struct {
 func NewVotes(state *appstate.AppState, bus eventbus.Bus, offlineDetector *blockchain.OfflineDetector, upgrade *upgrade.Upgrader) *Votes {
 	v := &Votes{
 		votesByRound:    &sync.Map{},
-		votesByHash:     &sync.Map{},
 		knownVotes:      mapset.NewSet(),
 		state:           state,
 		bus:             bus,
@@ -85,17 +82,9 @@ func (votes *Votes) AddVote(vote *types.Vote) bool {
 		votes.knownVotes.Pop()
 	}
 	votes.knownVotes.Add(vote.Hash())
-	votes.votesByHash.Store(vote.Hash(), vote)
 	votes.offlineDetector.ProcessVote(vote)
 	votes.upgrade.ProcessVote(vote)
 	return true
-}
-
-func (votes *Votes) GetVoteByHash(hash common.Hash) *types.Vote {
-	if value, ok := votes.votesByHash.Load(hash); ok {
-		return value.(*types.Vote)
-	}
-	return nil
 }
 
 func (votes *Votes) GetVotesOfRound(round uint64) *sync.Map {
@@ -112,52 +101,4 @@ func (votes *Votes) CompleteRound(round uint64) {
 		}
 		return true
 	})
-
-	votes.votesByHash.Range(func(key, value interface{}) bool {
-		vote := value.(*types.Vote)
-		if vote.Header.Round <= round {
-			votes.votesByHash.Delete(key)
-		}
-		return true
-	})
-}
-
-func (votes *Votes) FutureBlockExist(round uint64, neccessaryVotes int) bool {
-	maxRound := round
-
-	votes.votesByRound.Range(func(key, value interface{}) bool {
-		if key.(uint64) > round {
-			byRound := value.(*sync.Map)
-
-			votesCount := make(map[common.Hash]map[uint8]int)
-
-			var byHash map[uint8]int
-
-			byRound.Range(func(key, v interface{}) bool {
-				vote := v.(*types.Vote)
-				var ok bool
-				byHash, ok = votesCount[vote.Header.VotedHash]
-				if !ok {
-					byHash = make(map[uint8]int)
-					votesCount[vote.Header.VotedHash] = byHash
-				}
-				if _, ok := byHash[vote.Header.Step]; ok {
-					byHash[vote.Header.Step]++
-				} else {
-					byHash[vote.Header.Step] = 1
-				}
-				return true
-			})
-
-			for _, v := range byHash {
-				if v >= neccessaryVotes {
-					maxRound = key.(uint64)
-					return false
-				}
-			}
-
-		}
-		return true
-	})
-	return maxRound > round
 }
