@@ -119,9 +119,9 @@ func getValidator(txType types.TxType) (validator, bool) {
 	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
 		cfgInitVersion = appCfg.Consensus.Version
 		if appCfg.Consensus.EnableUpgrade8 {
-			validators[types.AddStakeTx] = validateAddStakeTx
+			validators[types.ReplenishStakeTx] = validateReplenishStakeTx
 		} else {
-			delete(validators, types.AddStakeTx)
+			delete(validators, types.ReplenishStakeTx)
 		}
 	}
 	v, ok := validators[txType]
@@ -873,13 +873,13 @@ func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, t
 	return nil
 }
 
-func validateAddStakeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+func validateReplenishStakeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	if tx.To == nil {
 		return RecipientRequired
 	}
 	recipient := appState.State.GetIdentity(*tx.To)
-	canAddStake := recipient.State != state.Undefined && recipient.State != state.Killed
-	if !canAddStake {
+	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed
+	if !canReplenishStake {
 		return InvalidRecipient
 	}
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {

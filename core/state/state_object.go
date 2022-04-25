@@ -395,7 +395,7 @@ type Identity struct {
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
 	pendingUndelegation  bool
-	addedStake           *big.Int
+	replenishedStake     *big.Int
 	// do not use directly
 	ShardId common.ShardId
 }
@@ -414,7 +414,7 @@ type Inviter struct {
 func (i *Identity) ToBytes() ([]byte, error) {
 	protoIdentity := &models.ProtoStateIdentity{
 		Stake:               common.BigIntBytesOrNil(i.Stake),
-		AddedStake:          common.BigIntBytesOrNil(i.addedStake),
+		ReplenishedStake:    common.BigIntBytesOrNil(i.replenishedStake),
 		Invites:             uint32(i.Invites),
 		Birthday:            uint32(i.Birthday),
 		State:               uint32(i.State),
@@ -465,7 +465,7 @@ func (i *Identity) FromBytes(data []byte) error {
 		return err
 	}
 	i.Stake = common.BigIntOrNil(protoIdentity.Stake)
-	i.addedStake = common.BigIntOrNil(protoIdentity.AddedStake)
+	i.replenishedStake = common.BigIntOrNil(protoIdentity.ReplenishedStake)
 	i.Invites = uint8(protoIdentity.Invites)
 	i.Birthday = uint16(protoIdentity.Birthday)
 	i.State = IdentityState(protoIdentity.State)
@@ -560,8 +560,8 @@ func (i *Identity) IsDiscriminated() bool {
 	return i.State == Newbie || i.PendingUndelegation() != nil
 }
 
-func (i *Identity) AddedStake() *big.Int {
-	return i.addedStake
+func (i *Identity) ReplenishedStake() *big.Int {
+	return i.replenishedStake
 }
 
 func (i *Identity) HasValidationTx(txType types.TxType) bool {
@@ -864,23 +864,23 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 	s.touch()
 }
 
-func (s *stateIdentity) AddedStake() *big.Int {
-	if s.data.addedStake == nil {
+func (s *stateIdentity) ReplenishedStake() *big.Int {
+	if s.data.replenishedStake == nil {
 		return common.Big0
 	}
-	return s.data.addedStake
+	return s.data.replenishedStake
 }
 
-func (s *stateIdentity) AddAddedStake(amount *big.Int) {
-	s.SetAddedStake(new(big.Int).Add(s.AddedStake(), amount))
+func (s *stateIdentity) AddReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Add(s.ReplenishedStake(), amount))
 }
 
-func (s *stateIdentity) SubAddedStake(amount *big.Int) {
-	s.SetAddedStake(new(big.Int).Sub(s.AddedStake(), amount))
+func (s *stateIdentity) SubReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Sub(s.ReplenishedStake(), amount))
 }
 
-func (s *stateIdentity) SetAddedStake(amount *big.Int) {
-	s.data.addedStake = amount
+func (s *stateIdentity) SetReplenishedStake(amount *big.Int) {
+	s.data.replenishedStake = amount
 	s.touch()
 }
 

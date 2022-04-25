@@ -537,7 +537,7 @@ func Test_DeleteFlipTx(t *testing.T) {
 	require.Equal(t, 2, len(identity.Flips))
 }
 
-func Test_ApplyAddStakeTx(t *testing.T) {
+func Test_ApplyReplenishStakeTx(t *testing.T) {
 	senderKey, _ := crypto.GenerateKey()
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
 	recipient := tests.GetRandAddr()
@@ -548,7 +548,7 @@ func Test_ApplyAddStakeTx(t *testing.T) {
 	}
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
 	tx := &types.Transaction{
-		Type:         types.AddStakeTx,
+		Type:         types.ReplenishStakeTx,
 		To:           &recipient,
 		AccountNonce: 1,
 		Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
@@ -570,7 +570,7 @@ func Test_ApplyAddStakeTx(t *testing.T) {
 	require.Equal(t, 1, fee.Sign())
 	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
 	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetStakeBalance(recipient))
-	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetAddedStakeBalance(recipient))
+	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetReplenishedStakeBalance(recipient))
 }
 
 func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {

@@ -1250,7 +1250,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
 		stateDB.SubStake(sender, stake)
-		stateDB.SubAddedStake(sender, stateDB.GetAddedStakeBalance(sender))
+		stateDB.SubReplenishedStake(sender, stateDB.GetReplenishedStakeBalance(sender))
 		stateDB.AddBalance(sender, stake)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
@@ -1272,7 +1272,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 
 			stateDB.AddBalance(sender, stakeToTransfer)
 			stateDB.SubStake(*tx.To, stake)
-			stateDB.SubAddedStake(*tx.To, stateDB.GetAddedStakeBalance(*tx.To))
+			stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
 			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake, stakeToTransfer)
 		}
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
@@ -1291,7 +1291,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
 		stateDB.SubStake(*tx.To, stake)
-		stateDB.SubAddedStake(*tx.To, stateDB.GetAddedStakeBalance(*tx.To))
+		stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
 		if delegatorPrevState.VerifiedOrBetter() {
 			stateDB.AddBalance(sender, stake)
 		} else {
@@ -1373,12 +1373,12 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 				}
 			}
 		}
-	case types.AddStakeTx:
+	case types.ReplenishStakeTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		stateDB.AddStake(*tx.To, tx.AmountOrZero())
-		stateDB.AddAddedStake(*tx.To, tx.AmountOrZero())
+		stateDB.AddReplenishedStake(*tx.To, tx.AmountOrZero())
 	}
 
 	stateDB.SubBalance(sender, fee)

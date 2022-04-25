@@ -938,7 +938,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.SetState(addr1, state.Newbie)
 	appstate.State.AddStake(addr1, big.NewInt(100))
 	appstate.State.AddStake(addr1, big.NewInt(40))
-	appstate.State.AddAddedStake(addr1, big.NewInt(40))
+	appstate.State.AddReplenishedStake(addr1, big.NewInt(40))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
 	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
 	appstate.State.SetDelegatee(addr1, delegatee)
@@ -959,7 +959,7 @@ func Test_applyOnState(t *testing.T) {
 	require.True(t, appstate.State.GetBalance(delegatee).Cmp(big.NewInt(75)) == 0)
 	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(10)) == 0)
 	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(65)) == 0)
-	require.True(t, appstate.State.GetAddedStakeBalance(addr1).Cmp(big.NewInt(40)) == 0)
+	require.True(t, appstate.State.GetReplenishedStakeBalance(addr1).Cmp(big.NewInt(40)) == 0)
 
 	applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		shortFlipPoint:           0,
