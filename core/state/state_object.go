@@ -921,7 +921,7 @@ func (s *stateIdentity) AddNewScore(score byte, enableUpgrade8 bool) {
 			if totalFlips < common.MinTotalShortFlips {
 				break
 			}
-			s.data.Scores = append(s.data.Scores[:0], s.data.Scores[1:]...)
+			s.data.Scores = s.data.Scores[1:]
 		}
 		s.touch()
 		return
