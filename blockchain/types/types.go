@@ -35,6 +35,7 @@ const (
 	UndelegateTx         uint16 = 0x13
 	KillDelegatorTx      uint16 = 0x14
 	StoreToIpfsTx        uint16 = 0x15
+	ReplenishStakeTx     uint16 = 0x16
 )
 
 const (

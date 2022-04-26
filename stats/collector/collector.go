@@ -22,12 +22,16 @@ type StatsCollector interface {
 
 	SetTotalReward(amount *big.Int)
 	SetTotalValidationReward(amount *big.Int, share *big.Int)
+	SetTotalStakingReward(amount *big.Int, share *big.Int)
+	SetTotalCandidateReward(amount *big.Int, share *big.Int)
 	SetTotalFlipsReward(amount *big.Int, share *big.Int)
 	SetTotalReportsReward(amount *big.Int, share *big.Int)
 	SetTotalInvitationsReward(amount *big.Int, share *big.Int)
 	SetTotalFoundationPayouts(amount *big.Int)
 	SetTotalZeroWalletFund(amount *big.Int)
 	AddValidationReward(balanceDest, stakeDest common.Address, age uint16, balance, stake *big.Int)
+	AddCandidateReward(balanceDest, stakeDest common.Address, balance, stake *big.Int)
+	AddStakingReward(balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int)
 	AddFlipsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, flipsToReward []*types.FlipToReward)
 	AddReportedFlipsReward(balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int)
 	AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16, txHash *common.Hash,
@@ -64,6 +68,7 @@ type StatsCollector interface {
 	BeginPenaltyBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginEpochPenaltyResetBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginDustClearingBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginSavedStakeBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	CompleteBalanceUpdate(appState *appstate.AppState)
 
 	SetCommitteeRewardShare(amount *big.Int)
@@ -212,6 +217,28 @@ func SetTotalValidationReward(c StatsCollector, amount *big.Int, share *big.Int)
 	c.SetTotalValidationReward(amount, share)
 }
 
+func (c *collectorStub) SetTotalStakingReward(amount *big.Int, share *big.Int) {
+	// do nothing
+}
+
+func SetTotalStakingReward(c StatsCollector, amount *big.Int, share *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalStakingReward(amount, share)
+}
+
+func (c *collectorStub) SetTotalCandidateReward(amount *big.Int, share *big.Int) {
+	// do nothing
+}
+
+func SetTotalCandidateReward(c StatsCollector, amount *big.Int, share *big.Int) {
+	if c == nil {
+		return
+	}
+	c.SetTotalCandidateReward(amount, share)
+}
+
 func (c *collectorStub) SetTotalFlipsReward(amount *big.Int, share *big.Int) {
 	// do nothing
 }
@@ -276,6 +303,28 @@ func AddValidationReward(c StatsCollector, balanceDest, stakeDest common.Address
 		return
 	}
 	c.AddValidationReward(balanceDest, stakeDest, age, balance, stake)
+}
+
+func (c *collectorStub) AddStakingReward(balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int) {
+	// do nothing
+}
+
+func AddStakingReward(c StatsCollector, balanceDest, stakeDest common.Address, stakedAmount *big.Int, balance, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddStakingReward(balanceDest, stakeDest, stakedAmount, balance, stake)
+}
+
+func (c *collectorStub) AddCandidateReward(balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+	// do nothing
+}
+
+func AddCandidateReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddCandidateReward(balanceDest, stakeDest, balance, stake)
 }
 
 func (c *collectorStub) AddFlipsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, flipsToReward []*types.FlipToReward) {
@@ -603,6 +652,17 @@ func BeginDustClearingBalanceUpdate(c StatsCollector, addr common.Address, appSt
 		return
 	}
 	c.BeginDustClearingBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginSavedStakeBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginSavedStakeBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginSavedStakeBalanceUpdate(addr, appState)
 }
 
 func (c *collectorStub) CompleteBalanceUpdate(appState *appstate.AppState) {
