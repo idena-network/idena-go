@@ -207,6 +207,14 @@ func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
+func (s *StateDB) GetReplenishedStakeBalance(addr common.Address) *big.Int {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.ReplenishedStake()
+	}
+	return common.Big0
+}
+
 func (s *StateDB) GetEpoch(addr common.Address) uint16 {
 	stateObject := s.getStateAccount(addr)
 	if stateObject != nil {
@@ -313,8 +321,16 @@ func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
 
+func (s *StateDB) AddReplenishedStake(address common.Address, intStake *big.Int) {
+	s.GetOrNewIdentityObject(address).AddReplenishedStake(intStake)
+}
+
 func (s *StateDB) SubStake(addr common.Address, amount *big.Int) {
 	s.GetOrNewIdentityObject(addr).SubStake(amount)
+}
+
+func (s *StateDB) SubReplenishedStake(addr common.Address, amount *big.Int) {
+	s.GetOrNewIdentityObject(addr).SubReplenishedStake(amount)
 }
 
 func (s *StateDB) SetState(address common.Address, state IdentityState) {
@@ -1352,6 +1368,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Birthday = uint16(identity.Birthday)
 		stateObject.data.Generation = identity.Generation
 		stateObject.data.Stake = common.BigIntOrNil(identity.Stake)
+		stateObject.data.replenishedStake = common.BigIntOrNil(identity.ReplenishedStake)
 		stateObject.data.RequiredFlips = uint8(identity.RequiredFlips)
 		stateObject.data.PubKey = identity.PubKey
 		stateObject.data.Invites = uint8(identity.Invites)

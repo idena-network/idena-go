@@ -937,11 +937,13 @@ func Test_applyOnState(t *testing.T) {
 	delegatee := common.Address{0x2}
 	appstate.State.SetState(addr1, state.Newbie)
 	appstate.State.AddStake(addr1, big.NewInt(100))
+	appstate.State.AddStake(addr1, big.NewInt(40))
+	appstate.State.AddReplenishedStake(addr1, big.NewInt(40))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
 	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
 	appstate.State.SetDelegatee(addr1, delegatee)
 
-	identities := applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
+	identities := applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
 		birthday:                 3,
 		shortFlipPoint:           1,
@@ -956,9 +958,10 @@ func Test_applyOnState(t *testing.T) {
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
 	require.True(t, appstate.State.GetBalance(delegatee).Cmp(big.NewInt(75)) == 0)
 	require.True(t, appstate.State.GetBalance(addr1).Cmp(big.NewInt(10)) == 0)
-	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(25)) == 0)
+	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(65)) == 0)
+	require.True(t, appstate.State.GetReplenishedStakeBalance(addr1).Cmp(big.NewInt(40)) == 0)
 
-	applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
+	applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		shortFlipPoint:           0,
 		shortQualifiedFlipsCount: 0,
 		missed:                   true,
@@ -968,7 +971,7 @@ func Test_applyOnState(t *testing.T) {
 
 	appstate.State.SetDelegatee(delegatee, common.Address{0x3})
 
-	applyOnState(config.ConsensusVersions[config.ConsensusV6], appstate, collector.NewStatsCollector(), addr1, cacheValue{
+	applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Zombie,
 		shortFlipPoint:           1,
 		shortQualifiedFlipsCount: 2,
@@ -977,6 +980,227 @@ func Test_applyOnState(t *testing.T) {
 	})
 	identity = appstate.State.GetIdentity(addr1)
 	require.Nil(t, identity.Delegatee())
+}
+
+func Test_applyOnState_saveStake(t *testing.T) {
+	db := dbm.NewMemDB()
+	appState, _ := appstate.NewAppState(db, eventbus.New())
+
+	addr := common.Address{0x1}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Newbie,
+			birthday:     14,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
+	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+
+	addr = common.Address{0x1, 0x1}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Newbie,
+			birthday:     14,
+			state:        state.Killed,
+		})
+	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
+	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+
+	addr = common.Address{0x2}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Verified,
+			birthday:     2,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
+	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+
+	addr = common.Address{0x2, 0x2}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Verified,
+			birthday:     2,
+			state:        state.Killed,
+		})
+	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
+	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+
+	addr = common.Address{0x3}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Human,
+			birthday:     2,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+
+	addr = common.Address{0x3, 0x3}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Human,
+			birthday:     2,
+			state:        state.Killed,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(100)))
+
+	addr = common.Address{0x4}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     2,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+
+	addr = common.Address{0x4, 0x4}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Zombie,
+			birthday:     2,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+
+	addr = common.Address{0x4, 0x4, 0x4}
+	appState.State.AddStake(addr, big.NewInt(100))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Zombie,
+			birthday:     2,
+			state:        state.Killed,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(100)))
+
+	addr = common.Address{0x5}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     6,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
+
+	addr = common.Address{0x5, 0x5}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Zombie,
+			birthday:     6,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
+
+	addr = common.Address{0x5, 0x5, 0x5}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Suspended,
+			birthday:     6,
+			state:        state.Killed,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
+
+	addr = common.Address{0x6}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     7,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(230)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(4)))
+
+	addr = common.Address{0x7}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     8,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(227)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(7)))
+
+	addr = common.Address{0x8}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     9,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(225)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(9)))
+
+	addr = common.Address{0x9}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     10,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(223)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(11)))
+
+	addr = common.Address{0x9, 0x9}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			participated: false,
+			prevState:    state.Suspended,
+			birthday:     11,
+			state:        state.Killed,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
+
+	addr = common.Address{0xa}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Suspended,
+			birthday:     12,
+			state:        state.Killed,
+			participated: true,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
 }
 
 func Test_calculateNewTotalScore(t *testing.T) {
@@ -1049,4 +1273,46 @@ func Test_calculateNewTotalScore(t *testing.T) {
 	}, 5, 5, 237.5, 255)
 	require.Equal(t, float32(48.5)/57, a)
 	require.Equal(t, uint32(57), b)
+}
+
+func Test_determineStakeShareToBurn(t *testing.T) {
+	require.Equal(t, 100, determineStakeShareToBurn(state.Candidate, 1, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Candidate, 10, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Candidate, 14, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Newbie, 1, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Newbie, 10, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Newbie, 14, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Verified, 1, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Verified, 10, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Verified, 14, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Human, 1, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Human, 10, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Suspended, 1, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Zombie, 1, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Suspended, 2, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Zombie, 2, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Suspended, 3, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Zombie, 3, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Suspended, 4, 14))
+	require.Equal(t, 0, determineStakeShareToBurn(state.Zombie, 4, 14))
+	require.Equal(t, 1, determineStakeShareToBurn(state.Suspended, 5, 14))
+	require.Equal(t, 1, determineStakeShareToBurn(state.Zombie, 5, 14))
+	require.Equal(t, 2, determineStakeShareToBurn(state.Suspended, 6, 14))
+	require.Equal(t, 2, determineStakeShareToBurn(state.Zombie, 6, 14))
+	require.Equal(t, 3, determineStakeShareToBurn(state.Suspended, 7, 14))
+	require.Equal(t, 3, determineStakeShareToBurn(state.Zombie, 7, 14))
+	require.Equal(t, 4, determineStakeShareToBurn(state.Suspended, 8, 14))
+	require.Equal(t, 4, determineStakeShareToBurn(state.Zombie, 8, 14))
+	require.Equal(t, 5, determineStakeShareToBurn(state.Suspended, 9, 14))
+	require.Equal(t, 5, determineStakeShareToBurn(state.Zombie, 9, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Suspended, 10, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Zombie, 10, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Suspended, 11, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Zombie, 11, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Suspended, 12, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Zombie, 12, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Suspended, 13, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Zombie, 13, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Suspended, 14, 14))
+	require.Equal(t, 100, determineStakeShareToBurn(state.Zombie, 14, 14))
 }

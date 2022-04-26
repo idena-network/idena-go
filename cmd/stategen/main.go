@@ -147,6 +147,7 @@ func main() {
 				RequiredFlips:       uint32(data.RequiredFlips),
 				ShortFlipPoints:     data.ShortFlipPoints,
 				Stake:               common.BigIntBytesOrNil(data.Stake),
+				ReplenishedStake:    common.BigIntBytesOrNil(data.ReplenishedStake()),
 				Flips:               flips,
 				Penalty:             common.BigIntBytesOrNil(data.Penalty),
 				ValidationBits:      uint32(data.ValidationTxsBits),

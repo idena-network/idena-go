@@ -43,6 +43,7 @@ var (
 		types.UndelegateTx:         "undelegate",
 		types.KillDelegatorTx:      "killDelegator",
 		types.StoreToIpfsTx:        "storeToIpfs",
+		types.ReplenishStakeTx:     "replenishStake",
 	}
 )
 

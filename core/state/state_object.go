@@ -395,6 +395,7 @@ type Identity struct {
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
 	pendingUndelegation  bool
+	replenishedStake     *big.Int
 	// do not use directly
 	ShardId common.ShardId
 }
@@ -413,6 +414,7 @@ type Inviter struct {
 func (i *Identity) ToBytes() ([]byte, error) {
 	protoIdentity := &models.ProtoStateIdentity{
 		Stake:               common.BigIntBytesOrNil(i.Stake),
+		ReplenishedStake:    common.BigIntBytesOrNil(i.replenishedStake),
 		Invites:             uint32(i.Invites),
 		Birthday:            uint32(i.Birthday),
 		State:               uint32(i.State),
@@ -463,6 +465,7 @@ func (i *Identity) FromBytes(data []byte) error {
 		return err
 	}
 	i.Stake = common.BigIntOrNil(protoIdentity.Stake)
+	i.replenishedStake = common.BigIntOrNil(protoIdentity.ReplenishedStake)
 	i.Invites = uint8(protoIdentity.Invites)
 	i.Birthday = uint16(protoIdentity.Birthday)
 	i.State = IdentityState(protoIdentity.State)
@@ -555,6 +558,18 @@ func (i *Identity) PendingUndelegation() *common.Address {
 
 func (i *Identity) IsDiscriminated() bool {
 	return i.State == Newbie || i.PendingUndelegation() != nil
+}
+
+func (i *Identity) ReplenishedStake() *big.Int {
+	return i.replenishedStake
+}
+
+func (i *Identity) HasValidationTx(txType types.TxType) bool {
+	mask := validationTxBitMask(txType)
+	if mask == 0 {
+		return false
+	}
+	return i.ValidationTxsBits&mask > 0
 }
 
 type ApprovedIdentity struct {
@@ -849,6 +864,26 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 	s.touch()
 }
 
+func (s *stateIdentity) ReplenishedStake() *big.Int {
+	if s.data.replenishedStake == nil {
+		return common.Big0
+	}
+	return s.data.replenishedStake
+}
+
+func (s *stateIdentity) AddReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Add(s.ReplenishedStake(), amount))
+}
+
+func (s *stateIdentity) SubReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Sub(s.ReplenishedStake(), amount))
+}
+
+func (s *stateIdentity) SetReplenishedStake(amount *big.Int) {
+	s.data.replenishedStake = amount
+	s.touch()
+}
+
 func (s *stateIdentity) AddInvite(i uint8) {
 	if s.Invites() == MaxInvitesAmount {
 		return
@@ -1019,11 +1054,7 @@ func (s *stateIdentity) SetValidationTxBit(txType types.TxType) {
 }
 
 func (s *stateIdentity) HasValidationTx(txType types.TxType) bool {
-	mask := validationTxBitMask(txType)
-	if mask == 0 {
-		return false
-	}
-	return s.data.ValidationTxsBits&mask > 0
+	return s.data.HasValidationTx(txType)
 }
 
 func (s *stateIdentity) ResetValidationTxBits() {

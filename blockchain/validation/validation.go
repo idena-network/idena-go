@@ -118,6 +118,11 @@ func SetAppConfig(cfg *config.Config) {
 func getValidator(txType types.TxType) (validator, bool) {
 	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
 		cfgInitVersion = appCfg.Consensus.Version
+		if appCfg.Consensus.EnableUpgrade8 {
+			validators[types.ReplenishStakeTx] = validateReplenishStakeTx
+		} else {
+			delete(validators, types.ReplenishStakeTx)
+		}
 	}
 	v, ok := validators[txType]
 	return v, ok
@@ -864,6 +869,21 @@ func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, t
 	_, err := cid.Cast(attachment.Cid)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateReplenishStakeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	if tx.To == nil {
+		return RecipientRequired
+	}
+	recipient := appState.State.GetIdentity(*tx.To)
+	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed
+	if !canReplenishStake {
+		return InvalidRecipient
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
 	}
 	return nil
 }
