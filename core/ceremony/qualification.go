@@ -140,24 +140,28 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 
 		flipsCount := len(flips)
 		answers := types.NewAnswersFromBits(uint(flipsCount), attachment.Answers)
-		reportsCount := answers.Reports()
-		hasReports := reportsCount > 0
-		ignoreReports := hasReports && float32(reportsCount)/float32(flipsCount) >= 0.34
+		reportCount, approvalCount := answers.Grades()
+		hasReports := reportCount > 0
+		hasApprovals := approvalCount > 0
+		ignoreReports := hasReports && float32(reportCount)/float32(flipsCount) >= 0.34
 		for j := uint(0); j < uint(flipsCount); j++ {
 			answer, grade := answers.Answer(j)
 			flipIdx := flips[j]
-
 			data[flipIdx].answers = append(data[flipIdx].answers, answer)
-			if grade == types.GradeReported {
-				if !ignoreReports {
-					reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
+			switch {
+			case grade == types.GradeNone:
+				if hasReports && !hasApprovals {
 					data[flipIdx].reportCommitteeSize++
 				}
-			} else if grade != types.GradeNone {
+			case grade == types.GradeReported:
+				if ignoreReports {
+					break
+				}
+				reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
+				data[flipIdx].reportCommitteeSize++
+			default:
 				data[flipIdx].totalGrade += int(grade)
 				data[flipIdx].gradesCount++
-				data[flipIdx].reportCommitteeSize++
-			} else if hasReports {
 				data[flipIdx].reportCommitteeSize++
 			}
 		}

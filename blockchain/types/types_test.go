@@ -50,6 +50,10 @@ func TestAnswers_Answer(t *testing.T) {
 
 	answer, grade = answers.Answer(10)
 	require.True(answer == None && grade == GradeNone)
+
+	reports, approvals := answers.Grades()
+	require.Equal(1, reports)
+	require.Equal(4, approvals)
 }
 
 func TestBlockFlag_HasFlag(t *testing.T) {
