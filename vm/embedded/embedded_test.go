@@ -104,7 +104,7 @@ func (b *contractTesterBuilder) Build() *contractTester {
 	if cfg, ok := b.getIdentityConfig(0); ok {
 		appState.State.SetState(addr, cfg.state)
 		if cfg.state.NewbieOrBetter() {
-			appState.IdentityState.SetValidated(addr)
+			appState.IdentityState.SetValidated(addr, true)
 		}
 		if cfg.pendingUndelegation {
 			appState.State.SetPendingUndelegation(addr)
@@ -117,7 +117,7 @@ func (b *contractTesterBuilder) Build() *contractTester {
 		}
 	} else {
 		appState.State.SetState(addr, state.Newbie)
-		appState.IdentityState.SetValidated(addr)
+		appState.IdentityState.SetValidated(addr, true)
 	}
 
 	secStore := secstore.NewSecStore()
@@ -132,7 +132,7 @@ func (b *contractTesterBuilder) Build() *contractTester {
 		cfg := b.network.identityGroups[i]
 		appState.State.SetState(addr, cfg.state)
 		if cfg.state.NewbieOrBetter() {
-			appState.IdentityState.SetValidated(addr)
+			appState.IdentityState.SetValidated(addr, true)
 		}
 		if cfg.pendingUndelegation {
 			appState.State.SetPendingUndelegation(addr)

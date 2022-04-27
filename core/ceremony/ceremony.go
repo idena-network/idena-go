@@ -95,6 +95,7 @@ type epochApplyingCache struct {
 	epochApplyingResult map[common.Address]cacheValue
 	validationFailed    bool
 	validationResults   map[common.ShardId]*types.ValidationResults
+	pools               map[common.Address]struct{}
 }
 
 type cacheValue struct {
@@ -942,7 +943,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
+func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (validated bool, pool *common.Address) {
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if cfg.EnableUpgrade8 {
 		if value.state == state.Killed && value.participated {
@@ -991,12 +992,15 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 	}
 
 	if value.state.NewbieOrBetter() {
-		identitiesCount++
+		validated = true
+		if value.delegatee != nil && value.state.NewbieOrBetter() {
+			pool = value.delegatee
+		}
 	} else if value.state == state.Killed {
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 	}
-	return identitiesCount
+	return validated, pool
 }
 
 func determineStakeShareToBurn(identityState state.IdentityState, birthday uint16, curEpoch uint16) int {
@@ -1014,7 +1018,9 @@ func determineStakeShareToBurn(identityState state.IdentityState, birthday uint1
 	}
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, results map[common.ShardId]*types.ValidationResults, failed bool) {
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) types.TotalValidationResult {
+
+	var identitiesCount int
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
@@ -1024,14 +1030,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
-			return vc.appState.ValidatorsCache.NetworkSize(), applyingCache.validationResults, true
+			return types.TotalValidationResult{
+				IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
+				ShardResults:    applyingCache.validationResults,
+				Pools:           applyingCache.pools,
+				Failed:          true,
+			}
 		}
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
-				identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+				validated, _ := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+				if validated {
+					identitiesCount++
+				}
 			}
-			return identitiesCount, applyingCache.validationResults, false
+			return types.TotalValidationResult{
+				IdentitiesCount: identitiesCount,
+				ShardResults:    applyingCache.validationResults,
+				Pools:           applyingCache.pools,
+				Failed:          false,
+			}
 		}
 	}
 
@@ -1154,6 +1173,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		shardValidationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
 		validationResults[shardId] = shardValidationResults
 	}
+	pools := make(map[common.Address]struct{})
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		vc.validationStats.Failed = true
@@ -1161,15 +1181,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			epochApplyingResult: epochApplyingValues,
 			validationResults:   validationResults,
 			validationFailed:    true,
+			pools:               pools,
 		}
-		return vc.appState.ValidatorsCache.NetworkSize(), validationResults, true
+		return types.TotalValidationResult{
+			IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
+			ShardResults:    validationResults,
+			Pools:           pools,
+			Failed:          true,
+		}
 	}
 	if vc.config.Consensus.EnableUpgrade7 && !isGodCeremonyCandidate {
 		setValidationResultToGoodInviter(validationResults[common.ShardId(1)], god, state.Human, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 	}
 
 	for addr, value := range epochApplyingValues {
-		identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+		validated, pool := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+		if validated {
+			identitiesCount++
+		}
+		if pool != nil {
+			pools[*pool] = struct{}{}
+		}
 	}
 	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
@@ -1187,7 +1219,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				missed:                   vc.config.Consensus.EnableUpgrade8,
 			}
 			epochApplyingValues[addr] = value
-			identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+			applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
 		}
 	}
 
@@ -1195,9 +1227,15 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		epochApplyingResult: epochApplyingValues,
 		validationResults:   validationResults,
 		validationFailed:    false,
+		pools:               pools,
 	}
 
-	return identitiesCount, validationResults, false
+	return types.TotalValidationResult{
+		IdentitiesCount: identitiesCount,
+		ShardResults:    validationResults,
+		Pools:           pools,
+		Failed:          false,
+	}
 }
 
 func calculateNewTotalScore(scores []byte, shortPoints float32, shortFlipsCount uint32, totalShortPoints float32, totalShortFlipsCount uint32) (totalScore float32, totalFlips uint32) {

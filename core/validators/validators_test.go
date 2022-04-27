@@ -87,7 +87,7 @@ func TestValidatorsCache_Load(t *testing.T) {
 	}
 	identityStateDB.SetOnline(pool1, true)
 	identityStateDB.SetOnline(pool2, true)
-	identityStateDB.SetValidated(pool2)
+	identityStateDB.SetValidated(pool2, true)
 	identityStateDB.SetOnline(pool3, false)
 
 	_, _, diff, _ := identityStateDB.Commit(false, enableUpgrade8)
@@ -155,7 +155,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 				for discriminated := 0; discriminated <= 1; discriminated++ {
 					addr := tests.GetRandAddr()
 					if validated == 1 {
-						identityStateDB.SetValidated(addr)
+						identityStateDB.SetValidated(addr, true)
 					}
 					identityStateDB.SetOnline(addr, online == 1 && validated == 1)
 					identityStateDB.SetDiscriminated(addr, discriminated == 1)
@@ -176,7 +176,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 								poolAddr[0] = 0x2
 							}
 							if validated == 1 {
-								identityStateDB.SetValidated(poolAddr)
+								identityStateDB.SetValidated(poolAddr, true)
 							}
 							identityStateDB.SetOnline(poolAddr, online == 1 && (validated == 1 || allDelegatorsNotValidated == 0))
 							identityStateDB.SetDiscriminated(poolAddr, discriminated == 1)
@@ -191,7 +191,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 									delegator[0] = 0x1
 								}
 								if !delegatorNotValidated {
-									identityStateDB.SetValidated(delegator)
+									identityStateDB.SetValidated(delegator, true)
 								}
 								identityStateDB.SetDiscriminated(delegator, delegatorDiscriminated)
 								identityStateDB.SetDelegatee(delegator, poolAddr)

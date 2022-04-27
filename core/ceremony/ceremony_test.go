@@ -943,7 +943,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6), true)
 	appstate.State.SetDelegatee(addr1, delegatee)
 
-	identities := applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
+	validated, _ := applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
 		birthday:                 3,
 		shortFlipPoint:           1,
@@ -952,7 +952,7 @@ func Test_applyOnState(t *testing.T) {
 		delegatee:                &delegatee,
 	})
 	identity := appstate.State.GetIdentity(addr1)
-	require.Equal(t, 1, identities)
+	require.True(t, validated)
 	require.Equal(t, state.Verified, identity.State)
 	require.Equal(t, uint16(3), identity.Birthday)
 	require.Equal(t, []byte{common.EncodeScore(5, 6), common.EncodeScore(1, 2)}, identity.Scores)
