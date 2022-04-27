@@ -993,7 +993,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 
 	if value.state.NewbieOrBetter() {
 		validated = true
-		if value.delegatee != nil && value.state.NewbieOrBetter() {
+		if value.delegatee != nil {
 			pool = value.delegatee
 		}
 	} else if value.state == state.Killed {
