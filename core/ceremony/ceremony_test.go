@@ -305,13 +305,13 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Human,
 			0, 0, 0.74, 24, false,
-			state.Killed, false, false,
+			state.Suspended, false, false,
 		},
 	}
 
 	require := require.New(t)
 	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong, true), "index = %v", i)
 	}
 }
 
