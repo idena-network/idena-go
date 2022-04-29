@@ -138,9 +138,8 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV8:
 		cfg.EnableUpgrade8 = true
 		cfg.Version = ConsensusV8
-		// TODO set dates
-		cfg.StartActivationDate = time.Date(2022, 11, 15, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2022, 11, 18, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.StartActivationDate = time.Date(2022, 5, 17, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2022, 5, 24, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 
