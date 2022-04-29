@@ -212,7 +212,7 @@ func (e *EnvImp) Delegatee(addr common.Address) *common.Address {
 func (e *EnvImp) IsDiscriminated(addr common.Address) bool {
 	e.gasCounter.AddReadBytesAsGas(10)
 	identity := e.state.State.GetIdentity(addr)
-	return identity.IsDiscriminated()
+	return identity.IsDiscriminated(e.Epoch())
 }
 
 func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) (stopped bool)) {

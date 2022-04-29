@@ -1264,8 +1264,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, bus)
 	require.NoError(t, appState.Initialize(0))
 
-	appState.State.IncEpoch()
-	appState.State.IncEpoch()
+	appState.State.SetGlobalEpoch(3)
 
 	appState.State.SetState(common.Address{0x1}, state.Newbie)
 	appState.IdentityState.SetValidated(common.Address{0x1})
@@ -1352,7 +1351,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 
 	require.Nil(t, appState.State.Delegatee(common.Address{0x3}))
 	require.Equal(t, common.Address{0x3, 0x3}, *appState.State.PendingUndelegation(common.Address{0x3}))
-	require.Equal(t, uint16(2), appState.State.DelegationEpoch(common.Address{0x3}))
+	require.Equal(t, uint16(3), appState.State.DelegationEpoch(common.Address{0x3}))
 	require.Nil(t, appState.IdentityState.Delegatee(common.Address{0x3}))
 	require.False(t, appState.IdentityState.IsOnline(common.Address{0x3}))
 	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(common.Address{0x3}))
@@ -1366,7 +1365,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	require.False(t, appState.ValidatorsCache.IsDiscriminated(common.Address{0x4}))
 
 	require.Equal(t, common.Address{0x5, 0x5}, *appState.State.Delegatee(common.Address{0x5}))
-	require.Equal(t, uint16(2), appState.State.DelegationEpoch(common.Address{0x5}))
+	require.Equal(t, uint16(3), appState.State.DelegationEpoch(common.Address{0x5}))
 	require.Nil(t, appState.State.PendingUndelegation(common.Address{0x5}))
 	require.Nil(t, appState.IdentityState.Delegatee(common.Address{0x5}))
 	require.False(t, appState.IdentityState.IsOnline(common.Address{0x5}))
@@ -1374,7 +1373,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	require.False(t, appState.ValidatorsCache.IsDiscriminated(common.Address{0x5}))
 
 	require.Equal(t, common.Address{0x6, 0x6}, *appState.State.Delegatee(common.Address{0x6}))
-	require.Equal(t, uint16(2), appState.State.DelegationEpoch(common.Address{0x6}))
+	require.Equal(t, uint16(3), appState.State.DelegationEpoch(common.Address{0x6}))
 	require.Nil(t, appState.State.PendingUndelegation(common.Address{0x6}))
 	require.Equal(t, common.Address{0x6, 0x6}, *appState.IdentityState.Delegatee(common.Address{0x6}))
 	require.False(t, appState.IdentityState.IsOnline(common.Address{0x6}))
@@ -1383,7 +1382,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	require.True(t, appState.ValidatorsCache.IsDiscriminated(common.Address{0x6, 0x6}))
 
 	require.Equal(t, common.Address{0x7, 0x7}, *appState.State.Delegatee(common.Address{0x7}))
-	require.Equal(t, uint16(2), appState.State.DelegationEpoch(common.Address{0x7}))
+	require.Equal(t, uint16(3), appState.State.DelegationEpoch(common.Address{0x7}))
 	require.Nil(t, appState.State.PendingUndelegation(common.Address{0x7}))
 	require.Equal(t, common.Address{0x7, 0x7}, *appState.IdentityState.Delegatee(common.Address{0x7}))
 	require.False(t, appState.IdentityState.IsOnline(common.Address{0x7}))
@@ -1392,7 +1391,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	require.False(t, appState.ValidatorsCache.IsDiscriminated(common.Address{0x7, 0x7}))
 
 	require.Equal(t, common.Address{0x8, 0x8}, *appState.State.Delegatee(common.Address{0x8}))
-	require.Equal(t, uint16(2), appState.State.DelegationEpoch(common.Address{0x8}))
+	require.Equal(t, uint16(3), appState.State.DelegationEpoch(common.Address{0x8}))
 	require.Nil(t, appState.State.PendingUndelegation(common.Address{0x8}))
 	require.Equal(t, common.Address{0x8, 0x8}, *appState.IdentityState.Delegatee(common.Address{0x8}))
 	require.False(t, appState.IdentityState.IsOnline(common.Address{0x8}))

@@ -556,8 +556,8 @@ func (i *Identity) PendingUndelegation() *common.Address {
 	return nil
 }
 
-func (i *Identity) IsDiscriminated() bool {
-	return i.State == Newbie || i.PendingUndelegation() != nil
+func (i *Identity) IsDiscriminated(epoch uint16) bool {
+	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil
 }
 
 func (i *Identity) ReplenishedStake() *big.Int {

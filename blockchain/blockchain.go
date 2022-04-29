@@ -290,7 +290,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		if state.IdentityState(alloc.State).NewbieOrBetter() {
 			chain.appState.IdentityState.SetValidated(addr)
 			if chain.config.Consensus.EnableUpgrade8 {
-				if state.IdentityState(alloc.State) == state.Newbie {
+				if state.IdentityState(alloc.State) == state.Newbie && chain.appState.State.Epoch() > 2 {
 					chain.appState.IdentityState.SetDiscriminated(addr, true)
 				}
 			}
@@ -733,7 +733,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr)
 				if enableUpgrade8 {
-					appState.IdentityState.SetDiscriminated(addr, true)
+					discriminated := epoch >= 2 || identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch < 2
+					appState.IdentityState.SetDiscriminated(addr, discriminated)
 				}
 				if delegatee := identity.Delegatee(); delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
@@ -1520,7 +1521,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 				}
 			}
 			if chain.config.Consensus.EnableUpgrade8 {
-				discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie || appState.State.PendingUndelegation(delegation.Delegator) != nil
+				discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie && appState.State.Epoch() > 2 || appState.State.PendingUndelegation(delegation.Delegator) != nil
 				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 			}
 		} else {
@@ -1529,7 +1530,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 				if chain.config.Consensus.EnableUpgrade8 {
 					appState.State.RemovePendingUndelegation(delegation.Delegator)
-					discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie
+					discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie && appState.State.Epoch() > 2
 					appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 				}
 				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
