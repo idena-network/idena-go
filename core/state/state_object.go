@@ -1110,6 +1110,10 @@ func (s *stateIdentity) DelegationEpoch() uint16 {
 	return s.data.DelegationEpoch
 }
 
+func (s *stateIdentity) IsDiscriminated(epoch uint16) bool {
+	return s.data.IsDiscriminated(epoch)
+}
+
 func (s *stateIdentity) ShardId() common.ShardId {
 	return s.data.ShiftedShardId()
 }

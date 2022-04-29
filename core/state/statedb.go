@@ -1579,7 +1579,11 @@ func (s *StateDB) SetPendingUndelegation(addr common.Address) {
 }
 
 func (s *StateDB) PendingUndelegation(addr common.Address) *common.Address {
-	return s.GetOrNewIdentityObject(addr).PendingUndelegation()
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.PendingUndelegation()
+	}
+	return nil
 }
 
 func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
@@ -1588,6 +1592,14 @@ func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
 
 func (s *StateDB) RemovePendingUndelegation(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).RemovePendingUndelegation()
+}
+
+func (s *StateDB) IsDiscriminated(addr common.Address, epoch uint16) bool {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.IsDiscriminated(epoch)
+	}
+	return false
 }
 
 func (s *StateDB) CollectKilledDelegators() []common.Address {
