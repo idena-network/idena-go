@@ -108,7 +108,7 @@ func (e *OracleLock2) checkOracleVoting(args ...[]byte) error {
 	return nil
 }
 
-func (e *OracleLock2) Terminate(args ...[]byte) (common.Address, error) {
+func (e *OracleLock2) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 
 	oracleVoting := common.BytesToAddress(e.GetArray("oracleVotingAddr"))
 	oracleVotingExist := !common.ZeroOrNil(e.env.ContractStake(oracleVoting))
@@ -117,20 +117,20 @@ func (e *OracleLock2) Terminate(args ...[]byte) (common.Address, error) {
 	if isOracleVotingFinished {
 		balance := e.env.Balance(e.ctx.ContractAddr())
 		if balance.Sign() > 0 {
-			return common.Address{}, errors.New("contract has dna")
+			return common.Address{}, nil, errors.New("contract has dna")
 		}
 		if oracleVotingExist {
-			return common.Address{}, errors.New("oracle voting exists")
+			return common.Address{}, nil, errors.New("oracle voting exists")
 		}
 		owner := e.Owner()
 		collector.AddOracleLockTermination(e.statsCollector, owner)
-		return owner, nil
+		return owner, nil, nil
 	}
 	if !e.IsOwner() {
-		return common.Address{}, errors.New("sender is not an owner")
+		return common.Address{}, nil, errors.New("sender is not an owner")
 	}
 	if oracleVotingExist {
-		return common.Address{}, errors.New("oracle voting exists")
+		return common.Address{}, nil, errors.New("oracle voting exists")
 	}
 	balance := e.env.Balance(e.ctx.ContractAddr())
 	if balance.Sign() > 0 {
@@ -138,5 +138,5 @@ func (e *OracleLock2) Terminate(args ...[]byte) (common.Address, error) {
 	}
 	owner := e.Owner()
 	collector.AddOracleLockTermination(e.statsCollector, owner)
-	return owner, nil
+	return owner, nil, nil
 }

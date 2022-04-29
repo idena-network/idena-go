@@ -138,7 +138,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 	terminateCtx := NewCallContextImpl(tx, attachment.CodeHash)
-	env.Terminate(terminateCtx, common.Address{0x04})
+	env.Terminate(terminateCtx, [][]byte{{0x2}}, common.Address{0x04})
 	env.Commit()
 
 	require.Equal(t, (*common.Hash)(nil), appState.State.GetCodeHash(ctx.ContractAddr()))
@@ -147,8 +147,10 @@ func TestEnvImp_basicMethods(t *testing.T) {
 
 	cnt = 0
 	env.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
+		require.Equal(t, []byte{0x2}, key)
+		require.Equal(t, []byte{0x2}, value)
 		cnt++
 		return false
 	})
-	require.Equal(t, 0, cnt)
+	require.Equal(t, 1, cnt)
 }

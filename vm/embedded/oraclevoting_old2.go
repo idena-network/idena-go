@@ -610,7 +610,7 @@ func (f *OracleVoting4) setSecretVotesCount(newValue uint64) {
 	f.SetUint64("secretVotesCount", newValue)
 }
 
-func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
+func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 
 	if f.GetByte("state") == oracleVotingStatePending {
 
@@ -619,14 +619,14 @@ func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
 			balance := f.env.Balance(f.ctx.ContractAddr())
 			if balance.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			}
 			collector.AddOracleVotingTermination(f.statsCollector, nil, nil, nil)
-			return f.Owner(), nil
+			return f.Owner(), nil, nil
 		}
 
-		return common.Address{}, errors.New("contract is not in running state")
+		return common.Address{}, nil, errors.New("contract is not in running state")
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
@@ -657,13 +657,13 @@ func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
 			}
 			if ownerReward.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			}
 
 			if votedCount+secretVotes == 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance.Sub(balance, ownerReward)); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			} else {
 				oracleReward = math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount + secretVotes))))
@@ -683,13 +683,13 @@ func (f *OracleVoting4) Terminate(args ...[]byte) (common.Address, error) {
 					return err != nil
 				})
 				if err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 				f.env.BurnAll(f.ctx)
 			}
 		}
 		collector.AddOracleVotingTermination(f.statsCollector, fundInt, oracleReward, ownerReward)
-		return f.Owner(), nil
+		return f.Owner(), nil, nil
 	}
-	return common.Address{}, errors.New("voting can not be terminated")
+	return common.Address{}, nil, errors.New("voting can not be terminated")
 }
