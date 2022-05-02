@@ -71,25 +71,25 @@ func (t *TimeLock) transfer(args ...[]byte) (err error) {
 	return nil
 }
 
-func (t *TimeLock) Terminate(args ...[]byte) (common.Address, error) {
+func (t *TimeLock) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 	if !t.IsOwner() {
-		return common.Address{}, errors.New("sender is not an owner")
+		return common.Address{}, nil, errors.New("sender is not an owner")
 	}
 	if uint64(t.env.BlockTimeStamp()) < t.GetUint64("timestamp") {
-		return common.Address{}, errors.New("terminate is locked")
+		return common.Address{}, nil, errors.New("terminate is locked")
 	}
 	balance := t.env.Balance(t.ctx.ContractAddr())
 	dust := big.NewInt(0).Mul(t.env.MinFeePerGas(), big.NewInt(100))
 	if balance.Cmp(dust) > 0 {
-		return common.Address{}, errors.New("contract has dna")
+		return common.Address{}, nil, errors.New("contract has dna")
 	}
 	if balance.Sign() > 0 {
 		t.env.BurnAll(t.ctx)
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return common.Address{}, err
+		return common.Address{}, nil, err
 	}
 	collector.AddTimeLockTermination(t.statsCollector, dest)
-	return dest, nil
+	return dest, nil, nil
 }

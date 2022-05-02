@@ -264,7 +264,7 @@ func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byt
 	return value
 }
 
-func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
+func (e *EnvImp) Terminate(ctx CallContext, keysToSave [][]byte, dest common.Address) {
 	stake := e.state.State.GetContractStake(ctx.ContractAddr())
 	if stake == nil || stake.Sign() == 0 {
 		return
@@ -274,7 +274,16 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
 	e.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
-		e.RemoveValue(ctx, key)
+		var save bool
+		for _, keyToSave := range keysToSave {
+			if bytes.Compare(keyToSave, key) == 0 {
+				save = true
+				break
+			}
+		}
+		if !save {
+			e.RemoveValue(ctx, key)
+		}
 		return false
 	})
 
