@@ -958,7 +958,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 	appState.State.SetState(addr, value.state)
 	collector.CompleteBalanceUpdate(statsCollector, appState)
 	if !value.missed {
-		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount))
+		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount), cfg.EnableUpgrade8)
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
@@ -1114,7 +1114,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 			identity := appState.State.GetIdentity(addr)
 			newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-				totalFlips, missed, noQualShort, noQualLong)
+				totalFlips, missed, noQualShort, noQualLong, vc.config.Consensus.EnableUpgrade8)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
@@ -1174,7 +1174,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
 			identity := appState.State.GetIdentity(addr)
-			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
+			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false, vc.config.Consensus.EnableUpgrade8)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			value := cacheValue{
@@ -1184,6 +1184,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				birthday:                 identityBirthday,
 				delegatee:                identity.Delegatee(),
 				participated:             false,
+				missed:                   vc.config.Consensus.EnableUpgrade8,
 			}
 			epochApplyingValues[addr] = value
 			identitiesCount += applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
@@ -1422,7 +1423,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
+func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong, enableUpgrade8 bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -1525,7 +1526,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
-		if totalScore >= common.MinTotalScore {
+		if enableUpgrade8 || totalScore >= common.MinTotalScore {
 			return state.Suspended
 		}
 		return state.Killed

@@ -832,7 +832,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		copy(addr[:], item.Code)
 		s.State.SetState(addr, item.State)
 		for _, score := range item.Scores {
-			s.State.AddNewScore(addr, score)
+			s.State.AddNewScore(addr, score, true)
 		}
 	}
 	require.NoError(s.Commit(nil, true))

@@ -389,8 +389,8 @@ func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
-func (s *StateDB) AddNewScore(address common.Address, score byte) {
-	s.GetOrNewIdentityObject(address).AddNewScore(score)
+func (s *StateDB) AddNewScore(address common.Address, score byte, enableUpgrade8 bool) {
+	s.GetOrNewIdentityObject(address).AddNewScore(score, enableUpgrade8)
 }
 
 func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash, epochHeight uint32) {

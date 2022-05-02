@@ -305,13 +305,13 @@ func Test_determineNewIdentityState(t *testing.T) {
 		{
 			state.Human,
 			0, 0, 0.74, 24, false,
-			state.Killed, false, false,
+			state.Suspended, false, false,
 		},
 	}
 
 	require := require.New(t)
 	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong, true), "index = %v", i)
 	}
 }
 
@@ -940,7 +940,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.AddStake(addr1, big.NewInt(40))
 	appstate.State.AddReplenishedStake(addr1, big.NewInt(40))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
-	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
+	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6), true)
 	appstate.State.SetDelegatee(addr1, delegatee)
 
 	identities := applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
