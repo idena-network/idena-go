@@ -1,7 +1,9 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	fee2 "github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -1407,4 +1409,19 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	require.True(t, appState.IdentityState.IsOnline(common.Address{0x9}))
 	require.True(t, appState.ValidatorsCache.IsOnlineIdentity(common.Address{0x9}))
 	require.False(t, appState.ValidatorsCache.IsDiscriminated(common.Address{0x9}))
+}
+
+func Test_sortAddresses(t *testing.T) {
+	var srcAddresses []common.Address
+	for len(srcAddresses) < 30 {
+		srcAddresses = append(srcAddresses, tests.GetRandAddr())
+	}
+	addressesMap := mapset.NewSet()
+	for _, addr := range srcAddresses {
+		addressesMap.Add(addr)
+	}
+	sortedAddresses := sortAddresses(addressesMap)
+	for i := 1; i < 30; i++ {
+		require.Positive(t, bytes.Compare(sortedAddresses[i][:], sortedAddresses[i-1][:]))
+	}
 }

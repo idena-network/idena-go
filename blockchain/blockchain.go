@@ -1057,9 +1057,7 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
 	newbieReward, newbieStake := splitReward(totalReward, true, chain.config.Consensus)
 
-	for _, item := range identities.Original.ToSlice() {
-		addr := item.(common.Address)
-
+	rewardCommitteeMember := func(addr common.Address) {
 		identityState := appState.State.GetIdentityState(addr)
 		r, s := reward, stake
 		if identityState == state.Newbie {
@@ -1090,6 +1088,33 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 		collector.AddPenaltyBurntCoins(statsCollector, penaltySource, penaltySub)
 		collector.AddFinalCommitteeReward(statsCollector, balanceDest, addr, r, s)
 	}
+
+	if chain.config.Consensus.EnableUpgrade8 {
+		for _, addr := range sortAddresses(identities.Original) {
+			rewardCommitteeMember(addr)
+		}
+	} else {
+		for _, item := range identities.Original.ToSlice() {
+			addr := item.(common.Address)
+			rewardCommitteeMember(addr)
+		}
+	}
+
+}
+
+func sortAddresses(addresses mapset.Set) []common.Address {
+	addAddress := func(data []common.Address, elem common.Address) []common.Address {
+		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i][:], elem[:]) > 0 })
+		data = append(data, common.Address{})
+		copy(data[index+1:], data[index:])
+		data[index] = elem
+		return data
+	}
+	res := make([]common.Address, 0, addresses.Cardinality())
+	for _, item := range addresses.ToSlice() {
+		res = addAddress(res, item.(common.Address))
+	}
+	return res
 }
 
 func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, tasks []task, usedGas uint64, err error) {
