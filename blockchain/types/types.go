@@ -1411,6 +1411,13 @@ type ValidationResults struct {
 	ReportersToRewardByFlip map[int]map[common.Address]*Candidate
 }
 
+type TotalValidationResult struct {
+	IdentitiesCount int
+	ShardResults    map[common.ShardId]*ValidationResults
+	Pools           map[common.Address]struct{}
+	Failed          bool
+}
+
 type Candidate struct {
 	Address          common.Address
 	NewIdentityState uint8

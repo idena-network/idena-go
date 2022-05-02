@@ -137,8 +137,8 @@ func (s *IdentityStateDB) Load(height uint64) error {
 	return err
 }
 
-func (s *IdentityStateDB) SetValidated(identity common.Address) {
-	s.GetOrNewIdentityObject(identity).SetValidated(true)
+func (s *IdentityStateDB) SetValidated(identity common.Address, validated bool) {
+	s.GetOrNewIdentityObject(identity).SetValidated(validated)
 }
 
 func (s *IdentityStateDB) Remove(identity common.Address) {

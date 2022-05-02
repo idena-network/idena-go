@@ -839,7 +839,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	require.NoError(s.Commit(nil, true))
 
-	setNewIdentitiesAttributes(s, true, 12, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
@@ -852,13 +852,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 1, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 5, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -867,7 +867,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 15, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -878,7 +878,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 20, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -889,7 +889,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 2, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -911,7 +911,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		s.State.IncEpoch()
 	}
 
-	setNewIdentitiesAttributes(s, true, 6, 100, false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -997,7 +997,7 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 
 	for i := byte(1); i <= count; i++ {
 		addr := common.Address{i}
-		appState.IdentityState.SetValidated(addr)
+		appState.IdentityState.SetValidated(addr, true)
 		appState.IdentityState.SetOnline(addr, true)
 		if i%3 == 0 { // 3, 6, 9
 			appState.IdentityState.SetDelegatee(addr, pool1)
@@ -1025,7 +1025,7 @@ func Test_Delegation(t *testing.T) {
 
 	appState.State.SetState(coinbase, state.Verified)
 	appState.State.SetNextValidationTime(time.Date(2099, 01, 01, 00, 00, 00, 0, time.UTC))
-	appState.IdentityState.SetValidated(coinbase)
+	appState.IdentityState.SetValidated(coinbase, true)
 	appState.IdentityState.SetOnline(coinbase, true)
 
 	keys := []*ecdsa.PrivateKey{}
@@ -1038,7 +1038,7 @@ func Test_Delegation(t *testing.T) {
 
 		addrs = append(addrs, addr)
 		appState.State.SetState(addr, state.Newbie)
-		appState.IdentityState.SetValidated(addr)
+		appState.IdentityState.SetValidated(addr, true)
 		appState.IdentityState.SetOnline(addr, true)
 		appState.State.SetBalance(addr, big.NewInt(0).Mul(big.NewInt(1000), common.DnaBase))
 	}
@@ -1056,7 +1056,7 @@ func Test_Delegation(t *testing.T) {
 	appState.State.SetBalance(pool3, big.NewInt(0).Mul(big.NewInt(1000), common.DnaBase))
 
 	appState.State.SetState(pool3, state.Newbie)
-	appState.IdentityState.SetValidated(pool3)
+	appState.IdentityState.SetValidated(pool3, true)
 	appState.IdentityState.SetOnline(pool3, true)
 
 	appState.Commit(nil, true)
@@ -1270,24 +1270,24 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	appState.State.IncEpoch()
 
 	appState.State.SetState(common.Address{0x1}, state.Newbie)
-	appState.IdentityState.SetValidated(common.Address{0x1})
+	appState.IdentityState.SetValidated(common.Address{0x1}, true)
 	appState.IdentityState.SetOnline(common.Address{0x1}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x1}, common.EmptyAddress)
 
 	appState.State.SetState(common.Address{0x1, 0x1}, state.Newbie)
-	appState.IdentityState.SetValidated(common.Address{0x1, 0x1})
+	appState.IdentityState.SetValidated(common.Address{0x1, 0x1}, true)
 	appState.IdentityState.SetOnline(common.Address{0x1, 0x1}, true)
 	appState.IdentityState.SetDiscriminated(common.Address{0x1, 0x1}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x1, 0x1}, common.EmptyAddress)
 
 	appState.State.SetState(common.Address{0x2}, state.Verified)
-	appState.IdentityState.SetValidated(common.Address{0x2})
+	appState.IdentityState.SetValidated(common.Address{0x2}, true)
 	appState.IdentityState.SetOnline(common.Address{0x2}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x2}, common.EmptyAddress)
 
 	appState.State.SetState(common.Address{0x3}, state.Verified)
 	appState.State.SetDelegatee(common.Address{0x3}, common.Address{0x3, 0x3})
-	appState.IdentityState.SetValidated(common.Address{0x3})
+	appState.IdentityState.SetValidated(common.Address{0x3}, true)
 	appState.IdentityState.SetDelegatee(common.Address{0x3}, common.Address{0x3, 0x3})
 	appState.State.ToggleDelegationAddress(common.Address{0x3}, common.EmptyAddress)
 
@@ -1296,13 +1296,13 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	appState.State.ToggleDelegationAddress(common.Address{0x5}, common.Address{0x5, 0x5})
 
 	appState.State.SetState(common.Address{0x6}, state.Newbie)
-	appState.IdentityState.SetValidated(common.Address{0x6})
+	appState.IdentityState.SetValidated(common.Address{0x6}, true)
 	appState.IdentityState.SetOnline(common.Address{0x6}, true)
 	appState.IdentityState.SetDiscriminated(common.Address{0x6}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x6}, common.Address{0x6, 0x6})
 
 	appState.State.SetState(common.Address{0x7}, state.Human)
-	appState.IdentityState.SetValidated(common.Address{0x7})
+	appState.IdentityState.SetValidated(common.Address{0x7}, true)
 	appState.IdentityState.SetOnline(common.Address{0x7}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x7}, common.Address{0x7, 0x7})
 
@@ -1310,13 +1310,13 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	appState.State.SetDelegatee(common.Address{0x8}, common.Address{0x8, 0x8})
 	appState.State.SetPendingUndelegation(common.Address{0x8})
 	appState.State.SetDelegationEpoch(common.Address{0x8}, 1)
-	appState.IdentityState.SetValidated(common.Address{0x8})
+	appState.IdentityState.SetValidated(common.Address{0x8}, true)
 	appState.IdentityState.SetOnline(common.Address{0x8}, true)
 	appState.IdentityState.SetDiscriminated(common.Address{0x8}, true)
 	appState.State.ToggleDelegationAddress(common.Address{0x8}, common.Address{0x8, 0x8})
 
 	appState.State.SetState(common.Address{0x9}, state.Human)
-	appState.IdentityState.SetValidated(common.Address{0x9})
+	appState.IdentityState.SetValidated(common.Address{0x9}, true)
 	appState.IdentityState.SetOnline(common.Address{0x9}, true)
 	appState.State.SetDelegatee(common.Address{0x9, 0x9}, common.Address{0x9, 0x9, 0x9})
 	appState.State.SetPendingUndelegation(common.Address{0x9, 0x9})
