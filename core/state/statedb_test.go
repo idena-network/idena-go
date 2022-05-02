@@ -494,3 +494,84 @@ func TestStateDb_ShardId(t *testing.T) {
 	stateDb.SetShardId(identity, common.ShardId(3))
 	require.Equal(t, common.ShardId(3), stateDb.ShardId(identity))
 }
+
+func TestStateDb_AddNewScore(t *testing.T) {
+	stateDb, _ := NewLazy(db.NewMemDB())
+	addr := common.Address{0x1}
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 1)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(2, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(3, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(4, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(5, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(6, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(6, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(6, 6), true)
+	stateDb.AddNewScore(addr, common.EncodeScore(6, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 9)
+	stateDb.AddNewScore(addr, common.EncodeScore(6, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 10)
+	score, _ := common.DecodeScore(stateDb.GetIdentity(addr).Scores[0])
+	require.Equal(t, float32(1), score)
+	score, _ = common.DecodeScore(stateDb.GetIdentity(addr).Scores[9])
+	require.Equal(t, float32(6), score)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 10)
+
+	score, _ = common.DecodeScore(stateDb.GetIdentity(addr).Scores[0])
+	require.Equal(t, float32(2), score)
+	score, _ = common.DecodeScore(stateDb.GetIdentity(addr).Scores[9])
+	require.Equal(t, float32(5), score)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(2, 2), true)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 10)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 11)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 1), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 11)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(1, 2), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 12)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5.5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 12)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5.5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 12)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5.5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 12)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5.5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 11)
+
+	stateDb.AddNewScore(addr, common.EncodeScore(5.5, 6), true)
+	require.Len(t, stateDb.GetIdentity(addr).Scores, 10)
+
+	for i := 0; i < 4; i++ {
+		score, flips := common.DecodeScore(stateDb.GetIdentity(addr).Scores[i])
+		require.Equal(t, float32(1), score)
+		require.Equal(t, uint32(1), flips)
+	}
+	score, flips := common.DecodeScore(stateDb.GetIdentity(addr).Scores[4])
+	require.Equal(t, float32(1), score)
+	require.Equal(t, uint32(2), flips)
+	for i := 5; i < 10; i++ {
+		score, flips := common.DecodeScore(stateDb.GetIdentity(addr).Scores[i])
+		require.Equal(t, float32(5.5), score)
+		require.Equal(t, uint32(6), flips)
+	}
+}

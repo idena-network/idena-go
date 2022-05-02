@@ -19,13 +19,13 @@ func TestAppState_ForCheckWithReload(t *testing.T) {
 	addr2.SetBytes([]byte{0x1})
 
 	appState.State.SetNonce(addr, 1)
-	appState.IdentityState.SetValidated(addr)
+	appState.IdentityState.SetValidated(addr, true)
 
 	appState.Commit(nil, true)
 
 	appState.State.SetNonce(addr, 2)
 	appState.State.SetNonce(addr2, 1)
-	appState.IdentityState.SetValidated(addr2)
+	appState.IdentityState.SetValidated(addr2, true)
 
 	appState.Commit(nil, true)
 
@@ -53,7 +53,7 @@ func TestAppState_migrateToUpgrade8(t *testing.T) {
 	bus := eventbus.New()
 	appState, _ := NewAppState(db, bus)
 
-	appState.IdentityState.SetValidated(common.Address{0x1})
+	appState.IdentityState.SetValidated(common.Address{0x1}, true)
 	appState.IdentityState.SetOnline(common.Address{0x1}, true)
 	appState.IdentityState.SetDiscriminated(common.Address{0x1}, true)
 	appState.IdentityState.SetDelegatee(common.Address{0x1}, common.Address{0x2})

@@ -904,7 +904,28 @@ func (s *stateIdentity) QualifiedFlipsCount() uint32 {
 	return s.data.QualifiedFlips
 }
 
-func (s *stateIdentity) AddNewScore(score byte) {
+func (s *stateIdentity) AddNewScore(score byte, enableUpgrade8 bool) {
+	if enableUpgrade8 {
+		s.data.Scores = append(s.data.Scores, score)
+		var totalFlips uint32
+		for _, prevScore := range s.data.Scores {
+			_, flips := common.DecodeScore(prevScore)
+			totalFlips += flips
+		}
+		for {
+			if len(s.data.Scores) <= common.LastScoresCount {
+				break
+			}
+			_, flips := common.DecodeScore(s.data.Scores[0])
+			totalFlips -= flips
+			if totalFlips < common.MinTotalShortFlips {
+				break
+			}
+			s.data.Scores = s.data.Scores[1:]
+		}
+		s.touch()
+		return
+	}
 	if len(s.data.Scores) == common.LastScoresCount {
 		s.data.Scores = append(s.data.Scores[1:], score)
 	} else {

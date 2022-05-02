@@ -39,7 +39,7 @@ func TestIdentityStateDB_AddDiff(t *testing.T) {
 			if j < 10 {
 				forDeleteAddrs = append(forDeleteAddrs, addr)
 			}
-			stateDb.SetValidated(addr)
+			stateDb.SetValidated(addr, true)
 		}
 
 		diffs = append(diffs, stateDb.Precommit(true, true))
@@ -65,7 +65,7 @@ func TestIdentityStateDB_CreatePreliminaryCopy(t *testing.T) {
 
 	require.Equal(t, stateDb.Root(), preliminary.Root())
 
-	preliminary.SetValidated(getRandAddr())
+	preliminary.SetValidated(getRandAddr(), true)
 	_, _, _, err = preliminary.Commit(true, true)
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func createStateDb() *IdentityStateDB {
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 50; j++ {
 			addr := getRandAddr()
-			stateDb.SetValidated(addr)
+			stateDb.SetValidated(addr, true)
 		}
 		stateDb.Commit(true, true)
 	}
@@ -114,7 +114,7 @@ func TestIdentityStateDB_SwitchToPreliminary(t *testing.T) {
 	database := stateDb.db
 	preliminary, _ := stateDb.CreatePreliminaryCopy(100)
 	for i := 0; i < 50; i++ {
-		preliminary.SetValidated(getRandAddr())
+		preliminary.SetValidated(getRandAddr(), true)
 		preliminary.Commit(true, true)
 	}
 
@@ -144,8 +144,8 @@ func TestStateDB_Precommit(t *testing.T) {
 	stateDb := createStateDb()
 	addr := common.Address{0x1}
 	addr2 := common.Address{0x2}
-	stateDb.SetValidated(addr)
-	stateDb.SetValidated(addr2)
+	stateDb.SetValidated(addr, true)
+	stateDb.SetValidated(addr2, true)
 	diff := stateDb.Precommit(true, true)
 	require.Len(t, diff.Values, 2)
 	require.Equal(t, addr, diff.Values[1].Address)
@@ -156,7 +156,7 @@ func TestStateDB_Precommit(t *testing.T) {
 	stateDb.Commit(true, true)
 
 	addr3 := common.Address{0x3}
-	stateDb.SetValidated(addr3)
+	stateDb.SetValidated(addr3, true)
 	stateDb.Remove(addr2)
 
 	diff = stateDb.Precommit(true, true)
