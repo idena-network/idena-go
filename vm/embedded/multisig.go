@@ -168,22 +168,22 @@ func (m *Multisig) push(args ...[]byte) error {
 	return nil
 }
 
-func (m *Multisig) Terminate(args ...[]byte) (common.Address, error) {
+func (m *Multisig) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 	if !m.IsOwner() {
-		return common.Address{}, errors.New("sender is not an owner")
+		return common.Address{}, nil, errors.New("sender is not an owner")
 	}
 	balance := m.env.Balance(m.ctx.ContractAddr())
 	dust := big.NewInt(0).Mul(m.env.MinFeePerGas(), big.NewInt(100))
 	if balance.Cmp(dust) > 0 {
-		return common.Address{}, errors.New("contract has dna")
+		return common.Address{}, nil, errors.New("contract has dna")
 	}
 	if balance.Sign() > 0 {
 		m.env.BurnAll(m.ctx)
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return common.Address{}, err
+		return common.Address{}, nil, err
 	}
 	collector.AddMultisigTermination(m.statsCollector, dest)
-	return dest, nil
+	return dest, nil, nil
 }

@@ -283,6 +283,9 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	require.Nil(t, caller.contractTester.CodeHash())
 	require.Nil(t, caller.contractTester.ContractStake())
 	require.Nil(t, caller.contractTester.ReadData("vrfSeed"))
+	require.Equal(t, []byte{0x1}, caller.contractTester.ReadData("fact"))
+	require.Equal(t, []byte{winnerVote}, caller.contractTester.ReadData("result"))
+	require.Nil(t, caller.contractTester.ReadData("state"))
 }
 
 func TestOracleVoting2_Terminate_NotStartedVoting(t *testing.T) {
@@ -316,6 +319,12 @@ func TestOracleVoting2_Terminate_NotStartedVoting(t *testing.T) {
 
 	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
 	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	require.Nil(t, caller.contractTester.ReadData("state"))
+	require.Nil(t, caller.contractTester.ReadData("fact"))
+	require.Nil(t, caller.contractTester.ReadData("result"))
 }
 
 func TestOracleVoting2_TerminateRefund(t *testing.T) {
@@ -426,6 +435,7 @@ func TestOracleVoting2_TerminateRefund(t *testing.T) {
 
 	require.Nil(t, caller.contractTester.CodeHash())
 	require.Nil(t, caller.contractTester.ContractStake())
+	require.Nil(t, caller.contractTester.ReadData("fact"))
 	require.Nil(t, caller.contractTester.ReadData("result"))
 	require.Equal(t, 0, caller.contractTester.ContractBalance().Sign())
 }
@@ -1060,4 +1070,10 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 	caller.contractTester.setHeight(3 + 30 + 100 + 4 + 30240)
 	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
 	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	require.Nil(t, caller.contractTester.ReadData("state"))
+	require.Equal(t, []byte{0x1}, caller.contractTester.ReadData("fact"))
+	require.Equal(t, []byte{0x2}, caller.contractTester.ReadData("result"))
 }

@@ -126,9 +126,10 @@ func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err err
 		}
 	}()
 	var stakeDest common.Address
-	stakeDest, err = contract.Terminate(attach.Args...)
+	var keysToSave [][]byte
+	stakeDest, keysToSave, err = contract.Terminate(attach.Args...)
 	if err == nil {
-		vm.env.Terminate(ctx, stakeDest)
+		vm.env.Terminate(ctx, keysToSave, stakeDest)
 	}
 	return addr, err
 }

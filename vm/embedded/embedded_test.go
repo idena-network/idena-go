@@ -273,9 +273,9 @@ func (c *contractTester) Terminate(key *ecdsa.PrivateKey, contract EmbeddedContr
 
 	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)
-	dest, err := c.contractInstance.Terminate(terminateAttach.Args...)
+	dest, keysToSave, err := c.contractInstance.Terminate(terminateAttach.Args...)
 	if err == nil {
-		c.env.Terminate(ctx, dest)
+		c.env.Terminate(ctx, keysToSave, dest)
 	}
 	return dest, err
 }

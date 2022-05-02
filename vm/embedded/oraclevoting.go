@@ -24,6 +24,8 @@ const (
 	oracleVotingStatePending  = byte(0)
 	oracleVotingStateStarted  = byte(1)
 	oracleVotingStateFinished = byte(2)
+	keyFact                   = "fact"
+	keyResult                 = "result"
 )
 
 const FinishVotingMethod = "finishVoting"
@@ -128,7 +130,7 @@ func (f *OracleVoting5) Deploy(args ...[]byte) error {
 
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
-	f.SetArray("fact", fact)
+	f.SetArray(keyFact, fact)
 	f.SetByte("state", state)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
@@ -497,7 +499,7 @@ func (f *OracleVoting5) finishVoting(args ...[]byte) error {
 
 		f.env.BurnAll(f.ctx)
 		if result != nil {
-			f.SetByte("result", *result)
+			f.SetByte(keyResult, *result)
 		}
 
 		collector.AddOracleVotingCallFinish(f.statsCollector, oracleVotingStateFinished, result, fundInt, oracleReward, ownerReward)
@@ -671,8 +673,7 @@ func (f *OracleVoting5) setSecretVotesCount(newValue uint64) {
 	f.SetUint64("secretVotesCount", newValue)
 }
 
-func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
-
+func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 	if f.GetByte("state") == oracleVotingStatePending {
 
 		period := time.Duration(uint64(f.env.BlockTimeStamp())-f.GetUint64("startTime")) * time.Second
@@ -680,14 +681,14 @@ func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
 			balance := f.env.Balance(f.ctx.ContractAddr())
 			if balance.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			}
 			collector.AddOracleVotingTermination(f.statsCollector, nil, nil, nil)
-			return f.Owner(), nil
+			return f.Owner(), nil, nil
 		}
 
-		return common.Address{}, errors.New("contract is not in running state")
+		return common.Address{}, nil, errors.New("contract is not in running state")
 	}
 	duration := f.env.BlockNumber() - f.GetUint64("startBlock")
 
@@ -718,13 +719,13 @@ func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
 			}
 			if ownerReward.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			}
 
 			if votedCount+secretVotes == 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Sender(), balance.Sub(balance, ownerReward)); err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 			} else {
 				oracleReward = math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(votedCount + secretVotes))))
@@ -744,15 +745,19 @@ func (f *OracleVoting5) Terminate(args ...[]byte) (common.Address, error) {
 					return err != nil
 				})
 				if err != nil {
-					return common.Address{}, err
+					return common.Address{}, nil, err
 				}
 				f.env.BurnAll(f.ctx)
 			}
 		}
 		collector.AddOracleVotingTermination(f.statsCollector, fundInt, oracleReward, ownerReward)
-		return f.Owner(), nil
+		var keysToSave [][]byte
+		if f.env.GetValue(f.ctx, []byte(keyResult)) != nil {
+			keysToSave = [][]byte{[]byte(keyFact), []byte(keyResult)}
+		}
+		return f.Owner(), keysToSave, nil
 	}
-	return common.Address{}, errors.New("voting can not be terminated")
+	return common.Address{}, nil, errors.New("voting can not be terminated")
 }
 
 type ContractError struct {
