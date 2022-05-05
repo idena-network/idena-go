@@ -229,7 +229,7 @@ func (vc *ValidationCeremony) isDelegator() bool {
 
 func (vc *ValidationCeremony) isDiscriminated() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	return identity.IsDiscriminated()
+	return identity.IsDiscriminated(vc.epoch)
 }
 
 func (vc *ValidationCeremony) isGod() bool {

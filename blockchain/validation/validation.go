@@ -507,7 +507,7 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return InvalidSender
 	}
 	if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
-		discriminated := identity.IsDiscriminated()
+		discriminated := identity.IsDiscriminated(appState.State.Epoch())
 		if discriminated && sender != appState.State.GodAddress() {
 			return InvalidSender
 		}

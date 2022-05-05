@@ -707,6 +707,8 @@ func TestOracleVoting_AllVotesDiscriminated(t *testing.T) {
 	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
 	require.NoError(t, err)
 
+	caller.contractTester.appState.State.SetGlobalEpoch(3)
+
 	caller.contractTester.Commit()
 	caller.contractTester.setHeight(3)
 	caller.contractTester.setTimestamp(30)
@@ -850,6 +852,8 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 	tester := builder.Build()
 	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetCommitteeSize(50).Deploy()
 	require.NoError(t, err)
+
+	caller.contractTester.appState.State.SetGlobalEpoch(3)
 
 	caller.contractTester.Commit()
 	caller.contractTester.setHeight(3)

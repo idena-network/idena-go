@@ -290,7 +290,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		if state.IdentityState(alloc.State).NewbieOrBetter() {
 			chain.appState.IdentityState.SetValidated(addr, true)
 			if chain.config.Consensus.EnableUpgrade8 {
-				if state.IdentityState(alloc.State) == state.Newbie {
+				if chain.appState.State.IsDiscriminated(addr, chain.appState.State.Epoch()) {
 					chain.appState.IdentityState.SetDiscriminated(addr, true)
 				}
 			}
@@ -709,6 +709,10 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 	epoch := appState.State.Epoch()
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		if identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch >= 2 {
+			appState.State.SetDelegationEpoch(addr, 0)
+			appState.State.RemovePendingUndelegation(addr)
+		}
 		if !validationFailed {
 			switch identity.State {
 			case state.Verified, state.Human:
@@ -722,7 +726,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
 				if enableUpgrade8 {
-					discriminated := identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch < 2
+					discriminated := appState.State.IsDiscriminated(addr, epoch+1)
 					appState.IdentityState.SetDiscriminated(addr, discriminated)
 				}
 				if delegatee := identity.Delegatee(); identity.Delegatee() != nil {
@@ -734,7 +738,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
 				if enableUpgrade8 {
-					appState.IdentityState.SetDiscriminated(addr, true)
+					discriminated := appState.State.IsDiscriminated(addr, epoch+1)
+					appState.IdentityState.SetDiscriminated(addr, discriminated)
 				}
 				if delegatee := identity.Delegatee(); delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
@@ -777,11 +782,6 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 			appState.State.SetValidationStatus(addr, status)
 		} else {
 			appState.State.SetValidationStatus(addr, 0)
-		}
-
-		if identity.PendingUndelegation() != nil && epoch-identity.DelegationEpoch >= 2 {
-			appState.State.SetDelegationEpoch(addr, 0)
-			appState.State.RemovePendingUndelegation(addr)
 		}
 	})
 
@@ -1555,7 +1555,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 				}
 			}
 			if chain.config.Consensus.EnableUpgrade8 {
-				discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie || appState.State.PendingUndelegation(delegation.Delegator) != nil
+				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
 				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 			}
 		} else {
@@ -1564,7 +1564,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 				if chain.config.Consensus.EnableUpgrade8 {
 					appState.State.RemovePendingUndelegation(delegation.Delegator)
-					discriminated := appState.State.GetIdentityState(delegation.Delegator) == state.Newbie
+					discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
 					appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 				}
 				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
