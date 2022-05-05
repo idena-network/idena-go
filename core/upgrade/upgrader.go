@@ -115,8 +115,8 @@ func (u *Upgrader) CanUpgrade() bool {
 		}
 	}
 	u.mutex.RUnlock()
-	forkValidatedCommitteeSize, forkOnlineCommitteeSize := u.appState.ValidatorsCache.ForkCommitteeSizes()
-	return cnt >= int(0.80*float64(forkOnlineCommitteeSize)) && cnt >= int(0.6*float64(forkValidatedCommitteeSize))
+	committeeSize := u.appState.ValidatorsCache.ForkCommitteeSize()
+	return cnt >= int(0.80*float64(committeeSize))
 }
 
 func (u *Upgrader) processVote(vote *types.Vote) {
