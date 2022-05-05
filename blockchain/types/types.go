@@ -1379,20 +1379,6 @@ func (a *Answers) determineGrade(flipIndex uint) Grade {
 	return grade
 }
 
-func (a *Answers) Grades() (reports, approvals int) {
-	for flipIndex := uint(0); flipIndex < a.FlipsCount; flipIndex++ {
-		grade := a.determineGrade(flipIndex)
-		if grade == GradeReported {
-			reports++
-			continue
-		}
-		if grade > GradeReported {
-			approvals++
-		}
-	}
-	return
-}
-
 type ValidationResult struct {
 	FlipsToReward    []*FlipToReward
 	Missed           bool
