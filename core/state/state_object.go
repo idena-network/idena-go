@@ -556,8 +556,8 @@ func (i *Identity) PendingUndelegation() *common.Address {
 	return nil
 }
 
-func (i *Identity) IsDiscriminated() bool {
-	return i.State == Newbie || i.PendingUndelegation() != nil
+func (i *Identity) IsDiscriminated(epoch uint16) bool {
+	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil
 }
 
 func (i *Identity) ReplenishedStake() *big.Int {
@@ -1129,6 +1129,10 @@ func (s *stateIdentity) PendingUndelegation() *common.Address {
 
 func (s *stateIdentity) DelegationEpoch() uint16 {
 	return s.data.DelegationEpoch
+}
+
+func (s *stateIdentity) IsDiscriminated(epoch uint16) bool {
+	return s.data.IsDiscriminated(epoch)
 }
 
 func (s *stateIdentity) ShardId() common.ShardId {
