@@ -251,10 +251,9 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 
 		require.Equal(100, vCache.NetworkSize())
 
-		validatedCommitteeSize, onlineCommitteeSize := vCache.ForkCommitteeSizes()
+		committeeSize := vCache.ForkCommitteeSize()
 
-		require.Equal(16, validatedCommitteeSize)
-		require.Equal(8, onlineCommitteeSize)
+		require.Equal(8, committeeSize)
 
 		require.Equal(52, vCache.discriminatedAddresses.Cardinality())
 

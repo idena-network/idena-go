@@ -27,16 +27,12 @@ type ValidatorsCache struct {
 	onlineAddresses        mapset.Set
 	discriminatedAddresses mapset.Set
 
-	forkCommitteeCache *forkCommittee
+	forkCommitteeSizeCache *int
 
 	log    log.Logger
 	god    common.Address
 	mutex  sync.Mutex
 	height uint64
-}
-
-type forkCommittee struct {
-	validatedSize, onlineSize int
 }
 
 func NewValidatorsCache(identityState *state.IdentityStateDB, godAddress common.Address) *ValidatorsCache {
@@ -118,58 +114,34 @@ func (v *ValidatorsCache) NetworkSize() int {
 	return v.validatedAddresses.Cardinality()
 }
 
-func (v *ValidatorsCache) ForkCommitteeSizes() (validatedCommitteeSize int, onlineCommitteeSize int) {
-	if fk := v.forkCommitteeCache; fk != nil {
-		return fk.validatedSize, fk.onlineSize
+func (v *ValidatorsCache) ForkCommitteeSize() int {
+	if fk := v.forkCommitteeSizeCache; fk != nil {
+		return *fk
 	}
 	v.mutex.Lock()
 	defer v.mutex.Unlock()
-	if fk := v.forkCommitteeCache; fk != nil {
-		return fk.validatedSize, fk.onlineSize
+	if fk := v.forkCommitteeSizeCache; fk != nil {
+		return *fk
 	}
 	fk := v.buildForkCommittee()
-	v.forkCommitteeCache = &fk
-	return fk.validatedSize, fk.onlineSize
+	v.forkCommitteeSizeCache = &fk
+	return fk
 }
 
-func (v *ValidatorsCache) buildForkCommittee() forkCommittee {
-	var res forkCommittee
-
-	v.validatedAddresses.Each(func(value interface{}) bool {
-		addr := value.(common.Address)
-		_, delegated := v.delegations[addr]
-		if delegated {
-			return false
-		}
-		pool, isPool := v.pools[addr]
-		if isPool {
-			if !pool.discriminated() {
-				res.validatedSize++
-			}
-			return false
-		}
-		if !v.discriminatedAddresses.Contains(addr) {
-			res.validatedSize++
-		}
-		return false
-	})
-	for poolAddress, pool := range v.pools {
-		if !v.validatedAddresses.Contains(poolAddress) && !pool.discriminated() {
-			res.validatedSize++
-		}
-	}
+func (v *ValidatorsCache) buildForkCommittee() int {
+	var res int
 
 	v.onlineAddresses.Each(func(value interface{}) bool {
 		addr := value.(common.Address)
 		pool, isPool := v.pools[addr]
 		if isPool {
 			if !pool.discriminated() {
-				res.onlineSize++
+				res++
 			}
 			return false
 		}
 		if !v.discriminatedAddresses.Contains(addr) {
-			res.onlineSize++
+			res++
 		}
 		return false
 	})
@@ -221,7 +193,7 @@ func (v *ValidatorsCache) loadValidNodes() {
 	v.delegations = map[common.Address]common.Address{}
 	v.pools = map[common.Address]*pool{}
 	v.discriminatedAddresses.Clear()
-	v.forkCommitteeCache = nil
+	v.forkCommitteeSizeCache = nil
 
 	v.identityState.IterateIdentities(func(key []byte, value []byte) bool {
 		if key == nil {
@@ -283,7 +255,7 @@ func (v *ValidatorsCache) UpdateFromIdentityStateDiff(diff *state.IdentityStateD
 	v.mutex.Lock()
 	defer v.mutex.Unlock()
 	v.height = v.identityState.Version()
-	v.forkCommitteeCache = nil
+	v.forkCommitteeSizeCache = nil
 
 	newApprovals := map[common.Address]bool{}
 	for _, d := range diff.Values {
