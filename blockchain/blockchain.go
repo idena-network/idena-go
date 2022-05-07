@@ -918,9 +918,9 @@ func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Addre
 	removeLinkWithInvitees(stateDB, addr)
 }
 
-func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address) {
+func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address, enableUpgrade8 bool) {
 	if appState.ValidatorsCache.IsPool(pool) && appState.ValidatorsCache.IsOnlineIdentity(pool) &&
-		appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities) <= 0 {
+		appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities, enableUpgrade8) <= 0 {
 		appState.IdentityState.SetOnline(pool, false)
 	}
 }
@@ -1598,7 +1598,7 @@ func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undel
 		addToLostPoolNode(delegation.Delegatee, delegation.Delegator)
 	}
 	for pool, nodes := range lostPoolNodes {
-		switchOnePoolToOffline(appState, pool, nodes)
+		switchOnePoolToOffline(appState, pool, nodes, chain.config.Consensus.EnableUpgrade8)
 	}
 }
 
