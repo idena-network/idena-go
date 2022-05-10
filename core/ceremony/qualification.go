@@ -338,7 +338,11 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int,
 	reported := false
 	switch reportCommitteeSize {
 	case 0:
-	case 1, 2, 3:
+	case 1:
+		if !q.config.Consensus.EnableUpgrade8 {
+			reported = reportsCount >= reportCommitteeSize
+		}
+	case 2, 3:
 		reported = reportsCount >= reportCommitteeSize
 	case 4:
 		reported = reportsCount >= 3
