@@ -919,7 +919,7 @@ func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Addre
 }
 
 func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address, enableUpgrade8 bool) {
-	if appState.ValidatorsCache.IsPool(pool) && appState.ValidatorsCache.IsOnlineIdentity(pool) &&
+	if appState.ValidatorsCache.IsPool(pool) && (enableUpgrade8 || appState.ValidatorsCache.IsOnlineIdentity(pool)) &&
 		appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities, enableUpgrade8) <= 0 {
 		appState.IdentityState.SetOnline(pool, false)
 	}
