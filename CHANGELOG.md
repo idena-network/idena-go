@@ -3,6 +3,33 @@
 ## Unreleased
 
 
+## 0.29.0 (May 12, 2022)
+
+### Fork (Upgrade 8)
+
+- Flip reporting improvement ([#949])
+- Voting discrimination (IIP-3) ([#946], [#955])
+- Quadratic staking (IIP-4) ([#948])
+- Protection of identities with Human status ([#950])
+- Oracle voting termination improvement ([#954])
+- Online mining status for pool ([#952, #957])
+- Bug fix ([#951])
+
+### Changes
+
+- Use only online committee in upgrader ([#956])
+
+[#949]: https://github.com/idena-network/idena-go/pull/949
+[#957]: https://github.com/idena-network/idena-go/pull/957
+[#954]: https://github.com/idena-network/idena-go/pull/954
+[#952]: https://github.com/idena-network/idena-go/pull/952
+[#951]: https://github.com/idena-network/idena-go/pull/951
+[#950]: https://github.com/idena-network/idena-go/pull/950
+[#948]: https://github.com/idena-network/idena-go/pull/948
+[#946]: https://github.com/idena-network/idena-go/pull/946
+[#955]: https://github.com/idena-network/idena-go/pull/955
+[#956]: https://github.com/idena-network/idena-go/pull/956
+
 ## 0.28.8 (Apr 7, 2022)
 
 - Fix RPC method to get burnt coins ([#940])
