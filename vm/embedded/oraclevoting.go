@@ -13,7 +13,6 @@ import (
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	math2 "math"
 	"math/big"
 	"sort"
 	"time"
@@ -126,7 +125,7 @@ func (f *OracleVoting2) Deploy(args ...[]byte) error {
 		votingDuration = value
 	}
 	if value, err := helpers.ExtractUInt64(3, args...); err == nil {
-		publicVotingDuration = uint64(math.MaxInt(100, int(value)))
+		publicVotingDuration = uint64(math.MaxInt(1, int(value)))
 	}
 	if value, err := helpers.ExtractByte(4, args...); err == nil {
 		winnerThreshold = byte(math.MinInt(math.MaxInt(51, int(value)), 100))
@@ -785,7 +784,7 @@ func (f *OracleVoting2) Terminate(args ...[]byte) (common.Address, [][]byte, err
 	if f.GetByte("state") == oracleVotingStatePending {
 
 		period := time.Duration(uint64(f.env.BlockTimeStamp())-f.GetUint64("startTime")) * time.Second
-		if period > time.Hour*24*30 {
+		if period > time.Minute*10 {
 			balance := f.env.Balance(f.ctx.ContractAddr())
 			if balance.Sign() > 0 {
 				if err := f.env.Send(f.ctx, f.ctx.Caller(), balance); err != nil {
@@ -803,11 +802,11 @@ func (f *OracleVoting2) Terminate(args ...[]byte) (common.Address, [][]byte, err
 	votingDuration := f.GetUint64("votingDuration")
 	publicVotingDuration := f.GetUint64("publicVotingDuration")
 
-	stake := decimal.NewFromBigInt(f.env.ContractStake(f.ctx.ContractAddr()), -18)
-	d, _ := stake.Mul(decimal.NewFromInt(int64(f.env.NetworkSize()))).Div(decimal.NewFromInt(100)).Float64()
-	terminationDays := uint64(math2.Round(math2.Pow(d, 1.0/3)))
+	//stake := decimal.NewFromBigInt(f.env.ContractStake(f.ctx.ContractAddr()), -18)
+	//d, _ := stake.Mul(decimal.NewFromInt(int64(f.env.NetworkSize()))).Div(decimal.NewFromInt(100)).Float64()
+	//terminationDays := uint64(math2.Round(math2.Pow(d, 1.0/3)))
 	const blocksInDay = 4320
-	if duration >= votingDuration+publicVotingDuration+terminationDays*blocksInDay {
+	if duration >= votingDuration+publicVotingDuration+5 {
 		balance := f.env.Balance(f.ctx.ContractAddr())
 		var fundInt, ownerReward, oracleReward *big.Int
 		if balance.Sign() > 0 {
