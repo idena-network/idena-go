@@ -31,7 +31,6 @@ type WasmEnv struct {
 	contractStakeCache    map[common.Address]*big.Int
 }
 
-
 func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header) *WasmEnv {
 	return &WasmEnv{
 		appState:              appState,
@@ -224,7 +223,6 @@ func (w *WasmEnv) OriginCaller(meter *lib.GasMeter) lib.Address {
 	return w.ctx.originCaller
 }
 
-
 func (w *WasmEnv) Commit() {
 	if w.parent != nil {
 		for contract, cache := range w.contractStoreCache {
@@ -260,4 +258,11 @@ func (w *WasmEnv) Commit() {
 	for contract, stake := range w.contractStakeCache {
 		w.appState.State.SetContractStake(contract, stake)
 	}
+}
+
+func (w *WasmEnv) Revert() {
+	w.contractStoreCache = map[common.Address]map[string]*contractValue{}
+	w.balancesCache = map[common.Address]*big.Int{}
+	w.deployedContractCache = map[common.Address]ContractData{}
+	w.contractStakeCache = map[common.Address]*big.Int{}
 }
