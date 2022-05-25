@@ -17,7 +17,7 @@ require (
 	github.com/ipfs/fs-repo-migrations/tools v0.0.0-20211209222258-754a2dcb82ea
 	github.com/ipfs/go-blockservice v0.2.1
 	github.com/ipfs/go-cid v0.1.0
-	github.com/ipfs/go-ipfs v0.12.0
+	github.com/ipfs/go-ipfs v0.12.2
 	github.com/ipfs/go-ipfs-config v0.18.0
 	github.com/ipfs/go-ipfs-files v0.0.9
 	github.com/ipfs/go-merkledag v0.5.1
