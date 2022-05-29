@@ -42,7 +42,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)
-	ctx := NewDeployContextImpl(tx, attachment.CodeHash)
+	ctx := NewDeployContextImpl(tx, nil, attachment.CodeHash)
 
 	db := db2.NewMemDB()
 	appState, _ := appstate.NewAppState(db, eventbus.New())
@@ -137,7 +137,7 @@ func TestEnvImp_basicMethods(t *testing.T) {
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, key)
-	terminateCtx := NewCallContextImpl(tx, attachment.CodeHash)
+	terminateCtx := NewCallContextImpl(tx, nil, attachment.CodeHash)
 	env.Terminate(terminateCtx, [][]byte{{0x2}}, common.Address{0x04})
 	env.Commit()
 

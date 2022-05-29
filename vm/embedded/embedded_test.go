@@ -218,7 +218,7 @@ func (c *contractTester) Deploy(config configurableDeploy) error {
 		Payload:      payload,
 	}
 	tx, _ = types.SignTx(tx, c.mainKey)
-	ctx := env.NewDeployContextImpl(tx, attachment.CodeHash)
+	ctx := env.NewDeployContextImpl(tx, nil, attachment.CodeHash)
 
 	gas := new(env.GasCounter)
 	gas.Reset(-1)
@@ -247,7 +247,7 @@ func (c *contractTester) Call(key *ecdsa.PrivateKey, contract EmbeddedContractTy
 	gas := new(env.GasCounter)
 	gas.Reset(-1)
 
-	ctx := env.NewCallContextImpl(tx, contract)
+	ctx := env.NewCallContextImpl(tx, nil, contract)
 
 	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)
@@ -269,7 +269,7 @@ func (c *contractTester) Terminate(key *ecdsa.PrivateKey, contract EmbeddedContr
 	gas := new(env.GasCounter)
 	gas.Reset(-1)
 
-	ctx := env.NewCallContextImpl(tx, contract)
+	ctx := env.NewCallContextImpl(tx, nil, contract)
 
 	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)

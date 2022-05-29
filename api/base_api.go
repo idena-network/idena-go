@@ -110,3 +110,11 @@ func (api *BaseApi) getCoinbaseShard() common.ShardId {
 	state := api.getReadonlyAppState()
 	return state.State.ShardId(api.secStore.GetAddress())
 }
+
+func (api *BaseApi) canSign(address common.Address) bool {
+	if address == api.getCurrentCoinbase() {
+		return true
+	}
+	_, err := api.ks.Find(keystore.Account{Address: address})
+	return err == nil
+}

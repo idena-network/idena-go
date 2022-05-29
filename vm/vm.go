@@ -19,7 +19,7 @@ var (
 )
 
 type VM interface {
-	Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt
+	Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt
 	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
 }
 
@@ -62,9 +62,9 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	}
 }
 
-func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error) {
+func (vm *VmImpl) deploy(tx *types.Transaction, from *common.Address) (addr common.Address, err error) {
 	attach := attachments.ParseDeployContractAttachment(tx)
-	ctx := env2.NewDeployContextImpl(tx, attach.CodeHash)
+	ctx := env2.NewDeployContextImpl(tx, from, attach.CodeHash)
 	addr = ctx.ContractAddr()
 	if attach == nil {
 		return addr, errors.New("can't parse attachment")
@@ -83,13 +83,13 @@ func (vm *VmImpl) deploy(tx *types.Transaction) (addr common.Address, err error)
 	return addr, err
 }
 
-func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, method string, err error) {
+func (vm *VmImpl) call(tx *types.Transaction, from *common.Address) (addr common.Address, method string, err error) {
 
 	codeHash := vm.appState.State.GetCodeHash(*tx.To)
 	if codeHash == nil {
 		return common.Address{}, "", errors.New("destination is not a contract")
 	}
-	ctx := env2.NewCallContextImpl(tx, *codeHash)
+	ctx := env2.NewCallContextImpl(tx, from, *codeHash)
 	attach := attachments.ParseCallContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), "", errors.New("can't parse attachment")
@@ -109,8 +109,8 @@ func (vm *VmImpl) call(tx *types.Transaction) (addr common.Address, method strin
 	return addr, attach.Method, err
 }
 
-func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err error) {
-	ctx := env2.NewCallContextImpl(tx, *vm.appState.State.GetCodeHash(*tx.To))
+func (vm *VmImpl) terminate(tx *types.Transaction, from *common.Address) (addr common.Address, err error) {
+	ctx := env2.NewCallContextImpl(tx, from, *vm.appState.State.GetCodeHash(*tx.To))
 	attach := attachments.ParseTerminateContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), errors.New("can't parse attachment")
@@ -134,7 +134,7 @@ func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err err
 	return addr, err
 }
 
-func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
+func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt {
 	if tx.Type != types.CallContractTx && tx.Type != types.DeployContractTx && tx.Type != types.TerminateContractTx {
 		return &types.TxReceipt{Success: false, Error: UnexpectedTx}
 	}
@@ -148,12 +148,12 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 	switch tx.Type {
 	case types.DeployContractTx:
 		method = "deploy"
-		contractAddr, err = vm.deploy(tx)
+		contractAddr, err = vm.deploy(tx, from)
 	case types.CallContractTx:
-		contractAddr, method, err = vm.call(tx)
+		contractAddr, method, err = vm.call(tx, from)
 	case types.TerminateContractTx:
 		method = "terminate"
-		contractAddr, err = vm.terminate(tx)
+		contractAddr, err = vm.terminate(tx, from)
 	}
 
 	var events []*types.TxEvent
@@ -161,7 +161,12 @@ func (vm *VmImpl) Run(tx *types.Transaction, gasLimit int64) *types.TxReceipt {
 		events = vm.env.Commit()
 	}
 
-	sender, _ := types.Sender(tx)
+	var sender common.Address
+	if from != nil {
+		sender = *from
+	} else {
+		sender, _ = types.Sender(tx)
+	}
 
 	usedGas := uint64(vm.gasCounter.UsedGas)
 	if gasLimit >= 0 {
