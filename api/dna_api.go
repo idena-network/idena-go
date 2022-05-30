@@ -420,7 +420,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	age := uint16(0)
-	if data.Birthday > 0 {
+	if data.State.NewbieOrBetter() || data.State == state.Suspended || data.State == state.Zombie {
 		age = currentEpoch - data.Birthday
 	}
 
@@ -438,7 +438,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	delegatee := data.Delegatee()
 	pendingUndelegation := data.PendingUndelegation()
 	switchDelegation := appState.State.DelegationSwitch(address)
+	delegationEpoch := data.DelegationEpoch
 	if switchDelegation != nil {
+		delegationEpoch = appState.State.Epoch()
 		if switchDelegation.Delegatee.IsEmpty() {
 			pendingUndelegation = delegatee
 			delegatee = nil
@@ -479,7 +481,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Penalty:             blockchain.ConvertToFloat(data.Penalty),
 		LastValidationFlags: flags,
 		Delegatee:           delegatee,
-		DelegationEpoch:     data.DelegationEpoch,
+		DelegationEpoch:     delegationEpoch,
 		DelegationNonce:     data.DelegationNonce,
 		PendingUndelegation: pendingUndelegation,
 		Online:              isOnline,
