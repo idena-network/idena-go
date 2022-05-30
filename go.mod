@@ -40,7 +40,7 @@ require (
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
-	github.com/tendermint/tm-db v0.6.4
+	github.com/tendermint/tm-db v0.6.7
 	github.com/urfave/cli v1.22.5
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bitset v1.1.10 // indirect
