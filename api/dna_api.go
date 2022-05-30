@@ -417,7 +417,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	age := uint16(0)
-	if data.Birthday > 0 {
+	if data.State.NewbieOrBetter() || data.State == state.Suspended || data.State == state.Zombie {
 		age = currentEpoch - data.Birthday
 	}
 
