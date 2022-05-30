@@ -44,6 +44,9 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
+		if vm.cfg.Consensus.EnableUpgrade8 {
+			return embedded.NewOracleVotingContract5(ctx, vm.env, vm.statsCollector)
+		}
 		if vm.cfg.Consensus.EnableUpgrade7 {
 			return embedded.NewOracleVotingContract4(ctx, vm.env, vm.statsCollector)
 		}
@@ -123,9 +126,10 @@ func (vm *VmImpl) terminate(tx *types.Transaction) (addr common.Address, err err
 		}
 	}()
 	var stakeDest common.Address
-	stakeDest, err = contract.Terminate(attach.Args...)
+	var keysToSave [][]byte
+	stakeDest, keysToSave, err = contract.Terminate(attach.Args...)
 	if err == nil {
-		vm.env.Terminate(ctx, stakeDest)
+		vm.env.Terminate(ctx, keysToSave, stakeDest)
 	}
 	return addr, err
 }

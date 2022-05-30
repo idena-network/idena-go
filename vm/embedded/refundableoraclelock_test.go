@@ -35,7 +35,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 	appState.State.SetState(addr, state.Newbie)
 	appState.State.SetBalance(addr, common.DnaBase)
 	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-	appState.IdentityState.Add(addr)
+	appState.IdentityState.SetValidated(addr, true)
 
 	var identities []*ecdsa.PrivateKey
 
@@ -46,9 +46,9 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 		appState.State.SetState(addr, state.Newbie)
 		appState.State.SetBalance(addr, common.DnaBase)
 		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-		appState.IdentityState.Add(addr)
+		appState.IdentityState.SetValidated(addr, true)
 	}
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
 	appState.Initialize(1)
 

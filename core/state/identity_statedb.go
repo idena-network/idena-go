@@ -137,18 +137,22 @@ func (s *IdentityStateDB) Load(height uint64) error {
 	return err
 }
 
-func (s *IdentityStateDB) Add(identity common.Address) {
-	s.GetOrNewIdentityObject(identity).SetState(true)
+func (s *IdentityStateDB) SetValidated(identity common.Address, validated bool) {
+	s.GetOrNewIdentityObject(identity).SetValidated(validated)
 }
 
 func (s *IdentityStateDB) Remove(identity common.Address) {
-	s.GetOrNewIdentityObject(identity).SetState(false)
+	s.GetOrNewIdentityObject(identity).SetValidated(false)
 	s.GetOrNewIdentityObject(identity).SetOnline(false)
 }
 
+func (s *IdentityStateDB) SetDiscriminated(identity common.Address, discriminated bool) {
+	s.GetOrNewIdentityObject(identity).SetDiscriminated(discriminated)
+}
+
 // Commit writes the state to the underlying in-memory trie database.
-func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
-	diff = s.Precommit(deleteEmptyObjects)
+func (s *IdentityStateDB) Commit(deleteEmptyObjects, enableUpgrade8 bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
+	diff = s.Precommit(deleteEmptyObjects, enableUpgrade8)
 	hash, version, err := s.CommitTree(s.tree.Version() + 1)
 	return hash, version, diff, err
 }
@@ -174,7 +178,7 @@ func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int
 	return hash, version, err
 }
 
-func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
+func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool, enableUpgrade8 bool) *IdentityStateDiff {
 	// Commit identity objects to the trie.
 	diff := new(IdentityStateDiff)
 	s.lock.Lock()
@@ -188,7 +192,7 @@ func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff 
 				Deleted: true,
 			})
 		} else {
-			encoded := s.updateStateIdentityObject(stateObject)
+			encoded := s.updateStateIdentityObject(stateObject, enableUpgrade8)
 			diff.Values = append(diff.Values, &IdentityStateDiffValue{
 				Address: addr,
 				Deleted: false,
@@ -275,9 +279,9 @@ func (s *IdentityStateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity) (encoded []byte) {
+func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity, enableUpgrade8 bool) (encoded []byte) {
 	addr := stateObject.Address()
-	data, err := stateObject.data.ToBytes()
+	data, err := stateObject.data.ToBytes(enableUpgrade8)
 	if err != nil {
 		panic(fmt.Errorf("can't encode approved identity object at %x: %v", addr[:], err))
 	}
@@ -303,10 +307,10 @@ func (s *IdentityStateDB) Root() common.Hash {
 	return s.tree.WorkingHash()
 }
 
-func (s *IdentityStateDB) IsApproved(addr common.Address) bool {
+func (s *IdentityStateDB) IsValidated(addr common.Address) bool {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
-		return stateObject.data.Approved
+		return stateObject.data.Validated
 	}
 	return false
 }
@@ -348,6 +352,7 @@ func (s *IdentityStateDB) ResetTo(height uint64) error {
 func (s *IdentityStateDB) HasVersion(height uint64) bool {
 	return s.tree.ExistVersion(int64(height))
 }
+
 func (s *IdentityStateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
 	return s.tree.GetImmutable().IterateRange(nil, nil, true, fn)
 }
@@ -439,7 +444,9 @@ func (s *IdentityStateDB) SetPredefinedIdentities(state *models.ProtoPredefinedS
 	for _, identity := range state.ApprovedIdentities {
 		stateObj := s.GetOrNewIdentityObject(common.BytesToAddress(identity.Address))
 		stateObj.data.Online = false
-		stateObj.data.Approved = identity.Approved
+		flags := ApprovedIdentityFlag(identity.Flags)
+		stateObj.data.Validated = identity.Validated || flags.HasFlag(Validated)
+		stateObj.data.Discriminated = flags.HasFlag(Discriminated)
 		if identity.Delegatee != nil {
 			d := common.BytesToAddress(identity.Delegatee)
 			stateObj.data.Delegatee = &d

@@ -231,18 +231,18 @@ func (e *RefundableOracleLock2) refund(args ...[]byte) error {
 	return nil
 }
 
-func (e *RefundableOracleLock2) Terminate(args ...[]byte) (common.Address, error) {
+func (e *RefundableOracleLock2) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 	if !e.IsOwner() {
-		return common.Address{}, errors.New("sender is not an owner")
+		return common.Address{}, nil, errors.New("sender is not an owner")
 	}
 	balance := e.env.Balance(e.ctx.ContractAddr())
 	if balance.Sign() > 0 {
-		return common.Address{}, errors.New("contract has dna")
+		return common.Address{}, nil, errors.New("contract has dna")
 	}
 	dest, err := helpers.ExtractAddr(0, args...)
 	if err != nil {
-		return common.Address{}, err
+		return common.Address{}, nil, err
 	}
 	collector.AddRefundableOracleLockTermination(e.statsCollector, dest)
-	return dest, nil
+	return dest, nil, nil
 }

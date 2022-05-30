@@ -207,6 +207,14 @@ func (s *StateDB) GetStakeBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
+func (s *StateDB) GetReplenishedStakeBalance(addr common.Address) *big.Int {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.ReplenishedStake()
+	}
+	return common.Big0
+}
+
 func (s *StateDB) GetEpoch(addr common.Address) uint16 {
 	stateObject := s.getStateAccount(addr)
 	if stateObject != nil {
@@ -313,8 +321,16 @@ func (s *StateDB) AddStake(address common.Address, intStake *big.Int) {
 	s.GetOrNewIdentityObject(address).AddStake(intStake)
 }
 
+func (s *StateDB) AddReplenishedStake(address common.Address, intStake *big.Int) {
+	s.GetOrNewIdentityObject(address).AddReplenishedStake(intStake)
+}
+
 func (s *StateDB) SubStake(addr common.Address, amount *big.Int) {
 	s.GetOrNewIdentityObject(addr).SubStake(amount)
+}
+
+func (s *StateDB) SubReplenishedStake(addr common.Address, amount *big.Int) {
+	s.GetOrNewIdentityObject(addr).SubReplenishedStake(amount)
 }
 
 func (s *StateDB) SetState(address common.Address, state IdentityState) {
@@ -373,8 +389,8 @@ func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
-func (s *StateDB) AddNewScore(address common.Address, score byte) {
-	s.GetOrNewIdentityObject(address).AddNewScore(score)
+func (s *StateDB) AddNewScore(address common.Address, score byte, enableUpgrade8 bool) {
+	s.GetOrNewIdentityObject(address).AddNewScore(score, enableUpgrade8)
 }
 
 func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash, epochHeight uint32) {
@@ -1352,6 +1368,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Birthday = uint16(identity.Birthday)
 		stateObject.data.Generation = identity.Generation
 		stateObject.data.Stake = common.BigIntOrNil(identity.Stake)
+		stateObject.data.replenishedStake = common.BigIntOrNil(identity.ReplenishedStake)
 		stateObject.data.RequiredFlips = uint8(identity.RequiredFlips)
 		stateObject.data.PubKey = identity.PubKey
 		stateObject.data.Invites = uint8(identity.Invites)
@@ -1367,6 +1384,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.Scores = identity.Scores
 		stateObject.data.DelegationEpoch = uint16(identity.DelegationEpoch)
 		stateObject.data.DelegationNonce = identity.DelegationNonce
+		stateObject.data.pendingUndelegation = identity.PendingUndelegation
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &Inviter{
@@ -1377,7 +1395,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		}
 		if identity.Delegatee != nil {
 			addr := common.BytesToAddress(identity.Delegatee)
-			stateObject.data.Delegatee = &addr
+			stateObject.data.delegatee = &addr
 		}
 		for _, item := range identity.Invitees {
 			stateObject.data.Invitees = append(stateObject.data.Invitees, TxAddr{
@@ -1556,8 +1574,32 @@ func (s *StateDB) SetDelegationEpoch(addr common.Address, epoch uint16) {
 	s.GetOrNewIdentityObject(addr).SetDelegationEpoch(epoch)
 }
 
+func (s *StateDB) SetPendingUndelegation(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).SetPendingUndelegation()
+}
+
+func (s *StateDB) PendingUndelegation(addr common.Address) *common.Address {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.PendingUndelegation()
+	}
+	return nil
+}
+
 func (s *StateDB) DelegationEpoch(addr common.Address) uint16 {
 	return s.GetOrNewIdentityObject(addr).DelegationEpoch()
+}
+
+func (s *StateDB) RemovePendingUndelegation(addr common.Address) {
+	s.GetOrNewIdentityObject(addr).RemovePendingUndelegation()
+}
+
+func (s *StateDB) IsDiscriminated(addr common.Address, epoch uint16) bool {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.IsDiscriminated(epoch)
+	}
+	return false
 }
 
 func (s *StateDB) CollectKilledDelegators() []common.Address {

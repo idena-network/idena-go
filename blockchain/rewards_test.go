@@ -28,10 +28,14 @@ func Test_rewardValidIdentities(t *testing.T) {
 	failed := common.Address{0x6}
 	badAuth := common.Address{0x5}
 	reporter := common.Address{0x8}
+	addr1 := common.Address{0x9}
+	addr2 := common.Address{0xa}
 
 	conf := config.GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
+	conf.EnableUpgrade7 = true
+	conf.EnableUpgrade8 = true
 
 	memdb := db.NewMemDB()
 
@@ -44,13 +48,18 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	appState.State.SetState(auth1, state.Newbie)
 	appState.State.SetDelegatee(auth1, poolOfAuth1)
+	appState.State.AddStake(auth1, big.NewInt(10))
 
 	appState.State.SetState(auth2, state.Candidate)
+	appState.State.SetState(addr1, state.Candidate)
+	appState.State.SetState(addr2, state.Candidate)
+	appState.State.AddStake(addr2, big.NewInt(1100))
 	appState.State.SetState(auth3, state.Human)
+	appState.State.AddStake(auth3, big.NewInt(95))
 	appState.State.SetState(auth4, state.Suspended)
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetShardsNum(2)
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
 	validationResults := map[common.ShardId]*types.ValidationResults{
 		1: {
@@ -109,11 +118,18 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetBirthday(badAuth, 5)
 
+	appState.State.SetState(addr1, state.Newbie)
+	appState.State.SetBirthday(addr1, 5)
+
+	appState.State.SetState(addr2, state.Newbie)
+	appState.State.SetBirthday(addr2, 5)
+
 	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil)
 
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
-	validationReward := float32(200) / 5.557298 // 4^(1/3)+1^(1/3)+2^(1/3)+5^(1/3)
+	candidateReward := float32(20) / 3
+	stakingReward := float32(180) / 614.2688878 // 10^0.9 + 95^0.9 + 1100^0.9
 	flipReward := float32(350) / 23
 	godPayout := float32(100)
 
@@ -127,20 +143,32 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	reportReward := float32(50) // 150 / 3
 
-	reward, stake := splitAndSum(conf, false, validationReward*normalAge(3), flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
+	const stake10Weight = 7.9432823 // 10^0.9
+	reward, stake := splitAndSum(conf, false, stakingReward*stake10Weight, flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
 
 	require.Equal(t, reward.String(), appState.State.GetBalance(poolOfAuth1).String())
-	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth1)) == 0)
+	require.True(t, new(big.Int).Add(big.NewInt(10), stake).Cmp(appState.State.GetStakeBalance(auth1)) == 0)
 
-	reward, stake = splitAndSum(conf, true, validationReward*normalAge(0))
+	reward, stake = splitAndSum(conf, true, candidateReward)
+
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth2)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth2)) == 0)
 
-	reward, stake = splitAndSum(conf, false, validationReward*normalAge(1), flipReward*11.0, reportReward)
-	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
-	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth3)) == 0)
+	require.True(t, reward.Cmp(appState.State.GetBalance(addr1)) == 0)
+	require.True(t, stake.Cmp(appState.State.GetStakeBalance(addr1)) == 0)
 
-	reward, stake = splitAndSum(conf, false, validationReward*normalAge(4), invitationReward*conf.ThirdInvitationRewardCoef)
+	const stake1100Weight = 546.076411 // 1100^0.9
+	reward, stake = splitAndSum(conf, true, stakingReward*stake1100Weight, candidateReward)
+	require.True(t, reward.Cmp(appState.State.GetBalance(addr2)) == 0)
+	require.True(t, new(big.Int).Add(big.NewInt(1100), stake).Cmp(appState.State.GetStakeBalance(addr2)) == 0)
+
+	const stake95Weight = 60.2491944 // 95^0.9
+	reward, stake = splitAndSum(conf, false, stakingReward*stake95Weight, flipReward*11.0, reportReward)
+	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
+	require.True(t, new(big.Int).Add(big.NewInt(95), stake).Cmp(appState.State.GetStakeBalance(auth3)) == 0)
+
+	reward, stake = splitAndSum(conf, false, invitationReward*conf.ThirdInvitationRewardCoef)
+
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth4)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth4)) == 0)
 

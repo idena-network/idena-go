@@ -43,6 +43,7 @@ type Env interface {
 	ContractStake(common.Address) *big.Int
 	MoveToStake(ctx CallContext, amount *big.Int) error
 	Delegatee(addr common.Address) *common.Address
+	IsDiscriminated(addr common.Address) bool
 }
 
 type contractValue struct {
@@ -208,6 +209,12 @@ func (e *EnvImp) Delegatee(addr common.Address) *common.Address {
 	return e.state.State.Delegatee(addr)
 }
 
+func (e *EnvImp) IsDiscriminated(addr common.Address) bool {
+	e.gasCounter.AddReadBytesAsGas(10)
+	identity := e.state.State.GetIdentity(addr)
+	return identity.IsDiscriminated(e.Epoch())
+}
+
 func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(key []byte, value []byte) (stopped bool)) {
 	addr := ctx.ContractAddr()
 
@@ -257,7 +264,7 @@ func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byt
 	return value
 }
 
-func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
+func (e *EnvImp) Terminate(ctx CallContext, keysToSave [][]byte, dest common.Address) {
 	stake := e.state.State.GetContractStake(ctx.ContractAddr())
 	if stake == nil || stake.Sign() == 0 {
 		return
@@ -267,7 +274,16 @@ func (e *EnvImp) Terminate(ctx CallContext, dest common.Address) {
 	e.droppedContracts[ctx.ContractAddr()] = struct{}{}
 
 	e.Iterate(ctx, nil, nil, func(key []byte, value []byte) (stopped bool) {
-		e.RemoveValue(ctx, key)
+		var save bool
+		for _, keyToSave := range keysToSave {
+			if bytes.Compare(keyToSave, key) == 0 {
+				save = true
+				break
+			}
+		}
+		if !save {
+			e.RemoveValue(ctx, key)
+		}
 		return false
 	})
 

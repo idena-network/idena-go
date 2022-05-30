@@ -39,7 +39,7 @@ type Contract interface {
 	Deploy(args ...[]byte) error
 	Call(method string, args ...[]byte) error
 	Read(method string, args ...[]byte) ([]byte, error)
-	Terminate(args ...[]byte) (stakeDest common.Address, err error)
+	Terminate(args ...[]byte) (stakeDest common.Address, keysToSave [][]byte, err error)
 }
 
 // base contract with useful common methods

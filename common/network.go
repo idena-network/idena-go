@@ -34,6 +34,7 @@ const (
 	StakeToBalanceCoef   = 0.75
 	LastScoresCount      = 10
 	PrevEpochBlocksCount = 2
+	MinTotalShortFlips   = 32
 )
 
 var MaxHashFloat *big.Float

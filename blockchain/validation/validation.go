@@ -118,6 +118,11 @@ func SetAppConfig(cfg *config.Config) {
 func getValidator(txType types.TxType) (validator, bool) {
 	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
 		cfgInitVersion = appCfg.Consensus.Version
+		if appCfg.Consensus.EnableUpgrade8 {
+			validators[types.ReplenishStakeTx] = validateReplenishStakeTx
+		} else {
+			delete(validators, types.ReplenishStakeTx)
+		}
 	}
 	v, ok := validators[txType]
 	return v, ok
@@ -271,7 +276,7 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if appState.ValidatorsCache.Contains(*tx.To) {
+	if appState.ValidatorsCache.IsValidated(*tx.To) {
 		return NodeAlreadyActivated
 	}
 	if appState.State.GetIdentityState(sender) != state.Invite {
@@ -498,8 +503,14 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if !state.IsCeremonyCandidate(identity) {
 		return NotCandidate
 	}
-	if identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee != nil {
+	if identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee() != nil {
 		return InvalidSender
+	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
+		discriminated := identity.IsDiscriminated(appState.State.Epoch())
+		if discriminated && sender != appState.State.GodAddress() {
+			return InvalidSender
+		}
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
 		return err
@@ -519,7 +530,7 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
 		return LateTx
 	}
-	if !appState.ValidatorsCache.Contains(sender) && !appState.ValidatorsCache.IsPool(sender) {
+	if !appState.ValidatorsCache.IsValidated(sender) && !appState.ValidatorsCache.IsPool(sender) {
 		return InvalidSender
 	}
 
@@ -530,7 +541,7 @@ func validateOnlineStatusTx(appState *appstate.AppState, tx *types.Transaction, 
 	}
 
 	identity := appState.State.GetIdentity(sender)
-	if identity.Delegatee != nil {
+	if identity.Delegatee() != nil {
 		return InvalidSender
 	}
 
@@ -752,6 +763,13 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return InvalidRecipient
 	}
 
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
+		to := appState.State.GetIdentity(*tx.To)
+		if to.PendingUndelegation() != nil {
+			return InvalidRecipient
+		}
+	}
+
 	delegatee := appState.State.Delegatee(sender)
 	delegationSwitch := appState.State.DelegationSwitch(sender)
 
@@ -759,9 +777,20 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		if delegationSwitch != nil && !delegationSwitch.Delegatee.IsEmpty() {
 			return SenderHasDelegatee
 		}
+		if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
+			identity := appState.State.GetIdentity(sender)
+			if prevDelegatee := identity.PendingUndelegation(); prevDelegatee != nil && *prevDelegatee != *tx.To {
+				return InvalidRecipient
+			}
+		}
 	} else {
 		if delegationSwitch == nil || !delegationSwitch.Delegatee.IsEmpty() {
 			return SenderHasDelegatee
+		}
+		if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
+			if *delegatee != *tx.To {
+				return InvalidRecipient
+			}
 		}
 	}
 
@@ -840,6 +869,21 @@ func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, t
 	_, err := cid.Cast(attachment.Cid)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateReplenishStakeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+	if tx.To == nil {
+		return RecipientRequired
+	}
+	recipient := appState.State.GetIdentity(*tx.To)
+	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed
+	if !canReplenishStake {
+		return InvalidRecipient
+	}
+	if appState.State.ValidationPeriod() >= state.FlipLotteryPeriod {
+		return LateTx
 	}
 	return nil
 }

@@ -35,6 +35,18 @@ const (
 	AfterLongRequiredBlocks = 5
 )
 
+type ApprovedIdentityFlag uint32
+
+const (
+	Validated ApprovedIdentityFlag = 1 << iota
+	Online
+	Discriminated
+)
+
+func (f ApprovedIdentityFlag) HasFlag(flag ApprovedIdentityFlag) bool {
+	return f&flag != 0
+}
+
 func (s IdentityState) IsInShard() bool {
 	return s.NewbieOrBetter() || s == Candidate || s == Suspended || s == Zombie
 }
@@ -379,9 +391,11 @@ type Identity struct {
 	ValidationTxsBits    byte
 	LastValidationStatus ValidationStatusFlag
 	Scores               []byte
-	Delegatee            *common.Address
+	delegatee            *common.Address
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
+	pendingUndelegation  bool
+	replenishedStake     *big.Int
 	// do not use directly
 	ShardId common.ShardId
 }
@@ -399,27 +413,29 @@ type Inviter struct {
 
 func (i *Identity) ToBytes() ([]byte, error) {
 	protoIdentity := &models.ProtoStateIdentity{
-		Stake:            common.BigIntBytesOrNil(i.Stake),
-		Invites:          uint32(i.Invites),
-		Birthday:         uint32(i.Birthday),
-		State:            uint32(i.State),
-		QualifiedFlips:   i.QualifiedFlips,
-		ShortFlipPoints:  i.ShortFlipPoints,
-		PubKey:           i.PubKey,
-		RequiredFlips:    uint32(i.RequiredFlips),
-		Generation:       i.Generation,
-		Code:             i.Code,
-		Penalty:          common.BigIntBytesOrNil(i.Penalty),
-		ValidationBits:   uint32(i.ValidationTxsBits),
-		ValidationStatus: uint32(i.LastValidationStatus),
-		ProfileHash:      i.ProfileHash,
-		Scores:           i.Scores,
-		DelegationNonce:  i.DelegationNonce,
-		DelegationEpoch:  uint32(i.DelegationEpoch),
-		ShardId:          uint32(i.ShardId),
+		Stake:               common.BigIntBytesOrNil(i.Stake),
+		ReplenishedStake:    common.BigIntBytesOrNil(i.replenishedStake),
+		Invites:             uint32(i.Invites),
+		Birthday:            uint32(i.Birthday),
+		State:               uint32(i.State),
+		QualifiedFlips:      i.QualifiedFlips,
+		ShortFlipPoints:     i.ShortFlipPoints,
+		PubKey:              i.PubKey,
+		RequiredFlips:       uint32(i.RequiredFlips),
+		Generation:          i.Generation,
+		Code:                i.Code,
+		Penalty:             common.BigIntBytesOrNil(i.Penalty),
+		ValidationBits:      uint32(i.ValidationTxsBits),
+		ValidationStatus:    uint32(i.LastValidationStatus),
+		ProfileHash:         i.ProfileHash,
+		Scores:              i.Scores,
+		DelegationNonce:     i.DelegationNonce,
+		DelegationEpoch:     uint32(i.DelegationEpoch),
+		PendingUndelegation: i.pendingUndelegation,
+		ShardId:             uint32(i.ShardId),
 	}
-	if i.Delegatee != nil {
-		protoIdentity.Delegatee = i.Delegatee.Bytes()
+	if i.delegatee != nil {
+		protoIdentity.Delegatee = i.delegatee.Bytes()
 	}
 	for idx := range i.Flips {
 		protoIdentity.Flips = append(protoIdentity.Flips, &models.ProtoStateIdentity_Flip{
@@ -449,6 +465,7 @@ func (i *Identity) FromBytes(data []byte) error {
 		return err
 	}
 	i.Stake = common.BigIntOrNil(protoIdentity.Stake)
+	i.replenishedStake = common.BigIntOrNil(protoIdentity.ReplenishedStake)
 	i.Invites = uint8(protoIdentity.Invites)
 	i.Birthday = uint16(protoIdentity.Birthday)
 	i.State = IdentityState(protoIdentity.State)
@@ -465,6 +482,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.Scores = protoIdentity.Scores
 	i.DelegationEpoch = uint16(protoIdentity.DelegationEpoch)
 	i.DelegationNonce = protoIdentity.DelegationNonce
+	i.pendingUndelegation = protoIdentity.PendingUndelegation
 	i.ShardId = common.ShardId(protoIdentity.ShardId)
 	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
@@ -489,7 +507,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	}
 	if protoIdentity.Delegatee != nil {
 		addr := common.BytesToAddress(protoIdentity.Delegatee)
-		i.Delegatee = &addr
+		i.delegatee = &addr
 	}
 
 	return nil
@@ -524,21 +542,65 @@ func (i *Identity) ShiftedShardId() common.ShardId {
 	return i.ShardId
 }
 
-type ApprovedIdentity struct {
-	Approved  bool
-	Online    bool
-	Delegatee *common.Address
+func (i *Identity) Delegatee() *common.Address {
+	if i.pendingUndelegation {
+		return nil
+	}
+	return i.delegatee
 }
 
-func (s *ApprovedIdentity) ToBytes() ([]byte, error) {
-	protoAnswer := &models.ProtoStateApprovedIdentity{
-		Approved: s.Approved,
-		Online:   s.Online,
+func (i *Identity) PendingUndelegation() *common.Address {
+	if i.pendingUndelegation {
+		return i.delegatee
 	}
+	return nil
+}
+
+func (i *Identity) IsDiscriminated(epoch uint16) bool {
+	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil
+}
+
+func (i *Identity) ReplenishedStake() *big.Int {
+	return i.replenishedStake
+}
+
+func (i *Identity) HasValidationTx(txType types.TxType) bool {
+	mask := validationTxBitMask(txType)
+	if mask == 0 {
+		return false
+	}
+	return i.ValidationTxsBits&mask > 0
+}
+
+type ApprovedIdentity struct {
+	Validated     bool
+	Online        bool
+	Discriminated bool
+	Delegatee     *common.Address
+}
+
+func (s *ApprovedIdentity) ToBytes(enableUpgrade8 bool) ([]byte, error) {
+	protoIdentity := &models.ProtoStateApprovedIdentity{
+		Validated: s.Validated && !enableUpgrade8,
+		Online:    s.Online && !enableUpgrade8,
+	}
+	var flags ApprovedIdentityFlag
+	if enableUpgrade8 {
+		if s.Validated {
+			flags |= Validated
+		}
+		if s.Online {
+			flags |= Online
+		}
+		if s.Discriminated {
+			flags |= Discriminated
+		}
+	}
+	protoIdentity.Flags = uint32(flags)
 	if s.Delegatee != nil {
-		protoAnswer.Delegatee = s.Delegatee.Bytes()
+		protoIdentity.Delegatee = s.Delegatee.Bytes()
 	}
-	return proto.Marshal(protoAnswer)
+	return proto.Marshal(protoIdentity)
 }
 
 func (s *ApprovedIdentity) FromBytes(data []byte) error {
@@ -546,8 +608,10 @@ func (s *ApprovedIdentity) FromBytes(data []byte) error {
 	if err := proto.Unmarshal(data, protoIdentity); err != nil {
 		return err
 	}
-	s.Approved = protoIdentity.Approved
-	s.Online = protoIdentity.Online
+	flags := ApprovedIdentityFlag(protoIdentity.Flags)
+	s.Validated = protoIdentity.Validated || flags.HasFlag(Validated)
+	s.Online = protoIdentity.Online || flags.HasFlag(Online)
+	s.Discriminated = flags.HasFlag(Discriminated)
 	if protoIdentity.Delegatee != nil {
 		d := common.BytesToAddress(protoIdentity.Delegatee)
 		s.Delegatee = &d
@@ -800,6 +864,26 @@ func (s *stateIdentity) SetStake(amount *big.Int) {
 	s.touch()
 }
 
+func (s *stateIdentity) ReplenishedStake() *big.Int {
+	if s.data.replenishedStake == nil {
+		return common.Big0
+	}
+	return s.data.replenishedStake
+}
+
+func (s *stateIdentity) AddReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Add(s.ReplenishedStake(), amount))
+}
+
+func (s *stateIdentity) SubReplenishedStake(amount *big.Int) {
+	s.SetReplenishedStake(new(big.Int).Sub(s.ReplenishedStake(), amount))
+}
+
+func (s *stateIdentity) SetReplenishedStake(amount *big.Int) {
+	s.data.replenishedStake = amount
+	s.touch()
+}
+
 func (s *stateIdentity) AddInvite(i uint8) {
 	if s.Invites() == MaxInvitesAmount {
 		return
@@ -820,7 +904,28 @@ func (s *stateIdentity) QualifiedFlipsCount() uint32 {
 	return s.data.QualifiedFlips
 }
 
-func (s *stateIdentity) AddNewScore(score byte) {
+func (s *stateIdentity) AddNewScore(score byte, enableUpgrade8 bool) {
+	if enableUpgrade8 {
+		s.data.Scores = append(s.data.Scores, score)
+		var totalFlips uint32
+		for _, prevScore := range s.data.Scores {
+			_, flips := common.DecodeScore(prevScore)
+			totalFlips += flips
+		}
+		for {
+			if len(s.data.Scores) <= common.LastScoresCount {
+				break
+			}
+			_, flips := common.DecodeScore(s.data.Scores[0])
+			totalFlips -= flips
+			if totalFlips < common.MinTotalShortFlips {
+				break
+			}
+			s.data.Scores = s.data.Scores[1:]
+		}
+		s.touch()
+		return
+	}
 	if len(s.data.Scores) == common.LastScoresCount {
 		s.data.Scores = append(s.data.Scores[1:], score)
 	} else {
@@ -970,11 +1075,7 @@ func (s *stateIdentity) SetValidationTxBit(txType types.TxType) {
 }
 
 func (s *stateIdentity) HasValidationTx(txType types.TxType) bool {
-	mask := validationTxBitMask(txType)
-	if mask == 0 {
-		return false
-	}
-	return s.data.ValidationTxsBits&mask > 0
+	return s.data.HasValidationTx(txType)
 }
 
 func (s *stateIdentity) ResetValidationTxBits() {
@@ -988,12 +1089,12 @@ func (s *stateIdentity) SetValidationStatus(status ValidationStatusFlag) {
 }
 
 func (s *stateIdentity) SetDelegatee(delegatee common.Address) {
-	s.data.Delegatee = &delegatee
+	s.data.delegatee = &delegatee
 	s.touch()
 }
 
 func (s *stateIdentity) RemoveDelegatee() {
-	s.data.Delegatee = nil
+	s.data.delegatee = nil
 	s.touch()
 }
 
@@ -1003,7 +1104,7 @@ func (s *stateIdentity) SetDelegationNonce(nonce uint32) {
 }
 
 func (s *stateIdentity) Delegatee() *common.Address {
-	return s.data.Delegatee
+	return s.data.Delegatee()
 }
 
 func (s *stateIdentity) SetDelegationEpoch(epoch uint16) {
@@ -1011,8 +1112,27 @@ func (s *stateIdentity) SetDelegationEpoch(epoch uint16) {
 	s.touch()
 }
 
+func (s *stateIdentity) SetPendingUndelegation() {
+	s.data.pendingUndelegation = true
+	s.touch()
+}
+
+func (s *stateIdentity) RemovePendingUndelegation() {
+	s.data.pendingUndelegation = false
+	s.data.delegatee = nil
+	s.touch()
+}
+
+func (s *stateIdentity) PendingUndelegation() *common.Address {
+	return s.data.PendingUndelegation()
+}
+
 func (s *stateIdentity) DelegationEpoch() uint16 {
 	return s.data.DelegationEpoch
+}
+
+func (s *stateIdentity) IsDiscriminated(epoch uint16) bool {
+	return s.data.IsDiscriminated(epoch)
 }
 
 func (s *stateIdentity) ShardId() common.ShardId {
@@ -1274,7 +1394,7 @@ func (s *stateApprovedIdentity) Online() bool {
 
 // empty returns whether the account is considered empty.
 func (s *stateApprovedIdentity) empty() bool {
-	return !s.data.Approved && !s.data.Online
+	return !s.data.Validated && !s.data.Online
 }
 
 func (s *stateApprovedIdentity) touch() {
@@ -1284,13 +1404,18 @@ func (s *stateApprovedIdentity) touch() {
 	}
 }
 
-func (s *stateApprovedIdentity) SetState(approved bool) {
-	s.data.Approved = approved
+func (s *stateApprovedIdentity) SetValidated(validated bool) {
+	s.data.Validated = validated
 	s.touch()
 }
 
 func (s *stateApprovedIdentity) SetOnline(online bool) {
 	s.data.Online = online
+	s.touch()
+}
+
+func (s *stateApprovedIdentity) SetDiscriminated(discriminated bool) {
+	s.data.Discriminated = discriminated
 	s.touch()
 }
 
@@ -1376,6 +1501,7 @@ func (s *stateDelegationSwitch) Clear() {
 	s.data.Delegations = []*Delegation{}
 	s.touch()
 }
+
 func (s *stateDelegationSwitch) DelegationSwitch(sender common.Address) *Delegation {
 	for _, d := range s.data.Delegations {
 		if d.Delegator == sender {

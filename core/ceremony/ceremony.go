@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
+	"math/big"
 	"math/rand"
 	"sync"
 	"time"
@@ -94,6 +95,7 @@ type epochApplyingCache struct {
 	epochApplyingResult map[common.Address]cacheValue
 	validationFailed    bool
 	validationResults   map[common.ShardId]*types.ValidationResults
+	pools               map[common.Address]struct{}
 }
 
 type cacheValue struct {
@@ -103,6 +105,7 @@ type cacheValue struct {
 	shortFlipPoint           float32
 	birthday                 uint16
 	missed                   bool
+	participated             bool
 	delegatee                *common.Address
 }
 
@@ -221,7 +224,16 @@ func (vc *ValidationCeremony) isCandidate() bool {
 
 func (vc *ValidationCeremony) isDelegator() bool {
 	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
-	return identity.Delegatee != nil
+	return identity.Delegatee() != nil
+}
+
+func (vc *ValidationCeremony) isDiscriminated() bool {
+	identity := vc.appState.State.GetIdentity(vc.secStore.GetAddress())
+	return identity.IsDiscriminated(vc.epoch)
+}
+
+func (vc *ValidationCeremony) isGod() bool {
+	return vc.secStore.GetAddress() == vc.appState.State.GodAddress()
 }
 
 func (vc *ValidationCeremony) shouldBroadcastFlipKey(appState *appstate.AppState) bool {
@@ -841,7 +853,7 @@ func (vc *ValidationCeremony) broadcastShortAnswersTx() {
 
 func (vc *ValidationCeremony) broadcastEvidenceMap() {
 	if vc.evidenceSent || !vc.shouldInteractWithNetwork() || !vc.isParticipant() || !vc.appState.EvidenceMap.IsCompleted() || !vc.shortAnswersSent ||
-		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) || vc.isDelegator() {
+		(vc.isCandidate() && vc.appState.ValidatorsCache.NetworkSize() != 0) || vc.isDelegator() || (vc.isDiscriminated() && !vc.isGod()) {
 		return
 	}
 
@@ -931,12 +943,23 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (identitiesCount int) {
+func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (validated bool, pool *common.Address) {
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
+	if cfg.EnableUpgrade8 {
+		if value.state == state.Killed && value.participated {
+			stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
+			stake := appState.State.GetStakeBalance(addr)
+			stakeToBurn := new(big.Int).Mul(stake, big.NewInt(int64(stakeShareToBurn)))
+			stakeToBurn.Div(stakeToBurn, big.NewInt(100))
+			stakeToSave := new(big.Int).Sub(stake, stakeToBurn)
+			appState.State.AddBalance(addr, stakeToSave)
+			appState.State.SubStake(addr, stakeToSave)
+		}
+	}
 	appState.State.SetState(addr, value.state)
 	collector.CompleteBalanceUpdate(statsCollector, appState)
 	if !value.missed {
-		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount))
+		appState.State.AddNewScore(addr, common.EncodeScore(value.shortFlipPoint, value.shortQualifiedFlipsCount), cfg.EnableUpgrade8)
 	}
 	appState.State.SetBirthday(addr, value.birthday)
 
@@ -945,13 +968,19 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee
 			value.delegatee = nil
-			appState.State.RemoveDelegatee(addr)
+			if !cfg.EnableUpgrade8 {
+				appState.State.RemoveDelegatee(addr)
+			} else {
+				appState.State.SetDelegationEpoch(addr, appState.State.Epoch())
+				appState.State.SetPendingUndelegation(addr)
+			}
 			collector.AddRemovedTransitiveDelegation(statsCollector, addr, delegatee)
 		}
 	}
 
 	if value.state == state.Verified && value.prevState == state.Newbie {
-		addToBalance := math.ToInt(decimal.NewFromBigInt(appState.State.GetStakeBalance(addr), 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
+		earnedStake := new(big.Int).Sub(appState.State.GetStakeBalance(addr), appState.State.GetReplenishedStakeBalance(addr))
+		addToBalance := math.ToInt(decimal.NewFromBigInt(earnedStake, 0).Mul(decimal.NewFromFloat(common.StakeToBalanceCoef)))
 		addTo := addr
 		if value.delegatee != nil {
 			addTo = *value.delegatee
@@ -963,15 +992,35 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, statsC
 	}
 
 	if value.state.NewbieOrBetter() {
-		identitiesCount++
+		validated = true
+		if value.delegatee != nil {
+			pool = value.delegatee
+		}
 	} else if value.state == state.Killed {
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 	}
-	return identitiesCount
+	return validated, pool
 }
 
-func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) (identitiesCount int, results map[common.ShardId]*types.ValidationResults, failed bool) {
+func determineStakeShareToBurn(identityState state.IdentityState, birthday uint16, curEpoch uint16) int {
+	switch identityState {
+	case state.Human:
+		return 0
+	case state.Suspended, state.Zombie:
+		curAge := curEpoch - birthday
+		if curAge <= 4 {
+			return 100
+		}
+		return math.MaxInt(10-int(curAge), 0)
+	default:
+		return 100
+	}
+}
+
+func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.AppState, statsCollector collector.StatsCollector) types.TotalValidationResult {
+
+	var identitiesCount int
 
 	vc.applyEpochMutex.Lock()
 	defer vc.applyEpochMutex.Unlock()
@@ -981,14 +1030,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
-			return vc.appState.ValidatorsCache.NetworkSize(), applyingCache.validationResults, true
+			return types.TotalValidationResult{
+				IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
+				ShardResults:    applyingCache.validationResults,
+				Pools:           applyingCache.pools,
+				Failed:          true,
+			}
 		}
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
-				identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
+				validated, _ := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+				if validated {
+					identitiesCount++
+				}
 			}
-			return identitiesCount, applyingCache.validationResults, false
+			return types.TotalValidationResult{
+				IdentitiesCount: identitiesCount,
+				ShardResults:    applyingCache.validationResults,
+				Pools:           applyingCache.pools,
+				Failed:          false,
+			}
 		}
 	}
 
@@ -1071,13 +1133,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 			identity := appState.State.GetIdentity(addr)
 			newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-				totalFlips, missed, noQualShort, noQualLong)
+				totalFlips, missed, noQualShort, noQualLong, vc.config.Consensus.EnableUpgrade8)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
 			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor, vc.config.Consensus)
+			participated := identity.HasValidationTx(types.SubmitAnswersHashTx) || identity.HasValidationTx(types.SubmitShortAnswersTx) || identity.HasValidationTx(types.EvidenceTx) || identity.HasValidationTx(types.SubmitLongAnswersTx)
 
 			value := cacheValue{
 				state:                    newIdentityState,
@@ -1086,7 +1149,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortFlipPoint:           shortFlipPoint,
 				birthday:                 identityBirthday,
 				missed:                   missed,
-				delegatee:                identity.Delegatee,
+				participated:             participated,
+				delegatee:                identity.Delegatee(),
 			}
 
 			epochApplyingValues[addr] = value
@@ -1109,6 +1173,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		shardValidationResults.ReportersToRewardByFlip = reportersToReward.getReportersByFlipMap()
 		validationResults[shardId] = shardValidationResults
 	}
+	pools := make(map[common.Address]struct{})
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		vc.validationStats.Failed = true
@@ -1116,20 +1181,32 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			epochApplyingResult: epochApplyingValues,
 			validationResults:   validationResults,
 			validationFailed:    true,
+			pools:               pools,
 		}
-		return vc.appState.ValidatorsCache.NetworkSize(), validationResults, true
+		return types.TotalValidationResult{
+			IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
+			ShardResults:    validationResults,
+			Pools:           pools,
+			Failed:          true,
+		}
 	}
 	if vc.config.Consensus.EnableUpgrade7 && !isGodCeremonyCandidate {
 		setValidationResultToGoodInviter(validationResults[common.ShardId(1)], god, state.Human, allGoodInviters, vc.config.Consensus.EnableUpgrade7)
 	}
 
 	for addr, value := range epochApplyingValues {
-		identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
+		validated, pool := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+		if validated {
+			identitiesCount++
+		}
+		if pool != nil {
+			pools[*pool] = struct{}{}
+		}
 	}
 	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
 			identity := appState.State.GetIdentity(addr)
-			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
+			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false, vc.config.Consensus.EnableUpgrade8)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			value := cacheValue{
@@ -1137,10 +1214,12 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				shortQualifiedFlipsCount: 0,
 				shortFlipPoint:           0,
 				birthday:                 identityBirthday,
-				delegatee:                identity.Delegatee,
+				delegatee:                identity.Delegatee(),
+				participated:             false,
+				missed:                   vc.config.Consensus.EnableUpgrade8,
 			}
 			epochApplyingValues[addr] = value
-			identitiesCount += applyOnState(vc.config.Consensus, appState, statsCollector, addr, value)
+			applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
 		}
 	}
 
@@ -1148,9 +1227,15 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		epochApplyingResult: epochApplyingValues,
 		validationResults:   validationResults,
 		validationFailed:    false,
+		pools:               pools,
 	}
 
-	return identitiesCount, validationResults, false
+	return types.TotalValidationResult{
+		IdentitiesCount: identitiesCount,
+		ShardResults:    validationResults,
+		Pools:           pools,
+		Failed:          false,
+	}
 }
 
 func calculateNewTotalScore(scores []byte, shortPoints float32, shortFlipsCount uint32, totalShortPoints float32, totalShortFlipsCount uint32) (totalScore float32, totalFlips uint32) {
@@ -1376,7 +1461,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
+func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong, enableUpgrade8 bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -1479,7 +1564,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
 		}
-		if totalScore >= common.MinTotalScore {
+		if enableUpgrade8 || totalScore >= common.MinTotalScore {
 			return state.Suspended
 		}
 		return state.Killed

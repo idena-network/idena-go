@@ -47,17 +47,47 @@ type contractTester struct {
 }
 
 type contractTesterBuilder struct {
-	networkSize                 int
+	network                     networkConfig
 	initialOwnerContractBalance *big.Int
 }
 
-func createTestContractBuilder(networkSize int, ownerBalance *big.Int) *contractTesterBuilder {
-	return &contractTesterBuilder{networkSize: networkSize, initialOwnerContractBalance: ownerBalance}
+type networkConfig struct {
+	identityGroups []identityGroupConfig
+}
+
+type identityGroupConfig struct {
+	count               int
+	state               state.IdentityState
+	delegatee           *common.Address
+	pendingUndelegation bool
+}
+
+func createTestContractBuilder(network *networkConfig, ownerBalance *big.Int) *contractTesterBuilder {
+	var convertedNetwork networkConfig
+	if network != nil {
+		for _, identityGroup := range network.identityGroups {
+			for i := 0; i < identityGroup.count; i++ {
+				convertedNetwork.identityGroups = append(convertedNetwork.identityGroups, identityGroupConfig{
+					state:               identityGroup.state,
+					pendingUndelegation: identityGroup.pendingUndelegation,
+					delegatee:           identityGroup.delegatee,
+				})
+			}
+		}
+	}
+	return &contractTesterBuilder{network: convertedNetwork, initialOwnerContractBalance: ownerBalance}
 }
 
 func (b *contractTesterBuilder) SetInitialOwnerContractBalance(balance *big.Int) *contractTesterBuilder {
 	b.initialOwnerContractBalance = balance
 	return b
+}
+
+func (b *contractTesterBuilder) getIdentityConfig(i int) (identityGroupConfig, bool) {
+	if len(b.network.identityGroups) <= i {
+		return identityGroupConfig{}, false
+	}
+	return b.network.identityGroups[i], true
 }
 
 func (b *contractTesterBuilder) Build() *contractTester {
@@ -69,24 +99,52 @@ func (b *contractTesterBuilder) Build() *contractTester {
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	appState.State.SetState(addr, state.Newbie)
 	appState.State.SetBalance(addr, b.initialOwnerContractBalance)
 	appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-	appState.IdentityState.Add(addr)
+	if cfg, ok := b.getIdentityConfig(0); ok {
+		appState.State.SetState(addr, cfg.state)
+		if cfg.state.NewbieOrBetter() {
+			appState.IdentityState.SetValidated(addr, true)
+		}
+		if cfg.pendingUndelegation {
+			appState.State.SetPendingUndelegation(addr)
+		}
+		if cfg.delegatee != nil {
+			appState.State.SetDelegatee(addr, *cfg.delegatee)
+			if !cfg.pendingUndelegation {
+				appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
+			}
+		}
+	} else {
+		appState.State.SetState(addr, state.Newbie)
+		appState.IdentityState.SetValidated(addr, true)
+	}
 
 	secStore := secstore.NewSecStore()
 
 	var identities []*ecdsa.PrivateKey
 
-	for i := 0; i < b.networkSize-1; i++ {
+	for i := 1; i < len(b.network.identityGroups); i++ {
 		key, _ := crypto.GenerateKeyFromSeed(rnd)
 		identities = append(identities, key)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		appState.State.SetState(addr, state.Newbie)
 		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
-		appState.IdentityState.Add(addr)
+		cfg := b.network.identityGroups[i]
+		appState.State.SetState(addr, cfg.state)
+		if cfg.state.NewbieOrBetter() {
+			appState.IdentityState.SetValidated(addr, true)
+		}
+		if cfg.pendingUndelegation {
+			appState.State.SetPendingUndelegation(addr)
+		}
+		if cfg.delegatee != nil {
+			appState.State.SetDelegatee(addr, *cfg.delegatee)
+			if !cfg.pendingUndelegation {
+				appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
+			}
+		}
 	}
-	appState.Commit(nil)
+	appState.Commit(nil, true)
 
 	appState.Initialize(1)
 	return &contractTester{
@@ -130,7 +188,7 @@ func (c *contractTester) createContract(ctx env.CallContext, e env.Env) Contract
 	case TimeLockContract:
 		return NewTimeLock(ctx, e, nil)
 	case OracleVotingContract:
-		return NewOracleVotingContract4(ctx, e, nil)
+		return NewOracleVotingContract5(ctx, e, nil)
 	case OracleLockContract:
 		return NewOracleLock2(ctx, e, nil)
 	case RefundableOracleLockContract:
@@ -215,9 +273,9 @@ func (c *contractTester) Terminate(key *ecdsa.PrivateKey, contract EmbeddedContr
 
 	c.env = env.NewEnvImp(c.appState, createHeader(c.height, c.timestamp), gas, nil)
 	c.contractInstance = c.createContract(ctx, c.env)
-	dest, err := c.contractInstance.Terminate(terminateAttach.Args...)
+	dest, keysToSave, err := c.contractInstance.Terminate(terminateAttach.Args...)
 	if err == nil {
-		c.env.Terminate(ctx, dest)
+		c.env.Terminate(ctx, keysToSave, dest)
 	}
 	return dest, err
 }
@@ -239,7 +297,7 @@ func (c *contractTester) Read(contract EmbeddedContractType, method string, byte
 
 func (c *contractTester) Commit() {
 	c.env.Commit()
-	c.appState.Commit(nil)
+	c.appState.Commit(nil, true)
 }
 
 func (c *contractTester) SetBalance(balance *big.Int) {

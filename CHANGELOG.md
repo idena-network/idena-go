@@ -3,6 +3,51 @@
 ## Unreleased
 
 
+## 0.29.0 (May 12, 2022)
+
+### Fork (Upgrade 8)
+
+- Flip reporting improvement ([#949])
+- Voting discrimination (IIP-3) ([#946], [#955])
+- Quadratic staking (IIP-4) ([#948])
+- Protection of identities with Human status ([#950])
+- Oracle voting termination improvement ([#954])
+- Online mining status for pool ([#952, #957])
+- Bug fix ([#951])
+
+### Changes
+
+- Use only online committee in upgrader ([#956])
+
+[#949]: https://github.com/idena-network/idena-go/pull/949
+[#957]: https://github.com/idena-network/idena-go/pull/957
+[#954]: https://github.com/idena-network/idena-go/pull/954
+[#952]: https://github.com/idena-network/idena-go/pull/952
+[#951]: https://github.com/idena-network/idena-go/pull/951
+[#950]: https://github.com/idena-network/idena-go/pull/950
+[#948]: https://github.com/idena-network/idena-go/pull/948
+[#946]: https://github.com/idena-network/idena-go/pull/946
+[#955]: https://github.com/idena-network/idena-go/pull/955
+[#956]: https://github.com/idena-network/idena-go/pull/956
+
+## 0.28.8 (Apr 7, 2022)
+
+- Fix RPC method to get burnt coins ([#940])
+
+[#940]: https://github.com/idena-network/idena-go/pull/940
+
+## 0.28.7 (Mar 11, 2022)
+
+- Increase offline penalty interval ([#932])
+- Change burnt coins lifetime to 1 day ([#922])
+- Add rpc method to get network size ([#923])
+- Add SendToIpfs rpc method ([#926])
+
+[#932]: https://github.com/idena-network/idena-go/pull/932
+[#922]: https://github.com/idena-network/idena-go/pull/922
+[#923]: https://github.com/idena-network/idena-go/pull/923
+[#926]: https://github.com/idena-network/idena-go/pull/926
+
 ## 0.28.5 (Feb 7, 2022)
 
 - Persist lottery identities ([#918])
