@@ -52,10 +52,11 @@ func (api *DnaApi) GetCoinbaseAddr() common.Address {
 }
 
 type Balance struct {
-	Stake        decimal.Decimal `json:"stake"`
-	Balance      decimal.Decimal `json:"balance"`
-	Nonce        uint32          `json:"nonce"`
-	MempoolNonce uint32          `json:"mempoolNonce"`
+	Stake            decimal.Decimal `json:"stake"`
+	ReplenishedStake decimal.Decimal `json:"replenishedStake"`
+	Balance          decimal.Decimal `json:"balance"`
+	Nonce            uint32          `json:"nonce"`
+	MempoolNonce     uint32          `json:"mempoolNonce"`
 }
 
 func (api *DnaApi) GetBalance(address common.Address) Balance {
@@ -67,10 +68,11 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	}
 
 	return Balance{
-		Stake:        blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
-		Balance:      blockchain.ConvertToFloat(state.State.GetBalance(address)),
-		Nonce:        nonce,
-		MempoolNonce: state.NonceCache.GetNonce(address, currentEpoch),
+		Stake:            blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
+		ReplenishedStake: blockchain.ConvertToFloat(state.State.GetReplenishedStakeBalance(address)),
+		Balance:          blockchain.ConvertToFloat(state.State.GetBalance(address)),
+		Nonce:            nonce,
+		MempoolNonce:     state.NonceCache.GetNonce(address, currentEpoch),
 	}
 }
 
@@ -286,6 +288,7 @@ type Identity struct {
 	Address             common.Address  `json:"address"`
 	ProfileHash         string          `json:"profileHash"`
 	Stake               decimal.Decimal `json:"stake"`
+	ReplenishedStake    decimal.Decimal `json:"replenishedStake"`
 	Invites             uint8           `json:"invites"`
 	Age                 uint16          `json:"age"`
 	State               string          `json:"state"`
@@ -460,6 +463,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Address:             address,
 		State:               s,
 		Stake:               blockchain.ConvertToFloat(data.Stake),
+		ReplenishedStake:    blockchain.ConvertToFloat(data.ReplenishedStake()),
 		Age:                 age,
 		Invites:             data.Invites,
 		ProfileHash:         profileHash,
