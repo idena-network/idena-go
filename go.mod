@@ -35,7 +35,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 	github.com/rjeczalik/notify v0.9.2
-	github.com/rs/cors v1.8.0
+	github.com/rs/cors v1.8.2
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/stretchr/testify v1.7.0
