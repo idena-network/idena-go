@@ -3,6 +3,24 @@
 ## Unreleased
 
 
+## 0.29.1 (May 31, 2022)
+
+### Changes
+
+- Return age for identities with zero birth epoch ([#964])
+- Return current epoch as delegation epoch in case of pending delegation switch ([#965])
+- Return replenished stake through rpc ([#966])
+- Allow to estimate tx without signature ([#970])
+- Update deps ([#904] & [#927] & [#968])
+
+[#964]: https://github.com/idena-network/idena-go/pull/964
+[#965]: https://github.com/idena-network/idena-go/pull/965
+[#966]: https://github.com/idena-network/idena-go/pull/966
+[#970]: https://github.com/idena-network/idena-go/pull/970
+[#904]: https://github.com/idena-network/idena-go/pull/904
+[#927]: https://github.com/idena-network/idena-go/pull/927
+[#968]: https://github.com/idena-network/idena-go/pull/968
+
 ## 0.29.0 (May 12, 2022)
 
 ### Fork (Upgrade 8)
