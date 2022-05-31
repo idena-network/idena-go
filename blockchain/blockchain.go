@@ -1371,7 +1371,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.AddBalance(*tx.To, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
-		receipt = context.vm.Run(tx, chain.getGasLimit(appState, tx))
+		receipt = context.vm.Run(tx, nil, chain.getGasLimit(appState, tx))
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}

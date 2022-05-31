@@ -385,11 +385,12 @@ type CallContext interface {
 
 type CallContextImpl struct {
 	tx       *types.Transaction
+	from     *common.Address
 	codeHash common.Hash
 }
 
-func NewCallContextImpl(tx *types.Transaction, codeHash common.Hash) *CallContextImpl {
-	return &CallContextImpl{tx: tx, codeHash: codeHash}
+func NewCallContextImpl(tx *types.Transaction, from *common.Address, codeHash common.Hash) *CallContextImpl {
+	return &CallContextImpl{tx: tx, from: from, codeHash: codeHash}
 }
 
 func (c *CallContextImpl) PayAmount() *big.Int {
@@ -409,6 +410,9 @@ func (c *CallContextImpl) ContractAddr() common.Address {
 }
 
 func (c *CallContextImpl) Sender() common.Address {
+	if c.from != nil {
+		return *c.from
+	}
 	addr, _ := types.Sender(c.tx)
 	return addr
 }
@@ -419,6 +423,7 @@ func (c *CallContextImpl) CodeHash() common.Hash {
 
 type DeployContextImpl struct {
 	tx       *types.Transaction
+	from     *common.Address
 	codeHash common.Hash
 }
 
@@ -426,8 +431,8 @@ func (d *DeployContextImpl) PayAmount() *big.Int {
 	return d.tx.Amount
 }
 
-func NewDeployContextImpl(tx *types.Transaction, codeHash common.Hash) *DeployContextImpl {
-	return &DeployContextImpl{tx: tx, codeHash: codeHash}
+func NewDeployContextImpl(tx *types.Transaction, from *common.Address, codeHash common.Hash) *DeployContextImpl {
+	return &DeployContextImpl{tx: tx, from: from, codeHash: codeHash}
 }
 
 func (d *DeployContextImpl) CodeHash() common.Hash {
@@ -443,6 +448,9 @@ func (d *DeployContextImpl) Nonce() uint32 {
 }
 
 func (d *DeployContextImpl) Sender() common.Address {
+	if d.from != nil {
+		return *d.from
+	}
 	addr, _ := types.Sender(d.tx)
 	return addr
 }
