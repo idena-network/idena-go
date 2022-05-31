@@ -14,6 +14,7 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/ipfs/go-cid"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"math/big"
 	"sort"
@@ -301,32 +302,46 @@ func (api *BlockchainApi) GetRawTx(args SendTxArgs) (hexutil.Bytes, error) {
 	return data, nil
 }
 
-func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes) (*EstimateRawTxResponse, error) {
+func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes, from *common.Address) (*EstimateRawTxResponse, error) {
 	tx := new(types.Transaction)
 	if err := tx.FromBytes(bytesTx); err != nil {
 		return nil, err
 	}
-	err := api.baseApi.txpool.Validate(tx)
-	if err != nil {
-		return nil, err
+	if from == nil && !tx.Signed() {
+		return nil, errors.New("either sender or signature should be specified")
+	}
+	if from != nil && tx.Signed() {
+		return nil, errors.New("sender and signature can't be specified at the same time")
+	}
+	if tx.Signed() {
+		if err := api.baseApi.txpool.Validate(tx); err != nil {
+			return nil, err
+		}
 	}
 
 	response := &EstimateRawTxResponse{
-		TxHash: tx.Hash(),
-		TxFee:  blockchain.ConvertToFloat(fee.CalculateFee(1, api.baseApi.getReadonlyAppState().State.FeePerGas(), tx)),
+		TxFee: blockchain.ConvertToFloat(fee.CalculateFee(1, api.baseApi.getReadonlyAppState().State.FeePerGas(), tx)),
+	}
+	if tx.Signed() {
+		response.TxHash = tx.Hash()
 	}
 
 	if tx.Type == types.CallContractTx || tx.Type == types.DeployContractTx || tx.Type == types.TerminateContractTx {
 		appState := api.baseApi.getAppStateForCheck()
 		vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
 		if tx.Type == types.CallContractTx && !common.ZeroOrNil(tx.Amount) {
-			sender, _ := types.Sender(tx)
+			var sender common.Address
+			if tx.Signed() {
+				sender, _ = types.Sender(tx)
+			} else {
+				sender = *from
+			}
 			appState.State.SubBalance(sender, tx.Amount)
 			appState.State.AddBalance(*tx.To, tx.Amount)
 		}
-		r := vm.Run(tx, -1)
+		r := vm.Run(tx, from, -1)
 		r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
-		receipt := convertReceipt(tx, r, appState.State.FeePerGas())
+		receipt := convertEstimatedReceipt(tx, r, appState.State.FeePerGas())
 		response.Receipt = receipt
 		response.TxFee = response.TxFee.Add(receipt.GasCost)
 	}

@@ -163,7 +163,7 @@ type TxReceipt struct {
 	Method   string          `json:"method"`
 	Success  bool            `json:"success"`
 	GasUsed  uint64          `json:"gasUsed"`
-	TxHash   common.Hash     `json:"txHash"`
+	TxHash   *common.Hash    `json:"txHash"`
 	Error    string          `json:"error"`
 	GasCost  decimal.Decimal `json:"gasCost"`
 	TxFee    decimal.Decimal `json:"txFee"`
@@ -185,7 +185,7 @@ type IterateMapResponse struct {
 	ContinuationToken *hexutil.Bytes `json:"continuationToken"`
 }
 
-func (api *ContractApi) buildDeployContractTx(args DeployArgs) (*types.Transaction, error) {
+func (api *ContractApi) buildDeployContractTx(args DeployArgs, estimate bool) (*types.Transaction, error) {
 	var codeHash common.Hash
 	codeHash.SetBytes(args.CodeHash)
 
@@ -198,13 +198,11 @@ func (api *ContractApi) buildDeployContractTx(args DeployArgs) (*types.Transacti
 		return nil, err
 	}
 	payload, _ := attachments.CreateDeployContractAttachment(codeHash, convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, nil, types.DeployContractTx, args.Amount,
-		args.MaxFee, decimal.Zero,
-		0, 0,
-		payload, nil)
+	tx := api.baseApi.getTx(from, nil, types.DeployContractTx, args.Amount, args.MaxFee, decimal.Zero, 0, 0, payload)
+	return api.signIfNeeded(from, tx, estimate)
 }
 
-func (api *ContractApi) buildCallContractTx(args CallArgs) (*types.Transaction, error) {
+func (api *ContractApi) buildCallContractTx(args CallArgs, estimate bool) (*types.Transaction, error) {
 
 	from := args.From
 	if from == (common.Address{}) {
@@ -215,13 +213,12 @@ func (api *ContractApi) buildCallContractTx(args CallArgs) (*types.Transaction, 
 		return nil, err
 	}
 	payload, _ := attachments.CreateCallContractAttachment(args.Method, convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, &args.Contract, types.CallContractTx, args.Amount,
-		args.MaxFee, decimal.Zero,
-		0, 0,
-		payload, nil)
+	tx := api.baseApi.getTx(from, &args.Contract, types.CallContractTx, args.Amount, args.MaxFee, decimal.Zero, 0, 0,
+		payload)
+	return api.signIfNeeded(from, tx, estimate)
 }
 
-func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Transaction, error) {
+func (api *ContractApi) buildTerminateContractTx(args TerminateArgs, estimate bool) (*types.Transaction, error) {
 
 	from := args.From
 	if from == (common.Address{}) {
@@ -232,61 +229,88 @@ func (api *ContractApi) buildTerminateContractTx(args TerminateArgs) (*types.Tra
 		return nil, err
 	}
 	payload, _ := attachments.CreateTerminateContractAttachment(convertedArgs...).ToBytes()
-	return api.baseApi.getSignedTx(from, &args.Contract, types.TerminateContractTx, decimal.Zero,
-		args.MaxFee, decimal.Zero,
-		0, 0,
-		payload, nil)
+	tx := api.baseApi.getTx(from, &args.Contract, types.TerminateContractTx, decimal.Zero, args.MaxFee, decimal.Zero, 0,
+		0, payload)
+	return api.signIfNeeded(from, tx, estimate)
+}
+
+func (api *ContractApi) signIfNeeded(from common.Address, tx *types.Transaction, estimate bool) (*types.Transaction, error) {
+	sign := !estimate || api.baseApi.canSign(from)
+	if !sign {
+		return tx, nil
+	}
+	return api.baseApi.signTransaction(from, tx, nil)
 }
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
-	tx, err := api.buildDeployContractTx(args)
+	tx, err := api.buildDeployContractTx(args, true)
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
-		return nil, err
+	var from *common.Address
+	if tx.Signed() {
+		if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
+			return nil, err
+		}
+	} else {
+		from = &args.From
 	}
-	r := vm.Run(tx, -1)
+	r := vm.Run(tx, from, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
-	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
+	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
-	tx, err := api.buildCallContractTx(args)
+	tx, err := api.buildCallContractTx(args, true)
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
-		return nil, err
+	var from *common.Address
+	if tx.Signed() {
+		if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
+			return nil, err
+		}
+	} else {
+		from = &args.From
 	}
 	if !common.ZeroOrNil(tx.Amount) {
-		sender, _ := types.Sender(tx)
+		var sender common.Address
+		if tx.Signed() {
+			sender, _ = types.Sender(tx)
+		} else {
+			sender = args.From
+		}
 		appState.State.SubBalance(sender, tx.Amount)
 		appState.State.AddBalance(*tx.To, tx.Amount)
 	}
 
-	r := vm.Run(tx, -1)
+	r := vm.Run(tx, from, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
-	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
+	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
 	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
-	tx, err := api.buildTerminateContractTx(args)
+	tx, err := api.buildTerminateContractTx(args, true)
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
-		return nil, err
+	var from *common.Address
+	if tx.Signed() {
+		if err := validation.ValidateTx(appState, tx, appState.State.FeePerGas(), validation.MempoolTx); err != nil {
+			return nil, err
+		}
+	} else {
+		from = &args.From
 	}
-	r := vm.Run(tx, -1)
+	r := vm.Run(tx, from, -1)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
-	return convertReceipt(tx, r, appState.State.FeePerGas()), nil
+	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
 func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *big.Int) *TxReceipt {
@@ -295,20 +319,29 @@ func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *
 	if receipt.Error != nil {
 		err = receipt.Error.Error()
 	}
+	txHash := receipt.TxHash
 	return &TxReceipt{
 		Success:  receipt.Success,
 		Error:    err,
 		Method:   receipt.Method,
 		Contract: receipt.ContractAddress,
-		TxHash:   receipt.TxHash,
+		TxHash:   &txHash,
 		GasUsed:  receipt.GasUsed,
 		GasCost:  blockchain.ConvertToFloat(receipt.GasCost),
 		TxFee:    blockchain.ConvertToFloat(fee),
 	}
 }
 
+func convertEstimatedReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *big.Int) *TxReceipt {
+	res := convertReceipt(tx, receipt, feePerGas)
+	if !tx.Signed() {
+		res.TxHash = nil
+	}
+	return res
+}
+
 func (api *ContractApi) Deploy(ctx context.Context, args DeployArgs) (common.Hash, error) {
-	tx, err := api.buildDeployContractTx(args)
+	tx, err := api.buildDeployContractTx(args, false)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -316,7 +349,7 @@ func (api *ContractApi) Deploy(ctx context.Context, args DeployArgs) (common.Has
 }
 
 func (api *ContractApi) Call(ctx context.Context, args CallArgs) (common.Hash, error) {
-	tx, err := api.buildCallContractTx(args)
+	tx, err := api.buildCallContractTx(args, false)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -332,7 +365,7 @@ func (api *ContractApi) Call(ctx context.Context, args CallArgs) (common.Hash, e
 	return api.baseApi.sendInternalTx(ctx, tx)
 }
 func (api *ContractApi) Terminate(ctx context.Context, args TerminateArgs) (common.Hash, error) {
-	tx, err := api.buildTerminateContractTx(args)
+	tx, err := api.buildTerminateContractTx(args, false)
 	if err != nil {
 		return common.Hash{}, err
 	}

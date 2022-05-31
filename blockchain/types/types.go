@@ -933,6 +933,10 @@ func (tx *Transaction) LoadHighPriority() bool {
 	return false
 }
 
+func (tx *Transaction) Signed() bool {
+	return len(tx.Signature) > 0
+}
+
 // Len returns the length of s.
 func (s Transactions) Len() int { return len(s) }
 
