@@ -3,6 +3,14 @@
 ## Unreleased
 
 
+## 0.29.2-rc0 (Jun 1, 2022)
+
+### Changes
+
+- Update ipfs to 0.12.2 ([#937])
+
+[#937]: https://github.com/idena-network/idena-go/pull/937
+
 ## 0.29.1 (May 31, 2022)
 
 ### Changes
