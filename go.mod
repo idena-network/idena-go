@@ -15,12 +15,12 @@ require (
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/ipfs/fs-repo-migrations/fs-repo-11-to-12 v1.0.2
 	github.com/ipfs/fs-repo-migrations/tools v0.0.0-20211209222258-754a2dcb82ea
-	github.com/ipfs/go-blockservice v0.2.1
+	github.com/ipfs/go-blockservice v0.3.0
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-ipfs v0.12.2
 	github.com/ipfs/go-ipfs-config v0.18.0
 	github.com/ipfs/go-ipfs-files v0.0.9
-	github.com/ipfs/go-merkledag v0.5.1
+	github.com/ipfs/go-merkledag v0.6.0
 	github.com/ipfs/go-mfs v0.2.1
 	github.com/ipfs/go-unixfs v0.3.1
 	github.com/ipfs/interface-go-ipfs-core v0.5.2
