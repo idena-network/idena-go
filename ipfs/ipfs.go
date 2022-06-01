@@ -93,6 +93,7 @@ type Proxy interface {
 	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
 	PubSub() *pubsub.PubSub
 }
+
 type ipfsProxy struct {
 	node                 *core.IpfsNode
 	log                  log.Logger
@@ -128,7 +129,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 
 	logger := log.New()
 
-	node, ctx, cancelCtx, err := createNode(cfg)
+	node, ctx, cancelCtx, err := createNode(cfg, bus)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	return p, nil
 }
 
-func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, context.CancelFunc, error) {
+func createNode(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*core.IpfsNode, context.Context, context.CancelFunc, error) {
 	dataDir, _ := filepath.Abs(cfg.DataDir)
 
 	if ln, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.IpfsPort)); err == nil {
@@ -169,7 +170,7 @@ func createNode(cfg *config.IpfsConfig) (*core.IpfsNode, context.Context, contex
 		return nil, nil, func() {}, errors.Errorf("cannot start IPFS node on port %v, err: %v", cfg.IpfsPort, err.Error())
 	}
 
-	_, err := configureIpfs(cfg)
+	_, err := configureIpfs(cfg, eventBus)
 	if err != nil {
 		return nil, nil, func() {}, err
 	}
@@ -242,7 +243,7 @@ func (p *ipfsProxy) changePort() {
 	for {
 		p.cfg.IpfsPort += 1
 
-		node, ctx, cancelCtx, err := createNode(p.cfg)
+		node, ctx, cancelCtx, err := createNode(p.cfg, p.bus)
 
 		if err != nil {
 			continue
@@ -615,7 +616,7 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	return nd.Cid(), nil
 }
 
-func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
+func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Config, error) {
 	updateIpfsConfig := func(ipfsConfig *ipfsConf.Config) error {
 		ipfsConfig.Addresses.Swarm = []string{
 			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", cfg.IpfsPort),
@@ -687,7 +688,7 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 				if err := os.Remove(configFilename); err != nil {
 					return nil, err
 				}
-				return configureIpfs(cfg)
+				return configureIpfs(cfg, eventBus)
 			}
 			return nil, err
 		}
@@ -698,13 +699,13 @@ func configureIpfs(cfg *config.IpfsConfig) (*ipfsConf.Config, error) {
 
 		repo, err := fsrepo.Open(datadir)
 
-		/*if err == fsrepo.ErrNeedMigration {
-			err = Migrate(datadir, fsrepo.RepoVersion)
+		if err == fsrepo.ErrNeedMigration {
+			err = Migrate(datadir, fsrepo.RepoVersion, eventBus)
 			if err != nil {
 				return nil, err
 			}
 			repo, err = fsrepo.Open(datadir)
-		}*/
+		}
 
 		if err != nil {
 			return nil, err
