@@ -637,8 +637,6 @@ github.com/huin/goupnp v1.0.2/go.mod h1:0dxJBVBHqTMjIUMkESDTNgOOx/Mw5wYIfyFmdzSa
 github.com/huin/goutil v0.0.0-20170803182201-1ca381bf3150/go.mod h1:PpLOETDnJ0o3iZrZfqZzyLl6l7F3c6L1oWn7OICBi6o=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
-github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220317064304-288d34efc3e4 h1:Qe9Ew740BFIx7XPKZaons6J23EqK3rhUfacsAqewYr8=
-github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220317064304-288d34efc3e4/go.mod h1:gsORaUrenM9QUZa/8MgzE7+GR/g19TbdZ+5uZH3edM4=
 github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220601101433-9ce72c125fd3 h1:6zvZAa+EQ2ByDktDHpWaTE3tnQ2jI2NBSJ+wWlBTLdI=
 github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220601101433-9ce72c125fd3/go.mod h1:gsORaUrenM9QUZa/8MgzE7+GR/g19TbdZ+5uZH3edM4=
 github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed h1:jM02TxNgO/S2p/LCq7UKNmCBXWmKg6PK8W6C7LZ4re0=
@@ -744,8 +742,9 @@ github.com/ipfs/go-ipfs-chunker v0.0.5 h1:ojCf7HV/m+uS2vhUGWcogIIxiO5ubl5O57Q7Na
 github.com/ipfs/go-ipfs-chunker v0.0.5/go.mod h1:jhgdF8vxRHycr00k13FM8Y0E+6BoalYeobXmUyTreP8=
 github.com/ipfs/go-ipfs-cmds v0.6.0/go.mod h1:ZgYiWVnCk43ChwoH8hAmI1IRbuVtq3GSTHwtRB/Kqhk=
 github.com/ipfs/go-ipfs-config v0.16.0/go.mod h1:wz2lKzOjgJeYJa6zx8W9VT7mz+iSd0laBMqS/9wmX6A=
-github.com/ipfs/go-ipfs-config v0.18.0 h1:Ta1aNGNEq6RIvzbw7dqzCVZJKb7j+Dd35JFnAOCpT8g=
 github.com/ipfs/go-ipfs-config v0.18.0/go.mod h1:wz2lKzOjgJeYJa6zx8W9VT7mz+iSd0laBMqS/9wmX6A=
+github.com/ipfs/go-ipfs-config v0.19.0 h1:OuKIL+BkOZgJ+hb4Wg/9ynCtE/BaZBWcGy8hgdMepAo=
+github.com/ipfs/go-ipfs-config v0.19.0/go.mod h1:wz2lKzOjgJeYJa6zx8W9VT7mz+iSd0laBMqS/9wmX6A=
 github.com/ipfs/go-ipfs-delay v0.0.0-20181109222059-70721b86a9a8/go.mod h1:8SP1YXK1M1kXuc4KJZINY3TQQ03J2rwBG9QfXmbRPrw=
 github.com/ipfs/go-ipfs-delay v0.0.1 h1:r/UXYyRcddO6thwOnhiznIAiSvxMECGgtv35Xs1IeRQ=
 github.com/ipfs/go-ipfs-delay v0.0.1/go.mod h1:8SP1YXK1M1kXuc4KJZINY3TQQ03J2rwBG9QfXmbRPrw=
