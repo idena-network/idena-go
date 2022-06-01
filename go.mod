@@ -58,6 +58,6 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202112
 
 replace github.com/libp2p/go-libp2p-pnet => github.com/idena-network/go-libp2p-pnet v0.2.1-0.20200406075059-75d9ee9b85ed
 
-replace github.com/ipfs/fs-repo-migrations/fs-repo-11-to-12 => github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220317064304-288d34efc3e4
+replace github.com/ipfs/fs-repo-migrations/fs-repo-11-to-12 => github.com/idena-network/fs-repo-migrations/fs-repo-11-to-12 v0.0.0-20220601101433-9ce72c125fd3
 
 go 1.16
