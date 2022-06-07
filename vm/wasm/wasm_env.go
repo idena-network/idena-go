@@ -31,6 +31,32 @@ type WasmEnv struct {
 	contractStakeCache    map[common.Address]*big.Int
 }
 
+func (w *WasmEnv) MinFeePerGas(meter *lib.GasMeter) *big.Int {
+	panic("implement me")
+}
+
+func (w *WasmEnv) BlockSeed(meter *lib.GasMeter) []byte {
+	panic("implement me")
+}
+
+func (w *WasmEnv) SubBalance(meter *lib.GasMeter, amount *big.Int) error {
+	panic("implement me")
+}
+
+func (w *WasmEnv) AddBalance(meter *lib.GasMeter, address lib.Address, bytes *big.Int) {
+	panic("implement me")
+}
+
+func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
+	return w.ctx.ContractAddr()
+}
+
+func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
+	code :=  w.appState.State.GetContractCode(addr)
+	println("requested code len", len(code))
+	return code
+}
+
 func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header) *WasmEnv {
 	return &WasmEnv{
 		appState:              appState,
@@ -124,15 +150,7 @@ func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) e
 	return nil
 }
 
-func (w *WasmEnv) MinFeePerGas() *big.Int {
-	panic("implement me")
-}
-
 func (w *WasmEnv) Balance(address lib.Address) *big.Int {
-	panic("implement me")
-}
-
-func (w *WasmEnv) BlockSeed() []byte {
 	panic("implement me")
 }
 
