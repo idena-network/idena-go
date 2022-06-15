@@ -328,10 +328,20 @@ func (pool *TxPool) AddInternalTx(tx *types.Transaction) error {
 
 func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own bool, txType validation.TxType) (err error) {
 
+	var locked bool
+
+	unlock := func() {
+		pool.mutex.Unlock()
+		locked = false
+	}
+
 	defer func() {
 		// handle panics of iavl tree
 		if r := recover(); r != nil {
 			err = errors.New(fmt.Sprint(r))
+		}
+		if locked {
+			pool.mutex.Unlock()
 		}
 	}()
 
@@ -340,9 +350,10 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 	}
 
 	pool.mutex.Lock()
+	locked = true
 
 	if err := pool.checkLimits(tx); err != nil {
-		pool.mutex.Unlock()
+		unlock()
 		log.Warn("Tx limits", "hash", tx.Hash().Hex(), "err", err)
 		return err
 	}
@@ -350,7 +361,7 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 	sender, _ := types.Sender(tx)
 
 	if err := pool.validate(tx, appState, txType); err != nil {
-		pool.mutex.Unlock()
+		unlock()
 		if sender == pool.coinbase {
 			log.Warn("Tx is not valid", "hash", tx.Hash().Hex(), "err", err)
 		}
@@ -359,13 +370,13 @@ func (pool *TxPool) add(tx *types.Transaction, appState *appstate.AppState, own 
 
 	err = pool.put(tx)
 	if err != nil {
-		pool.mutex.Unlock()
+		unlock()
 		return err
 	}
 
 	tx.SetShardId(appState.State.ShardId(sender))
 
-	pool.mutex.Unlock()
+	unlock()
 
 	pool.bus.Publish(&events.NewTxEvent{
 		Tx:      tx,
