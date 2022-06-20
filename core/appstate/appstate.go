@@ -219,6 +219,11 @@ func (s *AppState) ResetTo(height uint64) error {
 	}
 
 	s.ValidatorsCache.Load()
+
+	s.NonceCache.Lock()
+	s.NonceCache.ReloadFallback(s.State)
+	s.NonceCache.UnLock()
+
 	return nil
 }
 
