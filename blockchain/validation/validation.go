@@ -67,10 +67,11 @@ var (
 )
 
 var (
-	nonCeremonialTxs = map[types.TxType]bool{
-		types.SendTx:          true,
-		types.BurnTx:          true,
-		types.ChangeProfileTx: true,
+	CeremonialTxs = map[types.TxType]bool{
+		types.SubmitAnswersHashTx:  true,
+		types.SubmitShortAnswersTx: true,
+		types.SubmitLongAnswersTx:  true,
+		types.EvidenceTx:           true,
 	}
 
 	contractTxs = map[types.TxType]struct{}{
@@ -179,7 +180,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 	}
 
 	currentPeriod := appState.State.ValidationPeriod()
-	if _, ok := nonCeremonialTxs[tx.Type]; ok && txType != InBlockTx && (currentPeriod == state.FlipLotteryPeriod || currentPeriod == state.ShortSessionPeriod) {
+	if _, isCeremonial := CeremonialTxs[tx.Type]; !isCeremonial && txType != InBlockTx && (currentPeriod == state.FlipLotteryPeriod || currentPeriod == state.ShortSessionPeriod) {
 		return LateTx
 	}
 
