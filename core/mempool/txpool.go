@@ -29,12 +29,7 @@ const (
 var (
 	DuplicateTxError = errors.New("tx with same hash already exists")
 	MempoolFullError = errors.New("mempool is full")
-	priorityTypes    = map[types.TxType]bool{
-		types.SubmitAnswersHashTx:  true,
-		types.SubmitShortAnswersTx: true,
-		types.SubmitLongAnswersTx:  true,
-		types.EvidenceTx:           true,
-	}
+	priorityTypes    = validation.CeremonialTxs
 )
 
 type TransactionPool interface {
