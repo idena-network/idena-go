@@ -3,13 +3,17 @@
 ## Unreleased
 
 
-## 0.29.2-rc0 (Jun 1, 2022)
+## 0.29.2 (Jun 20, 2022)
 
 ### Changes
 
 - Update ipfs to 0.12.2 ([#937])
+- Reload nonce cache fallback while resetting state to prevent iavl panic in mempool ([#979])
+- Allow only ceremonial transactions during lottery and short session ([#980])
 
 [#937]: https://github.com/idena-network/idena-go/pull/937
+[#979]: https://github.com/idena-network/idena-go/pull/979
+[#980]: https://github.com/idena-network/idena-go/pull/980
 
 ## 0.29.1 (May 31, 2022)
 
