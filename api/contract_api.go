@@ -76,6 +76,17 @@ type EventsArgs struct {
 	Contract common.Address `json:"contract"`
 }
 
+type KeyWithFormat struct {
+	Key    string `json:"key"`
+	Format string `json:"format"`
+}
+
+type ContractData struct {
+	Key   string      `json:"key"`
+	Value interface{} `json:"value,omitempty"`
+	Error string      `json:"error,omitempty"`
+}
+
 func (a DynamicArg) ToBytes() ([]byte, error) {
 	switch a.Format {
 	case "byte":
@@ -364,6 +375,7 @@ func (api *ContractApi) Call(ctx context.Context, args CallArgs) (common.Hash, e
 	}
 	return api.baseApi.sendInternalTx(ctx, tx)
 }
+
 func (api *ContractApi) Terminate(ctx context.Context, args TerminateArgs) (common.Hash, error) {
 	tx, err := api.buildTerminateContractTx(args, false)
 	if err != nil {
@@ -378,6 +390,26 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 		return nil, errors.New("data is nil")
 	}
 	return conversion(format, data)
+}
+
+func (api *ContractApi) BatchReadData(contract common.Address, keys []KeyWithFormat) []ContractData {
+	res := make([]ContractData, 0, len(keys))
+	for _, keyWithFormat := range keys {
+		data := ContractData{
+			Key: keyWithFormat.Key,
+		}
+		if value := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, []byte(keyWithFormat.Key)); value != nil {
+			var err error
+			data.Value, err = conversion(keyWithFormat.Format, value)
+			if err != nil {
+				data.Error = err.Error()
+			}
+		} else {
+			data.Error = "data is nil"
+		}
+		res = append(res, data)
+	}
+	return res
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
