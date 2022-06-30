@@ -53,6 +53,7 @@ type ConsensusConf struct {
 	NewKeyWordsEpoch                  uint16
 	EnableUpgrade7                    bool
 	EnableUpgrade8                    bool
+	EnableUpgrade9                    bool
 }
 
 type ConsensusVerson uint16
@@ -64,12 +65,12 @@ const (
 	ConsensusV7 ConsensusVerson = 7
 
 	ConsensusV8 ConsensusVerson = 8
+
+	ConsensusV9 ConsensusVerson = 9
 )
 
 var (
-	v6                ConsensusConf
-	v7                ConsensusConf
-	v8                ConsensusConf
+	v6, v7, v8, v9    ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -125,6 +126,10 @@ func init() {
 	v8 = v7
 	ApplyConsensusVersion(ConsensusV8, &v8)
 	ConsensusVersions[ConsensusV8] = &v8
+
+	v9 = v8
+	ApplyConsensusVersion(ConsensusV9, &v9)
+	ConsensusVersions[ConsensusV9] = &v9
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -140,6 +145,12 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.Version = ConsensusV8
 		cfg.StartActivationDate = time.Date(2022, 5, 17, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2022, 5, 24, 0, 0, 0, 0, time.UTC).Unix()
+	case ConsensusV9:
+		cfg.EnableUpgrade9 = true
+		cfg.Version = ConsensusV9
+		// TODO set dates
+		cfg.StartActivationDate = time.Date(2022, 10, 17, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2022, 10, 24, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

@@ -44,8 +44,18 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	if config.EnableUpgrade8 {
 		stakingRewardD := totalReward.Mul(decimal.NewFromFloat32(config.StakingRewardPercent))
 		candidateRewardD := totalReward.Mul(decimal.NewFromFloat32(config.CandidateRewardPercent))
-		totalStakingWeight := float64(0)
+		totalStakingWeightOld := float64(0)
+		totalStakingWeight := float32(0)
 		totalCandidates := uint64(0)
+
+		type cacheValue struct {
+			addr           common.Address
+			identity       state.Identity
+			stakeWeightOld float64
+			stakeWeight    float32
+		}
+		var cache []*cacheValue
+
 		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 			if !identity.State.NewbieOrBetter() {
 				return
@@ -53,6 +63,11 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
 				return
 			}
+			cv := cacheValue{
+				addr:     addr,
+				identity: identity,
+			}
+			cache = append(cache, &cv)
 			if identity.Birthday == epoch {
 				totalCandidates++
 			}
@@ -61,16 +76,33 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			}
 			stake, _ := ConvertToFloat(identity.Stake).Float64()
 			weight := math2.Pow(stake, 0.9)
-			totalStakingWeight += weight
+			if config.EnableUpgrade9 {
+				weight32 := float32(weight)
+				if weight32 == 0 {
+					return
+				}
+				totalStakingWeight += weight32
+				cv.stakeWeight = weight32
+			} else {
+				if weight == 0 {
+					return
+				}
+				totalStakingWeightOld += weight
+				cv.stakeWeightOld = weight
+			}
 		})
 
-		if totalStakingWeight == 0 && totalCandidates == 0 {
+		if totalStakingWeightOld == 0 && totalStakingWeight == 0 && totalCandidates == 0 {
 			return
 		}
 
 		var stakingRewardShare, candidateRewardShare decimal.Decimal
+		if totalStakingWeightOld > 0 {
+			stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(totalStakingWeightOld))
+			collector.SetTotalStakingReward(statsCollector, math.ToInt(stakingRewardD), math.ToInt(stakingRewardShare))
+		}
 		if totalStakingWeight > 0 {
-			stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(totalStakingWeight))
+			stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(float64(totalStakingWeight)))
 			collector.SetTotalStakingReward(statsCollector, math.ToInt(stakingRewardD), math.ToInt(stakingRewardShare))
 		}
 		if totalCandidates > 0 {
@@ -94,28 +126,27 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			collector.AfterAddStake(statsCollector, addr, stake, appState)
 		}
 
-		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-			if !identity.State.NewbieOrBetter() {
-				return
-			}
-			if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
-				return
-			}
+		for _, value := range cache {
+			identity := value.identity
+			addr := value.addr
 			if identity.Birthday == epoch {
 				addReward(addr, identity, math.ToInt(candidateRewardShare), func(rewardDest common.Address, balance, stake *big.Int) {
 					collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
 				})
 			}
 			if common.ZeroOrNil(identity.Stake) {
-				return
+				continue
 			}
-			identityStake, _ := ConvertToFloat(identity.Stake).Float64()
-			weight := math2.Pow(identityStake, 0.9)
-			reward := stakingRewardShare.Mul(decimal.NewFromFloat(weight))
+			var reward decimal.Decimal
+			if config.EnableUpgrade9 {
+				reward = stakingRewardShare.Mul(decimal.NewFromFloat(float64(value.stakeWeight)))
+			} else {
+				reward = stakingRewardShare.Mul(decimal.NewFromFloat(value.stakeWeightOld))
+			}
 			addReward(addr, identity, math.ToInt(reward), func(rewardDest common.Address, balance, stake *big.Int) {
 				collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
 			})
-		})
+		}
 
 		return
 	}
