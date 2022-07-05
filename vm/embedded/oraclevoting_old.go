@@ -123,7 +123,7 @@ func (f *OracleVoting3) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func minOracleReward(committeeSize uint64, networkSize int) *big.Int {
+func minOracleRewardOld(committeeSize uint64, networkSize int) *big.Int {
 	network := float64(networkSize)
 	if network == 0 {
 		network = 1
@@ -144,7 +144,7 @@ func (f *OracleVoting3) startVoting() error {
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
 	networkSize := f.env.NetworkSize()
-	oracleReward := minOracleReward(committeeSize, networkSize)
+	oracleReward := minOracleRewardOld(committeeSize, networkSize)
 	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("contract balance is less than minimal oracles reward")
