@@ -3,6 +3,14 @@
 ## Unreleased
 
 
+## 0.29.3 (Jul 6, 2022)
+
+### Changes
+
+- Add contract_batchReadData rpc method ([#991])
+
+[#991]: https://github.com/idena-network/idena-go/pull/991
+
 ## 0.29.2 (Jun 20, 2022)
 
 ### Changes
