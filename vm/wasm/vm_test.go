@@ -104,7 +104,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 100000)
+	return vm.Run(tx, 1000000)
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
@@ -122,7 +122,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 1000000)
+	return vm.Run(tx, 10000000)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {

@@ -1938,6 +1938,15 @@ func (s *StateDB) SetShardSize(shardId common.ShardId, size uint32) {
 	s.GetOrNewGlobalObject().SetShardSize(shardId, size)
 }
 
+func (s *StateDB) RawIdentity(address common.Address) []byte {
+	identity := s.getStateIdentity(address)
+	if identity == nil {
+		return nil
+	}
+	data, _ := identity.data.ToBytes()
+	return data
+}
+
 type readCloser struct {
 	r io.Reader
 }

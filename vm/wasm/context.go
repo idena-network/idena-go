@@ -1,9 +1,9 @@
 package wasm
 
 import (
+	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"math/big"
 )
@@ -60,9 +60,9 @@ func (c *ContractContext) CreateSubContext(contract lib.Address, amount *big.Int
 }
 
 func createContractAddr(tx *types.Transaction) common.Address {
-	sender, _ := types.Sender(tx)
-	hash := crypto.Hash(append(append(sender.Bytes(), common.ToBytes(tx.Epoch)...), common.ToBytes(tx.AccountNonce)...))
-	var result common.Address
-	result.SetBytes(hash[:])
-	return result
+	attach := attachments.ParseDeployContractAttachment(tx)
+	if attach == nil {
+		return common.Address{}
+	}
+	return ComputeContractAddrWithUnpackedArgs(attach.Code, attach.Args, nil)
 }

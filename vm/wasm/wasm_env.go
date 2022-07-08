@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"github.com/pkg/errors"
 	"math/big"
@@ -31,29 +32,47 @@ type WasmEnv struct {
 	contractStakeCache    map[common.Address]*big.Int
 }
 
+func (w *WasmEnv) ContractAddr(meter *lib.GasMeter, code []byte, args []byte, nonce []byte) lib.Address {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ComputeHashGas * 2))
+	return ComputeContractAddr(code, args, nonce)
+}
+
 func (w *WasmEnv) MinFeePerGas(meter *lib.GasMeter) *big.Int {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadGlobalStateGas))
+	return w.appState.State.FeePerGas()
 }
 
 func (w *WasmEnv) BlockSeed(meter *lib.GasMeter) []byte {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	return w.head.Seed().Bytes()
 }
 
 func (w *WasmEnv) SubBalance(meter *lib.GasMeter, amount *big.Int) error {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.MoveBalanceGas))
+	balance := w.getBalance(w.ctx.ContractAddr())
+	if balance.Cmp(amount) < 0 {
+		return errors.New("insufficient funds")
+	}
+	if amount.Sign() < 0 {
+		return errors.New("value must be non-negative")
+	}
+	w.subBalance(w.ctx.ContractAddr(), amount)
+	return nil
 }
 
-func (w *WasmEnv) AddBalance(meter *lib.GasMeter, address lib.Address, bytes *big.Int) {
-	panic("implement me")
+func (w *WasmEnv) AddBalance(meter *lib.GasMeter, address lib.Address, amount *big.Int) {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.MoveBalanceGas))
+	w.addBalance(address, amount)
 }
 
 func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return w.ctx.ContractAddr()
 }
 
 func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
-	code :=  w.appState.State.GetContractCode(addr)
-	println("requested code len", len(code))
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadStateGas))
+	code := w.appState.State.GetContractCode(addr)
 	return code
 }
 
@@ -104,12 +123,12 @@ func (w *WasmEnv) SetStorage(meter *lib.GasMeter, key []byte, value []byte) {
 		value:   value,
 		removed: false,
 	}
-	meter.ConsumeGas(uint64(10 * (len(key) + len(value))))
+	meter.ConsumeGas(costs.GasToWasmGas(costs.WriteStatePerByteGas * (len(key) + len(value))))
 }
 
 func (w *WasmEnv) GetStorage(meter *lib.GasMeter, key []byte) []byte {
 	value := w.readContractData(w.ctx.ContractAddr(), key)
-	meter.ConsumeGas(uint64(10 * len(value)))
+	meter.ConsumeGas(costs.GasToWasmGas(costs.WriteStatePerByteGas * len(value)))
 	return value
 }
 
@@ -122,20 +141,21 @@ func (w *WasmEnv) RemoveStorage(meter *lib.GasMeter, key []byte) {
 		w.contractStoreCache[addr] = cache
 	}
 	cache[string(key)] = &contractValue{removed: true}
-	meter.ConsumeGas(5)
+	meter.ConsumeGas(costs.GasToWasmGas(costs.RemoveStateGas))
 }
 
 func (w *WasmEnv) BlockNumber(meter *lib.GasMeter) uint64 {
-	meter.ConsumeGas(5)
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return w.head.Height()
 }
 
 func (w *WasmEnv) BlockTimestamp(meter *lib.GasMeter) int64 {
-	meter.ConsumeGas(5)
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return w.head.Time()
 }
 
 func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) error {
+	panic("deprecated")
 	balance := w.getBalance(w.ctx.ContractAddr())
 	if balance.Cmp(amount) < 0 {
 		return errors.New("insufficient funds")
@@ -150,20 +170,24 @@ func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) e
 	return nil
 }
 
-func (w *WasmEnv) Balance(address lib.Address) *big.Int {
-	panic("implement me")
+func (w *WasmEnv) Balance(meter *lib.GasMeter, address lib.Address) *big.Int {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	return w.getBalance(address)
 }
 
 func (w *WasmEnv) NetworkSize(meter *lib.GasMeter) uint64 {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	return uint64(w.appState.ValidatorsCache.NetworkSize())
 }
 
 func (w *WasmEnv) IdentityState(meter *lib.GasMeter, address lib.Address) byte {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadIdentityStateGas))
+	return byte(w.appState.State.GetIdentityState(address))
 }
 
 func (w *WasmEnv) Identity(meter *lib.GasMeter, address lib.Address) []byte {
-	panic("implement me")
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadStateGas))
+	return w.appState.State.RawIdentity(address)
 }
 
 func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int) (lib.HostEnv, error) {
@@ -232,12 +256,12 @@ func (w *WasmEnv) Deploy(code []byte) {
 }
 
 func (w *WasmEnv) Caller(meter *lib.GasMeter) lib.Address {
-	meter.ConsumeGas(5)
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return w.ctx.Caller()
 }
 
-func (w *WasmEnv) OriginCaller(meter *lib.GasMeter) lib.Address {
-	meter.ConsumeGas(5)
+func (w *WasmEnv) OriginalCaller(meter *lib.GasMeter) lib.Address {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return w.ctx.originCaller
 }
 
