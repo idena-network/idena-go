@@ -61,5 +61,3 @@ func TestNewWasmEnv(t *testing.T) {
 	env := NewWasmEnv(appState, ctx, createHeader(1, 1))
 	lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, "inc", [][]byte{[]byte{0x7}}, 100000000)
 }
-
-

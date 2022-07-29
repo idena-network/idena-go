@@ -7,9 +7,11 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/idena-network/idena-go/vm/wasm/testdata"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
@@ -100,7 +102,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 		AccountNonce: nonce,
 		Type:         types.DeployContractTx,
 		Payload:      payload,
-		Amount:       big.NewInt(10),
+		Amount:       big.NewInt(0),
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
@@ -146,6 +148,40 @@ func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	receipt = callContract(key, appState, receipt.ContractAddress, "invoke", common.ToBytes(uint64(1)), common.ToBytes(uint64(5)))
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+}
+
+func TestVm_DeployContractViaContract(t *testing.T) {
+	db := dbm.NewMemDB()
+	appState, _ := appstate.NewAppState(db, eventbus.New())
+	appState.Initialize(0)
+
+	rnd := rand.New(rand.NewSource(1))
+	key, _ := crypto.GenerateKeyFromSeed(rnd)
+
+	code, _ := testdata.TestCases()
+	receipt := deployContract(key, appState, code)
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+	//appState.Commit(nil, true)
+
+	initBalance := big.NewInt(0).Mul(big.NewInt(1000000), common.DnaBase)
+	appState.State.SetBalance(receipt.ContractAddress, initBalance)
+
+	code2, _ := testdata.SumFunc()
+
+	receipt = callContract(key, appState, receipt.ContractAddress, "test", common.ToBytes(uint32(1)), code2)
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		v, _ := helpers.ExtractUInt64(0, value)
@@ -153,8 +189,88 @@ func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
 		return false
 	})
 
+	appState.Commit(nil, true)
 
-	receipt = callContract(key, appState, receipt.ContractAddress, "invoke", common.ToBytes(uint64(1)), common.ToBytes(uint64(5)))
+	sum := big.NewInt(0)
+	appState.State.IterateAccounts(func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		addr := common.Address{}
+		addr.SetBytes(key[1:])
+		var data state.Account
+		if err := data.FromBytes(value); err != nil {
+			return false
+		}
+		if data.Balance != nil {
+			sum.Add(sum, data.Balance)
+		}
+		if data.Contract != nil && data.Contract.Stake != nil {
+			sum.Add(sum, data.Contract.Stake)
+		}
+		t.Logf("addr=%v balance=%v stake=%v", addr.Hex(), ConvertToFloat(data.Balance).String(), ConvertToFloat(data.Contract.Stake).String())
+		return false
+	})
+	require.Equal(t, initBalance.String(), sum.String())
+
+}
+
+func ConvertToFloat(amount *big.Int) decimal.Decimal {
+	if amount == nil {
+		return decimal.Zero
+	}
+	decimalAmount := decimal.NewFromBigInt(amount, 0)
+
+	return decimalAmount.DivRound(decimal.NewFromBigInt(common.DnaBase, 0), 18)
+}
+
+func Test_SharedFungibleToken(t *testing.T) {
+	db := dbm.NewMemDB()
+	appState, _ := appstate.NewAppState(db, eventbus.New())
+	appState.Initialize(0)
+
+	rnd := rand.New(rand.NewSource(1))
+	key, _ := crypto.GenerateKeyFromSeed(rnd)
+
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	code, _ := testdata.SharedFungibleToken()
+	receipt := deployContract(key, appState, code, addr.Bytes(), common.Address{0xA}.Bytes())
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
+
+	firstContract := receipt.ContractAddress
+
+	appState.State.SetContractValue(firstContract, []byte("tokens"), common.ToBytes(uint64(1000)))
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	destination := common.Address{0x3}
+
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(uint64(100)))
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	appState.Commit(nil, true)
+
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(uint64(100)))
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
 }

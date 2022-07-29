@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 )
 
@@ -86,6 +87,8 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	if gasLimit >= 0 {
 		usedGas = math.Min(usedGas, gasLimit)
 	}
+
+	usedGas = costs.WasmGasToGas(usedGas)
 
 	return &types.TxReceipt{
 		GasUsed:         usedGas,

@@ -64,5 +64,5 @@ func createContractAddr(tx *types.Transaction) common.Address {
 	if attach == nil {
 		return common.Address{}
 	}
-	return ComputeContractAddrWithUnpackedArgs(attach.Code, attach.Args, nil)
+	return ComputeContractAddrWithUnpackedArgs(attach.Code, attach.Args, []byte{})
 }

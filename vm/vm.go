@@ -9,6 +9,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-go/vm/embedded"
 	env2 "github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/wasm"
@@ -159,7 +160,7 @@ func (vm *VmImpl) Run(tx *types.Transaction,  from *common.Address, gasLimit int
 
 	if vm.runWasm(tx) {
 		wasmVm := wasm.NewWasmVM(vm.appState, vm.head)
-		return wasmVm.Run(tx, uint64(gasLimit))
+		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
 	}
 
 	vm.gasCounter.Reset(int(gasLimit))

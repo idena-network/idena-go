@@ -6,6 +6,8 @@ import "embed"
 //go:embed erc20.wasm
 //go:embed inc_func.wasm
 //go:embed sum_func.wasm
+//go:embed test-cases.wasm
+//go:embed shared-ft.wasm
 var content embed.FS
 
 func Testdata1() ([]byte, error) {
@@ -22,4 +24,12 @@ func IncFunc() ([]byte, error) {
 
 func SumFunc() ([]byte, error) {
 	return content.ReadFile("sum_func.wasm")
+}
+
+func TestCases() ([]byte, error) {
+	return content.ReadFile("test-cases.wasm")
+}
+
+func SharedFungibleToken()([]byte, error) {
+	return content.ReadFile("shared-ft.wasm")
 }

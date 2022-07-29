@@ -12,6 +12,11 @@ func ComputeContractAddrWithUnpackedArgs(code []byte, args [][]byte, nonce []byt
 
 func ComputeContractAddr(code []byte, args []byte, nonce []byte) common.Address {
 	codeHash := crypto.Hash(code)
+	println("packed args", common.ToHex(args))
+	return ComputeContractAddrByHash(codeHash[:], args, nonce)
+}
+
+func ComputeContractAddrByHash(codeHash []byte, args []byte, nonce []byte) common.Address {
 	hash := crypto.Hash(append(append(codeHash[:], args...), nonce...))
 	var result common.Address
 	result.SetBytes(hash[:])

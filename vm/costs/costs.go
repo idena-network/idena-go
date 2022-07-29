@@ -20,6 +20,10 @@ const EmitEventBase = 100
 
 const WasmGasMultiplier = 100
 
-func GasToWasmGas(gas int) uint64 {
-	return uint64(gas) * WasmGasMultiplier
+func GasToWasmGas(gas uint64) uint64 {
+	return gas * WasmGasMultiplier
+}
+
+func WasmGasToGas(gas uint64) uint64 {
+	return gas / WasmGasMultiplier
 }
