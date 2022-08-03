@@ -119,7 +119,7 @@ func (f *OracleVoting4) Deploy(args ...[]byte) error {
 	}
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, nil, nil, nil)
 	return nil
 }
 
