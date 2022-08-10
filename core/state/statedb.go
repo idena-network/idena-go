@@ -421,8 +421,10 @@ func (s *StateDB) SetBirthday(address common.Address, birthday uint16) {
 	s.GetOrNewIdentityObject(address).SetBirthday(birthday)
 }
 
-func (s *StateDB) SetPenalty(address common.Address, penalty *big.Int) {
-	s.GetOrNewIdentityObject(address).SetPenalty(penalty)
+func (s *StateDB) SetPenalty(address common.Address, penalty *big.Int, seconds uint16) {
+	identity := s.GetOrNewIdentityObject(address)
+	identity.SetPenalty(penalty)
+	identity.SetPenaltySeconds(seconds)
 }
 
 func (s *StateDB) SubPenalty(address common.Address, penalty *big.Int) {
@@ -430,11 +432,37 @@ func (s *StateDB) SubPenalty(address common.Address, penalty *big.Int) {
 }
 
 func (s *StateDB) ClearPenalty(address common.Address) {
-	s.GetOrNewIdentityObject(address).SetPenalty(nil)
+	identity := s.GetOrNewIdentityObject(address)
+	identity.SetPenalty(nil)
+	identity.SetPenaltySeconds(0)
+}
+
+func (s *StateDB) SubPenaltySeconds(address common.Address, value uint16) {
+	s.GetOrNewIdentityObject(address).SubPenaltySeconds(value)
 }
 
 func (s *StateDB) GetPenalty(address common.Address) *big.Int {
 	return s.GetOrNewIdentityObject(address).GetPenalty()
+}
+
+func (s *StateDB) GetPenaltySeconds(address common.Address) uint16 {
+	stateObject := s.getStateIdentity(address)
+	if stateObject != nil {
+		return stateObject.GetPenaltySeconds()
+	}
+	return 0
+}
+
+func (s *StateDB) GetPenaltyTimestamp(address common.Address) int64 {
+	stateObject := s.getStateIdentity(address)
+	if stateObject != nil {
+		return stateObject.GetPenaltyTimestamp()
+	}
+	return 0
+}
+
+func (s *StateDB) SetPenaltyTimestamp(address common.Address, timestamp int64) {
+	s.GetOrNewIdentityObject(address).SetPenaltyTimestamp(timestamp)
 }
 
 func (s *StateDB) SetProfileHash(addr common.Address, hash []byte) {
@@ -1385,6 +1413,8 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.DelegationEpoch = uint16(identity.DelegationEpoch)
 		stateObject.data.DelegationNonce = identity.DelegationNonce
 		stateObject.data.pendingUndelegation = identity.PendingUndelegation
+		stateObject.data.penaltySeconds = uint16(identity.PenaltySeconds)
+		stateObject.data.penaltyTimestamp = identity.PenaltyTimestamp
 
 		if identity.Inviter != nil {
 			stateObject.data.Inviter = &Inviter{

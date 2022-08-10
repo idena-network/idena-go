@@ -48,7 +48,8 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
 	appState, _ := chain.appState.ForCheck(1)
-	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, nil)
+	ctx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), appState, block.Height(), chain.Head)
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
@@ -366,7 +367,7 @@ func Test_CalculatePenalty(t *testing.T) {
 	}
 
 	for i, item := range cases {
-		a, b, c := calculatePenalty(item.data[0], item.data[1], item.data[2])
+		a, b, c, _ := calculatePenalty(item.data[0], item.data[1], item.data[2], 0, 0, 0)
 
 		require.Equal(0, item.expected[0].Cmp(a), "balance is wrong, case#%v", i+1)
 		require.Equal(0, item.expected[1].Cmp(b), "stake is wrong, case#%v", i+1)

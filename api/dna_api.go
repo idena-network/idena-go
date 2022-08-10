@@ -313,6 +313,7 @@ type Identity struct {
 	IsPool              bool            `json:"isPool"`
 	Inviter             *Inviter        `json:"inviter"`
 	ShardId             uint32          `json:"shardId"`
+	PenaltySeconds      uint16          `json:"penaltySeconds"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -459,6 +460,16 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		}
 	}
 
+	penaltySeconds := data.PenaltySeconds()
+	if penaltySeconds > 0 && data.PenaltyTimestamp() > 0 {
+		penaltySub := time.Now().UTC().Unix() - data.PenaltyTimestamp()
+		if int64(penaltySeconds) >= penaltySub {
+			penaltySeconds = 0
+		} else {
+			penaltySeconds -= uint16(penaltySub)
+		}
+	}
+
 	return Identity{
 		Address:             address,
 		State:               s,
@@ -488,6 +499,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		IsPool:              appState.ValidatorsCache.IsPool(address),
 		Inviter:             inviter,
 		ShardId:             uint32(data.ShiftedShardId()),
+		PenaltySeconds:      penaltySeconds,
 	}
 }
 
