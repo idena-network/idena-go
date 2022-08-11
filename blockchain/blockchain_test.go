@@ -248,26 +248,32 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	validation.SetAppConfig(chain.config)
+	chain.upgrader.UpgradeConfigTo(9)
 
 	inviterKey, _ := crypto.GenerateKey()
 	inviter := crypto.PubkeyToAddress(inviterKey.PublicKey)
-	invitee := tests.GetRandAddr()
+	inviteeCandidate := tests.GetRandAddr()
+	inviteeNewbie := tests.GetRandAddr()
 	anotherInvitee := tests.GetRandAddr()
 
-	appState.State.SetInviter(invitee, inviter, common.Hash{}, 10)
+	appState.State.SetInviter(inviteeNewbie, inviter, common.Hash{}, 10)
+	appState.State.SetInviter(inviteeCandidate, inviter, common.Hash{}, 11)
 	appState.State.SetInviter(anotherInvitee, inviter, common.Hash{}, 20)
-	appState.State.AddInvitee(inviter, invitee, common.Hash{})
+	appState.State.AddInvitee(inviter, inviteeNewbie, common.Hash{})
+	appState.State.AddInvitee(inviter, inviteeCandidate, common.Hash{})
 	appState.State.AddInvitee(inviter, anotherInvitee, common.Hash{})
 
 	appState.State.SetInvites(inviter, 0)
 	appState.State.SetState(inviter, state.Verified)
-	appState.State.SetState(invitee, state.Newbie)
+	appState.State.SetState(inviteeCandidate, state.Candidate)
+	appState.State.SetState(inviteeNewbie, state.Newbie)
 
 	inviteeStake := new(big.Int).Mul(big.NewInt(10), common.DnaBase)
 	inviterBalance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
 
 	appState.State.GetOrNewAccountObject(inviter).SetBalance(inviterBalance)
-	appState.State.GetOrNewIdentityObject(invitee).SetStake(inviteeStake)
+	appState.State.GetOrNewIdentityObject(inviteeNewbie).SetStake(inviteeStake)
 
 	tx := &types.Transaction{
 		Type:         types.KillInviteeTx,
@@ -280,7 +286,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
 		Amount:       new(big.Int).Mul(big.NewInt(9), common.DnaBase),
-		To:           &invitee,
+		To:           &inviteeCandidate,
 	}
 	signedTx2, _ := types.SignTx(tx2, inviterKey)
 	require.Error(t, validation.ValidateTx(chain.appState, signedTx2, fee2.MinFeePerGas, validation.InBlockTx), "should return error if amount is not zero")
@@ -288,11 +294,20 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	tx3 := &types.Transaction{
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
-		To:           &invitee,
+		To:           &inviteeNewbie,
 		MaxFee:       new(big.Int).Mul(big.NewInt(2), common.DnaBase),
 	}
 	signedTx3, _ := types.SignTx(tx3, inviterKey)
-	require.NoError(t, validation.ValidateTx(chain.appState, signedTx3, fee2.MinFeePerGas, validation.InBlockTx))
+	require.Error(t, validation.ValidateTx(chain.appState, signedTx3, fee2.MinFeePerGas, validation.InBlockTx), "should return error if *to is Newbie")
+
+	tx4 := &types.Transaction{
+		Type:         types.KillInviteeTx,
+		AccountNonce: 1,
+		To:           &inviteeCandidate,
+		MaxFee:       new(big.Int).Mul(big.NewInt(2), common.DnaBase),
+	}
+	signedTx4, _ := types.SignTx(tx4, inviterKey)
+	require.NoError(t, validation.ValidateTx(chain.appState, signedTx4, fee2.MinFeePerGas, validation.InBlockTx))
 
 	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
@@ -300,25 +315,19 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	context := &txExecutionContext{
 		appState: chain.appState,
 	}
-	chain.applyTxOnState(signedTx3, context)
+	chain.applyTxOnState(signedTx4, context)
 
-	require.Equal(t, uint8(0), appState.State.GetInvites(inviter))
-	require.Equal(t, 1, len(appState.State.GetInvitees(inviter)))
-	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[0].Address)
+	require.Equal(t, uint8(1), appState.State.GetInvites(inviter))
+	require.Equal(t, 2, len(appState.State.GetInvitees(inviter)))
+	require.Equal(t, inviteeNewbie, appState.State.GetInvitees(inviter)[0].Address)
+	require.Equal(t, anotherInvitee, appState.State.GetInvitees(inviter)[1].Address)
 
-	stakeToTransfer := big.NewInt(0)
-
-	// 1/6 of stake moves to balance, rest burns
-	stakeToTransfer.Div(inviteeStake, big.NewInt(6))
-
-	newBalance := new(big.Int).Add(inviterBalance, stakeToTransfer)
-
-	newBalance.Sub(newBalance, fee)
+	newBalance := new(big.Int).Sub(inviterBalance, fee)
 	require.Equal(t, newBalance, appState.State.GetBalance(inviter))
-	require.True(t, common.ZeroOrNil(appState.State.GetStakeBalance(invitee)))
+	require.Equal(t, inviteeStake, appState.State.GetStakeBalance(inviteeNewbie))
 
-	require.Equal(t, state.Killed, appState.State.GetIdentityState(invitee))
-	require.Nil(t, appState.State.GetInviter(invitee))
+	require.Equal(t, state.Killed, appState.State.GetIdentityState(inviteeCandidate))
+	require.Nil(t, appState.State.GetInviter(inviteeCandidate))
 }
 
 type testCase struct {
