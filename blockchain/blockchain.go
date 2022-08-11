@@ -121,6 +121,10 @@ type blockInsertionResult struct {
 	txTasks           []task
 }
 
+type identityUpdateHookCtx struct {
+	keepProfileHash, keepPenalty, keepDelegationNonce bool
+}
+
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
 	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
@@ -180,6 +184,7 @@ func (chain *Blockchain) tryUpgrade(block *types.Header) {
 }
 func (chain *Blockchain) InitializeChain() error {
 
+	chain.appState.ProvideIdentityUpdateHook(chain.identityUpdateHook)
 	chain.coinBaseAddress = chain.secStore.GetAddress()
 	chain.pubKey = chain.secStore.GetPubKey()
 	head := chain.GetHead()
@@ -713,7 +718,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	validationResult := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	networkSize, validationResults, pools, failed := validationResult.IdentitiesCount, validationResult.ShardResults, validationResult.Pools, validationResult.Failed
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, chain.config.Consensus.EnableUpgrade8, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, chain.config.Consensus.EnableUpgrade8, chain.config.Consensus.EnableUpgrade9, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -824,7 +829,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, enableUpgrade9 bool, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -889,6 +894,14 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 				appState.IdentityState.SetValidated(addr, false)
 				if _, isPool := pools[addr]; !enableUpgrade8 || !isPool {
 					appState.IdentityState.SetOnline(addr, false)
+				}
+				if enableUpgrade9 {
+					if identity.State == state.Undefined && appState.State.GetEpoch(addr) < appState.State.Epoch() && addr != appState.State.GodAddress() {
+						appState.State.SetState(addr, state.Killed)
+					}
+				}
+				if identity.State == state.Killed {
+					appState.State.SetMetadata(addr, identityUpdateHookCtx{keepProfileHash: true})
 				}
 			case state.Suspended, state.Zombie:
 				appState.State.SetRequiredFlips(addr, 0)
@@ -1373,6 +1386,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		// sub balance, which should be transferred, and kill temp identity
 		stateDB.SubBalance(sender, balanceToTransfer)
 		stateDB.SetState(sender, state.Killed)
+		stateDB.SetMetadata(sender, identityUpdateHookCtx{
+			keepProfileHash:     true,
+			keepPenalty:         true,
+			keepDelegationNonce: true,
+		})
 
 		// verify identity and add transferred balance
 		recipient := *tx.To
@@ -1433,6 +1451,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.DecreaseShardSize(stateDB.ShardId(sender))
 		}
 		stateDB.SetState(sender, state.Killed)
+		stateDB.SetMetadata(sender, identityUpdateHookCtx{keepProfileHash: true})
 
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
@@ -1449,6 +1468,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
 		}
 		stateDB.SetState(*tx.To, state.Killed)
+		stateDB.SetMetadata(*tx.To, identityUpdateHookCtx{
+			keepProfileHash:     true,
+			keepPenalty:         true,
+			keepDelegationNonce: true,
+		})
 		appState.IdentityState.Remove(*tx.To)
 		if inviteePrevState == state.Newbie {
 			stake := stateDB.GetStakeBalance(*tx.To)
@@ -1475,6 +1499,12 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
 		}
 		stateDB.SetState(*tx.To, state.Killed)
+		identityUpdateHookCtx := identityUpdateHookCtx{keepProfileHash: true}
+		if delegatorPrevState == state.Undefined || delegatorPrevState == state.Invite || delegatorPrevState == state.Candidate {
+			identityUpdateHookCtx.keepPenalty = true
+			identityUpdateHookCtx.keepDelegationNonce = true
+		}
+		stateDB.SetMetadata(*tx.To, identityUpdateHookCtx)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
 		stateDB.SubStake(*tx.To, stake)
@@ -2883,4 +2913,25 @@ func (chain *Blockchain) ShardsNum() uint32 {
 		return 0
 	}
 	return stateDb.State.ShardsNum()
+}
+
+func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
+	if !chain.config.Consensus.EnableUpgrade9 {
+		return
+	}
+	if identity.State != state.Killed {
+		return
+	}
+	metadata := identity.Metadata()
+	if metadata == nil {
+		return
+	}
+	ctx := metadata.(identityUpdateHookCtx)
+	keepProfileHash := ctx.keepProfileHash && identity.ProfileHash != nil
+	keepPenalty := ctx.keepPenalty && (identity.Penalty != nil && identity.Penalty.Sign() > 0 || identity.PenaltySeconds() > 0)
+	keepDelegationNonce := ctx.keepDelegationNonce && identity.DelegationNonce > 0
+	if !keepProfileHash && !keepPenalty && !keepDelegationNonce {
+		return
+	}
+	identity.Clear(keepProfileHash, keepPenalty, keepDelegationNonce)
 }

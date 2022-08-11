@@ -400,6 +400,8 @@ type Identity struct {
 	penaltyTimestamp     int64
 	// do not use directly
 	ShardId common.ShardId
+
+	metadata interface{}
 }
 
 type TxAddr struct {
@@ -517,6 +519,45 @@ func (i *Identity) FromBytes(data []byte) error {
 	}
 
 	return nil
+}
+
+func (i *Identity) Clear(keepProfileHash, keepPenalty, keepDelegationNonce bool) {
+	if !keepProfileHash {
+		i.ProfileHash = nil
+	}
+	if !keepPenalty {
+		i.Penalty = nil
+		i.penaltySeconds = 0
+		i.onlineTimestamp = 0
+	}
+	if !keepDelegationNonce {
+		i.DelegationNonce = 0
+	}
+	i.Stake = nil
+	i.Invites = 0
+	i.Birthday = 0
+	i.State = Undefined
+	i.QualifiedFlips = 0
+	i.ShortFlipPoints = 0
+	i.PubKey = nil
+	i.RequiredFlips = 0
+	i.Flips = nil
+	i.Generation = 0
+	i.Code = nil
+	i.Invitees = nil
+	i.Inviter = nil
+	i.ValidationTxsBits = 0
+	i.LastValidationStatus = 0
+	i.Scores = nil
+	i.delegatee = nil
+	i.DelegationEpoch = 0
+	i.pendingUndelegation = false
+	i.replenishedStake = nil
+	i.ShardId = 0
+}
+
+func (i *Identity) Metadata() interface{} {
+	return i.metadata
 }
 
 func (i *Identity) GetShortFlipPoints() float32 {
@@ -833,6 +874,10 @@ func (s *stateIdentity) State() IdentityState {
 func (s *stateIdentity) SetState(state IdentityState) {
 	s.data.State = state
 	s.touch()
+}
+
+func (s *stateIdentity) SetMetadata(metadata interface{}) {
+	s.data.metadata = metadata
 }
 
 func (s *stateIdentity) SetGeneticCode(generation uint32, code []byte) {
