@@ -509,17 +509,28 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 }
 
 func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState *appstate.AppState, blockHeight uint64, prevBlock *types.Header) *blockRewardCtx {
+	finalCommittee := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), blockHeight, types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
+	var proposerStakeAddr common.Address
+	if appState.ValidatorsCache.IsPool(proposer) {
+		delegationNonce := appState.State.GetIdentity(proposer).DelegationNonce
+		proposerStakeAddr, _ = appState.ValidatorsCache.FindSubIdentity(proposer, delegationNonce)
+	} else {
+		proposerStakeAddr = proposer
+	}
+	return prepareBlockRewardCtx(proposerStakeAddr, appState, finalCommittee, chain.config.Consensus)
+}
+
+func prepareBlockRewardCtx(proposerStakeAddr common.Address, appState *appstate.AppState, finalCommittee *validators.StepValidators, conf *config.ConsensusConf) *blockRewardCtx {
 	res := &blockRewardCtx{}
 	var committeeSize int
 	var proposerStakeWeightCoef *big.Float
-	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), blockHeight, types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
-	if identities != nil {
-		committeeSize = identities.Original.Cardinality()
+	if finalCommittee != nil {
+		committeeSize = finalCommittee.Original.Cardinality()
 		proposerStakeWeightCoef = math.Mul(
 			math.New(float64(committeeSize)),
 			math.Div(
-				math.Zero().SetInt(chain.config.Consensus.BlockReward),
-				math.Zero().SetInt(chain.config.Consensus.FinalCommitteeReward)))
+				math.Zero().SetInt(conf.BlockReward),
+				math.Zero().SetInt(conf.FinalCommitteeReward)))
 	} else {
 		proposerStakeWeightCoef = math.New(1)
 	}
@@ -533,8 +544,8 @@ func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState
 	}
 
 	var proposerStakeWeight *big.Float
-	if chain.config.Consensus.EnableUpgrade9 {
-		stake := appState.State.GetStakeBalance(proposer)
+	if conf.EnableUpgrade9 {
+		stake := appState.State.GetStakeBalance(proposerStakeAddr)
 		proposerStakeWeight = calculateStakeWeight(stake, proposerStakeWeightCoef)
 	} else {
 		proposerStakeWeight = math.Zero().Set(proposerStakeWeightCoef)
@@ -546,10 +557,10 @@ func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState
 	}
 
 	res.committee = make([]*stakeholder, 0, committeeSize)
-	for _, item := range identities.Original.ToSlice() {
+	for _, item := range finalCommittee.Original.ToSlice() {
 		addr := item.(common.Address)
 		var stakeWeight *big.Float
-		if chain.config.Consensus.EnableUpgrade9 {
+		if conf.EnableUpgrade9 {
 			stake := appState.State.GetStakeBalance(addr)
 			stakeWeight = calculateStakeWeight(stake, math.New(1))
 		} else {
@@ -560,7 +571,7 @@ func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState
 			address:     addr,
 			stakeWeight: stakeWeight,
 		}
-		if chain.config.Consensus.EnableUpgrade8 {
+		if conf.EnableUpgrade8 {
 			addStaker := func(data []*stakeholder, elem *stakeholder) []*stakeholder {
 				index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
 				data = append(data, &stakeholder{})
@@ -572,6 +583,13 @@ func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState
 		} else {
 			res.committee = append(res.committee, holder)
 		}
+	}
+	if res.totalStakeWeight.Sign() == 0 {
+		res.proposerStakeWeight = math.Zero().SetInt64(1)
+		for _, item := range res.committee {
+			item.stakeWeight = math.Zero().SetInt64(1)
+		}
+		res.totalStakeWeight = math.Zero().SetInt64(int64(len(res.committee) + 1))
 	}
 	return res
 }
@@ -2390,7 +2408,12 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 }
 
 func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final bool) int {
-	var cnt = vc.OnlineSize()
+	var cnt int
+	if chain.config.Consensus.EnableUpgrade9 {
+		cnt = vc.ValidatorsSize()
+	} else {
+		cnt = vc.OnlineSize()
+	}
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteePercent
