@@ -150,9 +150,9 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EnableUpgrade9 = true
 		cfg.Version = ConsensusV9
 		cfg.OfflinePenaltyDuration = time.Hour * 8
-		// TODO set dates
-		cfg.StartActivationDate = time.Date(2022, 10, 17, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2022, 10, 24, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.GenerateGenesisAfterUpgrade = true
+		cfg.StartActivationDate = time.Date(2022, 8, 29, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2022, 9, 5, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

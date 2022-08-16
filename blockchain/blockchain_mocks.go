@@ -75,9 +75,6 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
 	cfg := GetDefaultConsensusConfig()
-	config.ApplyConsensusVersion(config.ConsensusV7, cfg)
-	config.ApplyConsensusVersion(config.ConsensusV8, cfg)
-	config.ApplyConsensusVersion(config.ConsensusV9, cfg)
 	cfg.Automine = true
 	return NewTestBlockchainWithConfig(withIdentity, cfg, &config.ValidationConfig{}, alloc, -1, -1, 0, 0)
 }
@@ -89,7 +86,7 @@ func NewTestBlockchainWithBlocks(blocksCount int, emptyBlocksCount int) (*TestBl
 
 func NewCustomTestBlockchain(blocksCount int, emptyBlocksCount int, key *ecdsa.PrivateKey) (*TestBlockchain, *appstate.AppState) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg := GetDefaultConsensusConfig()
 	consensusCfg.Automine = true
 	cfg := &config.Config{
 		Network:   0x99,
@@ -154,7 +151,7 @@ func (chain *TestBlockchain) Copy() (*TestBlockchain, *appstate.AppState) {
 		db.Set(it.Key(), it.Value())
 	}
 	appState, _ := appstate.NewAppState(db, bus)
-	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg := GetDefaultConsensusConfig()
 	consensusCfg.Automine = true
 	cfg := &config.Config{
 		Network:   0x99,
@@ -260,5 +257,8 @@ func (chain *TestBlockchain) Bus() eventbus.Bus {
 func GetDefaultConsensusConfig() *config.ConsensusConf {
 	base := config.GetDefaultConsensusConfig()
 	res := *base
+	config.ApplyConsensusVersion(config.ConsensusV7, &res)
+	config.ApplyConsensusVersion(config.ConsensusV8, &res)
+	config.ApplyConsensusVersion(config.ConsensusV9, &res)
 	return &res
 }

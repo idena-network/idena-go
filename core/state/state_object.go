@@ -528,7 +528,7 @@ func (i *Identity) Clear(keepProfileHash, keepPenalty, keepDelegationNonce bool)
 	if !keepPenalty {
 		i.Penalty = nil
 		i.penaltySeconds = 0
-		i.onlineTimestamp = 0
+		i.penaltyTimestamp = 0
 	}
 	if !keepDelegationNonce {
 		i.DelegationNonce = 0
