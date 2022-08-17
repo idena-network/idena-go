@@ -59,16 +59,20 @@ func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *b
 
 	file, err := job.openFile()
 
-	if err == nil {
-		defer file.Close()
-		data, err := ioutil.ReadAll(file)
-		if err != nil {
-			return nil, err
-		}
-		if err := job.txs.FromBytes(data); err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
+
+	defer file.Close()
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if err := job.txs.FromBytes(data); err != nil {
+		return nil, err
+	}
+
+	log.Info("Deferred txs loaded", "cnt", len(job.txs.Txs))
 
 	bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -88,6 +92,7 @@ func (j *Job) broadcast() {
 	newTxs := new(DeferredTxs)
 	for _, tx := range j.txs.Txs {
 		if tx.BroadcastBlock <= j.head.Height() {
+			log.Info("Sending deferred tx", logCtx(tx)...)
 			err := j.sendTx(tx)
 			if err != nil {
 				log.Error("error while sending deferred tx", "err", err)
@@ -119,6 +124,15 @@ func (j *Job) broadcast() {
 	}
 }
 
+func logCtx(tx *DeferredTx) []interface{} {
+	res := []interface{}{"from", tx.From.Hex(), "amount", blockchain.ConvertToFloat(tx.Amount), "tips", blockchain.ConvertToFloat(tx.Tips), "payloadSize", len(tx.Payload), "broadcastBlock", tx.BroadcastBlock}
+	if tx.To != nil {
+		res = append(res, "to")
+		res = append(res, tx.To.Hex())
+	}
+	return res
+}
+
 func (j *Job) AddDeferredTx(from common.Address, to *common.Address, amount *big.Int, payload []byte, tips *big.Int, broadcastBlock uint64) error {
 	tx := &DeferredTx{
 		From:           from,
@@ -130,9 +144,16 @@ func (j *Job) AddDeferredTx(from common.Address, to *common.Address, amount *big
 	}
 	j.mutex.Lock()
 	defer j.mutex.Unlock()
+
+	log.Info("Adding new deferred tx", logCtx(tx)...)
+
 	j.txs.Txs = append(j.txs.Txs, tx)
 
-	return j.persist()
+	err := j.persist()
+	if err != nil {
+		log.Warn("cannot persist deferred txs", "err", err)
+	}
+	return err
 }
 
 func (j *Job) persist() error {
