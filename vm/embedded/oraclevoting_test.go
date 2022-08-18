@@ -1081,3 +1081,81 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 	require.Equal(t, []byte{0x1}, caller.contractTester.ReadData("fact"))
 	require.Equal(t, []byte{0x2}, caller.contractTester.ReadData("result"))
 }
+
+func TestOracleVoting_finishVotingWithZeroSecretVotesDuringPublicVoting(t *testing.T) {
+
+	deployContractStake := common.DnaBase
+
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(&networkConfig{
+		identityGroups: []identityGroupConfig{
+			{count: 1000, state: state.Verified},
+		},
+	}, ownerBalance)
+	tester := builder.Build()
+	ownerFee := byte(5)
+	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().
+		SetQuorum(5).
+		SetOwnerFee(ownerFee).
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+	caller.contractTester.setHeight(3)
+	caller.contractTester.setTimestamp(30)
+
+	contractBalance := decimal.NewFromFloat(2000)
+	caller.contractTester.SetBalance(ConvertToInt(contractBalance))
+
+	require.NoError(t, caller.StartVoting())
+	caller.contractTester.Commit()
+
+	// send proofs
+	winnerVote := byte(1)
+	var votedIdentities []*ecdsa.PrivateKey
+	minPayment := big.NewInt(0).SetBytes(caller.contractTester.ReadData("votingMinPayment"))
+
+	sendVoteProof := func(key *ecdsa.PrivateKey) {
+
+		caller.contractTester.setHeight(4)
+
+		err = caller.sendVoteProof(key, winnerVote, minPayment)
+		if err == nil {
+			caller.contractTester.AddBalance(minPayment)
+			caller.contractTester.Commit()
+			require.NoError(t, err)
+			votedIdentities = append(votedIdentities, key)
+		}
+	}
+	for _, key := range caller.contractTester.identities {
+		sendVoteProof(key)
+		if len(votedIdentities) == 5 {
+			break
+		}
+	}
+
+	//send votes
+	for i := 0; i < len(votedIdentities)-1; i++ {
+		key := votedIdentities[i]
+		caller.contractTester.setHeight(4320 + 1000)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		require.NoError(t, caller.sendVote(key, winnerVote, addr.Bytes()))
+		caller.contractTester.Commit()
+	}
+	prolongRes := caller.prolong()
+	require.Error(t, prolongRes)
+	require.Equal(t, "voting can not be prolonged", prolongRes.Error())
+	require.Error(t, caller.finishVoting())
+
+	key := votedIdentities[len(votedIdentities)-1]
+	caller.contractTester.setHeight(4320 + 1000)
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+	require.NoError(t, caller.sendVote(key, winnerVote, addr.Bytes()))
+	caller.contractTester.Commit()
+
+	prolongRes = caller.prolong()
+	require.Error(t, prolongRes)
+	require.Equal(t, "voting can not be prolonged", prolongRes.Error())
+	require.NoError(t, caller.finishVoting())
+}
