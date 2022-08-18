@@ -78,15 +78,9 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			weight := math2.Pow(stake, 0.9)
 			if config.EnableUpgrade9 {
 				weight32 := float32(weight)
-				if weight32 == 0 {
-					return
-				}
 				totalStakingWeight += weight32
 				cv.stakeWeight = weight32
 			} else {
-				if weight == 0 {
-					return
-				}
 				totalStakingWeightOld += weight
 				cv.stakeWeightOld = weight
 			}
