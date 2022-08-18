@@ -601,6 +601,12 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	if inviter == nil || inviter.Address != sender {
 		return InvalidRecipient
 	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
+		identityState := appState.State.GetIdentityState(*tx.To)
+		if identityState != state.Invite && identityState != state.Candidate {
+			return InvalidRecipient
+		}
+	}
 	return nil
 }
 
