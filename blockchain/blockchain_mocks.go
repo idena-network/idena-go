@@ -74,7 +74,10 @@ func NewTestBlockchainWithConfig(withIdentity bool, conf *config.ConsensusConf, 
 }
 
 func NewTestBlockchain(withIdentity bool, alloc map[common.Address]config.GenesisAllocation) (*TestBlockchain, *appstate.AppState, *mempool.TxPool, *ecdsa.PrivateKey) {
-	cfg := config.GetDefaultConsensusConfig()
+	cfg := GetDefaultConsensusConfig()
+	config.ApplyConsensusVersion(config.ConsensusV7, cfg)
+	config.ApplyConsensusVersion(config.ConsensusV8, cfg)
+	config.ApplyConsensusVersion(config.ConsensusV9, cfg)
 	cfg.Automine = true
 	return NewTestBlockchainWithConfig(withIdentity, cfg, &config.ValidationConfig{}, alloc, -1, -1, 0, 0)
 }
@@ -252,4 +255,10 @@ func (chain *TestBlockchain) SecStore() *secstore.SecStore {
 
 func (chain *TestBlockchain) Bus() eventbus.Bus {
 	return chain.bus
+}
+
+func GetDefaultConsensusConfig() *config.ConsensusConf {
+	base := config.GetDefaultConsensusConfig()
+	res := *base
+	return &res
 }
