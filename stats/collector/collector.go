@@ -39,12 +39,10 @@ type StatsCollector interface {
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 
-	AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int)
-	AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int)
+	AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
+	AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 
-	AfterSubPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState)
-	BeforeClearPenalty(addr common.Address, appState *appstate.AppState)
-	BeforeSetPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState)
+	BeforeSetPenalty(addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState)
 
 	AddMintedCoins(amount *big.Int)
 	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
@@ -61,8 +59,8 @@ type StatsCollector interface {
 
 	BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState)
 	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
-	BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState)
-	BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState)
+	BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
+	BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
 	BeginEpochRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState)
 	BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginPenaltyBalanceUpdate(addr common.Address, appState *appstate.AppState)
@@ -384,63 +382,41 @@ func AddZeroWalletFund(c StatsCollector, addr common.Address, balance *big.Int) 
 	c.AddZeroWalletFund(addr, balance)
 }
 
-func (c *collectorStub) AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+func (c *collectorStub) AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float) {
 	// do nothing
 }
 
-func AddProposerReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+func AddProposerReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float) {
 	if c == nil {
 		return
 	}
-	c.AddProposerReward(balanceDest, stakeDest, balance, stake)
+	c.AddProposerReward(balanceDest, stakeDest, balance, stake, stakeWeight)
 }
 
-func (c *collectorStub) AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+func (c *collectorStub) AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float) {
 	// do nothing
 }
 
-func AddFinalCommitteeReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int) {
+func AddFinalCommitteeReward(c StatsCollector, balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float) {
 	if c == nil {
 		return
 	}
-	c.AddFinalCommitteeReward(balanceDest, stakeDest, balance, stake)
+	c.AddFinalCommitteeReward(balanceDest, stakeDest, balance, stake, stakeWeight)
 }
 
 func (c *collectorStub) CompleteCollecting() {
 	// do nothing
 }
 
-func (c *collectorStub) AfterSubPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState) {
+func (c *collectorStub) BeforeSetPenalty(addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState) {
 	// do nothing
 }
 
-func AfterSubPenalty(c StatsCollector, addr common.Address, amount *big.Int, appState *appstate.AppState) {
+func BeforeSetPenalty(c StatsCollector, addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.AfterSubPenalty(addr, amount, appState)
-}
-
-func (c *collectorStub) BeforeClearPenalty(addr common.Address, appState *appstate.AppState) {
-	// do nothing
-}
-
-func BeforeClearPenalty(c StatsCollector, addr common.Address, appState *appstate.AppState) {
-	if c == nil {
-		return
-	}
-	c.BeforeClearPenalty(addr, appState)
-}
-
-func (c *collectorStub) BeforeSetPenalty(addr common.Address, amount *big.Int, appState *appstate.AppState) {
-	// do nothing
-}
-
-func BeforeSetPenalty(c StatsCollector, addr common.Address, amount *big.Int, appState *appstate.AppState) {
-	if c == nil {
-		return
-	}
-	c.BeforeSetPenalty(addr, amount, appState)
+	c.BeforeSetPenalty(addr, amount, seconds, appState)
 }
 
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {
@@ -577,26 +553,26 @@ func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *app
 	c.BeginTxBalanceUpdate(tx, appState)
 }
 
-func (c *collectorStub) BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState) {
+func (c *collectorStub) BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
 	// do nothing
 }
 
-func BeginProposerRewardBalanceUpdate(c StatsCollector, balanceDest, stakeDest common.Address, appState *appstate.AppState) {
+func BeginProposerRewardBalanceUpdate(c StatsCollector, balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.BeginProposerRewardBalanceUpdate(balanceDest, stakeDest, appState)
+	c.BeginProposerRewardBalanceUpdate(balanceDest, stakeDest, potentialPenaltyPayment, appState)
 }
 
-func (c *collectorStub) BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState) {
+func (c *collectorStub) BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
 	// do nothing
 }
 
-func BeginCommitteeRewardBalanceUpdate(c StatsCollector, balanceDest, stakeDest common.Address, appState *appstate.AppState) {
+func BeginCommitteeRewardBalanceUpdate(c StatsCollector, balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest, appState)
+	c.BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest, potentialPenaltyPayment, appState)
 }
 
 func (c *collectorStub) BeginEpochRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState) {

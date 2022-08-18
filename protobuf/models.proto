@@ -394,6 +394,8 @@ message ProtoStateIdentity {
     uint32 shardId = 22;
     bool pendingUndelegation = 23;
     bytes replenishedStake = 24;
+    uint32 penaltySeconds = 25;
+    int64 penaltyTimestamp = 26;
 }
 
 message ProtoStateGlobal {
@@ -527,6 +529,8 @@ message ProtoPredefinedState {
         uint32 shardId = 23;
         bool pendingUndelegation = 24;
         bytes replenishedStake = 25;
+        uint32 penaltySeconds = 26;
+        int64 penaltyTimestamp = 27;
     }
 
     message ApprovedIdentity {

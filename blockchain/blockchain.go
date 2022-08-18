@@ -103,6 +103,17 @@ type txExecutionContext struct {
 	statsCollector collector.StatsCollector
 }
 
+type blockRewardCtx struct {
+	totalStakeWeight    *big.Float
+	committee           []*stakeholder
+	proposerStakeWeight *big.Float
+}
+
+type stakeholder struct {
+	address     common.Address
+	stakeWeight *big.Float
+}
+
 type blockInsertionResult struct {
 	stateDiff         []*state.StateTreeDiff
 	identityStateDiff *state.IdentityStateDiff
@@ -461,13 +472,13 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
 
-	chain.applyStatusSwitch(appState, block)
+	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
-	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, statsCollector)
+	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, blockRewardCtx, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
 	chain.applyGlobalParams(appState, block, statsCollector)
 	chain.applyNextBlockFee(appState, block, usedGas)
@@ -484,7 +495,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 	statsCollector collector.StatsCollector,
 ) (root common.Hash, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, identityStateDiff *state.IdentityStateDiff) {
 
-	chain.applyStatusSwitch(appState, block)
+	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
@@ -497,8 +508,107 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, identityStateDiff
 }
 
+func (chain *Blockchain) prepareBlockRewardCtx(proposer common.Address, appState *appstate.AppState, blockHeight uint64, prevBlock *types.Header) *blockRewardCtx {
+	finalCommittee := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), blockHeight, types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
+	var proposerStakeAddr common.Address
+	if appState.ValidatorsCache.IsPool(proposer) {
+		delegationNonce := appState.State.GetIdentity(proposer).DelegationNonce
+		proposerStakeAddr, _ = appState.ValidatorsCache.FindSubIdentity(proposer, delegationNonce)
+	} else {
+		proposerStakeAddr = proposer
+	}
+	return prepareBlockRewardCtx(proposerStakeAddr, appState, finalCommittee, chain.config.Consensus)
+}
+
+func prepareBlockRewardCtx(proposerStakeAddr common.Address, appState *appstate.AppState, finalCommittee *validators.StepValidators, conf *config.ConsensusConf) *blockRewardCtx {
+	res := &blockRewardCtx{}
+	var committeeSize int
+	var proposerStakeWeightCoef *big.Float
+	if finalCommittee != nil {
+		committeeSize = finalCommittee.Original.Cardinality()
+		proposerStakeWeightCoef = math.Mul(
+			math.New(float64(committeeSize)),
+			math.Div(
+				math.Zero().SetInt(conf.BlockReward),
+				math.Zero().SetInt(conf.FinalCommitteeReward)))
+	} else {
+		proposerStakeWeightCoef = math.New(1)
+	}
+
+	calculateStakeWeight := func(stake *big.Int, coef *big.Float) *big.Float {
+		if common.ZeroOrNil(stake) {
+			return math.Zero()
+		}
+		stakeFloat := math.Div(math.Zero().SetInt(stake), math.Zero().SetInt(common.DnaBase))
+		return math.Mul(math.Pow(math.Root(stakeFloat, 10), 9), coef)
+	}
+
+	var proposerStakeWeight *big.Float
+	if conf.EnableUpgrade9 {
+		stake := appState.State.GetStakeBalance(proposerStakeAddr)
+		proposerStakeWeight = calculateStakeWeight(stake, proposerStakeWeightCoef)
+	} else {
+		proposerStakeWeight = math.Zero().Set(proposerStakeWeightCoef)
+	}
+	res.totalStakeWeight = proposerStakeWeight
+	res.proposerStakeWeight = proposerStakeWeight
+	if committeeSize == 0 {
+		return res
+	}
+
+	res.committee = make([]*stakeholder, 0, committeeSize)
+	for _, item := range finalCommittee.Original.ToSlice() {
+		addr := item.(common.Address)
+		var stakeWeight *big.Float
+		if conf.EnableUpgrade9 {
+			stake := appState.State.GetStakeBalance(addr)
+			stakeWeight = calculateStakeWeight(stake, math.New(1))
+		} else {
+			stakeWeight = math.New(1)
+		}
+		res.totalStakeWeight = math.Add(res.totalStakeWeight, stakeWeight)
+		holder := &stakeholder{
+			address:     addr,
+			stakeWeight: stakeWeight,
+		}
+		if conf.EnableUpgrade8 {
+			addStaker := func(data []*stakeholder, elem *stakeholder) []*stakeholder {
+				index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
+				data = append(data, &stakeholder{})
+				copy(data[index+1:], data[index:])
+				data[index] = elem
+				return data
+			}
+			res.committee = addStaker(res.committee, holder)
+		} else {
+			res.committee = append(res.committee, holder)
+		}
+	}
+	if res.totalStakeWeight.Sign() == 0 {
+		res.proposerStakeWeight = math.Zero().SetInt64(1)
+		for _, item := range res.committee {
+			item.stakeWeight = math.Zero().SetInt64(1)
+		}
+		res.totalStakeWeight = math.Zero().SetInt64(int64(len(res.committee) + 1))
+	}
+	return res
+}
+
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int, appState *appstate.AppState,
-	block *types.Block, prevBlock *types.Header, statsCollector collector.StatsCollector) {
+	block *types.Block, prevBlock *types.Header, ctx *blockRewardCtx, statsCollector collector.StatsCollector) {
+
+	var totalCommitteeReward *big.Int
+	if chain.config.Consensus.EnableUpgrade9 {
+		totalCommitteeReward = chain.rewardFinalCommittee(appState, block, prevBlock, ctx, statsCollector)
+	} else {
+		totalCommitteeReward = chain.config.Consensus.FinalCommitteeReward
+	}
+	blockReward := new(big.Int).Add(chain.config.Consensus.BlockReward, chain.config.Consensus.FinalCommitteeReward)
+	blockProposerReward := new(big.Int).Sub(blockReward, totalCommitteeReward)
+
+	if blockProposerReward.Sign() <= 0 {
+		blockProposerReward = big.NewInt(0)
+	}
 
 	// calculate fee reward
 	burnFee := decimal.NewFromBigInt(totalFee, 0)
@@ -507,7 +617,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	intFeeReward := new(big.Int)
 	intFeeReward.Sub(totalFee, intBurn)
 
-	totalReward := big.NewInt(0).Add(chain.config.Consensus.BlockReward, intFeeReward)
+	totalReward := big.NewInt(0).Add(blockProposerReward, intFeeReward)
 	totalReward.Add(totalReward, totalTips)
 
 	coinbase := block.Header.Coinbase()
@@ -527,44 +637,71 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	reward, stake := splitReward(totalReward, status == state.Newbie, chain.config.Consensus)
 
 	// calculate penalty
-	balanceAdd, stakeAdd, penaltySub := calculatePenalty(reward, stake, appState.State.GetPenalty(coinbase))
+	balanceAdd, stakeAdd, penaltySub, penaltySecondsSub := calculatePenalty(reward, stake, appState.State.GetPenalty(coinbase), appState.State.GetPenaltySeconds(coinbase), appState.State.GetPenaltyTimestamp(coinbase), block.Header.Time())
 
-	collector.BeginProposerRewardBalanceUpdate(statsCollector, coinbase, stakeDest, appState)
+	collector.BeginProposerRewardBalanceUpdate(statsCollector, coinbase, stakeDest, totalReward, appState)
 	// update state
 	appState.State.AddBalance(coinbase, balanceAdd)
 	appState.State.AddStake(stakeDest, stakeAdd)
+	var penaltyBurn *big.Int
 	if penaltySub != nil {
+		penaltyBurn = new(big.Int).Set(penaltySub)
 		appState.State.SubPenalty(coinbase, penaltySub)
 	}
+	if penaltySecondsSub > 0 {
+		penaltyBurn = new(big.Int).Set(totalReward)
+		appState.State.SubPenaltySeconds(coinbase, penaltySecondsSub)
+		updateOrResetPenaltyTimestamp(appState, coinbase, block.Header.Time())
+	}
 	collector.CompleteBalanceUpdate(statsCollector, appState)
-	collector.AddMintedCoins(statsCollector, chain.config.Consensus.BlockReward)
+	collector.AddMintedCoins(statsCollector, new(big.Int).Add(totalCommitteeReward, blockProposerReward))
 	collector.AfterAddStake(statsCollector, stakeDest, stakeAdd, appState)
-	collector.AfterSubPenalty(statsCollector, coinbase, penaltySub, appState)
-	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltySub)
-	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake)
+	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltyBurn)
+	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake, ctx.proposerStakeWeight)
 
-	chain.rewardFinalCommittee(appState, block, prevBlock, statsCollector)
+	if !chain.config.Consensus.EnableUpgrade9 {
+		chain.rewardFinalCommittee(appState, block, prevBlock, ctx, statsCollector)
+	}
 }
 
-func calculatePenalty(balanceAppend *big.Int, stakeAppend *big.Int, currentPenalty *big.Int) (balanceAdd *big.Int, stakeAdd *big.Int, penaltySub *big.Int) {
+func updateOrResetPenaltyTimestamp(appState *appstate.AppState, address common.Address, timestamp int64) {
+	if appState.State.GetPenaltySeconds(address) == 0 {
+		appState.State.SetPenaltyTimestamp(address, 0)
+	} else {
+		appState.State.SetPenaltyTimestamp(address, timestamp)
+	}
+}
 
-	if common.ZeroOrNil(currentPenalty) {
-		return balanceAppend, stakeAppend, nil
+func calculatePenalty(balanceAppend *big.Int, stakeAppend *big.Int, currentPenalty *big.Int, currentPenaltySeconds uint16, penaltyTimestamp, blockTimestamp int64) (balanceAdd *big.Int, stakeAdd *big.Int, penaltySub *big.Int, penaltySecondsSub uint16) {
+
+	if common.ZeroOrNil(currentPenalty) && currentPenaltySeconds == 0 {
+		return balanceAppend, stakeAppend, nil, 0
+	}
+
+	if currentPenaltySeconds > 0 {
+		if penaltyTimestamp > 0 && blockTimestamp > penaltyTimestamp {
+			if sub := blockTimestamp - penaltyTimestamp; sub >= int64(currentPenaltySeconds) {
+				penaltySecondsSub = currentPenaltySeconds
+			} else {
+				penaltySecondsSub = uint16(sub)
+			}
+		}
+		return big.NewInt(0), big.NewInt(0), nil, penaltySecondsSub
 	}
 
 	// penalty is less than added balance
 	if balanceAppend.Cmp(currentPenalty) >= 0 {
-		return new(big.Int).Sub(balanceAppend, currentPenalty), stakeAppend, currentPenalty
+		return new(big.Int).Sub(balanceAppend, currentPenalty), stakeAppend, currentPenalty, 0
 	}
 
 	remainPenalty := new(big.Int).Sub(currentPenalty, balanceAppend)
 
 	// remain penalty is less than added stake
 	if stakeAppend.Cmp(remainPenalty) >= 0 {
-		return big.NewInt(0), new(big.Int).Sub(stakeAppend, remainPenalty), currentPenalty
+		return big.NewInt(0), new(big.Int).Sub(stakeAppend, remainPenalty), currentPenalty, 0
 	}
 
-	return big.NewInt(0), big.NewInt(0), new(big.Int).Add(balanceAppend, stakeAppend)
+	return big.NewInt(0), big.NewInt(0), new(big.Int).Add(balanceAppend, stakeAppend), 0
 }
 
 func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types.Block,
@@ -771,9 +908,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8 bool
 			appState.State.SetInvites(addr, 0)
 		}
 
-		collector.BeforeClearPenalty(statsCollector, addr, appState)
 		collector.BeginEpochPenaltyResetBalanceUpdate(statsCollector, addr, appState)
 		appState.State.ClearPenalty(addr)
+		appState.State.SetPenaltyTimestamp(addr, 0)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.State.ClearFlips(addr)
 		appState.State.ResetValidationTxBits(addr)
@@ -1041,38 +1178,53 @@ func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppStat
 	}
 	identities := appState.State.DelayedOfflinePenalties()
 	for _, addr := range identities {
-		amount := chain.calculatePenalty(appState, addr)
-		collector.BeforeSetPenalty(statsCollector, addr, amount, appState)
+		var amount *big.Int
+		var seconds uint16
+		if chain.config.Consensus.EnableUpgrade9 {
+			seconds = uint16(chain.config.Consensus.OfflinePenaltyDuration.Seconds())
+		} else {
+			amount = chain.calculatePenalty(appState, addr)
+		}
+		collector.BeforeSetPenalty(statsCollector, addr, amount, seconds, appState)
 		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenalty(addr, amount)
+		appState.State.SetPenalty(addr, amount, seconds)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.IdentityState.SetOnline(addr, false)
+		appState.State.SetPenaltyTimestamp(addr, 0)
 	}
 	appState.State.ClearDelayedOfflinePenalties()
 }
 
-func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header,
-	statsCollector collector.StatsCollector) {
-	if block.IsEmpty() {
-		return
+func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, ctx *blockRewardCtx, statsCollector collector.StatsCollector) *big.Int {
+	paidReward := big.NewInt(0)
+	if len(ctx.committee) == 0 {
+		return paidReward
 	}
-	identities := appState.ValidatorsCache.GetOnlineValidators(prevBlock.Seed(), block.Height(), types.Final, chain.GetCommitteeSize(appState.ValidatorsCache, true))
-	if identities == nil || identities.Validators.Cardinality() == 0 {
-		return
+
+	blockReward := new(big.Int).Add(chain.config.Consensus.BlockReward, chain.config.Consensus.FinalCommitteeReward)
+	rewardShareFloat := math.Div(math.Zero().SetInt(blockReward), ctx.totalStakeWeight)
+
+	if !chain.config.Consensus.EnableUpgrade9 {
+		rewardShareInt, _ := rewardShareFloat.Int(nil)
+		collector.SetCommitteeRewardShare(statsCollector, rewardShareInt)
 	}
-	totalReward := big.NewInt(0)
-	totalReward.Div(chain.config.Consensus.FinalCommitteeReward, big.NewInt(int64(identities.Original.Cardinality())))
-	collector.SetCommitteeRewardShare(statsCollector, totalReward)
 
-	reward, stake := splitReward(totalReward, false, chain.config.Consensus)
-	newbieReward, newbieStake := splitReward(totalReward, true, chain.config.Consensus)
+	remainingReward := blockReward
+	rewardCommitteeMember := func(item *stakeholder) {
+		addr := item.address
+		stakeWeight := item.stakeWeight
+		totalRewardFloat := math.Mul(rewardShareFloat, stakeWeight)
+		totalRewardInt, _ := totalRewardFloat.Int(nil)
 
-	rewardCommitteeMember := func(addr common.Address) {
-		identityState := appState.State.GetIdentityState(addr)
-		r, s := reward, stake
-		if identityState == state.Newbie {
-			r, s = newbieReward, newbieStake
+		if totalRewardInt.Cmp(remainingReward) == 1 {
+			totalRewardInt = new(big.Int).Set(remainingReward)
 		}
+		remainingReward.Sub(remainingReward, totalRewardInt)
+		paidReward.Add(paidReward, totalRewardInt)
+
+		identityState := appState.State.GetIdentityState(addr)
+
+		balanceReward, stakeReward := splitReward(totalRewardInt, identityState == state.Newbie, chain.config.Consensus)
 
 		penaltySource := addr
 		balanceDest := addr
@@ -1081,35 +1233,35 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 			balanceDest = delegator
 		}
 		// calculate penalty
-		balanceAdd, stakeAdd, penaltySub := calculatePenalty(r, s, appState.State.GetPenalty(penaltySource))
+		balanceAdd, stakeAdd, penaltySub, penaltySecondsSub := calculatePenalty(balanceReward, stakeReward, appState.State.GetPenalty(penaltySource), appState.State.GetPenaltySeconds(penaltySource), appState.State.GetPenaltyTimestamp(penaltySource), block.Header.Time())
 
-		collector.BeginCommitteeRewardBalanceUpdate(statsCollector, balanceDest, addr, appState)
+		collector.BeginCommitteeRewardBalanceUpdate(statsCollector, balanceDest, addr, totalRewardInt, appState)
 		// update state
 		appState.State.AddBalance(balanceDest, balanceAdd)
 		appState.State.AddStake(addr, stakeAdd)
+		var penaltyBurn *big.Int
 		if penaltySub != nil {
+			penaltyBurn = new(big.Int).Set(penaltySub)
 			appState.State.SubPenalty(penaltySource, penaltySub)
 		}
+		if penaltySecondsSub > 0 {
+			penaltyBurn = new(big.Int).Set(totalRewardInt)
+			appState.State.SubPenaltySeconds(penaltySource, penaltySecondsSub)
+			updateOrResetPenaltyTimestamp(appState, penaltySource, block.Header.Time())
+		}
 		collector.CompleteBalanceUpdate(statsCollector, appState)
-		collector.AddMintedCoins(statsCollector, r)
-		collector.AddMintedCoins(statsCollector, s)
+		collector.AddMintedCoins(statsCollector, balanceReward)
+		collector.AddMintedCoins(statsCollector, stakeReward)
 		collector.AfterAddStake(statsCollector, addr, stakeAdd, appState)
-		collector.AfterSubPenalty(statsCollector, penaltySource, penaltySub, appState)
-		collector.AddPenaltyBurntCoins(statsCollector, penaltySource, penaltySub)
-		collector.AddFinalCommitteeReward(statsCollector, balanceDest, addr, r, s)
+		collector.AddPenaltyBurntCoins(statsCollector, penaltySource, penaltyBurn)
+		collector.AddFinalCommitteeReward(statsCollector, balanceDest, addr, balanceReward, stakeReward, stakeWeight)
 	}
 
-	if chain.config.Consensus.EnableUpgrade8 {
-		for _, addr := range sortAddresses(identities.Original) {
-			rewardCommitteeMember(addr)
-		}
-	} else {
-		for _, item := range identities.Original.ToSlice() {
-			addr := item.(common.Address)
-			rewardCommitteeMember(addr)
-		}
+	for _, item := range ctx.committee {
+		rewardCommitteeMember(item)
 	}
 
+	return paidReward
 }
 
 func sortAddresses(addresses mapset.Set) []common.Address {
@@ -1513,7 +1665,7 @@ func (chain *Blockchain) applyVrfProposerThreshold(appState *appstate.AppState, 
 	appState.State.SetVrfProposerThreshold(currentThreshold)
 }
 
-func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *types.Block) {
+func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) {
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
@@ -1522,10 +1674,20 @@ func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *t
 		isOnline := appState.IdentityState.IsOnline(addr)
 		if isOnline {
 			appState.IdentityState.SetOnline(addr, false)
+			_, _, _, penaltySecondsSub := calculatePenalty(nil, nil, nil, appState.State.GetPenaltySeconds(addr), appState.State.GetPenaltyTimestamp(addr), block.Header.Time())
+			if penaltySecondsSub > 0 {
+				collector.BeginCommitteeRewardBalanceUpdate(statsCollector, addr, addr, nil, appState)
+				appState.State.SubPenaltySeconds(addr, penaltySecondsSub)
+				appState.State.SetPenaltyTimestamp(addr, 0)
+				collector.CompleteBalanceUpdate(statsCollector, appState)
+			}
 			continue
 		}
 		if appState.IdentityState.IsValidated(addr) || appState.ValidatorsCache.IsPool(addr) {
 			appState.IdentityState.SetOnline(addr, true)
+			if appState.State.GetPenaltySeconds(addr) > 0 {
+				appState.State.SetPenaltyTimestamp(addr, block.Header.Time())
+			}
 		}
 	}
 	appState.State.ClearStatusSwitchAddresses()
@@ -1630,7 +1792,6 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	head := chain.Head
 
 	txs := chain.txpool.BuildBlockTransactions()
-	checkState, _ := chain.appState.ForCheck(chain.Head.Height())
 
 	prevBlockTime := time.Unix(chain.Head.Time(), 0)
 	newBlockTime := prevBlockTime.Add(MinBlockDelay).Unix()
@@ -1652,6 +1813,8 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		header.OfflineAddr = addr
 		header.Flags |= flag
 	}
+	checkState, _ := chain.appState.ForCheck(chain.Head.Height())
+	blockRewardCtx := chain.prepareBlockRewardCtx(chain.coinBaseAddress, checkState, header.Height, chain.Head)
 
 	filteredTxs, totalFee, totalTips, receipts, usedGas := chain.filterTxs(checkState, txs, header)
 	body := &types.Body{
@@ -1694,7 +1857,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		header.Upgrade = chain.upgrader.UpgradeBits()
 	}
 
-	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, nil)
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, blockRewardCtx, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
 	hash := crypto.SignatureHash(proposal)
@@ -1940,6 +2103,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return nil, errors.New("txHash is invalid")
 	}
 
+	blockRewardCtx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), checkState, block.Height(), prevBlock)
+
 	var totalFee, totalTips *big.Int
 	var err error
 	var receipts types.TxReceipts
@@ -1968,7 +2133,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
-	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, blockRewardCtx, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
@@ -2243,7 +2408,12 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 }
 
 func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final bool) int {
-	var cnt = vc.OnlineSize()
+	var cnt int
+	if chain.config.Consensus.EnableUpgrade9 {
+		cnt = vc.ValidatorsSize()
+	} else {
+		cnt = vc.OnlineSize()
+	}
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteePercent

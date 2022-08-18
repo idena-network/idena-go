@@ -396,6 +396,8 @@ type Identity struct {
 	DelegationEpoch      uint16
 	pendingUndelegation  bool
 	replenishedStake     *big.Int
+	penaltySeconds       uint16
+	penaltyTimestamp     int64
 	// do not use directly
 	ShardId common.ShardId
 }
@@ -433,6 +435,8 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		DelegationEpoch:     uint32(i.DelegationEpoch),
 		PendingUndelegation: i.pendingUndelegation,
 		ShardId:             uint32(i.ShardId),
+		PenaltySeconds:      uint32(i.penaltySeconds),
+		PenaltyTimestamp:    i.penaltyTimestamp,
 	}
 	if i.delegatee != nil {
 		protoIdentity.Delegatee = i.delegatee.Bytes()
@@ -484,6 +488,8 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.DelegationNonce = protoIdentity.DelegationNonce
 	i.pendingUndelegation = protoIdentity.PendingUndelegation
 	i.ShardId = common.ShardId(protoIdentity.ShardId)
+	i.penaltySeconds = uint16(protoIdentity.PenaltySeconds)
+	i.penaltyTimestamp = protoIdentity.PenaltyTimestamp
 	for idx := range protoIdentity.Flips {
 		i.Flips = append(i.Flips, IdentityFlip{
 			Cid:  protoIdentity.Flips[idx].Cid,
@@ -562,6 +568,14 @@ func (i *Identity) IsDiscriminated(epoch uint16) bool {
 
 func (i *Identity) ReplenishedStake() *big.Int {
 	return i.replenishedStake
+}
+
+func (i *Identity) PenaltySeconds() uint16 {
+	return i.penaltySeconds
+}
+
+func (i *Identity) PenaltyTimestamp() int64 {
+	return i.penaltyTimestamp
 }
 
 func (i *Identity) HasValidationTx(txType types.TxType) bool {
@@ -1054,6 +1068,36 @@ func (s *stateIdentity) GetPenalty() *big.Int {
 		return new(big.Int)
 	}
 	return s.data.Penalty
+}
+
+func (s *stateIdentity) SetPenaltySeconds(penaltySeconds uint16) {
+	s.data.penaltySeconds = penaltySeconds
+	s.touch()
+}
+
+func (s *stateIdentity) GetPenaltySeconds() uint16 {
+	return s.data.penaltySeconds
+}
+
+func (s *stateIdentity) SubPenaltySeconds(value uint16) {
+	if value == 0 {
+		return
+	}
+	current := s.GetPenaltySeconds()
+	if current <= value {
+		s.SetPenaltySeconds(0)
+	} else {
+		s.SetPenaltySeconds(current - value)
+	}
+}
+
+func (s *stateIdentity) GetPenaltyTimestamp() int64 {
+	return s.data.penaltyTimestamp
+}
+
+func (s *stateIdentity) SetPenaltyTimestamp(penaltyTimestamp int64) {
+	s.data.penaltyTimestamp = penaltyTimestamp
+	s.touch()
 }
 
 func (s *stateIdentity) SetProfileHash(hash []byte) {

@@ -14,6 +14,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
@@ -43,12 +44,14 @@ func Test_ApplyBlockRewards(t *testing.T) {
 			Transactions: []*types.Transaction{},
 		},
 	}
+	appState, _ := chain.appState.ForCheck(1)
+	ctx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), appState, block.Height(), chain.Head)
+
 	fee := new(big.Int)
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
-	appState, _ := chain.appState.ForCheck(1)
-	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, nil)
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
@@ -66,6 +69,153 @@ func Test_ApplyBlockRewards(t *testing.T) {
 
 	require.Equal(t, 0, expectedBalance.Cmp(appState.State.GetBalance(chain.coinBaseAddress)))
 	require.Equal(t, 0, stake.Cmp(appState.State.GetStakeBalance(chain.coinBaseAddress)))
+}
+
+func Test_ApplyBlockRewards2(t *testing.T) {
+	stakes := []*big.Int{
+		ConvertToInt(decimal.RequireFromString("10")),
+		ConvertToInt(decimal.RequireFromString("15")),
+		ConvertToInt(decimal.RequireFromString("25")),
+		ConvertToInt(decimal.RequireFromString("50")),
+		ConvertToInt(decimal.RequireFromString("100")),
+		ConvertToInt(decimal.RequireFromString("8.181484748391437131")),
+	}
+	var identities []common.Address
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	for i, stake := range stakes {
+		addr := common.Address{byte(i + 1)}
+		identities = append(identities, addr)
+		alloc[addr] = config.GenesisAllocation{
+			State: uint8(state.Verified),
+			Stake: stake,
+		}
+	}
+	chain, _, _, _ := NewTestBlockchain(true, alloc)
+
+	chain.appState.IdentityState.SetOnline(chain.coinBaseAddress, true)
+	chain.appState.IdentityState.SetDelegatee(identities[0], chain.coinBaseAddress)
+	chain.appState.IdentityState.SetDelegatee(identities[1], chain.coinBaseAddress)
+	for i := 2; i < len(identities); i++ {
+		chain.appState.IdentityState.SetOnline(identities[i], true)
+	}
+	chain.appState.State.SetDelegationNonce(chain.coinBaseAddress, 1)
+	chain.appState.State.AddStake(chain.coinBaseAddress, ConvertToInt(decimal.RequireFromString("0.0005")))
+
+	chain.appState.State.SetPenalty(identities[2], ConvertToInt(decimal.RequireFromString("0.6")), 0)
+	chain.appState.State.SetPenalty(identities[3], ConvertToInt(decimal.RequireFromString("2")), 0)
+	chain.appState.State.SetPenalty(identities[4], nil, 100)
+	chain.appState.State.SetPenaltyTimestamp(identities[4], 1000)
+	chain.appState.State.SetPenalty(chain.coinBaseAddress, nil, 100)
+	chain.appState.State.SetPenaltyTimestamp(chain.coinBaseAddress, 1450)
+
+	chain.appState.Precommit(true)
+	require.NoError(t, chain.appState.CommitAt(2))
+	chain.appState.ValidatorsCache.Load()
+
+	header := &types.ProposedHeader{
+		Height:         3,
+		ParentHash:     chain.Head.Hash(),
+		Time:           1500,
+		ProposerPubKey: chain.pubKey,
+		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
+	}
+	block := &types.Block{
+		Header: &types.Header{
+			ProposedHeader: header,
+		},
+		Body: &types.Body{
+			Transactions: []*types.Transaction{},
+		},
+	}
+
+	appState, _ := chain.appState.ForCheck(2)
+	ctx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), appState, block.Height(), chain.Head)
+
+	fee := ConvertToInt(decimal.RequireFromString("1000"))
+	tips := ConvertToInt(decimal.RequireFromString("10"))
+
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(chain.coinBaseAddress)).String())
+	require.Equal(t, "0.0005", ConvertToFloat(appState.State.GetStakeBalance(chain.coinBaseAddress)).String())
+	require.Equal(t, uint16(50), appState.State.GetPenaltySeconds(chain.coinBaseAddress))
+	require.Equal(t, int64(1500), appState.State.GetPenaltyTimestamp(chain.coinBaseAddress))
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[0])).String())
+	require.Equal(t, "10", ConvertToFloat(appState.State.GetStakeBalance(identities[0])).String())
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[1])).String())
+	require.Equal(t, "15", ConvertToFloat(appState.State.GetStakeBalance(identities[1])).String())
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[2])).String())
+	// 25 initial stake + 0.142894106... reward stake - (0.6 initial penalty - 0.5715764239... balance reward) remaining penalty
+	require.Equal(t, "25.114470529881165211", ConvertToFloat(appState.State.GetStakeBalance(identities[2])).String())
+	require.Zero(t, appState.State.GetPenalty(identities[2]).Sign())
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[3])).String())
+	require.Equal(t, "50", ConvertToFloat(appState.State.GetStakeBalance(identities[3])).String())
+	// 2 initial penalty - 1.333249152... reward
+	require.Equal(t, "0.666750848280176939", ConvertToFloat(appState.State.GetPenalty(identities[3])).String())
+
+	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[4])).String())
+	require.Equal(t, "100", ConvertToFloat(appState.State.GetStakeBalance(identities[4])).String())
+	require.Zero(t, appState.State.GetPenaltySeconds(identities[4]))
+	require.Zero(t, appState.State.GetPenaltyTimestamp(identities[4]))
+
+	require.Equal(t, "0.209159315434144524", ConvertToFloat(appState.State.GetBalance(identities[5])).String())
+	// initial stake 8.181484748391437131 + reward stake 0.05228982886...
+	require.Equal(t, "8.233774577249973261", ConvertToFloat(appState.State.GetStakeBalance(identities[5])).String())
+}
+
+func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
+	var identities []common.Address
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	addr := common.Address{0x1}
+	identities = append(identities, addr)
+	alloc[addr] = config.GenesisAllocation{
+		State: uint8(state.Verified),
+		Stake: ConvertToInt(decimal.RequireFromString("10")),
+	}
+	chain, _, _, _ := NewTestBlockchain(true, alloc)
+
+	chain.appState.IdentityState.SetOnline(chain.coinBaseAddress, true)
+	chain.appState.IdentityState.SetOnline(addr, true)
+
+	chain.appState.Precommit(true)
+	require.NoError(t, chain.appState.CommitAt(2))
+	chain.appState.ValidatorsCache.Load()
+
+	header := &types.ProposedHeader{
+		Height:         3,
+		ParentHash:     chain.Head.Hash(),
+		Time:           time.Now().UTC().Unix(),
+		ProposerPubKey: chain.pubKey,
+		TxHash:         types.DeriveSha(types.Transactions([]*types.Transaction{})),
+	}
+	block := &types.Block{
+		Header: &types.Header{
+			ProposedHeader: header,
+		},
+		Body: &types.Body{
+			Transactions: []*types.Transaction{},
+		},
+	}
+
+	appState, _ := chain.appState.ForCheck(2)
+	ctx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), appState, block.Height(), chain.Head)
+
+	fee := ConvertToInt(decimal.RequireFromString("1000"))
+	tips := ConvertToInt(decimal.RequireFromString("10"))
+
+	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
+
+	// fee + tips (no rewards due to zero stake)
+	require.Equal(t, "88", ConvertToFloat(appState.State.GetBalance(chain.coinBaseAddress)).String())
+	require.Equal(t, "22", ConvertToFloat(appState.State.GetStakeBalance(chain.coinBaseAddress)).String())
+
+	require.Equal(t, "4.8", ConvertToFloat(appState.State.GetBalance(addr)).String())
+	// 10 base stake + 1.2 reward stake
+	require.Equal(t, "11.2", ConvertToFloat(appState.State.GetStakeBalance(addr)).String())
 }
 
 func Test_ApplyInviteTx(t *testing.T) {
@@ -366,7 +516,7 @@ func Test_CalculatePenalty(t *testing.T) {
 	}
 
 	for i, item := range cases {
-		a, b, c := calculatePenalty(item.data[0], item.data[1], item.data[2])
+		a, b, c, _ := calculatePenalty(item.data[0], item.data[1], item.data[2], 0, 0, 0)
 
 		require.Equal(0, item.expected[0].Cmp(a), "balance is wrong, case#%v", i+1)
 		require.Equal(0, item.expected[1].Cmp(b), "stake is wrong, case#%v", i+1)
@@ -378,6 +528,44 @@ func Test_CalculatePenalty(t *testing.T) {
 		}
 	}
 
+}
+
+func Test_CalculatePenaltySeconds(t *testing.T) {
+	a, b, c, d := calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 0, 0, 0)
+	require.Equal(t, big.NewInt(1), a)
+	require.Equal(t, big.NewInt(2), b)
+	require.Nil(t, c)
+	require.Zero(t, d)
+
+	a, b, c, d = calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 0, 30, 60)
+	require.Equal(t, big.NewInt(1), a)
+	require.Equal(t, big.NewInt(2), b)
+	require.Nil(t, c)
+	require.Zero(t, d)
+
+	a, b, c, d = calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 10, 30, 60)
+	require.Zero(t, a.Sign())
+	require.Zero(t, b.Sign())
+	require.Nil(t, c)
+	require.Equal(t, uint16(10), d)
+
+	a, b, c, d = calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 10, 30, 34)
+	require.Zero(t, a.Sign())
+	require.Zero(t, b.Sign())
+	require.Nil(t, c)
+	require.Equal(t, uint16(4), d)
+
+	a, b, c, d = calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 10, 0, 34)
+	require.Zero(t, a.Sign())
+	require.Zero(t, b.Sign())
+	require.Nil(t, c)
+	require.Zero(t, d)
+
+	a, b, c, d = calculatePenalty(big.NewInt(1), big.NewInt(2), nil, 10, 44, 34)
+	require.Zero(t, a.Sign())
+	require.Zero(t, b.Sign())
+	require.Nil(t, c)
+	require.Zero(t, d)
 }
 
 func Test_applyNextBlockFee(t *testing.T) {
@@ -711,7 +899,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensusCfg := config.GetDefaultConsensusConfig()
+	consensusCfg := GetDefaultConsensusConfig()
 	consensusCfg.Automine = true
 	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
@@ -842,6 +1030,8 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		var addr common.Address
 		copy(addr[:], item.Code)
 		s.State.SetState(addr, item.State)
+		s.State.SetPenalty(addr, nil, 99)
+		s.State.SetPenaltyTimestamp(addr, 999)
 		for _, score := range item.Scores {
 			s.State.AddNewScore(addr, score, true)
 		}
@@ -850,6 +1040,12 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 
 	setNewIdentitiesAttributes(s, true, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 
+	for _, item := range identities {
+		var addr common.Address
+		copy(addr[:], item.Code)
+		require.Zero(s.State.GetPenaltySeconds(addr))
+		require.Zero(s.State.GetPenaltyTimestamp(addr))
+	}
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
@@ -987,15 +1183,80 @@ func Test_ClearDustAccounts(t *testing.T) {
 	require.True(s.State.AccountExists(common.Address{0x8}))
 }
 
-func TestBlockchain_applyOfflinePenalty(t *testing.T) {
+func TestBlockchain_applyStatusSwitch(t *testing.T) {
 	chain := &Blockchain{
 		config: &config.Config{
-			Consensus: config.GetDefaultConsensusConfig(),
+			Consensus: GetDefaultConsensusConfig(),
 		},
 	}
 
-	chain.config.Consensus.FinalCommitteeReward = big.NewInt(1)
-	chain.config.Consensus.BlockReward = big.NewInt(3)
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	pool1 := common.Address{0x1}
+	delegator1 := common.Address{0x2}
+	pool2 := common.Address{0x3}
+	delegator2 := common.Address{0x4}
+	identity1 := common.Address{0x5}
+	identity2 := common.Address{0x6}
+
+	appState.IdentityState.SetValidated(delegator1, true)
+	appState.IdentityState.SetValidated(delegator2, true)
+	appState.IdentityState.SetValidated(identity1, true)
+	appState.IdentityState.SetValidated(identity2, true)
+
+	appState.IdentityState.SetOnline(pool2, true)
+	appState.State.SetPenalty(pool2, nil, 12)
+	appState.State.SetPenaltyTimestamp(pool2, 1480)
+	appState.IdentityState.SetOnline(identity2, true)
+	appState.State.SetPenaltyTimestamp(identity2, 1490)
+	appState.State.SetPenalty(identity2, nil, 13)
+
+	appState.IdentityState.SetDelegatee(delegator1, pool1)
+	appState.IdentityState.SetDelegatee(delegator2, pool2)
+
+	appState.State.SetPenalty(pool1, nil, 10)
+	appState.State.SetPenalty(identity1, nil, 11)
+
+	appState.State.ToggleStatusSwitchAddress(pool1)
+	appState.State.ToggleStatusSwitchAddress(pool2)
+	appState.State.ToggleStatusSwitchAddress(identity1)
+	appState.State.ToggleStatusSwitchAddress(identity2)
+
+	appState.Commit(nil, true)
+	appState.Initialize(1)
+
+	require.True(t, appState.ValidatorsCache.IsPool(pool1))
+	require.True(t, appState.ValidatorsCache.IsPool(pool2))
+
+	chain.applyStatusSwitch(appState, &types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Flags: types.IdentityUpdate,
+			Time:  1500,
+		},
+	}}, nil)
+
+	require.Equal(t, int64(1500), appState.State.GetPenaltyTimestamp(pool1))
+	require.Equal(t, uint16(10), appState.State.GetPenaltySeconds(pool1))
+	require.Equal(t, int64(1500), appState.State.GetPenaltyTimestamp(identity1))
+	require.Equal(t, uint16(11), appState.State.GetPenaltySeconds(identity1))
+
+	require.Zero(t, appState.State.GetPenaltyTimestamp(pool2))
+	require.Zero(t, appState.State.GetPenaltySeconds(pool2))
+	require.Zero(t, appState.State.GetPenaltyTimestamp(identity2))
+	require.Equal(t, uint16(3), appState.State.GetPenaltySeconds(identity2))
+}
+
+func TestBlockchain_applyOfflinePenalty(t *testing.T) {
+	chain := &Blockchain{
+		config: &config.Config{
+			Consensus: GetDefaultConsensusConfig(),
+		},
+	}
+
+	chain.config.Consensus.EnableUpgrade9 = true
+	chain.config.Consensus.OfflinePenaltyDuration = time.Hour
 
 	db := dbm.NewMemDB()
 	bus := eventbus.New()
@@ -1012,6 +1273,8 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 			appState.IdentityState.SetDelegatee(addr, pool1)
 		}
 	}
+	appState.State.SetPenalty(pool1, nil, 5)
+	appState.State.SetPenaltyTimestamp(pool1, 15)
 	appState.Commit(nil, true)
 	appState.Initialize(1)
 
@@ -1024,7 +1287,9 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 		},
 	}}, nil)
 
-	require.Equal(t, big.NewInt(4*3*1800/int64(count)).Bytes(), appState.State.GetPenalty(pool1).Bytes())
+	require.Zero(t, appState.State.GetPenalty(pool1).Sign())
+	require.Equal(t, uint16(3600), appState.State.GetPenaltySeconds(pool1))
+	require.Zero(t, appState.State.GetPenaltyTimestamp(pool1))
 }
 
 func Test_Delegation(t *testing.T) {
@@ -1432,4 +1697,105 @@ func Test_sortAddresses(t *testing.T) {
 	for i := 1; i < 30; i++ {
 		require.Positive(t, bytes.Compare(sortedAddresses[i][:], sortedAddresses[i-1][:]))
 	}
+}
+
+func Test_prepareBlockRewardCtx(t *testing.T) {
+
+	proposer := tests.GetRandAddr()
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+
+	conf := GetDefaultConsensusConfig()
+	config.ApplyConsensusVersion(config.ConsensusV8, conf)
+	config.ApplyConsensusVersion(config.ConsensusV9, conf)
+
+	res := prepareBlockRewardCtx(proposer, appState, nil, conf)
+
+	require.Zero(t, math.Zero().Cmp(res.proposerStakeWeight))
+	require.Zero(t, math.Zero().Cmp(res.totalStakeWeight))
+	require.Nil(t, res.committee)
+
+	committeeMember1 := common.Address{0x1}
+	finalCommittee := &validators.StepValidators{Original: mapset.NewSet()}
+	finalCommittee.Original.Add(committeeMember1)
+
+	res = prepareBlockRewardCtx(proposer, appState, finalCommittee, conf)
+
+	require.Zero(t, math.Zero().SetUint64(1).Cmp(res.proposerStakeWeight))
+	require.Zero(t, math.Zero().SetUint64(2).Cmp(res.totalStakeWeight))
+	require.Len(t, res.committee, 1)
+	require.Zero(t, math.Zero().SetUint64(1).Cmp(res.committee[0].stakeWeight))
+
+	appState.State.AddStake(proposer, new(big.Int).Mul(big.NewInt(1), common.DnaBase))
+
+	res = prepareBlockRewardCtx(proposer, appState, nil, conf)
+
+	require.Zero(t, math.Zero().SetUint64(1).Cmp(res.proposerStakeWeight))
+	require.Zero(t, math.Zero().SetUint64(1).Cmp(res.totalStakeWeight))
+	require.Nil(t, res.committee)
+
+	appState.State.AddStake(proposer, new(big.Int).Mul(big.NewInt(1), common.DnaBase))
+
+	res = prepareBlockRewardCtx(proposer, appState, nil, conf)
+
+	require.Equal(t, "1.866065983", res.proposerStakeWeight.String())
+	require.Equal(t, "1.866065983", res.totalStakeWeight.String())
+
+	committeeMember2 := common.Address{0x2}
+	appState.State.AddStake(committeeMember2, ConvertToInt(decimal.RequireFromString("0.558452614956473562")))
+
+	committeeMember3 := common.Address{0x3}
+	appState.State.AddStake(committeeMember3, ConvertToInt(decimal.RequireFromString("5.558452614956473562")))
+
+	committeeMember4 := common.Address{0x5}
+	appState.State.AddStake(committeeMember4, ConvertToInt(decimal.RequireFromString("36.416131161381747353")))
+
+	committeeMember5 := common.Address{0x4}
+	appState.State.AddStake(committeeMember5, ConvertToInt(decimal.RequireFromString("575.558452614956473562")))
+
+	committeeMember6 := common.Address{0x6}
+	appState.State.AddStake(committeeMember6, ConvertToInt(decimal.RequireFromString("4575.558452614956473562")))
+
+	committeeMember7 := common.Address{0x7}
+	appState.State.AddStake(committeeMember7, ConvertToInt(decimal.RequireFromString("84575.558452614956473562")))
+
+	committeeMember8 := common.Address{0x8}
+	appState.State.AddStake(committeeMember8, ConvertToInt(decimal.RequireFromString("284575.558452614956473562")))
+
+	committeeMember9 := common.Address{0x9}
+	appState.State.AddStake(committeeMember9, ConvertToInt(decimal.RequireFromString("9284575.558452614956473562")))
+
+	finalCommittee.Original.Add(committeeMember2)
+	finalCommittee.Original.Add(committeeMember3)
+	finalCommittee.Original.Add(committeeMember4)
+	finalCommittee.Original.Add(committeeMember5)
+	finalCommittee.Original.Add(committeeMember6)
+	finalCommittee.Original.Add(committeeMember7)
+	finalCommittee.Original.Add(committeeMember8)
+	finalCommittee.Original.Add(committeeMember9)
+
+	res = prepareBlockRewardCtx(proposer, appState, finalCommittee, conf)
+
+	require.Equal(t, "1976879.069679686168581211", res.totalStakeWeight.Text('g', 25))
+	require.Equal(t, "3.35891877", res.proposerStakeWeight.String())
+	require.Len(t, res.committee, 9)
+	require.Equal(t, committeeMember1, res.committee[0].address)
+	require.Equal(t, "0", res.committee[0].stakeWeight.String())
+	require.Equal(t, committeeMember2, res.committee[1].address)
+	require.Equal(t, "0.5919536407", res.committee[1].stakeWeight.String())
+	require.Equal(t, committeeMember3, res.committee[2].address)
+	require.Equal(t, "4.682292248", res.committee[2].stakeWeight.String())
+	require.Equal(t, committeeMember5, res.committee[3].address)
+	require.Equal(t, "304.8459943", res.committee[3].stakeWeight.String())
+	require.Equal(t, committeeMember4, res.committee[4].address)
+	require.Equal(t, "25.41934901389663", res.committee[4].stakeWeight.Text('g', 16))
+	require.Equal(t, committeeMember6, res.committee[5].address)
+	require.Equal(t, "1969.698241", res.committee[5].stakeWeight.String())
+	require.Equal(t, committeeMember7, res.committee[6].address)
+	require.Equal(t, "27196.96151", res.committee[6].stakeWeight.String())
+	require.Equal(t, committeeMember8, res.committee[7].address)
+	require.Equal(t, "81054.63177", res.committee[7].stakeWeight.String())
+	require.Equal(t, committeeMember9, res.committee[8].address)
+	require.Equal(t, "1866318.88", res.committee[8].stakeWeight.String())
 }
