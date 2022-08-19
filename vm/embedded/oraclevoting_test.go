@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/tests"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,8 @@ type configurableOracleVotingDeploy struct {
 	committeeSize        uint64
 	votingMinPayment     *big.Int
 	ownerFee             byte
+	oracleRewardFund     *big.Int
+	refundRecipient      *common.Address
 }
 
 func (c *configurableOracleVotingDeploy) Parameters() (contract EmbeddedContractType, deployStake *big.Int, params [][]byte) {
@@ -45,6 +48,16 @@ func (c *configurableOracleVotingDeploy) Parameters() (contract EmbeddedContract
 		data = append(data, nil)
 	}
 	data = append(data, common.ToBytes(c.ownerFee))
+	if c.oracleRewardFund != nil {
+		data = append(data, c.oracleRewardFund.Bytes())
+	} else {
+		data = append(data, nil)
+	}
+	if c.refundRecipient != nil {
+		data = append(data, c.refundRecipient.Bytes())
+	} else {
+		data = append(data, nil)
+	}
 	return OracleVotingContract, c.deployStake, data
 }
 
@@ -85,6 +98,16 @@ func (c *configurableOracleVotingDeploy) SetVotingMinPayment(votingMinPayment *b
 
 func (c *configurableOracleVotingDeploy) SetOwnerFee(ownerFee byte) *configurableOracleVotingDeploy {
 	c.ownerFee = ownerFee
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetOracleRewardFund(oracleRewardFund *big.Int) *configurableOracleVotingDeploy {
+	c.oracleRewardFund = oracleRewardFund
+	return c
+}
+
+func (c *configurableOracleVotingDeploy) SetRefundRecipient(refundRecipient common.Address) *configurableOracleVotingDeploy {
+	c.refundRecipient = &refundRecipient
 	return c
 }
 
@@ -175,11 +198,18 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	}, ownerBalance)
 	tester := builder.Build()
 	ownerFee := byte(5)
+	refundRecipient := tests.GetRandAddr()
 	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(ownerFee).
-		SetPublicVotingDuration(4320).SetVotingDuration(4320).Deploy()
+		SetPublicVotingDuration(4320).SetVotingDuration(4320).
+		SetRefundRecipient(refundRecipient).SetOracleRewardFund(ConvertToInt(decimal.RequireFromString("1500"))).Deploy()
 	require.NoError(t, err)
 
 	caller.contractTester.Commit()
+
+	require.Equal(t, ConvertToInt(decimal.RequireFromString("250")).Bytes(), caller.contractTester.ReadData("ownerDeposit"))
+	require.Equal(t, ConvertToInt(decimal.RequireFromString("1500")).Bytes(), caller.contractTester.ReadData("oracleRewardFund"))
+	require.Equal(t, refundRecipient.Bytes(), caller.contractTester.ReadData("refundRecipient"))
+
 	caller.contractTester.setHeight(3)
 	caller.contractTester.setTimestamp(30)
 
@@ -252,11 +282,10 @@ func TestOracleVoting_successScenario(t *testing.T) {
 
 	for addr := range votedIdentities {
 		b := caller.contractTester.appState.State.GetBalance(addr)
-		require.Equal(t, "120652173913043478260", b.String())
+		require.Equal(t, "113885869565217391304", b.String())
 	}
 
 	stakeAfterFinish := caller.contractTester.ContractStake()
-	ownerFeeAmount := big.NewInt(0).Quo(ConvertToInt(contractBalance), big.NewInt(int64(100/ownerFee)))
 	require.Equal(t, deployContractStake.Bytes(), stakeAfterFinish.Bytes())
 
 	require.Equal(t, []byte{winnerVote}, caller.contractTester.ReadData("result"))
@@ -278,8 +307,8 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	caller.contractTester.Commit()
 
 	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
-
-	require.Equal(t, big.NewInt(0).Add(big.NewInt(0).Add(ownerBalance, ownerFeeAmount), stakeToBalance).String(), caller.contractTester.appState.State.GetBalance(dest).String())
+	require.Equal(t, "722500000000000000000", caller.contractTester.appState.State.GetBalance(refundRecipient).String())
+	require.Equal(t, big.NewInt(0).Add(ownerBalance, stakeToBalance).String(), caller.contractTester.appState.State.GetBalance(dest).String())
 	require.Nil(t, caller.contractTester.CodeHash())
 	require.Nil(t, caller.contractTester.ContractStake())
 	require.Nil(t, caller.contractTester.ReadData("vrfSeed"))
@@ -424,14 +453,20 @@ func TestOracleVoting2_TerminateRefund(t *testing.T) {
 	require.Error(t, caller.prolong())
 
 	caller.contractTester.setHeight(4320*12 + 4320*7 + 20)
-	_, err = caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
+
+	stakeBeforeTermination := caller.contractTester.ContractStake()
+	dest, err := caller.contractTester.Terminate(caller.contractTester.mainKey, OracleVotingContract)
 	caller.contractTester.Commit()
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
 		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
-		require.Equal(t, big.NewInt(0).Mul(common.DnaBase, big.NewInt(280)).String(), caller.contractTester.appState.State.GetBalance(addr).String())
+		require.Equal(t, "247500000000000000000", caller.contractTester.appState.State.GetBalance(addr).String())
 	}
+	expectedOwnerReward := ConvertToInt(decimal.RequireFromString("525"))
+	stakeToBalance := big.NewInt(0).Quo(stakeBeforeTermination, big.NewInt(2))
+	expectedOwnerBalance := new(big.Int).Add(expectedOwnerReward, new(big.Int).Add(ownerBalance, stakeToBalance))
+	require.Equal(t, expectedOwnerBalance.String(), caller.contractTester.appState.State.GetBalance(dest).String())
 
 	require.Nil(t, caller.contractTester.CodeHash())
 	require.Nil(t, caller.contractTester.ContractStake())
@@ -555,7 +590,7 @@ func TestOracleVoting2_Refund_No_Winner(t *testing.T) {
 	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
 	require.Nil(t, caller.contractTester.ReadData("result"))
 
-	balance, _ := big.NewInt(0).SetString("221052631578947368421", 10) // ((2000 + (10+12) * payment) / 19 )*10^18
+	balance, _ := big.NewInt(0).SetString("207894736842105263157", 10) // ((2000 + (10+12) * payment - ownerDeposit) / 19)*10^18
 
 	for i := 0; i < 10; i++ {
 		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
@@ -678,7 +713,7 @@ func TestOracleVoting_RewardPools(t *testing.T) {
 		require.Equal(t, "0", caller.contractTester.appState.State.GetBalance(addr).String())
 	}
 
-	balance, _ := big.NewInt(0).SetString("562500000000000000000", 10) // ((200 * 30) + 3000) / 16 * 10^18
+	balance, _ := big.NewInt(0).SetString("546875000000000000000", 10) // ((3000 + 200*30 - ownerDeposit) / 16)*10^18
 
 	require.Equal(t, balance.String(), caller.contractTester.appState.State.GetBalance(pool1).String())
 
@@ -856,6 +891,10 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 	caller.contractTester.appState.State.SetGlobalEpoch(3)
 
 	caller.contractTester.Commit()
+
+	expectedOwnerDeposit := ConvertToInt(decimal.RequireFromString("500"))
+	require.Equal(t, expectedOwnerDeposit.Bytes(), caller.contractTester.ReadData("ownerDeposit"))
+
 	caller.contractTester.setHeight(3)
 	caller.contractTester.setTimestamp(30)
 	contractBalance := decimal.NewFromFloat(2000)
@@ -1024,7 +1063,7 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 		caller.contractTester.Commit()
 	}
 
-	expectedPrize := new(big.Int).Div(caller.contractTester.appState.State.GetBalance(caller.contractTester.contractAddr), big.NewInt(int64(winnerVotesCnt)))
+	expectedPrize := new(big.Int).Div(new(big.Int).Sub(caller.contractTester.appState.State.GetBalance(caller.contractTester.contractAddr), expectedOwnerDeposit), big.NewInt(int64(winnerVotesCnt)))
 
 	caller.contractTester.setHeight(3 + 30 + 100)
 	require.NoError(t, caller.finishVoting())

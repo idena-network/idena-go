@@ -100,8 +100,9 @@ func (f *OracleVoting6) Deploy(args ...[]byte) error {
 	networkSize := uint64(f.env.NetworkSize())
 	committeeSize := math.Min(100, networkSize)
 	ownerFee := byte(0)
-	var votingMinPayment *big.Int
+	var votingMinPayment, oracleRewardFund *big.Int
 	state := oracleVotingStatePending
+	var refundRecipient *common.Address
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
 		votingDuration = value
@@ -127,6 +128,15 @@ func (f *OracleVoting6) Deploy(args ...[]byte) error {
 	if value, err := helpers.ExtractByte(8, args...); err == nil {
 		ownerFee = byte(math.MinInt(math.MaxInt(0, int(value)), 100))
 	}
+	if ownerFee > 0 {
+		if value, err := helpers.ExtractBigInt(9, args...); err == nil {
+			oracleRewardFund = value
+		}
+	}
+	if value, err := helpers.ExtractAddr(10, args...); err == nil {
+		refundRecipient = &value
+	}
+	ownerDeposit := calculateOwnerDeposit(committeeSize, networkSize)
 
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
@@ -142,10 +152,21 @@ func (f *OracleVoting6) Deploy(args ...[]byte) error {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
 	f.SetByte("dis", 1)
+	f.SetBigInt("ownerDeposit", ownerDeposit)
+	if oracleRewardFund != nil {
+		f.SetBigInt("oracleRewardFund", oracleRewardFund)
+	}
+	if refundRecipient != nil {
+		f.SetArray("refundRecipient", refundRecipient.Bytes())
+	}
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient)
 	return nil
+}
+
+func calculateOwnerDeposit(committeeSize, networkSize uint64) *big.Int {
+	return big.NewInt(0).Mul(minOracleReward(int(networkSize)), big.NewInt(int64(committeeSize)))
 }
 
 func minOracleReward(networkSize int) *big.Int {
@@ -169,10 +190,16 @@ func (f *OracleVoting6) startVoting() error {
 	balance := f.env.Balance(f.ctx.ContractAddr())
 	committeeSize := f.GetUint64("committeeSize")
 	networkSize := f.env.NetworkSize()
-	oracleReward := minOracleReward(networkSize)
-	minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
-	if balance.Cmp(minBalance) < 0 {
-		return errors.New("contract balance is less than minimal oracles reward")
+	if ownerDeposit := f.GetBigInt("ownerDeposit"); ownerDeposit != nil {
+		if balance.Cmp(ownerDeposit) < 0 {
+			return errors.New("contract balance is less than minimal deposit")
+		}
+	} else {
+		oracleReward := minOracleReward(networkSize)
+		minBalance := big.NewInt(0).Mul(oracleReward, big.NewInt(int64(committeeSize)))
+		if balance.Cmp(minBalance) < 0 {
+			return errors.New("contract balance is less than minimal oracles reward")
+		}
 	}
 	f.SetByte("state", oracleVotingStateStarted)
 	startBlock := f.env.BlockNumber()
@@ -439,14 +466,7 @@ func (f *OracleVoting6) finishVoting(args ...[]byte) error {
 			winnersCnt = votedCount
 		}
 
-		ownerFee := f.GetByte("ownerFee")
-		ownerReward := common.Big0
-		if ownerFee > 0 {
-			payment := f.GetBigInt("votingMinPayment")
-			userLocks := decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount+secretVotes))), 0)
-			ownerRewardD := fund.Sub(userLocks).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
-			ownerReward = math.ToInt(ownerRewardD)
-		}
+		ownerReward := f.calculateOwnerReward(fundInt, fund, votedCount, secretVotes)
 		oracleReward := math.ToInt(fund.Sub(decimal.NewFromBigInt(ownerReward, 0)).Div(decimal.NewFromInt(int64(winnersCnt))))
 
 		poolRewards := map[common.Address]*big.Int{}
@@ -492,7 +512,8 @@ func (f *OracleVoting6) finishVoting(args ...[]byte) error {
 		}
 
 		if ownerReward.Sign() > 0 {
-			if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
+			ownerRewardRecipient := f.getRefundRecipient()
+			if err := f.env.Send(f.ctx, ownerRewardRecipient, ownerReward); err != nil {
 				return err
 			}
 		}
@@ -506,6 +527,39 @@ func (f *OracleVoting6) finishVoting(args ...[]byte) error {
 		return nil
 	}
 	return errors.New("not enough votes to finish voting")
+}
+
+func (f *OracleVoting6) calculateOwnerReward(fundI *big.Int, fundD decimal.Decimal, votedCount, secretVotes uint64) *big.Int {
+	ownerDeposit := f.GetBigInt("ownerDeposit")
+	ownerFee := f.GetByte("ownerFee")
+	if ownerDeposit != nil {
+		result := new(big.Int).Set(ownerDeposit)
+		if ownerFee > 0 {
+			replenishedAmount := new(big.Int).Sub(fundI, ownerDeposit)
+			if oracleRewardFund := f.GetBigInt("oracleRewardFund"); oracleRewardFund != nil {
+				replenishedAmount = new(big.Int).Sub(replenishedAmount, oracleRewardFund)
+			}
+			if replenishedAmount.Sign() > 0 {
+				feeAmount := decimal.NewFromBigInt(replenishedAmount, 0).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
+				result = new(big.Int).Add(result, math.ToInt(feeAmount))
+			}
+		}
+		return result
+	}
+	if ownerFee > 0 {
+		payment := f.GetBigInt("votingMinPayment")
+		userLocks := decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount+secretVotes))), 0)
+		ownerRewardD := fundD.Sub(userLocks).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
+		return math.ToInt(ownerRewardD)
+	}
+	return common.Big0
+}
+
+func (f *OracleVoting6) getRefundRecipient() common.Address {
+	if v := f.GetArray("refundRecipient"); len(v) > 0 {
+		return common.BytesToAddress(v)
+	}
+	return f.Owner()
 }
 
 func (f *OracleVoting6) prolongVoting(args ...[]byte) error {
@@ -706,19 +760,11 @@ func (f *OracleVoting6) Terminate(args ...[]byte) (common.Address, [][]byte, err
 			fundInt = new(big.Int).Set(balance)
 			fund := decimal.NewFromBigInt(fundInt, 0)
 			votedCount := f.GetUint64("votedCount")
-
-			ownerFee := f.GetByte("ownerFee")
-			ownerReward = common.Big0
-
 			secretVotes := f.getSecretVotesCount()
-			if ownerFee > 0 {
-				payment := f.GetBigInt("votingMinPayment")
-				userLocks := decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount+secretVotes))), 0)
-				ownerRewardD := fund.Sub(userLocks).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
-				ownerReward = math.ToInt(ownerRewardD)
-			}
+			ownerReward = f.calculateOwnerReward(fundInt, fund, votedCount, secretVotes)
 			if ownerReward.Sign() > 0 {
-				if err := f.env.Send(f.ctx, f.Owner(), ownerReward); err != nil {
+				ownerRewardRecipient := f.getRefundRecipient()
+				if err := f.env.Send(f.ctx, ownerRewardRecipient, ownerReward); err != nil {
 					return common.Address{}, nil, err
 				}
 			}
