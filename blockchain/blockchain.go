@@ -2933,5 +2933,17 @@ func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
 	if !keepProfileHash && !keepPenalty && !keepDelegationNonce {
 		return
 	}
-	identity.Clear(keepProfileHash, keepPenalty, keepDelegationNonce)
+	res := state.Identity{}
+	if keepProfileHash {
+		res.ProfileHash = identity.ProfileHash
+	}
+	if keepPenalty {
+		res.Penalty = identity.Penalty
+		res.SetPenaltySeconds(identity.PenaltySeconds())
+		res.SetPenaltyTimestamp(identity.PenaltyTimestamp())
+	}
+	if keepDelegationNonce {
+		res.DelegationNonce = identity.DelegationNonce
+	}
+	*identity = res
 }

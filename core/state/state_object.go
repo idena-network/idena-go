@@ -521,41 +521,6 @@ func (i *Identity) FromBytes(data []byte) error {
 	return nil
 }
 
-func (i *Identity) Clear(keepProfileHash, keepPenalty, keepDelegationNonce bool) {
-	if !keepProfileHash {
-		i.ProfileHash = nil
-	}
-	if !keepPenalty {
-		i.Penalty = nil
-		i.penaltySeconds = 0
-		i.penaltyTimestamp = 0
-	}
-	if !keepDelegationNonce {
-		i.DelegationNonce = 0
-	}
-	i.Stake = nil
-	i.Invites = 0
-	i.Birthday = 0
-	i.State = Undefined
-	i.QualifiedFlips = 0
-	i.ShortFlipPoints = 0
-	i.PubKey = nil
-	i.RequiredFlips = 0
-	i.Flips = nil
-	i.Generation = 0
-	i.Code = nil
-	i.Invitees = nil
-	i.Inviter = nil
-	i.ValidationTxsBits = 0
-	i.LastValidationStatus = 0
-	i.Scores = nil
-	i.delegatee = nil
-	i.DelegationEpoch = 0
-	i.pendingUndelegation = false
-	i.replenishedStake = nil
-	i.ShardId = 0
-}
-
 func (i *Identity) Metadata() interface{} {
 	return i.metadata
 }
@@ -609,6 +574,14 @@ func (i *Identity) IsDiscriminated(epoch uint16) bool {
 
 func (i *Identity) ReplenishedStake() *big.Int {
 	return i.replenishedStake
+}
+
+func (i *Identity) SetPenaltySeconds(penaltySeconds uint16) {
+	i.penaltySeconds = penaltySeconds
+}
+
+func (i *Identity) SetPenaltyTimestamp(penaltyTimestamp int64) {
+	i.penaltyTimestamp = penaltyTimestamp
 }
 
 func (i *Identity) PenaltySeconds() uint16 {
