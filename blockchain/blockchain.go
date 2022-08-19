@@ -897,7 +897,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 				}
 				if enableUpgrade9 {
 					if identity.State == state.Undefined && appState.State.GetEpoch(addr) < appState.State.Epoch() && addr != appState.State.GodAddress() {
+						collector.BeginIdentityClearingBalanceUpdate(statsCollector, addr, appState)
 						appState.State.SetState(addr, state.Killed)
+						collector.CompleteBalanceUpdate(statsCollector, appState)
 					}
 				}
 				if identity.State == state.Killed {
