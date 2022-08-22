@@ -11,7 +11,8 @@ import (
 )
 
 func Test_ValidateDeleteFlipTx(t *testing.T) {
-	_, appState, _, key := NewTestBlockchain(true, nil)
+	chain, appState, _, key := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 	minFeePerGas := big.NewInt(1)
 
 	buildTx := func(cid []byte) *types.Transaction {

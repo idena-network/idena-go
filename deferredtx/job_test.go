@@ -60,6 +60,7 @@ func TestJob_tryLater(t *testing.T) {
 
 	fakeVmError = embedded.NewContractError("", true)
 	chain, appState, _, _ := blockchain.NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
 	os.RemoveAll("test")
 
 	txPool := &fakeTxPool{}

@@ -14,6 +14,7 @@ import (
 func TestForkResolver_ResolveFork(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	chain, _ := blockchain.NewCustomTestBlockchain(0, 0, key)
+	defer chain.SecStore().Destroy()
 	chain.GenerateBlocks(80, 0)
 	chain.GenerateBlocks(20, 1)
 	chain2, _ := chain.Copy()
@@ -75,6 +76,7 @@ func TestForkResolver_ResolveFork(t *testing.T) {
 func TestForkResolver_ResolveFork2(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	chain, _ := blockchain.NewCustomTestBlockchain(100, 0, key)
+	defer chain.SecStore().Destroy()
 	chain2, _ := chain.Copy()
 	chain2.ResetTo(80)
 	chain2.GenerateBlocks(50, 0)
