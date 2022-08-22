@@ -2,11 +2,13 @@ package embedded
 
 import (
 	"crypto/ecdsa"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/shopspring/decimal"
@@ -199,9 +201,11 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	tester := builder.Build()
 	ownerFee := byte(5)
 	refundRecipient := tests.GetRandAddr()
-	caller, err := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(ownerFee).
+	deploy := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetOwnerFee(ownerFee).
 		SetPublicVotingDuration(4320).SetVotingDuration(4320).
-		SetRefundRecipient(refundRecipient).SetOracleRewardFund(ConvertToInt(decimal.RequireFromString("1500"))).Deploy()
+		SetRefundRecipient(refundRecipient).SetOracleRewardFund(ConvertToInt(decimal.RequireFromString("1500")))
+	_, _, deployArgs := deploy.Parameters()
+	caller, err := deploy.Deploy()
 	require.NoError(t, err)
 
 	caller.contractTester.Commit()
@@ -314,6 +318,17 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	require.Nil(t, caller.contractTester.ReadData("vrfSeed"))
 	require.Equal(t, []byte{0x1}, caller.contractTester.ReadData("fact"))
 	require.Equal(t, []byte{winnerVote}, caller.contractTester.ReadData("result"))
+
+	expectedHash := func() []byte {
+		protoData := &models.ProtoOracleVotingHashData{
+			Args: deployArgs,
+		}
+		data, err := proto.Marshal(protoData)
+		require.NoError(t, err)
+		hash := crypto.Hash128(data)
+		return hash[:]
+	}
+	require.Equal(t, expectedHash(), caller.contractTester.ReadData("hash"))
 	require.Nil(t, caller.contractTester.ReadData("state"))
 }
 
