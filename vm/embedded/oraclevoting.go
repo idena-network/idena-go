@@ -2,9 +2,11 @@ package embedded
 
 import (
 	"bytes"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
+	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
@@ -26,6 +28,7 @@ const (
 	oracleVotingStateFinished = byte(2)
 	keyFact                   = "fact"
 	keyResult                 = "result"
+	keyHash                   = "hash"
 )
 
 const FinishVotingMethod = "finishVoting"
@@ -83,6 +86,18 @@ func (f *OracleVoting6) Call(method string, args ...[]byte) error {
 	}
 }
 
+func hashArgs(args ...[]byte) ([]byte, error) {
+	protoData := &models.ProtoOracleVotingHashData{
+		Args: args,
+	}
+	data, err := proto.Marshal(protoData)
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.Hash128(data)
+	return hash[:], nil
+}
+
 func (f *OracleVoting6) Deploy(args ...[]byte) error {
 	fact, err := helpers.ExtractArray(0, args...)
 	if err != nil {
@@ -137,6 +152,10 @@ func (f *OracleVoting6) Deploy(args ...[]byte) error {
 		refundRecipient = &value
 	}
 	ownerDeposit := calculateOwnerDeposit(committeeSize, networkSize)
+	hash, err := hashArgs(args...)
+	if err != nil {
+		return errors.New("failed to hash args")
+	}
 
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
@@ -159,9 +178,10 @@ func (f *OracleVoting6) Deploy(args ...[]byte) error {
 	if refundRecipient != nil {
 		f.SetArray("refundRecipient", refundRecipient.Bytes())
 	}
+	f.SetArray(keyHash, hash)
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
 	return nil
 }
 
@@ -800,6 +820,9 @@ func (f *OracleVoting6) Terminate(args ...[]byte) (common.Address, [][]byte, err
 		var keysToSave [][]byte
 		if f.env.GetValue(f.ctx, []byte(keyResult)) != nil {
 			keysToSave = [][]byte{[]byte(keyFact), []byte(keyResult)}
+			if f.env.GetValue(f.ctx, []byte(keyHash)) != nil {
+				keysToSave = append(keysToSave, []byte(keyHash))
+			}
 		}
 		return f.Owner(), keysToSave, nil
 	}

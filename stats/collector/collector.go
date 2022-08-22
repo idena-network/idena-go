@@ -82,7 +82,7 @@ type StatsCollector interface {
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-		committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address)
+		committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte)
 	AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
 	AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminated bool)
 	AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
@@ -743,18 +743,18 @@ func AddContractTerminationBurntCoins(c StatsCollector, address common.Address, 
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address) {
+	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
 	// do nothing
 }
 
 func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address) {
+	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
 	if c == nil {
 		return
 	}
 	c.AddOracleVotingDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
-		publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient)
+		publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
 }
 
 func (c *collectorStub) AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte,
