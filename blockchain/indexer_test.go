@@ -15,6 +15,7 @@ func TestBlockchain_saveOwnTxs(t *testing.T) {
 	require := require.New(t)
 
 	chain, _, _, key := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 
 	key2, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -86,6 +87,7 @@ func Test_handleOwnTxsWithAccounts(t *testing.T) {
 	require := require.New(t)
 
 	chain, _, _, key := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 	key2, _ := crypto.GenerateKey()
 	key3, _ := crypto.GenerateKey()
 	key4, _ := crypto.GenerateKey()
@@ -144,6 +146,7 @@ func Test_Blockchain_saveBurntCoins(t *testing.T) {
 	require := require.New(t)
 
 	chain, _, _, key := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 	chain.config.Blockchain.BurnTxRange = 3
 
 	key2, _ := crypto.GenerateKey()
