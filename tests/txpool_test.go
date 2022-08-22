@@ -31,7 +31,8 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	defer chain.SecStore().Destroy()
 
 	require.NoError(t, pool.AddInternalTx(GetTx(3, 0, key1)))
 	require.NoError(t, pool.AddInternalTx(GetTx(1, 0, key1)))
@@ -79,6 +80,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 	}
 
 	chain, app, pool, _ := newBlockchain(true, alloc, 256, 1024, 32, 32)
+	defer chain.SecStore().Destroy()
 	app.State.SetValidationPeriod(state.ShortSessionPeriod)
 	app.Commit(nil, true)
 
@@ -107,7 +109,8 @@ func TestTxPool_TxLimits(t *testing.T) {
 		Balance: balance,
 	}
 
-	_, _, pool, _ := newBlockchain(true, alloc, 1, 2, 1, 1)
+	chain, _, pool, _ := newBlockchain(true, alloc, 1, 2, 1, 1)
+	defer chain.SecStore().Destroy()
 
 	tx := GetTx(1, 0, key1)
 	err := pool.AddInternalTx(tx)
@@ -153,6 +156,7 @@ func TestTxPool_InvalidEpoch(t *testing.T) {
 	}
 
 	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	defer chain.SecStore().Destroy()
 	app.State.AddBalance(crypto.PubkeyToAddress(key.PublicKey), balance)
 
 	app.State.IncEpoch()
@@ -191,7 +195,8 @@ func TestTxPool_ResetTo(t *testing.T) {
 		Balance: getAmount(200),
 	}
 
-	_, app, pool, _ := newBlockchain(true, alloc, -1, -1, -11, -1)
+	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -11, -1)
+	defer chain.SecStore().Destroy()
 
 	tx1 := GetTypesTxWithAmount(1, 1, key, types.SendTx, getAmount(50))
 	err := pool.AddInternalTx(tx1)
@@ -298,6 +303,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	}
 
 	chain, app, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	defer chain.SecStore().Destroy()
 
 	// Current epoch = 1
 	app.State.IncEpoch()
@@ -412,7 +418,8 @@ func TestTxPool_AddTxDuringValidation(t *testing.T) {
 	alloc[addr] = config.GenesisAllocation{
 		Balance: getAmount(110),
 	}
-	_, appState, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	chain, appState, pool, _ := newBlockchain(true, alloc, -1, -1, -1, -1)
+	defer chain.SecStore().Destroy()
 
 	appState.State.SetValidationPeriod(state.LongSessionPeriod)
 

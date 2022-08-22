@@ -27,6 +27,7 @@ import (
 
 func Test_ApplyBlockRewards(t *testing.T) {
 	chain, _, _, _ := NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
 
 	header := &types.ProposedHeader{
 		Height:         2,
@@ -91,6 +92,7 @@ func Test_ApplyBlockRewards2(t *testing.T) {
 		}
 	}
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	defer chain.SecStore().Destroy()
 
 	chain.appState.IdentityState.SetOnline(chain.coinBaseAddress, true)
 	chain.appState.IdentityState.SetDelegatee(identities[0], chain.coinBaseAddress)
@@ -177,6 +179,7 @@ func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
 		Stake: ConvertToInt(decimal.RequireFromString("10")),
 	}
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	defer chain.SecStore().Destroy()
 
 	chain.appState.IdentityState.SetOnline(chain.coinBaseAddress, true)
 	chain.appState.IdentityState.SetOnline(addr, true)
@@ -220,6 +223,7 @@ func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
 
 func Test_ApplyInviteTx(t *testing.T) {
 	chain, _, _, _ := NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
 	stateDb := chain.appState.State
 
 	key, _ := crypto.GenerateKey()
@@ -256,6 +260,7 @@ func Test_ApplyInviteTx(t *testing.T) {
 
 func Test_ApplyActivateTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
 
 	key, _ := crypto.GenerateKey()
 	key2, _ := crypto.GenerateKey()
@@ -293,6 +298,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 func Test_ApplyKillTx(t *testing.T) {
 	require := require.New(t)
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 
 	key, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
@@ -358,6 +364,7 @@ func Test_ApplyKillTx(t *testing.T) {
 func Test_ApplyDoubleKillTx(t *testing.T) {
 	require := require.New(t)
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 
 	key, _ := crypto.GenerateKey()
 	sender := crypto.PubkeyToAddress(key.PublicKey)
@@ -398,6 +405,7 @@ func Test_ApplyDoubleKillTx(t *testing.T) {
 
 func Test_ApplyKillInviteeTx(t *testing.T) {
 	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 	validation.SetAppConfig(chain.config)
 	chain.upgrader.UpgradeConfigTo(9)
 
@@ -570,6 +578,7 @@ func Test_CalculatePenaltySeconds(t *testing.T) {
 
 func Test_applyNextBlockFee(t *testing.T) {
 	chain, _, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
 
 	appState, _ := chain.appState.ForCheck(1)
 
@@ -597,6 +606,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 
 func Test_applyVrfProposerThreshold(t *testing.T) {
 	chain, _ := NewTestBlockchainWithBlocks(100, 0)
+	defer chain.SecStore().Destroy()
 
 	chain.GenerateEmptyBlocks(10)
 	require.Equal(t, 10, chain.appState.State.EmptyBlocksCount())
@@ -642,6 +652,7 @@ func generateBlock(height uint64, txsCount int) *types.Block {
 
 func TestBlockchain_GetTopBlockHashes(t *testing.T) {
 	chain, _ := NewTestBlockchainWithBlocks(90, 9)
+	defer chain.SecStore().Destroy()
 	hashes := chain.GetTopBlockHashes(50)
 	require.Len(t, hashes, 50)
 	require.Equal(t, hashes[0], chain.GetBlockHeaderByHeight(100).Hash())
@@ -650,6 +661,7 @@ func TestBlockchain_GetTopBlockHashes(t *testing.T) {
 
 func TestBlockchain_ReadBlockForForkedPeer(t *testing.T) {
 	chain, _ := NewTestBlockchainWithBlocks(90, 9)
+	defer chain.SecStore().Destroy()
 	hashes := chain.GetTopBlockHashes(50)
 	for i := 0; i < len(hashes)-1; i++ {
 		hashes[i] = common.Hash{byte(i)}
@@ -669,6 +681,7 @@ func Test_ApplyBurnTx(t *testing.T) {
 	}
 
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	defer chain.SecStore().Destroy()
 
 	tx := &types.Transaction{
 		Type:         types.BurnTx,
@@ -704,6 +717,7 @@ func Test_DeleteFlipTx(t *testing.T) {
 	}
 
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	defer chain.SecStore().Destroy()
 
 	tx := &types.Transaction{
 		Type:         types.DeleteFlipTx,
@@ -746,6 +760,7 @@ func Test_ApplyReplenishStakeTx(t *testing.T) {
 		Balance: balance,
 	}
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
+	defer chain.SecStore().Destroy()
 	tx := &types.Transaction{
 		Type:         types.ReplenishStakeTx,
 		To:           &recipient,
@@ -796,6 +811,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 		Blockchain: &config.BlockchainConfig{},
 	}
 	chain, state := NewCustomTestBlockchainWithConfig(5, 0, key, cfg)
+	defer chain.SecStore().Destroy()
 
 	//  add pending request to switch online
 	tx, _ := chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
@@ -921,6 +937,7 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 		Blockchain: &config.BlockchainConfig{},
 	}
 	chain, app := NewCustomTestBlockchainWithConfig(0, 0, key, cfg)
+	defer chain.SecStore().Destroy()
 
 	app.State.SetValidationPeriod(state.LongSessionPeriod)
 	app.Commit(nil, true)
@@ -975,6 +992,7 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	chain, state := NewCustomTestBlockchain(5, 0, key)
+	defer chain.SecStore().Destroy()
 
 	count := int(common.GodAddressInvitesCount(0))
 	for i := 0; i < count; i++ {
@@ -994,7 +1012,8 @@ func Test_Blockchain_GodAddressInvitesLimit(t *testing.T) {
 func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
-	_, s := NewCustomTestBlockchain(5, 0, key)
+	chain, s := NewCustomTestBlockchain(5, 0, key)
+	defer chain.SecStore().Destroy()
 
 	identities := []state.Identity{
 		// 98%
@@ -1142,7 +1161,8 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 func Test_ClearDustAccounts(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
-	_, s := NewCustomTestBlockchain(1, 0, key)
+	chain, s := NewCustomTestBlockchain(1, 0, key)
+	defer chain.SecStore().Destroy()
 
 	s.State.AddBalance(common.Address{0x1}, big.NewInt(1))
 	s.State.AddBalance(common.Address{0x2}, common.DnaBase)
@@ -1294,6 +1314,7 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 
 func Test_Delegation(t *testing.T) {
 	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, config.ConsensusVersions[config.ConsensusV6], &config.ValidationConfig{}, nil, -1, -1, 0, 0)
+	defer chain.SecStore().Destroy()
 
 	coinbase := crypto.PubkeyToAddress(coinbaseKey.PublicKey)
 
