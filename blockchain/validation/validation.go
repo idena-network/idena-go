@@ -277,6 +277,11 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
+		if *tx.To == appState.State.GodAddress() && appState.State.Epoch() > 0 {
+			return InvalidRecipient
+		}
+	}
 	if appState.ValidatorsCache.IsValidated(*tx.To) {
 		return NodeAlreadyActivated
 	}
@@ -314,7 +319,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if appState.State.GetIdentityState(*tx.To) != state.Undefined {
 		return InvalidRecipient
 	}
-	if *tx.To == godAddress && sender != godAddress {
+	if *tx.To == godAddress && (sender != godAddress || appCfg != nil && appCfg.Consensus.EnableUpgrade9 && appState.State.Epoch() > 0) {
 		return InvalidRecipient
 	}
 
@@ -590,6 +595,11 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	sender, _ := types.Sender(tx)
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
+	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
+		if *tx.To == appState.State.GodAddress() {
+			return InvalidRecipient
+		}
 	}
 	if !common.ZeroOrNil(tx.AmountOrZero()) {
 		return InvalidAmount
