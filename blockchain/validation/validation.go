@@ -747,7 +747,7 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	attachment := attachments.ParseTerminateContractAttachment(tx)
+	attachment := attachments.ParseTerminateContractAttachment(tx, appCfg != nil && appCfg.Consensus.EnableUpgrade9)
 	if attachment == nil {
 		return InvalidPayload
 	}
