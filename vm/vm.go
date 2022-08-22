@@ -114,7 +114,7 @@ func (vm *VmImpl) call(tx *types.Transaction, from *common.Address) (addr common
 
 func (vm *VmImpl) terminate(tx *types.Transaction, from *common.Address) (addr common.Address, err error) {
 	ctx := env2.NewCallContextImpl(tx, from, *vm.appState.State.GetCodeHash(*tx.To))
-	attach := attachments.ParseTerminateContractAttachment(tx)
+	attach := attachments.ParseTerminateContractAttachment(tx, vm.cfg.Consensus.EnableUpgrade9)
 	if attach == nil {
 		return ctx.ContractAddr(), errors.New("can't parse attachment")
 	}
