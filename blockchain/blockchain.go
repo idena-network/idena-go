@@ -2463,7 +2463,12 @@ func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final 
 
 func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCache, final bool) int {
 
-	var cnt = vc.OnlineSize()
+	var cnt int
+	if chain.config.Consensus.EnableUpgrade9 {
+		cnt = vc.ValidatorsSize()
+	} else {
+		cnt = vc.OnlineSize()
+	}
 	switch cnt {
 	case 0, 1:
 		return 1
