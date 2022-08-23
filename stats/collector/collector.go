@@ -65,6 +65,7 @@ type StatsCollector interface {
 	BeginFailedValidationBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginPenaltyBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginEpochPenaltyResetBalanceUpdate(addr common.Address, appState *appstate.AppState)
+	BeginIdentityClearingBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginDustClearingBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginSavedStakeBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	CompleteBalanceUpdate(appState *appstate.AppState)
@@ -618,6 +619,17 @@ func BeginEpochPenaltyResetBalanceUpdate(c StatsCollector, addr common.Address, 
 		return
 	}
 	c.BeginEpochPenaltyResetBalanceUpdate(addr, appState)
+}
+
+func (c *collectorStub) BeginIdentityClearingBalanceUpdate(addr common.Address, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginIdentityClearingBalanceUpdate(c StatsCollector, addr common.Address, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginIdentityClearingBalanceUpdate(addr, appState)
 }
 
 func (c *collectorStub) BeginDustClearingBalanceUpdate(addr common.Address, appState *appstate.AppState) {

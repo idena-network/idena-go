@@ -35,7 +35,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	addr1 := common.Address{0x9}
 	addr2 := common.Address{0xa}
 
-	conf := config.GetDefaultConsensusConfig()
+	conf := GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
 	conf.EnableUpgrade7 = true
@@ -216,12 +216,12 @@ func Test_normalAge(t *testing.T) {
 }
 
 func Test_splitReward(t *testing.T) {
-	reward, stake := splitReward(big.NewInt(100), false, config.GetDefaultConsensusConfig())
+	reward, stake := splitReward(big.NewInt(100), false, GetDefaultConsensusConfig())
 
 	require.True(t, big.NewInt(80).Cmp(reward) == 0)
 	require.True(t, big.NewInt(20).Cmp(stake) == 0)
 
-	reward, stake = splitReward(big.NewInt(100), true, config.GetDefaultConsensusConfig())
+	reward, stake = splitReward(big.NewInt(100), true, GetDefaultConsensusConfig())
 
 	require.True(t, big.NewInt(20).Cmp(reward) == 0)
 	require.True(t, big.NewInt(80).Cmp(stake) == 0)

@@ -53,6 +53,8 @@ func init() {
 	}
 }
 
+type IdentityUpdateHook = func(identity *Identity)
+
 type StateDB struct {
 	original dbm.DB
 	db       dbm.DB
@@ -77,6 +79,8 @@ type StateDB struct {
 	stateDelayedOfflinePenalties      *stateDelayedOfflinePenalties
 	stateDelayedOfflinePenaltiesDirty bool
 
+	identityUpdateHook IdentityUpdateHook
+
 	log  log.Logger
 	lock sync.Mutex
 }
@@ -100,6 +104,10 @@ func NewLazy(db dbm.DB) (*StateDB, error) {
 	}, nil
 }
 
+func (s *StateDB) ProvideIdentityUpdateHook(hook IdentityUpdateHook) {
+	s.identityUpdateHook = hook
+}
+
 func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 	db := database.NewBackedMemDb(s.db)
 	tree := NewMutableTree(db)
@@ -115,6 +123,7 @@ func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
 	}, nil
 }
@@ -133,6 +142,7 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
 	}, nil
 }
@@ -150,6 +160,7 @@ func (s *StateDB) Readonly(height int64) (*StateDB, error) {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
 	}, nil
 }
@@ -335,6 +346,13 @@ func (s *StateDB) SubReplenishedStake(addr common.Address, amount *big.Int) {
 
 func (s *StateDB) SetState(address common.Address, state IdentityState) {
 	s.GetOrNewIdentityObject(address).SetState(state)
+}
+
+func (s *StateDB) SetMetadata(address common.Address, metadata interface{}) {
+	stateObject := s.getStateIdentity(address)
+	if stateObject != nil {
+		stateObject.SetMetadata(metadata)
+	}
 }
 
 func (s *StateDB) SetGeneticCode(address common.Address, generation uint32, code []byte) {
@@ -1091,6 +1109,9 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) []*StateTreeDiff {
 	// Commit identity objects to the trie.
 	for _, addr := range getOrderedObjectsKeys(s.stateIdentitiesDirty) {
 		stateObject := s.stateIdentities[addr]
+		if s.identityUpdateHook != nil {
+			s.identityUpdateHook(&stateObject.data)
+		}
 		if deleteEmptyObjects && stateObject.empty() {
 			diffs = append(diffs, s.deleteStateIdentityObject(stateObject))
 		} else {
