@@ -638,7 +638,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 		updateOrResetPenaltyTimestamp(appState, coinbase, block.Header.Time())
 	}
 	collector.CompleteBalanceUpdate(statsCollector, appState)
-	collector.AddMintedCoins(statsCollector, new(big.Int).Add(totalCommitteeReward, blockProposerReward))
+	collector.AddMintedCoins(statsCollector, blockProposerReward)
 	collector.AfterAddStake(statsCollector, stakeDest, stakeAdd, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltyBurn)
 	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake, ctx.proposerStakeWeight)
