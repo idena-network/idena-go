@@ -41,6 +41,11 @@ func NewAppState(db dbm.DB, bus eventbus.Bus) (*AppState, error) {
 		defaultTree:   true,
 	}, nil
 }
+
+func (s *AppState) ProvideIdentityUpdateHook(hook state.IdentityUpdateHook) {
+	s.State.ProvideIdentityUpdateHook(hook)
+}
+
 func (s *AppState) ForCheck(height uint64) (*AppState, error) {
 	st, err := s.State.ForCheck(height)
 	if err != nil {

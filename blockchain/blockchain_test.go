@@ -274,6 +274,10 @@ func Test_ApplyActivateTx(t *testing.T) {
 	account.SetBalance(b.Mul(b, common.DnaBase))
 	id := appState.State.GetOrNewIdentityObject(sender)
 	id.SetState(state.Invite)
+	id.SetProfileHash([]byte{0x1})
+	id.SetPenaltySeconds(1)
+	id.SetPenaltyTimestamp(2)
+	id.SetDelegationNonce(3)
 
 	tx := &types.Transaction{
 		Type:         types.ActivationTx,
@@ -293,6 +297,15 @@ func Test_ApplyActivateTx(t *testing.T) {
 
 	require.Equal(t, state.Candidate, appState.State.GetIdentityState(receiver))
 	require.Equal(t, -1, big.NewInt(0).Cmp(appState.State.GetBalance(receiver)))
+	identity := appState.State.GetIdentity(sender)
+	require.NotNil(t, identity.Metadata())
+
+	appState.Commit(nil, true)
+	require.Equal(t, []byte{0x1}, appState.State.GetProfileHash(sender))
+	require.Equal(t, uint16(1), appState.State.GetPenaltySeconds(sender))
+	require.Equal(t, int64(2), appState.State.GetPenaltyTimestamp(sender))
+	require.Equal(t, uint32(3), appState.State.GetIdentity(sender).DelegationNonce)
+	require.Equal(t, state.Undefined, appState.State.GetIdentityState(sender))
 }
 
 func Test_ApplyKillTx(t *testing.T) {
@@ -312,6 +325,11 @@ func Test_ApplyKillTx(t *testing.T) {
 	id := appState.State.GetOrNewIdentityObject(sender)
 	id.SetStake(stake)
 	id.SetState(state.Verified)
+
+	id.SetProfileHash([]byte{0x1})
+	id.SetPenaltySeconds(1)
+	id.SetPenaltyTimestamp(2)
+	id.SetDelegationNonce(3)
 
 	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
 
@@ -359,6 +377,16 @@ func Test_ApplyKillTx(t *testing.T) {
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
 	require.Equal(new(big.Int).Add(balance, stake), appState.State.GetBalance(sender))
 	require.True(common.ZeroOrNil(appState.State.GetStakeBalance(sender)))
+
+	identity := appState.State.GetIdentity(sender)
+	require.NotNil(identity.Metadata())
+
+	require.NoError(appState.Commit(nil, true))
+	require.Equal([]byte{0x1}, appState.State.GetProfileHash(sender))
+	require.Zero(appState.State.GetPenaltySeconds(sender))
+	require.Zero(appState.State.GetPenaltyTimestamp(sender))
+	require.Zero(appState.State.GetIdentity(sender).DelegationNonce)
+	require.Equal(state.Undefined, appState.State.GetIdentityState(sender))
 }
 
 func Test_ApplyDoubleKillTx(t *testing.T) {
@@ -433,6 +461,11 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	appState.State.GetOrNewAccountObject(inviter).SetBalance(inviterBalance)
 	appState.State.GetOrNewIdentityObject(inviteeNewbie).SetStake(inviteeStake)
 
+	appState.State.SetProfileHash(inviteeCandidate, []byte{0x1})
+	appState.State.SetPenalty(inviteeCandidate, nil, 1)
+	appState.State.SetPenaltyTimestamp(inviteeCandidate, 2)
+	appState.State.SetDelegationNonce(inviteeCandidate, 3)
+
 	tx := &types.Transaction{
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
@@ -486,6 +519,16 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 
 	require.Equal(t, state.Killed, appState.State.GetIdentityState(inviteeCandidate))
 	require.Nil(t, appState.State.GetInviter(inviteeCandidate))
+
+	identity := appState.State.GetIdentity(inviteeCandidate)
+	require.NotNil(t, identity.Metadata())
+
+	appState.Commit(nil, true)
+	require.Equal(t, []byte{0x1}, appState.State.GetProfileHash(inviteeCandidate))
+	require.Equal(t, uint16(1), appState.State.GetPenaltySeconds(inviteeCandidate))
+	require.Equal(t, int64(2), appState.State.GetPenaltyTimestamp(inviteeCandidate))
+	require.Equal(t, uint32(3), appState.State.GetIdentity(inviteeCandidate).DelegationNonce)
+	require.Equal(t, state.Undefined, appState.State.GetIdentityState(inviteeCandidate))
 }
 
 type testCase struct {
@@ -1057,7 +1100,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	require.NoError(s.Commit(nil, true))
 
-	setNewIdentitiesAttributes(s, true, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	for _, item := range identities {
 		var addr common.Address
@@ -1076,13 +1119,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -1091,7 +1134,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1102,7 +1145,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1113,7 +1156,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -1129,13 +1172,35 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	s.State.SetDelegatee(common.Address{0x2}, common.Address{0x1, 0x1})
 	s.State.SetPendingUndelegation(common.Address{0x2})
 	s.State.SetDelegationEpoch(common.Address{0x2}, 2)
+
+	inactiveGodAddress := s.State.GodAddress()
+	s.State.AddStake(inactiveGodAddress, big.NewInt(1))
+	s.State.SetEpoch(inactiveGodAddress, 2)
+	s.State.SetNonce(inactiveGodAddress, 2)
+
+	inactiveUndefined := tests.GetRandAddr()
+	s.State.AddStake(inactiveUndefined, big.NewInt(3))
+	s.State.SetEpoch(inactiveUndefined, 2)
+	s.State.SetNonce(inactiveUndefined, 2)
+
+	activeUndefined := tests.GetRandAddr()
+	s.State.AddStake(activeUndefined, big.NewInt(3))
+	s.State.SetEpoch(activeUndefined, 3)
+	s.State.SetNonce(activeUndefined, 3)
+
+	killedWithProfile := tests.GetRandAddr()
+	s.State.SetProfileHash(killedWithProfile, []byte{0x1})
+	s.State.AddStake(killedWithProfile, big.NewInt(2))
+
 	require.NoError(s.Commit(nil, true))
+
+	s.State.SetState(killedWithProfile, state.Killed)
 
 	for i := 0; i < 3; i++ {
 		s.State.IncEpoch()
 	}
 
-	setNewIdentitiesAttributes(s, true, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, true, true, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -1150,12 +1215,24 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Nil(s.State.PendingUndelegation(common.Address{0x3}))
 	require.Nil(s.State.PendingUndelegation(common.Address{0xe}))
 
+	require.Equal(state.Undefined, s.State.GetIdentityState(s.State.GodAddress()))
+	require.Equal(state.Undefined, s.State.GetIdentityState(activeUndefined))
+	require.Equal(state.Killed, s.State.GetIdentityState(inactiveUndefined))
+	require.Equal(state.Killed, s.State.GetIdentityState(killedWithProfile))
+	require.Equal([]byte{0x1}, s.State.GetProfileHash(killedWithProfile))
+
 	require.NoError(s.Commit(nil, true))
 	s.ValidatorsCache.Load()
 	require.False(s.ValidatorsCache.IsDiscriminated(common.Address{0x1}))
 	require.True(s.ValidatorsCache.IsDiscriminated(common.Address{0x2}))
 	require.False(s.ValidatorsCache.IsDiscriminated(common.Address{0x3}))
 	require.True(s.ValidatorsCache.IsDiscriminated(common.Address{0xe}))
+
+	require.Positive(s.State.GetStakeBalance(inactiveGodAddress).Sign())
+	require.Zero(big.NewInt(3).Cmp(s.State.GetStakeBalance(activeUndefined)))
+	require.Zero(s.State.GetStakeBalance(inactiveUndefined).Sign())
+	require.Equal(uint16(2), s.State.GetEpoch(inactiveUndefined))
+	require.Equal([]byte{0x1}, s.State.GetProfileHash(killedWithProfile))
 }
 
 func Test_ClearDustAccounts(t *testing.T) {
@@ -1313,7 +1390,7 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 }
 
 func Test_Delegation(t *testing.T) {
-	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, config.ConsensusVersions[config.ConsensusV6], &config.ValidationConfig{}, nil, -1, -1, 0, 0)
+	chain, appState, txpool, coinbaseKey := NewTestBlockchainWithConfig(true, GetDefaultConsensusConfig(), &config.ValidationConfig{}, nil, -1, -1, 0, 0)
 	defer chain.SecStore().Destroy()
 
 	coinbase := crypto.PubkeyToAddress(coinbaseKey.PublicKey)
@@ -1337,6 +1414,11 @@ func Test_Delegation(t *testing.T) {
 		appState.IdentityState.SetOnline(addr, true)
 		appState.State.SetBalance(addr, big.NewInt(0).Mul(big.NewInt(1000), common.DnaBase))
 	}
+	delegatorToKill := addrs[3]
+	appState.State.SetProfileHash(delegatorToKill, []byte{0x1})
+	appState.State.SetPenalty(delegatorToKill, nil, 1)
+	appState.State.SetPenaltyTimestamp(delegatorToKill, 2)
+	appState.State.SetDelegationNonce(delegatorToKill, 3)
 
 	appState.IdentityState.SetOnline(addrs[3], false)
 
@@ -1403,13 +1485,18 @@ func Test_Delegation(t *testing.T) {
 
 	attachments.CreateOnlineStatusAttachment(false)
 
-	addr3 := crypto.PubkeyToAddress(keys[3].PublicKey)
-	require.NoError(t, addTx(pool3Key, types.KillDelegatorTx, 2, 0, &addr3, nil))
+	require.NoError(t, addTx(pool3Key, types.KillDelegatorTx, 2, 0, &delegatorToKill, nil))
 	chain.GenerateBlocks(1, 0)
 
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool3))
 	require.False(t, appState.ValidatorsCache.IsPool(pool3))
 	require.True(t, appState.ValidatorsCache.IsOnlineIdentity(pool3))
+
+	require.Equal(t, []byte{0x1}, appState.State.GetProfileHash(delegatorToKill))
+	require.Zero(t, appState.State.GetPenaltySeconds(delegatorToKill))
+	require.Zero(t, appState.State.GetPenaltyTimestamp(delegatorToKill))
+	require.Zero(t, appState.State.GetIdentity(delegatorToKill).DelegationNonce)
+	require.Equal(t, state.Undefined, appState.State.GetIdentityState(delegatorToKill))
 
 	require.ErrorIs(t, validation.WrongEpoch, addTx(keys[1], types.UndelegateTx, 2, 0, nil, nil))
 

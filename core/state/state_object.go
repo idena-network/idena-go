@@ -400,6 +400,8 @@ type Identity struct {
 	penaltyTimestamp     int64
 	// do not use directly
 	ShardId common.ShardId
+
+	metadata interface{}
 }
 
 type TxAddr struct {
@@ -519,6 +521,10 @@ func (i *Identity) FromBytes(data []byte) error {
 	return nil
 }
 
+func (i *Identity) Metadata() interface{} {
+	return i.metadata
+}
+
 func (i *Identity) GetShortFlipPoints() float32 {
 	return float32(i.ShortFlipPoints) / 2
 }
@@ -568,6 +574,14 @@ func (i *Identity) IsDiscriminated(epoch uint16) bool {
 
 func (i *Identity) ReplenishedStake() *big.Int {
 	return i.replenishedStake
+}
+
+func (i *Identity) SetPenaltySeconds(penaltySeconds uint16) {
+	i.penaltySeconds = penaltySeconds
+}
+
+func (i *Identity) SetPenaltyTimestamp(penaltyTimestamp int64) {
+	i.penaltyTimestamp = penaltyTimestamp
 }
 
 func (i *Identity) PenaltySeconds() uint16 {
@@ -833,6 +847,10 @@ func (s *stateIdentity) State() IdentityState {
 func (s *stateIdentity) SetState(state IdentityState) {
 	s.data.State = state
 	s.touch()
+}
+
+func (s *stateIdentity) SetMetadata(metadata interface{}) {
+	s.data.metadata = metadata
 }
 
 func (s *stateIdentity) SetGeneticCode(generation uint32, code []byte) {
