@@ -3,6 +3,32 @@
 ## Unreleased
 
 
+## 0.30.0 (23 Aug, 2022)
+
+### Fork (Upgrade 9)
+
+- Mining rewards based on quadratic staking (IIP-5) ([#1001])
+- Disable KillInvitee transaction for Newbie ([#1000])
+- Oracle voting changes: oracle owner ([#1003]), early voting finishing ([#999]), saving oracle hash ([#1005])
+- Bug fixes: float32 calculations ([#990]), accounts clearing ([#1004]), TerminateContractTx transaction ([#1009]), god address termination ([#1006])
+
+### Changes
+
+- Switch to ubuntu-20.04 ([#1008])
+- Add additional deferred tx logs ([#1002])
+
+[#1001]: https://github.com/idena-network/idena-go/pull/1001
+[#1000]: https://github.com/idena-network/idena-go/pull/1000
+[#1003]: https://github.com/idena-network/idena-go/pull/1003
+[#999]: https://github.com/idena-network/idena-go/pull/999
+[#1005]: https://github.com/idena-network/idena-go/pull/1005
+[#990]: https://github.com/idena-network/idena-go/pull/990
+[#1004]: https://github.com/idena-network/idena-go/pull/1004
+[#1009]: https://github.com/idena-network/idena-go/pull/1009
+[#1006]: https://github.com/idena-network/idena-go/pull/1006
+[#1008]: https://github.com/idena-network/idena-go/pull/1008
+[#1002]: https://github.com/idena-network/idena-go/pull/1002
+
 ## 0.29.3 (Jul 6, 2022)
 
 ### Changes
@@ -50,7 +76,7 @@
 - Quadratic staking (IIP-4) ([#948])
 - Protection of identities with Human status ([#950])
 - Oracle voting termination improvement ([#954])
-- Online mining status for pool ([#952, #957])
+- Online mining status for pool ([#952], [#957])
 - Bug fix ([#951])
 
 ### Changes
