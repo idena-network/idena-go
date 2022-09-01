@@ -699,14 +699,6 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 
 		repo, err := fsrepo.Open(datadir)
 
-		if err == fsrepo.ErrNeedMigration {
-			err = Migrate(datadir, fsrepo.RepoVersion, eventBus)
-			if err != nil {
-				return nil, err
-			}
-			repo, err = fsrepo.Open(datadir)
-		}
-
 		if err != nil {
 			return nil, err
 		}
