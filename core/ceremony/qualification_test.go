@@ -2,6 +2,7 @@ package ceremony
 
 import (
 	mapset "github.com/deckarep/golang-set"
+	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -33,7 +34,7 @@ func Test_getAnswersCount(t *testing.T) {
 func Test_qualifyOneFlip(t *testing.T) {
 	require := require.New(t)
 	cfg := &config.Config{
-		Consensus: config.ConsensusVersions[config.ConsensusV8],
+		Consensus: blockchain.GetDefaultConsensusConfig(),
 	}
 	qual := &qualification{config: cfg}
 	ans := fillArray(6, 1, 1)
@@ -494,7 +495,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 			addr4:                  longAttachment5,
 		},
 		config: &config.Config{
-			Consensus: config.ConsensusVersions[config.ConsensusV8],
+			Consensus: blockchain.GetDefaultConsensusConfig(),
 		},
 	}
 

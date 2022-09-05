@@ -407,8 +407,8 @@ func (s *StateDB) ClearFlips(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).ClearFlips()
 }
 
-func (s *StateDB) AddNewScore(address common.Address, score byte, enableUpgrade8 bool) {
-	s.GetOrNewIdentityObject(address).AddNewScore(score, enableUpgrade8)
+func (s *StateDB) AddNewScore(address common.Address, score byte) {
+	s.GetOrNewIdentityObject(address).AddNewScore(score)
 }
 
 func (s *StateDB) SetInviter(address, inviterAddress common.Address, txHash common.Hash, epochHeight uint32) {
@@ -439,9 +439,9 @@ func (s *StateDB) SetBirthday(address common.Address, birthday uint16) {
 	s.GetOrNewIdentityObject(address).SetBirthday(birthday)
 }
 
-func (s *StateDB) SetPenalty(address common.Address, penalty *big.Int, seconds uint16) {
+func (s *StateDB) SetPenaltySeconds(address common.Address, seconds uint16) {
 	identity := s.GetOrNewIdentityObject(address)
-	identity.SetPenalty(penalty)
+	identity.SetPenalty(nil)
 	identity.SetPenaltySeconds(seconds)
 }
 

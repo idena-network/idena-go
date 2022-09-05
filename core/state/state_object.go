@@ -607,22 +607,17 @@ type ApprovedIdentity struct {
 	Delegatee     *common.Address
 }
 
-func (s *ApprovedIdentity) ToBytes(enableUpgrade8 bool) ([]byte, error) {
-	protoIdentity := &models.ProtoStateApprovedIdentity{
-		Validated: s.Validated && !enableUpgrade8,
-		Online:    s.Online && !enableUpgrade8,
-	}
+func (s *ApprovedIdentity) ToBytes() ([]byte, error) {
+	protoIdentity := &models.ProtoStateApprovedIdentity{}
 	var flags ApprovedIdentityFlag
-	if enableUpgrade8 {
-		if s.Validated {
-			flags |= Validated
-		}
-		if s.Online {
-			flags |= Online
-		}
-		if s.Discriminated {
-			flags |= Discriminated
-		}
+	if s.Validated {
+		flags |= Validated
+	}
+	if s.Online {
+		flags |= Online
+	}
+	if s.Discriminated {
+		flags |= Discriminated
 	}
 	protoIdentity.Flags = uint32(flags)
 	if s.Delegatee != nil {
@@ -637,8 +632,8 @@ func (s *ApprovedIdentity) FromBytes(data []byte) error {
 		return err
 	}
 	flags := ApprovedIdentityFlag(protoIdentity.Flags)
-	s.Validated = protoIdentity.Validated || flags.HasFlag(Validated)
-	s.Online = protoIdentity.Online || flags.HasFlag(Online)
+	s.Validated = flags.HasFlag(Validated)
+	s.Online = flags.HasFlag(Online)
 	s.Discriminated = flags.HasFlag(Discriminated)
 	if protoIdentity.Delegatee != nil {
 		d := common.BytesToAddress(protoIdentity.Delegatee)
@@ -936,34 +931,24 @@ func (s *stateIdentity) QualifiedFlipsCount() uint32 {
 	return s.data.QualifiedFlips
 }
 
-func (s *stateIdentity) AddNewScore(score byte, enableUpgrade8 bool) {
-	if enableUpgrade8 {
-		s.data.Scores = append(s.data.Scores, score)
-		var totalFlips uint32
-		for _, prevScore := range s.data.Scores {
-			_, flips := common.DecodeScore(prevScore)
-			totalFlips += flips
-		}
-		for {
-			if len(s.data.Scores) <= common.LastScoresCount {
-				break
-			}
-			_, flips := common.DecodeScore(s.data.Scores[0])
-			totalFlips -= flips
-			if totalFlips < common.MinTotalShortFlips {
-				break
-			}
-			s.data.Scores = s.data.Scores[1:]
-		}
-		s.touch()
-		return
+func (s *stateIdentity) AddNewScore(score byte) {
+	s.data.Scores = append(s.data.Scores, score)
+	var totalFlips uint32
+	for _, prevScore := range s.data.Scores {
+		_, flips := common.DecodeScore(prevScore)
+		totalFlips += flips
 	}
-	if len(s.data.Scores) == common.LastScoresCount {
-		s.data.Scores = append(s.data.Scores[1:], score)
-	} else {
-		s.data.Scores = append(s.data.Scores, score)
+	for {
+		if len(s.data.Scores) <= common.LastScoresCount {
+			break
+		}
+		_, flips := common.DecodeScore(s.data.Scores[0])
+		totalFlips -= flips
+		if totalFlips < common.MinTotalShortFlips {
+			break
+		}
+		s.data.Scores = s.data.Scores[1:]
 	}
-
 	s.touch()
 }
 

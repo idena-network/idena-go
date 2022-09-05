@@ -151,8 +151,8 @@ func (s *IdentityStateDB) SetDiscriminated(identity common.Address, discriminate
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *IdentityStateDB) Commit(deleteEmptyObjects, enableUpgrade8 bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
-	diff = s.Precommit(deleteEmptyObjects, enableUpgrade8)
+func (s *IdentityStateDB) Commit(deleteEmptyObjects bool) (root []byte, version int64, diff *IdentityStateDiff, err error) {
+	diff = s.Precommit(deleteEmptyObjects)
 	hash, version, err := s.CommitTree(s.tree.Version() + 1)
 	return hash, version, diff, err
 }
@@ -178,7 +178,7 @@ func (s *IdentityStateDB) CommitTree(newVersion int64) (root []byte, version int
 	return hash, version, err
 }
 
-func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool, enableUpgrade8 bool) *IdentityStateDiff {
+func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool) *IdentityStateDiff {
 	// Commit identity objects to the trie.
 	diff := new(IdentityStateDiff)
 	s.lock.Lock()
@@ -192,7 +192,7 @@ func (s *IdentityStateDB) Precommit(deleteEmptyObjects bool, enableUpgrade8 bool
 				Deleted: true,
 			})
 		} else {
-			encoded := s.updateStateIdentityObject(stateObject, enableUpgrade8)
+			encoded := s.updateStateIdentityObject(stateObject)
 			diff.Values = append(diff.Values, &IdentityStateDiffValue{
 				Address: addr,
 				Deleted: false,
@@ -279,9 +279,9 @@ func (s *IdentityStateDB) MarkStateIdentityObjectDirty(addr common.Address) {
 }
 
 // updateStateAccountObject writes the given object to the trie.
-func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity, enableUpgrade8 bool) (encoded []byte) {
+func (s *IdentityStateDB) updateStateIdentityObject(stateObject *stateApprovedIdentity) (encoded []byte) {
 	addr := stateObject.Address()
-	data, err := stateObject.data.ToBytes(enableUpgrade8)
+	data, err := stateObject.data.ToBytes()
 	if err != nil {
 		panic(fmt.Errorf("can't encode approved identity object at %x: %v", addr[:], err))
 	}

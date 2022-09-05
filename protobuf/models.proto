@@ -429,8 +429,6 @@ message ProtoStateGlobal {
 }
 
 message ProtoStateApprovedIdentity {
-    bool validated = 1;
-    bool online = 2;
     bytes delegatee = 3;
     uint32 flags = 4;
 }

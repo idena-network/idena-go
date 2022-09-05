@@ -690,7 +690,7 @@ func TestOracleVoting_RewardPools(t *testing.T) {
 		caller.contractTester.appState.State.SetDelegatee(addr, pool2)
 		caller.contractTester.appState.IdentityState.SetDelegatee(addr, pool2)
 	}
-	caller.contractTester.appState.Commit(nil, true)
+	caller.contractTester.appState.Commit(nil)
 
 	caller.contractTester.setHeight(4320 + 22)
 
@@ -718,7 +718,7 @@ func TestOracleVoting_RewardPools(t *testing.T) {
 	events2 := caller.contractTester.env.Commit()
 
 	require.Equal(t, events, events2)
-	caller.contractTester.appState.Commit(nil, true)
+	caller.contractTester.appState.Commit(nil)
 
 	require.Equal(t, common.ToBytes(oracleVotingStateFinished), caller.contractTester.ReadData("state"))
 	require.Equal(t, common.ToBytes(byte(1)), caller.contractTester.ReadData("result"))

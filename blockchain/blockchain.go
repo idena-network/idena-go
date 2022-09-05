@@ -305,10 +305,8 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		chain.appState.State.SetState(addr, state.IdentityState(alloc.State))
 		if state.IdentityState(alloc.State).NewbieOrBetter() {
 			chain.appState.IdentityState.SetValidated(addr, true)
-			if chain.config.Consensus.EnableUpgrade8 {
-				if chain.appState.State.IsDiscriminated(addr, chain.appState.State.Epoch()) {
-					chain.appState.IdentityState.SetDiscriminated(addr, true)
-				}
+			if chain.appState.State.IsDiscriminated(addr, chain.appState.State.Epoch()) {
+				chain.appState.IdentityState.SetDiscriminated(addr, true)
 			}
 		}
 	}
@@ -352,7 +350,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		log.Info("Next validation time", "time", chain.appState.State.NextValidationTime().String(), "unix", nextValidationTimestamp)
 	}
 
-	if err := chain.appState.Commit(nil, chain.config.Consensus.EnableUpgrade8); err != nil {
+	if err := chain.appState.Commit(nil); err != nil {
 		return nil, err
 	}
 
@@ -477,19 +475,19 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 }
 
-func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
+func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
 
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
 	chain.applyNewEpoch(appState, block, statsCollector)
-	chain.applyBlockRewards(totalFee, totalTips, appState, block, prevBlock, blockRewardCtx, statsCollector)
+	chain.applyBlockRewards(totalFee, totalTips, appState, block, blockRewardCtx, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
-	chain.applyGlobalParams(appState, block, statsCollector)
-	chain.applyNextBlockFee(appState, block, usedGas)
+	chain.applyGlobalParams(appState, block)
+	chain.applyNextBlockFee(appState, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 
-	stateDiff, diff = appState.Precommit(chain.config.Consensus.EnableUpgrade8)
+	stateDiff, diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, diff
 }
@@ -506,9 +504,9 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
 
-	chain.applyGlobalParams(appState, block, statsCollector)
+	chain.applyGlobalParams(appState, block)
 	chain.applyVrfProposerThreshold(appState, block)
-	stateDiff, identityStateDiff = appState.Precommit(chain.config.Consensus.EnableUpgrade8)
+	stateDiff, identityStateDiff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, identityStateDiff
 }
@@ -548,13 +546,7 @@ func prepareBlockRewardCtx(proposerStakeAddr common.Address, appState *appstate.
 		return math.Mul(math.Pow(math.Root(stakeFloat, 10), 9), coef)
 	}
 
-	var proposerStakeWeight *big.Float
-	if conf.EnableUpgrade9 {
-		stake := appState.State.GetStakeBalance(proposerStakeAddr)
-		proposerStakeWeight = calculateStakeWeight(stake, proposerStakeWeightCoef)
-	} else {
-		proposerStakeWeight = math.Zero().Set(proposerStakeWeightCoef)
-	}
+	proposerStakeWeight := calculateStakeWeight(appState.State.GetStakeBalance(proposerStakeAddr), proposerStakeWeightCoef)
 	res.totalStakeWeight = proposerStakeWeight
 	res.proposerStakeWeight = proposerStakeWeight
 	if committeeSize == 0 {
@@ -565,29 +557,20 @@ func prepareBlockRewardCtx(proposerStakeAddr common.Address, appState *appstate.
 	for _, item := range finalCommittee.Original.ToSlice() {
 		addr := item.(common.Address)
 		var stakeWeight *big.Float
-		if conf.EnableUpgrade9 {
-			stake := appState.State.GetStakeBalance(addr)
-			stakeWeight = calculateStakeWeight(stake, math.New(1))
-		} else {
-			stakeWeight = math.New(1)
-		}
+		stakeWeight = calculateStakeWeight(appState.State.GetStakeBalance(addr), math.New(1))
 		res.totalStakeWeight = math.Add(res.totalStakeWeight, stakeWeight)
 		holder := &stakeholder{
 			address:     addr,
 			stakeWeight: stakeWeight,
 		}
-		if conf.EnableUpgrade8 {
-			addStaker := func(data []*stakeholder, elem *stakeholder) []*stakeholder {
-				index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
-				data = append(data, &stakeholder{})
-				copy(data[index+1:], data[index:])
-				data[index] = elem
-				return data
-			}
-			res.committee = addStaker(res.committee, holder)
-		} else {
-			res.committee = append(res.committee, holder)
+		addStaker := func(data []*stakeholder, elem *stakeholder) []*stakeholder {
+			index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
+			data = append(data, &stakeholder{})
+			copy(data[index+1:], data[index:])
+			data[index] = elem
+			return data
 		}
+		res.committee = addStaker(res.committee, holder)
 	}
 	if res.totalStakeWeight.Sign() == 0 {
 		res.proposerStakeWeight = math.Zero().SetInt64(1)
@@ -600,14 +583,10 @@ func prepareBlockRewardCtx(proposerStakeAddr common.Address, appState *appstate.
 }
 
 func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int, appState *appstate.AppState,
-	block *types.Block, prevBlock *types.Header, ctx *blockRewardCtx, statsCollector collector.StatsCollector) {
+	block *types.Block, ctx *blockRewardCtx, statsCollector collector.StatsCollector) {
 
 	var totalCommitteeReward *big.Int
-	if chain.config.Consensus.EnableUpgrade9 {
-		totalCommitteeReward = chain.rewardFinalCommittee(appState, block, prevBlock, ctx, statsCollector)
-	} else {
-		totalCommitteeReward = chain.config.Consensus.FinalCommitteeReward
-	}
+	totalCommitteeReward = chain.rewardFinalCommittee(appState, block, ctx, statsCollector)
 	blockReward := new(big.Int).Add(chain.config.Consensus.BlockReward, chain.config.Consensus.FinalCommitteeReward)
 	blockProposerReward := new(big.Int).Sub(blockReward, totalCommitteeReward)
 
@@ -663,10 +642,6 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 	collector.AfterAddStake(statsCollector, stakeDest, stakeAdd, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltyBurn)
 	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake, ctx.proposerStakeWeight)
-
-	if !chain.config.Consensus.EnableUpgrade9 {
-		chain.rewardFinalCommittee(appState, block, prevBlock, ctx, statsCollector)
-	}
 }
 
 func updateOrResetPenaltyTimestamp(appState *appstate.AppState, address common.Address, timestamp int64) {
@@ -718,7 +693,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	validationResult := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	networkSize, validationResults, pools, failed := validationResult.IdentitiesCount, validationResult.ShardResults, validationResult.Pools, validationResult.Failed
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, chain.config.Consensus.EnableUpgrade8, chain.config.Consensus.EnableUpgrade9, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -829,7 +804,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, enableUpgrade9 bool, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -867,10 +842,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
-				if enableUpgrade8 {
-					discriminated := appState.State.IsDiscriminated(addr, epoch+1)
-					appState.IdentityState.SetDiscriminated(addr, discriminated)
-				}
+				discriminated := appState.State.IsDiscriminated(addr, epoch+1)
+				appState.IdentityState.SetDiscriminated(addr, discriminated)
 				if delegatee := identity.Delegatee(); identity.Delegatee() != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
@@ -879,10 +852,8 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
-				if enableUpgrade8 {
-					discriminated := appState.State.IsDiscriminated(addr, epoch+1)
-					appState.IdentityState.SetDiscriminated(addr, discriminated)
-				}
+				discriminated := appState.State.IsDiscriminated(addr, epoch+1)
+				appState.IdentityState.SetDiscriminated(addr, discriminated)
 				if delegatee := identity.Delegatee(); delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
@@ -892,15 +863,13 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 				removeLinksWithInviterAndInvitees(appState.State, addr)
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.SetValidated(addr, false)
-				if _, isPool := pools[addr]; !enableUpgrade8 || !isPool {
+				if _, isPool := pools[addr]; !isPool {
 					appState.IdentityState.SetOnline(addr, false)
 				}
-				if enableUpgrade9 {
-					if identity.State == state.Undefined && appState.State.GetEpoch(addr) < appState.State.Epoch() && addr != appState.State.GodAddress() {
-						collector.BeginIdentityClearingBalanceUpdate(statsCollector, addr, appState)
-						appState.State.SetState(addr, state.Killed)
-						collector.CompleteBalanceUpdate(statsCollector, appState)
-					}
+				if identity.State == state.Undefined && appState.State.GetEpoch(addr) < appState.State.Epoch() && addr != appState.State.GodAddress() {
+					collector.BeginIdentityClearingBalanceUpdate(statsCollector, addr, appState)
+					appState.State.SetState(addr, state.Killed)
+					collector.CompleteBalanceUpdate(statsCollector, appState)
 				}
 				if identity.State == state.Killed {
 					appState.State.SetMetadata(addr, identityUpdateHookCtx{keepProfileHash: true})
@@ -908,7 +877,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 			case state.Suspended, state.Zombie:
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.SetValidated(addr, false)
-				if _, isPool := pools[addr]; !enableUpgrade8 || !isPool {
+				if _, isPool := pools[addr]; !isPool {
 					appState.IdentityState.SetOnline(addr, false)
 				}
 				suspendedByShard[identity.ShiftedShardId()]++
@@ -916,7 +885,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, enableUpgrade8, ena
 			default:
 				appState.State.SetRequiredFlips(addr, 0)
 				appState.IdentityState.SetValidated(addr, false)
-				if _, isPool := pools[addr]; !enableUpgrade8 || !isPool {
+				if _, isPool := pools[addr]; !isPool {
 					appState.IdentityState.SetOnline(addr, false)
 				}
 			}
@@ -1070,9 +1039,8 @@ func removeLinksWithInviterAndInvitees(stateDB *state.StateDB, addr common.Addre
 	removeLinkWithInvitees(stateDB, addr)
 }
 
-func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address, enableUpgrade8 bool) {
-	if appState.ValidatorsCache.IsPool(pool) && (enableUpgrade8 || appState.ValidatorsCache.IsOnlineIdentity(pool)) &&
-		appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities, enableUpgrade8) <= 0 {
+func switchOnePoolToOffline(appState *appstate.AppState, pool common.Address, lostIdentities []common.Address) {
+	if appState.ValidatorsCache.IsPool(pool) && appState.ValidatorsCache.PoolSizeExceptNodes(pool, lostIdentities) <= 0 {
 		appState.IdentityState.SetOnline(pool, false)
 	}
 }
@@ -1094,8 +1062,7 @@ func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) 
 	}
 }
 
-func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block,
-	statsCollector collector.StatsCollector) {
+func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
 
 	if appState.State.ValidationPeriod() == state.AfterLongSessionPeriod && !block.IsEmpty() {
 
@@ -1193,16 +1160,11 @@ func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppStat
 	}
 	identities := appState.State.DelayedOfflinePenalties()
 	for _, addr := range identities {
-		var amount *big.Int
 		var seconds uint16
-		if chain.config.Consensus.EnableUpgrade9 {
-			seconds = uint16(chain.config.Consensus.OfflinePenaltyDuration.Seconds())
-		} else {
-			amount = chain.calculatePenalty(appState, addr)
-		}
-		collector.BeforeSetPenalty(statsCollector, addr, amount, seconds, appState)
+		seconds = uint16(chain.config.Consensus.OfflinePenaltyDuration.Seconds())
+		collector.BeforeSetPenalty(statsCollector, addr, seconds, appState)
 		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenalty(addr, amount, seconds)
+		appState.State.SetPenaltySeconds(addr, seconds)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		appState.IdentityState.SetOnline(addr, false)
 		appState.State.SetPenaltyTimestamp(addr, 0)
@@ -1210,7 +1172,7 @@ func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppStat
 	appState.State.ClearDelayedOfflinePenalties()
 }
 
-func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, prevBlock *types.Header, ctx *blockRewardCtx, statsCollector collector.StatsCollector) *big.Int {
+func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block *types.Block, ctx *blockRewardCtx, statsCollector collector.StatsCollector) *big.Int {
 	paidReward := big.NewInt(0)
 	if len(ctx.committee) == 0 {
 		return paidReward
@@ -1218,11 +1180,6 @@ func (chain *Blockchain) rewardFinalCommittee(appState *appstate.AppState, block
 
 	blockReward := new(big.Int).Add(chain.config.Consensus.BlockReward, chain.config.Consensus.FinalCommitteeReward)
 	rewardShareFloat := math.Div(math.Zero().SetInt(blockReward), ctx.totalStakeWeight)
-
-	if !chain.config.Consensus.EnableUpgrade9 {
-		rewardShareInt, _ := rewardShareFloat.Int(nil)
-		collector.SetCommitteeRewardShare(statsCollector, rewardShareInt)
-	}
 
 	remainingReward := blockReward
 	rewardCommitteeMember := func(item *stakeholder) {
@@ -1465,7 +1422,6 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		removeLinksWithInviterAndInvitees(stateDB, *tx.To)
-		inviteePrevState := stateDB.GetIdentityState(*tx.To)
 		if stateDB.GetIdentityState(*tx.To).IsInShard() {
 			stateDB.DecreaseShardSize(stateDB.ShardId(*tx.To))
 		}
@@ -1476,20 +1432,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			keepDelegationNonce: true,
 		})
 		appState.IdentityState.Remove(*tx.To)
-		if inviteePrevState == state.Newbie {
-			stake := stateDB.GetStakeBalance(*tx.To)
-			stakeToTransfer := big.NewInt(0).Set(stake)
-
-			// 1/6 of stake moves to balance, rest burns
-			stakeToTransfer.Div(stake, big.NewInt(6))
-
-			stateDB.AddBalance(sender, stakeToTransfer)
-			stateDB.SubStake(*tx.To, stake)
-			stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
-			collector.AddKillInviteeTxStakeTransfer(statsCollector, tx, stake, stakeToTransfer)
-		}
-		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() &&
-			(inviteePrevState == state.Invite || inviteePrevState == state.Candidate) {
+		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() {
 			stateDB.AddInvite(sender, 1)
 		}
 	case types.KillDelegatorTx:
@@ -1637,12 +1580,12 @@ func (chain *Blockchain) getGasLimit(appState *appstate.AppState, tx *types.Tran
 	return math.ToInt(decimal.NewFromBigInt(diff, 0).Div(decimal.NewFromBigInt(oneGasCost, 0))).Int64()
 }
 
-func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, block *types.Block, usedGas uint64) {
-	feePerGas := chain.calculateNextBlockFeePerGas(appState, block, usedGas)
+func (chain *Blockchain) applyNextBlockFee(appState *appstate.AppState, usedGas uint64) {
+	feePerGas := chain.calculateNextBlockFeePerGas(appState, usedGas)
 	appState.State.SetFeePerGas(feePerGas)
 }
 
-func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState, block *types.Block, usedGas uint64) *big.Int {
+func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState, usedGas uint64) *big.Int {
 
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
@@ -1738,29 +1681,20 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 		if delegation.Delegatee.IsEmpty() {
 			delegatee := appState.State.Delegatee(delegation.Delegator)
 			appState.IdentityState.RemoveDelegatee(delegation.Delegator)
-			if !chain.config.Consensus.EnableUpgrade8 {
-				appState.State.RemoveDelegatee(delegation.Delegator)
-			}
 			if delegatee != nil {
 				undelegations = append(undelegations, &state.Delegation{Delegator: delegation.Delegator, Delegatee: *delegatee})
-				if chain.config.Consensus.EnableUpgrade8 {
-					appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
-					appState.State.SetPendingUndelegation(delegation.Delegator)
-				}
+				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
+				appState.State.SetPendingUndelegation(delegation.Delegator)
 			}
-			if chain.config.Consensus.EnableUpgrade8 {
-				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
-				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
-			}
+			discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
+			appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 		} else {
 			_, becamePool := newPools[delegation.Delegator]
 			if appState.State.Delegatee(delegation.Delegatee) == nil && appState.State.PendingUndelegation(delegation.Delegatee) == nil && !becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) {
 				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
-				if chain.config.Consensus.EnableUpgrade8 {
-					appState.State.RemovePendingUndelegation(delegation.Delegator)
-					discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
-					appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
-				}
+				appState.State.RemovePendingUndelegation(delegation.Delegator)
+				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
+				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
 				appState.IdentityState.SetOnline(delegation.Delegator, false)
@@ -1792,7 +1726,7 @@ func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undel
 		addToLostPoolNode(delegation.Delegatee, delegation.Delegator)
 	}
 	for pool, nodes := range lostPoolNodes {
-		switchOnePoolToOffline(appState, pool, nodes, chain.config.Consensus.EnableUpgrade8)
+		switchOnePoolToOffline(appState, pool, nodes)
 	}
 }
 
@@ -1889,7 +1823,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		header.Upgrade = chain.upgrader.UpgradeBits()
 	}
 
-	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, usedGas, blockRewardCtx, nil)
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _, _ = chain.applyBlockOnState(checkState, block, totalFee, totalTips, usedGas, blockRewardCtx, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
 	hash := crypto.SignatureHash(proposal)
@@ -2165,7 +2099,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
-	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, usedGas, blockRewardCtx, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, totalFee, totalTips, usedGas, blockRewardCtx, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 
@@ -2440,12 +2374,7 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 }
 
 func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final bool) int {
-	var cnt int
-	if chain.config.Consensus.EnableUpgrade9 {
-		cnt = vc.ValidatorsSize()
-	} else {
-		cnt = vc.OnlineSize()
-	}
+	cnt := vc.ValidatorsSize()
 	percent := chain.config.Consensus.CommitteePercent
 	if final {
 		percent = chain.config.Consensus.FinalCommitteePercent
@@ -2463,12 +2392,7 @@ func (chain *Blockchain) GetCommitteeSize(vc *validators.ValidatorsCache, final 
 
 func (chain *Blockchain) GetCommitteeVotesThreshold(vc *validators.ValidatorsCache, final bool) int {
 
-	var cnt int
-	if chain.config.Consensus.EnableUpgrade9 {
-		cnt = vc.ValidatorsSize()
-	} else {
-		cnt = vc.OnlineSize()
-	}
+	cnt := vc.ValidatorsSize()
 	switch cnt {
 	case 0, 1:
 		return 1
@@ -2510,7 +2434,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 				return err
 			}
 		}
-		if err := checkState.Commit(b.Block, chain.config.Consensus.EnableUpgrade8); err != nil {
+		if err := checkState.Commit(b.Block); err != nil {
 			return err
 		}
 		prevBlock = b.Block.Header
@@ -2662,7 +2586,7 @@ func (chain *Blockchain) GetIdentityDiff(height uint64) *state.IdentityStateDiff
 		return nil
 	}
 	diff := new(state.IdentityStateDiff)
-	diff.FromBytes(data)
+	_ = diff.FromBytes(data)
 	return diff
 }
 
@@ -2820,8 +2744,8 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	}
 	chain.setCurrentHead(newHead)
 	go func() {
-		common.ClearDb(oldIdentityStateDb)
-		common.ClearDb(oldStateDb)
+		_ = common.ClearDb(oldIdentityStateDb)
+		_ = common.ClearDb(oldStateDb)
 	}()
 	return nil
 }
@@ -2893,18 +2817,7 @@ func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardI
 	minSize := uint32(math.MaxUint32)
 	var minShard common.ShardId
 
-	if chain.config.Consensus.EnableUpgrade7 {
-		for shardId := common.ShardId(1); shardId <= common.ShardId(appState.State.ShardsNum()); shardId++ {
-			size, ok := sizes[shardId]
-			if ok && size < minSize {
-				minSize = size
-				minShard = shardId
-			}
-		}
-		return minShard
-	}
-
-	for shardId := common.ShardId(1); shardId < common.ShardId(appState.State.ShardsNum()); shardId++ {
+	for shardId := common.ShardId(1); shardId <= common.ShardId(appState.State.ShardsNum()); shardId++ {
 		size, ok := sizes[shardId]
 		if ok && size < minSize {
 			minSize = size
@@ -2923,9 +2836,6 @@ func (chain *Blockchain) ShardsNum() uint32 {
 }
 
 func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
-	if !chain.config.Consensus.EnableUpgrade9 {
-		return
-	}
 	if identity.State != state.Killed {
 		return
 	}

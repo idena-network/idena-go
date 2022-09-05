@@ -146,7 +146,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 			flipIdx := flips[j]
 			data[flipIdx].answers = append(data[flipIdx].answers, answer)
 			if grade == types.GradeReported {
-				reportersToReward.addReport(flipIdx, candidate.Address, q.config.Consensus.EnableUpgrade7)
+				reportersToReward.addReport(flipIdx, candidate.Address)
 				data[flipIdx].reportCommitteeSize++
 				reportedFlips = append(reportedFlips, flipIdx)
 			} else if grade != types.GradeNone {
@@ -331,17 +331,9 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, none uint) {
 func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int, reportCommitteeSize int) FlipQualification {
 	left, right, none := getAnswersCount(answers)
 	totalAnswersCount := float32(len(answers))
-
-	if !q.config.Consensus.EnableUpgrade8 {
-		reportCommitteeSize = len(answers)
-	}
 	reported := false
 	switch reportCommitteeSize {
-	case 0:
-	case 1:
-		if !q.config.Consensus.EnableUpgrade8 {
-			reported = reportsCount >= reportCommitteeSize
-		}
+	case 0, 1:
 	case 2, 3:
 		reported = reportsCount >= reportCommitteeSize
 	case 4:

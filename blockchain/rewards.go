@@ -41,151 +41,89 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 
 	epoch := appState.State.Epoch()
 
-	if config.EnableUpgrade8 {
-		stakingRewardD := totalReward.Mul(decimal.NewFromFloat32(config.StakingRewardPercent))
-		candidateRewardD := totalReward.Mul(decimal.NewFromFloat32(config.CandidateRewardPercent))
-		totalStakingWeightOld := float64(0)
-		totalStakingWeight := float32(0)
-		totalCandidates := uint64(0)
+	stakingRewardD := totalReward.Mul(decimal.NewFromFloat32(config.StakingRewardPercent))
+	candidateRewardD := totalReward.Mul(decimal.NewFromFloat32(config.CandidateRewardPercent))
+	totalStakingWeight := float32(0)
+	totalCandidates := uint64(0)
 
-		type cacheValue struct {
-			addr           common.Address
-			identity       state.Identity
-			stakeWeightOld float64
-			stakeWeight    float32
-		}
-		var cache []*cacheValue
+	type cacheValue struct {
+		addr        common.Address
+		identity    state.Identity
+		stakeWeight float32
+	}
+	var cache []*cacheValue
 
-		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-			if !identity.State.NewbieOrBetter() {
-				return
-			}
-			if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
-				return
-			}
-			cv := cacheValue{
-				addr:     addr,
-				identity: identity,
-			}
-			cache = append(cache, &cv)
-			if identity.Birthday == epoch {
-				totalCandidates++
-			}
-			if common.ZeroOrNil(identity.Stake) {
-				return
-			}
-			stake, _ := ConvertToFloat(identity.Stake).Float64()
-			weight := math2.Pow(stake, 0.9)
-			if config.EnableUpgrade9 {
-				weight32 := float32(weight)
-				totalStakingWeight += weight32
-				cv.stakeWeight = weight32
-			} else {
-				totalStakingWeightOld += weight
-				cv.stakeWeightOld = weight
-			}
-		})
-
-		if totalStakingWeightOld == 0 && totalStakingWeight == 0 && totalCandidates == 0 {
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		if !identity.State.NewbieOrBetter() {
 			return
 		}
+		if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
+			return
+		}
+		cv := cacheValue{
+			addr:     addr,
+			identity: identity,
+		}
+		cache = append(cache, &cv)
+		if identity.Birthday == epoch {
+			totalCandidates++
+		}
+		if common.ZeroOrNil(identity.Stake) {
+			return
+		}
+		stake, _ := ConvertToFloat(identity.Stake).Float64()
+		weight := float32(math2.Pow(stake, 0.9))
+		totalStakingWeight += weight
+		cv.stakeWeight = weight
+	})
 
-		var stakingRewardShare, candidateRewardShare decimal.Decimal
-		if totalStakingWeightOld > 0 {
-			stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(totalStakingWeightOld))
-			collector.SetTotalStakingReward(statsCollector, math.ToInt(stakingRewardD), math.ToInt(stakingRewardShare))
-		}
-		if totalStakingWeight > 0 {
-			stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(float64(totalStakingWeight)))
-			collector.SetTotalStakingReward(statsCollector, math.ToInt(stakingRewardD), math.ToInt(stakingRewardShare))
-		}
-		if totalCandidates > 0 {
-			candidateRewardShare = candidateRewardD.Div(decimal.NewFromBigInt(new(big.Int).SetUint64(totalCandidates), 0))
-			collector.SetTotalCandidateReward(statsCollector, math.ToInt(candidateRewardD), math.ToInt(candidateRewardShare))
-		}
+	if totalStakingWeight == 0 && totalCandidates == 0 {
+		return
+	}
 
-		addReward := func(addr common.Address, identity state.Identity, reward *big.Int, addRewardToCollectorFunc func(rewardDest common.Address, balance, stake *big.Int)) {
-			balance, stake := splitReward(reward, identity.State == state.Newbie, config)
-			rewardDest := addr
-			if delegatee := identity.Delegatee(); delegatee != nil {
-				rewardDest = *delegatee
-			}
-			collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
-			appState.State.AddBalance(rewardDest, balance)
-			appState.State.AddStake(addr, stake)
-			collector.CompleteBalanceUpdate(statsCollector, appState)
-			collector.AddMintedCoins(statsCollector, balance)
-			collector.AddMintedCoins(statsCollector, stake)
-			addRewardToCollectorFunc(rewardDest, balance, stake)
-			collector.AfterAddStake(statsCollector, addr, stake, appState)
-		}
+	var stakingRewardShare, candidateRewardShare decimal.Decimal
+	if totalStakingWeight > 0 {
+		stakingRewardShare = stakingRewardD.Div(decimal.NewFromFloat(float64(totalStakingWeight)))
+		collector.SetTotalStakingReward(statsCollector, math.ToInt(stakingRewardD), math.ToInt(stakingRewardShare))
+	}
+	if totalCandidates > 0 {
+		candidateRewardShare = candidateRewardD.Div(decimal.NewFromBigInt(new(big.Int).SetUint64(totalCandidates), 0))
+		collector.SetTotalCandidateReward(statsCollector, math.ToInt(candidateRewardD), math.ToInt(candidateRewardShare))
+	}
 
-		for _, value := range cache {
-			identity := value.identity
-			addr := value.addr
-			if identity.Birthday == epoch {
-				addReward(addr, identity, math.ToInt(candidateRewardShare), func(rewardDest common.Address, balance, stake *big.Int) {
-					collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
-				})
-			}
-			if common.ZeroOrNil(identity.Stake) {
-				continue
-			}
-			var reward decimal.Decimal
-			if config.EnableUpgrade9 {
-				reward = stakingRewardShare.Mul(decimal.NewFromFloat(float64(value.stakeWeight)))
-			} else {
-				reward = stakingRewardShare.Mul(decimal.NewFromFloat(value.stakeWeightOld))
-			}
-			addReward(addr, identity, math.ToInt(reward), func(rewardDest common.Address, balance, stake *big.Int) {
-				collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
+	addReward := func(addr common.Address, identity state.Identity, reward *big.Int, addRewardToCollectorFunc func(rewardDest common.Address, balance, stake *big.Int)) {
+		balance, stake := splitReward(reward, identity.State == state.Newbie, config)
+		rewardDest := addr
+		if delegatee := identity.Delegatee(); delegatee != nil {
+			rewardDest = *delegatee
+		}
+		collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
+		appState.State.AddBalance(rewardDest, balance)
+		appState.State.AddStake(addr, stake)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
+		collector.AddMintedCoins(statsCollector, balance)
+		collector.AddMintedCoins(statsCollector, stake)
+		addRewardToCollectorFunc(rewardDest, balance, stake)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
+	}
+
+	for _, value := range cache {
+		identity := value.identity
+		addr := value.addr
+		if identity.Birthday == epoch {
+			addReward(addr, identity, math.ToInt(candidateRewardShare), func(rewardDest common.Address, balance, stake *big.Int) {
+				collector.AddCandidateReward(statsCollector, rewardDest, addr, balance, stake)
 			})
 		}
-
-		return
+		if common.ZeroOrNil(identity.Stake) {
+			continue
+		}
+		reward := stakingRewardShare.Mul(decimal.NewFromFloat(float64(value.stakeWeight)))
+		addReward(addr, identity, math.ToInt(reward), func(rewardDest common.Address, balance, stake *big.Int) {
+			collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
+		})
 	}
 
-	successfulValidationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.SuccessfulValidationRewardPercent))
-
-	normalizedAges := float32(0)
-	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
-				normalizedAges += normalAge(epoch - identity.Birthday)
-			}
-		}
-	})
-
-	if normalizedAges == 0 {
-		return
-	}
-
-	successfulValidationRewardShare := successfulValidationRewardD.Div(decimal.NewFromFloat32(normalizedAges))
-	collector.SetTotalValidationReward(statsCollector, math.ToInt(successfulValidationRewardD),
-		math.ToInt(successfulValidationRewardShare))
-
-	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
-		if identity.State.NewbieOrBetter() {
-			if _, ok := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; !ok {
-				age := epoch - identity.Birthday
-				normalAge := normalAge(age)
-				totalReward := successfulValidationRewardShare.Mul(decimal.NewFromFloat32(normalAge))
-				reward, stake := splitReward(math.ToInt(totalReward), identity.State == state.Newbie, config)
-				rewardDest := addr
-				if delegatee := identity.Delegatee(); delegatee != nil {
-					rewardDest = *delegatee
-				}
-				collector.BeginEpochRewardBalanceUpdate(statsCollector, rewardDest, addr, appState)
-				appState.State.AddBalance(rewardDest, reward)
-				appState.State.AddStake(addr, stake)
-				collector.CompleteBalanceUpdate(statsCollector, appState)
-				collector.AddMintedCoins(statsCollector, reward)
-				collector.AddMintedCoins(statsCollector, stake)
-				collector.AddValidationReward(statsCollector, rewardDest, addr, age, reward, stake)
-				collector.AfterAddStake(statsCollector, addr, stake, appState)
-			}
-		}
-	})
 }
 
 func getFlipRewardCoef(grade types.Grade) float32 {
@@ -400,26 +338,16 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	}
 	goodInviters := make([]inviterWrapper, 0)
 
-	if config.EnableUpgrade7 {
-		for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-			if shard, ok := validationResults[common.ShardId(i)]; ok {
-				if len(shard.GoodInviters) == 0 {
-					continue
-				}
-				shardGoodInviters := make([]inviterWrapper, 0, len(shard.GoodInviters))
-				for addr, inviter := range shard.GoodInviters {
-					shardGoodInviters = addInviter(shardGoodInviters, inviterWrapper{addr, inviter})
-				}
-				goodInviters = append(goodInviters, shardGoodInviters...)
+	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
+		if shard, ok := validationResults[common.ShardId(i)]; ok {
+			if len(shard.GoodInviters) == 0 {
+				continue
 			}
-		}
-	} else {
-		for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
-			if shard, ok := validationResults[common.ShardId(i)]; ok {
-				for addr, inviter := range shard.GoodInviters {
-					goodInviters = addInviter(goodInviters, inviterWrapper{addr, inviter})
-				}
+			shardGoodInviters := make([]inviterWrapper, 0, len(shard.GoodInviters))
+			for addr, inviter := range shard.GoodInviters {
+				shardGoodInviters = addInviter(shardGoodInviters, inviterWrapper{addr, inviter})
 			}
+			goodInviters = append(goodInviters, shardGoodInviters...)
 		}
 	}
 

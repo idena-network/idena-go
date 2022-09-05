@@ -44,16 +44,7 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
-		if vm.cfg.Consensus.EnableUpgrade9 {
-			return embedded.NewOracleVotingContract6(ctx, vm.env, vm.statsCollector)
-		}
-		if vm.cfg.Consensus.EnableUpgrade8 {
-			return embedded.NewOracleVotingContract5(ctx, vm.env, vm.statsCollector)
-		}
-		if vm.cfg.Consensus.EnableUpgrade7 {
-			return embedded.NewOracleVotingContract4(ctx, vm.env, vm.statsCollector)
-		}
-		return embedded.NewOracleVotingContract3(ctx, vm.env, vm.statsCollector)
+		return embedded.NewOracleVotingContract6(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleLockContract:
 		return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableOracleLockContract:
@@ -114,7 +105,7 @@ func (vm *VmImpl) call(tx *types.Transaction, from *common.Address) (addr common
 
 func (vm *VmImpl) terminate(tx *types.Transaction, from *common.Address) (addr common.Address, err error) {
 	ctx := env2.NewCallContextImpl(tx, from, *vm.appState.State.GetCodeHash(*tx.To))
-	attach := attachments.ParseTerminateContractAttachment(tx, vm.cfg.Consensus.EnableUpgrade9)
+	attach := attachments.ParseTerminateContractAttachment(tx)
 	if attach == nil {
 		return ctx.ContractAddr(), errors.New("can't parse attachment")
 	}

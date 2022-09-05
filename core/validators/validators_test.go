@@ -13,8 +13,6 @@ import (
 	"testing"
 )
 
-const enableUpgrade8 = true
-
 func TestValidatorsCache_Contains(t *testing.T) {
 	require := require.New(t)
 	database := db.NewMemDB()
@@ -39,7 +37,7 @@ func TestValidatorsCache_Contains(t *testing.T) {
 			countOnline++
 		}
 	}
-	identityStateDB.Commit(false, enableUpgrade8)
+	identityStateDB.Commit(false)
 
 	vCache := NewValidatorsCache(identityStateDB, common.Address{})
 	vCache.Load()
@@ -90,7 +88,7 @@ func TestValidatorsCache_Load(t *testing.T) {
 	identityStateDB.SetValidated(pool2, true)
 	identityStateDB.SetOnline(pool3, false)
 
-	_, _, diff, _ := identityStateDB.Commit(false, enableUpgrade8)
+	_, _, diff, _ := identityStateDB.Commit(false)
 
 	vCache := NewValidatorsCache(identityStateDB, common.Address{0x11})
 	vCache.Load()
@@ -129,7 +127,7 @@ func TestValidatorsCache_Load(t *testing.T) {
 
 	identityStateDB.RemoveDelegatee(vCache.pools[pool2].delegators[0])
 	identityStateDB.RemoveDelegatee(vCache.pools[pool2].delegators[1])
-	identityStateDB.Commit(false, enableUpgrade8)
+	identityStateDB.Commit(false)
 
 	vCache.Load()
 	require.False(vCache.IsPool(pool2))
@@ -147,7 +145,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 	{
 
 		identityStateDB, _ := state.NewLazyIdentityState(database)
-		_, _, _, err := identityStateDB.Commit(true, enableUpgrade8)
+		_, _, _, err := identityStateDB.Commit(true)
 		require.NoError(err)
 
 		for validated := 0; validated <= 1; validated++ {
@@ -204,7 +202,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 			}
 		}
 
-		_, _, diff, err = identityStateDB.Commit(true, enableUpgrade8)
+		_, _, diff, err = identityStateDB.Commit(true)
 		require.NoError(err)
 
 		vCache := NewValidatorsCache(identityStateDB, common.Address{0x1, 0x2, 0x3})
@@ -346,7 +344,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 		identityStateDB.SetOnline(singleAddresses[6], false)
 		identityStateDB.SetDelegatee(singleAddresses[7], singleAddresses[6])
 
-		_, _, diff2, _ := identityStateDB.Commit(true, enableUpgrade8)
+		_, _, diff2, _ := identityStateDB.Commit(true)
 
 		vCache.UpdateFromIdentityStateDiff(diff2)
 
@@ -369,7 +367,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 		identityStateDB.Remove(delegators[16][9])
 		identityStateDB.Remove(pools[24])
 		identityStateDB.Remove(pools[26])
-		_, _, diff3, _ := identityStateDB.Commit(true, enableUpgrade8)
+		_, _, diff3, _ := identityStateDB.Commit(true)
 		vCache.UpdateFromIdentityStateDiff(diff3)
 
 		require.True(vCache.IsPool(pools[0]))
@@ -381,7 +379,7 @@ func test_LoadAndUpdateFromIdentityStateDiff(poolFirst bool, t *testing.T) {
 		require.True(vCache.IsDiscriminated(pools[26]))
 
 		identityStateDB.SetDiscriminated(pools[16], true)
-		_, _, diff4, _ := identityStateDB.Commit(true, enableUpgrade8)
+		_, _, diff4, _ := identityStateDB.Commit(true)
 		vCache.UpdateFromIdentityStateDiff(diff4)
 
 		require.True(vCache.IsPool(pools[16]))
@@ -420,7 +418,7 @@ func TestValidatorsCache_Clone(t *testing.T) {
 			obj.SetDiscriminated(true)
 		}
 	}
-	identityStateDB.Commit(false, enableUpgrade8)
+	identityStateDB.Commit(false)
 
 	vCache := NewValidatorsCache(identityStateDB, common.Address{0x1})
 	vCache.Load()

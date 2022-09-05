@@ -144,7 +144,7 @@ func (b *contractTesterBuilder) Build() *contractTester {
 			}
 		}
 	}
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	appState.Initialize(1)
 	return &contractTester{
@@ -297,7 +297,7 @@ func (c *contractTester) Read(contract EmbeddedContractType, method string, byte
 
 func (c *contractTester) Commit() {
 	c.env.Commit()
-	c.appState.Commit(nil, true)
+	c.appState.Commit(nil)
 }
 
 func (c *contractTester) SetBalance(balance *big.Int) {

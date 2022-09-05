@@ -100,7 +100,7 @@ func TestUpgrader_CanUpgrade(t *testing.T) {
 	appState.IdentityState.SetValidated(common.Address{0x1, 0x9}, true)
 	appState.IdentityState.SetDelegatee(common.Address{0x1, 0x9}, common.Address{0x1, 0x6})
 
-	appState.Precommit(true)
+	appState.Precommit()
 	require.Nil(t, appState.CommitAt(1))
 	require.Nil(t, appState.Initialize(1))
 

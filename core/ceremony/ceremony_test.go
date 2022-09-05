@@ -311,7 +311,7 @@ func Test_determineNewIdentityState(t *testing.T) {
 
 	require := require.New(t)
 	for i, c := range cases {
-		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong, true), "index = %v", i)
+		require.Equal(c.expected, determineNewIdentityState(state.Identity{State: c.prev}, c.shortScore, c.longScore, c.totalScore, c.totalQualifiedFlips, c.missed, c.noQualShort, c.noQualLong), "index = %v", i)
 	}
 }
 
@@ -385,7 +385,6 @@ func Test_flipPos(t *testing.T) {
 }
 
 func Test_analyzeAuthors(t *testing.T) {
-	const enableUpgrade7 = false
 	vc := ValidationCeremony{}
 
 	auth1 := common.Address{1}
@@ -480,20 +479,20 @@ func Test_analyzeAuthors(t *testing.T) {
 		{status: QualifiedByNone, grade: types.GradeA},
 	}
 	reporters := newReportersToReward()
-	reporters.addReport(5, reporter1, enableUpgrade7)
-	reporters.addReport(5, auth2, enableUpgrade7)
-	reporters.addReport(13, reporter1, enableUpgrade7)
-	reporters.addReport(13, reporter2, enableUpgrade7)
-	reporters.addReport(15, reporter1, enableUpgrade7)
-	reporters.addReport(15, reporter3, enableUpgrade7)
-	reporters.addReport(15, auth2, enableUpgrade7)
-	reporters.addReport(17, reporter1, enableUpgrade7)
-	reporters.addReport(17, reporter2, enableUpgrade7)
-	reporters.addReport(17, reporter3, enableUpgrade7)
-	reporters.addReport(19, reporter2, enableUpgrade7)
-	reporters.addReport(19, reporter3, enableUpgrade7)
-	reporters.addReport(21, reporter1, enableUpgrade7)
-	reporters.addReport(21, reporter2, enableUpgrade7)
+	reporters.addReport(5, reporter1)
+	reporters.addReport(5, auth2)
+	reporters.addReport(13, reporter1)
+	reporters.addReport(13, reporter2)
+	reporters.addReport(15, reporter1)
+	reporters.addReport(15, reporter3)
+	reporters.addReport(15, auth2)
+	reporters.addReport(17, reporter1)
+	reporters.addReport(17, reporter2)
+	reporters.addReport(17, reporter3)
+	reporters.addReport(19, reporter2)
+	reporters.addReport(19, reporter3)
+	reporters.addReport(21, reporter1)
+	reporters.addReport(21, reporter2)
 
 	conf := &config.ConsensusConf{}
 	bad, good, authorResults, madeFlips, reporters := vc.analyzeAuthors(qualification, reporters, 0, conf)
@@ -559,7 +558,6 @@ func Test_analyzeAuthors(t *testing.T) {
 }
 
 func Test_analyzeAuthors2(t *testing.T) {
-	const enableUpgrade7 = false
 	vc := ValidationCeremony{}
 
 	auth1 := common.Address{1}
@@ -654,20 +652,20 @@ func Test_analyzeAuthors2(t *testing.T) {
 		{status: QualifiedByNone, grade: types.GradeA},
 	}
 	reporters := newReportersToReward()
-	reporters.addReport(5, reporter1, enableUpgrade7)
-	reporters.addReport(5, auth2, enableUpgrade7)
-	reporters.addReport(13, reporter1, enableUpgrade7)
-	reporters.addReport(13, reporter2, enableUpgrade7)
-	reporters.addReport(15, reporter1, enableUpgrade7)
-	reporters.addReport(15, reporter3, enableUpgrade7)
-	reporters.addReport(15, auth2, enableUpgrade7)
-	reporters.addReport(17, reporter1, enableUpgrade7)
-	reporters.addReport(17, reporter2, enableUpgrade7)
-	reporters.addReport(17, reporter3, enableUpgrade7)
-	reporters.addReport(19, reporter2, enableUpgrade7)
-	reporters.addReport(19, reporter3, enableUpgrade7)
-	reporters.addReport(21, reporter1, enableUpgrade7)
-	reporters.addReport(21, reporter2, enableUpgrade7)
+	reporters.addReport(5, reporter1)
+	reporters.addReport(5, auth2)
+	reporters.addReport(13, reporter1)
+	reporters.addReport(13, reporter2)
+	reporters.addReport(15, reporter1)
+	reporters.addReport(15, reporter3)
+	reporters.addReport(15, auth2)
+	reporters.addReport(17, reporter1)
+	reporters.addReport(17, reporter2)
+	reporters.addReport(17, reporter3)
+	reporters.addReport(19, reporter2)
+	reporters.addReport(19, reporter3)
+	reporters.addReport(21, reporter1)
+	reporters.addReport(21, reporter2)
 
 	conf := &config.ConsensusConf{
 		ReportsRewardPercent: 0.01,
@@ -732,101 +730,8 @@ func Test_analyzeAuthors2(t *testing.T) {
 	require.Equal(t, 3, len(reporters.reportedFlipsByReporter[reporter3]))
 }
 
-func Test_incSuccessfulInvites_beforeUpgrade7(t *testing.T) {
-	epoch := uint16(5)
-	god := common.Address{0x1}
-	auth1 := common.Address{0x2}
-	badAuth := common.Address{0x3}
-
-	validationResults := &types.ValidationResults{
-		BadAuthors:   map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
-		GoodInviters: make(map[common.Address]*types.InviterValidationResult),
-	}
-
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Verified,
-		Inviter: &state.Inviter{
-			Address: god,
-		},
-	}, 0, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Candidate,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Candidate,
-		Inviter: &state.Inviter{
-			Address: badAuth,
-		},
-	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Candidate,
-		Inviter: &state.Inviter{
-			Address: god,
-		},
-	}, 5, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	// 4th validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Newbie,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 2, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	// 4th validation (Newbie->Verified)
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Newbie,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 2, state.Verified, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	// 3rd validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Newbie,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 3, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	// 2nd validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Newbie,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 4, state.Newbie, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	// 3rd validation (Newbie->Verified)
-	incSuccessfulInvites(validationResults, god, state.Identity{
-		State: state.Newbie,
-		Inviter: &state.Inviter{
-			Address: auth1,
-		},
-	}, 3, state.Verified, epoch, map[common.Address]*types.InviterValidationResult{}, false)
-
-	require.Equal(t, len(validationResults.GoodInviters[auth1].SuccessfulInvites), 4)
-	var ages []uint16
-	for _, si := range validationResults.GoodInviters[auth1].SuccessfulInvites {
-		ages = append(ages, si.Age)
-	}
-	require.Equal(t, []uint16{1, 3, 2, 3}, ages)
-
-	require.Equal(t, len(validationResults.GoodInviters[god].SuccessfulInvites), 1)
-	require.Equal(t, uint16(1), validationResults.GoodInviters[god].SuccessfulInvites[0].Age)
-	require.True(t, validationResults.GoodInviters[god].PayInvitationReward)
-	require.NotContains(t, validationResults.GoodInviters, badAuth)
-}
-
 func Test_incSuccessfulInvites(t *testing.T) {
 	allGoodInviters := make(map[common.Address]*types.InviterValidationResult)
-	enableUpgrade7 := true
 
 	epoch := uint16(5)
 	god := common.Address{0x1}
@@ -843,28 +748,28 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: god,
 		},
-	}, 0, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 0, state.Newbie, epoch, allGoodInviters)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 5, state.Newbie, epoch, allGoodInviters)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: badAuth,
 		},
-	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 5, state.Newbie, epoch, allGoodInviters)
 
 	incSuccessfulInvites(validationResults, god, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: god,
 		},
-	}, 5, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 5, state.Newbie, epoch, allGoodInviters)
 
 	// 4th validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -872,7 +777,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 2, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 2, state.Newbie, epoch, allGoodInviters)
 
 	// 4th validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -880,7 +785,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 2, state.Verified, epoch, allGoodInviters, enableUpgrade7)
+	}, 2, state.Verified, epoch, allGoodInviters)
 
 	// 3rd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -888,7 +793,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 3, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 3, state.Newbie, epoch, allGoodInviters)
 
 	// 2nd validation (Newbie->Newbie)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -896,7 +801,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 4, state.Newbie, epoch, allGoodInviters, enableUpgrade7)
+	}, 4, state.Newbie, epoch, allGoodInviters)
 
 	// 3rd validation (Newbie->Verified)
 	incSuccessfulInvites(validationResults, god, state.Identity{
@@ -904,11 +809,11 @@ func Test_incSuccessfulInvites(t *testing.T) {
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
-	}, 3, state.Verified, epoch, allGoodInviters, enableUpgrade7)
+	}, 3, state.Verified, epoch, allGoodInviters)
 
-	setValidationResultToGoodInviter(validationResults, auth1, state.Newbie, allGoodInviters, enableUpgrade7)
-	setValidationResultToGoodInviter(validationResults, god, state.Human, allGoodInviters, enableUpgrade7)
-	setValidationResultToGoodInviter(validationResults, badAuth, state.Human, allGoodInviters, enableUpgrade7)
+	setValidationResultToGoodInviter(validationResults, auth1, state.Newbie, allGoodInviters)
+	setValidationResultToGoodInviter(validationResults, god, state.Human, allGoodInviters)
+	setValidationResultToGoodInviter(validationResults, badAuth, state.Human, allGoodInviters)
 
 	require.Equal(t, len(validationResults.GoodInviters[auth1].SuccessfulInvites), 4)
 	var ages []uint16
@@ -941,10 +846,10 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.AddStake(addr1, big.NewInt(40))
 	appstate.State.AddReplenishedStake(addr1, big.NewInt(40))
 	appstate.State.AddBalance(addr1, big.NewInt(10))
-	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6), true)
+	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
 	appstate.State.SetDelegatee(addr1, delegatee)
 
-	validated, _ := applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
+	validated, _ := applyOnState(blockchain.GetDefaultConsensusConfig(), appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
 		birthday:                 3,
 		shortFlipPoint:           1,
@@ -962,7 +867,7 @@ func Test_applyOnState(t *testing.T) {
 	require.True(t, appstate.State.GetStakeBalance(addr1).Cmp(big.NewInt(65)) == 0)
 	require.True(t, appstate.State.GetReplenishedStakeBalance(addr1).Cmp(big.NewInt(40)) == 0)
 
-	applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
+	applyOnState(blockchain.GetDefaultConsensusConfig(), appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		shortFlipPoint:           0,
 		shortQualifiedFlipsCount: 0,
 		missed:                   true,
@@ -972,7 +877,7 @@ func Test_applyOnState(t *testing.T) {
 
 	appstate.State.SetDelegatee(delegatee, common.Address{0x3})
 
-	applyOnState(config.ConsensusVersions[config.ConsensusV8], appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
+	applyOnState(blockchain.GetDefaultConsensusConfig(), appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Zombie,
 		shortFlipPoint:           1,
 		shortQualifiedFlipsCount: 2,
@@ -989,7 +894,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr := common.Address{0x1}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Newbie,
 			birthday:     14,
@@ -1001,7 +906,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x1, 0x1}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Newbie,
@@ -1013,7 +918,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x2}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Verified,
 			birthday:     2,
@@ -1025,7 +930,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x2, 0x2}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Verified,
@@ -1037,7 +942,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x3}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Human,
 			birthday:     2,
@@ -1049,7 +954,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x3, 0x3}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Human,
@@ -1061,7 +966,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     2,
@@ -1073,7 +978,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x4, 0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Zombie,
 			birthday:     2,
@@ -1085,7 +990,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x4, 0x4, 0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Zombie,
@@ -1097,7 +1002,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x5}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     6,
@@ -1109,7 +1014,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x5, 0x5}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Zombie,
 			birthday:     6,
@@ -1121,7 +1026,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x5, 0x5, 0x5}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Suspended,
@@ -1133,7 +1038,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x6}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     7,
@@ -1145,7 +1050,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x7}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     8,
@@ -1157,7 +1062,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x8}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     9,
@@ -1169,7 +1074,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x9}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     10,
@@ -1181,7 +1086,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0x9, 0x9}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
 			prevState:    state.Suspended,
@@ -1193,7 +1098,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr = common.Address{0xa}
 	appState.State.AddStake(addr, big.NewInt(234))
-	applyOnState(config.ConsensusVersions[config.ConsensusV8],
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
 			birthday:     12,

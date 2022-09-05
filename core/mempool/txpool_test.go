@@ -37,7 +37,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 	balance := new(big.Int).Mul(common.DnaBase, big.NewInt(100))
 
 	appState.State.SetBalance(address, balance)
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	appState.Initialize(0)
 	pool.Initialize(
 		&types.Header{
@@ -90,7 +90,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 		pool.appState.State.SetBalance(address, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
 	}
 
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 	pool.appState.Initialize(1)
 	pool.head = &types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -157,7 +157,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 			sender, _ := types.Sender(tx)
 			pool.appState.State.SetNonce(sender, tx.AccountNonce)
 		}
-		pool.appState.Commit(nil, true)
+		pool.appState.Commit(nil)
 
 		pool.ResetTo(&types.Block{
 			Header: &types.Header{ProposedHeader: &types.ProposedHeader{
@@ -285,7 +285,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 		pool.appState.State.SetBalance(address, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
 	}
 
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 	pool.appState.Initialize(1)
 	pool.Initialize(&types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -347,7 +347,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	require.Len(t, pool.all.txs, 319)
 
 	pool.appState.State.SetGlobalEpoch(1)
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 
 	pool.ResetTo(&types.Block{Header: &types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -382,7 +382,7 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 
 	pool.appState.State.SetValidationPeriod(state.LongSessionPeriod)
 
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 	pool.appState.Initialize(1)
 	pool.Initialize(&types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -417,7 +417,7 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 	pool.appState = prevPool.appState
 	pool.appState.State.SetValidationPeriod(state.AfterLongSessionPeriod)
 
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 
 	pool.Initialize(&types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -431,7 +431,7 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 	address2 := crypto.PubkeyToAddress(key2.PublicKey)
 	pool.appState.State.SetBalance(address2, big.NewInt(0).Mul(big.NewInt(10000), common.DnaBase))
 	pool.appState.State.SetState(address2, state.Candidate)
-	pool.appState.Commit(nil, true)
+	pool.appState.Commit(nil)
 
 	pool = getPool()
 	pool.appState = prevPool.appState

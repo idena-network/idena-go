@@ -389,14 +389,14 @@ func (v *ValidatorsCache) PoolSize(pool common.Address) int {
 	return 0
 }
 
-func (v *ValidatorsCache) PoolSizeExceptNodes(pool common.Address, exceptNodes []common.Address, enableUpgrade8 bool) int {
+func (v *ValidatorsCache) PoolSizeExceptNodes(pool common.Address, exceptNodes []common.Address) int {
 	if set, ok := v.pools[pool]; ok {
 		size := len(set.delegators)
 		if v.validatedAddresses.Contains(pool) {
 			size++
 		}
 		for _, exceptNode := range exceptNodes {
-			if index := set.index(exceptNode); index > 0 || enableUpgrade8 && index == 0 {
+			if index := set.index(exceptNode); index >= 0 {
 				size--
 			}
 		}

@@ -42,7 +42,7 @@ type StatsCollector interface {
 	AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 	AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 
-	BeforeSetPenalty(addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState)
+	BeforeSetPenalty(addr common.Address, seconds uint16, appState *appstate.AppState)
 
 	AddMintedCoins(amount *big.Int)
 	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
@@ -55,7 +55,6 @@ type StatsCollector interface {
 
 	AddActivationTxBalanceTransfer(tx *types.Transaction, amount *big.Int)
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
-	AddKillInviteeTxStakeTransfer(tx *types.Transaction, stake, stakeToTransfer *big.Int)
 
 	BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState)
 	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
@@ -69,8 +68,6 @@ type StatsCollector interface {
 	BeginDustClearingBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	BeginSavedStakeBalanceUpdate(addr common.Address, appState *appstate.AppState)
 	CompleteBalanceUpdate(appState *appstate.AppState)
-
-	SetCommitteeRewardShare(amount *big.Int)
 
 	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
 	CompleteApplyingTx(appState *appstate.AppState)
@@ -410,15 +407,15 @@ func (c *collectorStub) CompleteCollecting() {
 	// do nothing
 }
 
-func (c *collectorStub) BeforeSetPenalty(addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState) {
+func (c *collectorStub) BeforeSetPenalty(addr common.Address, seconds uint16, appState *appstate.AppState) {
 	// do nothing
 }
 
-func BeforeSetPenalty(c StatsCollector, addr common.Address, amount *big.Int, seconds uint16, appState *appstate.AppState) {
+func BeforeSetPenalty(c StatsCollector, addr common.Address, seconds uint16, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.BeforeSetPenalty(addr, amount, seconds, appState)
+	c.BeforeSetPenalty(addr, seconds, appState)
 }
 
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {
@@ -520,17 +517,6 @@ func AddKillTxStakeTransfer(c StatsCollector, tx *types.Transaction, amount *big
 		return
 	}
 	c.AddKillTxStakeTransfer(tx, amount)
-}
-
-func (c *collectorStub) AddKillInviteeTxStakeTransfer(tx *types.Transaction, stake, stakeToTransfer *big.Int) {
-	// do nothing
-}
-
-func AddKillInviteeTxStakeTransfer(c StatsCollector, tx *types.Transaction, stake, stakeToTransfer *big.Int) {
-	if c == nil {
-		return
-	}
-	c.AddKillInviteeTxStakeTransfer(tx, stake, stakeToTransfer)
 }
 
 func (c *collectorStub) BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState) {
@@ -663,17 +649,6 @@ func CompleteBalanceUpdate(c StatsCollector, appState *appstate.AppState) {
 		return
 	}
 	c.CompleteBalanceUpdate(appState)
-}
-
-func (c *collectorStub) SetCommitteeRewardShare(amount *big.Int) {
-	// do nothing
-}
-
-func SetCommitteeRewardShare(c StatsCollector, amount *big.Int) {
-	if c == nil {
-		return
-	}
-	c.SetCommitteeRewardShare(amount)
 }
 
 func (c *collectorStub) BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState) {
