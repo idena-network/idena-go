@@ -1432,6 +1432,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			keepDelegationNonce: true,
 		})
 		appState.IdentityState.Remove(*tx.To)
+		collector.AddKilledBurntCoins(statsCollector, *tx.To, stateDB.GetStakeBalance(*tx.To))
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() {
 			stateDB.AddInvite(sender, 1)
 		}
