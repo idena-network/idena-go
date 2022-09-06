@@ -5,6 +5,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -98,12 +99,10 @@ func (j *Job) broadcast() {
 				log.Error("error while sending deferred tx", "err", err)
 				tx.sendTry++
 				contractErr, ok := err.(*embedded.ContractError)
-				tryLater := false
-				if ok && contractErr.TryLater() {
-					tryLater = true
+				tryLater := ok && contractErr.TryLater() || err == validation.LateTx
+				if tryLater {
 					tx.BroadcastBlock = calculateBroadcastBlock(tx.BroadcastBlock, tx.sendTry)
-				}
-				if !tryLater && tx.sendTry > 3 {
+				} else if tx.sendTry > 3 {
 					tx.removed = true
 				}
 			} else {
