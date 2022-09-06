@@ -22,6 +22,12 @@ func NewNodeState(eventBus eventbus.Bus) *NodeState {
 	eventBus.Subscribe(events.IpfsMigrationCompletedEventID, func(event eventbus.Event) {
 		nodeState.info = ""
 	})
+	eventBus.Subscribe(events.DatabaseInitEventId, func(event eventbus.Event) {
+		nodeState.info = "Initializing database..."
+	})
+	eventBus.Subscribe(events.DatabaseInitCompletedEventId, func(event eventbus.Event) {
+		nodeState.info = ""
+	})
 	return nodeState
 }
 
