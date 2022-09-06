@@ -21,8 +21,6 @@ const (
 	DeleteFlipEventID             = eventbus.EventID("flip-delete")
 	PeersEventID                  = eventbus.EventID("peers")
 	BlockchainResetEventID        = eventbus.EventID("chain-reset")
-	IpfsMigrationProgressEventID  = eventbus.EventID("ipfs-migration-progress")
-	IpfsMigrationCompletedEventID = eventbus.EventID("ipfs-migration-completed")
 	DatabaseInitEventId           = eventbus.EventID("db-init")
 	DatabaseInitCompletedEventId  = eventbus.EventID("db-init-completed")
 )
@@ -114,21 +112,6 @@ type BlockchainResetEvent struct {
 
 func (e *BlockchainResetEvent) EventID() eventbus.EventID {
 	return BlockchainResetEventID
-}
-
-type IpfsMigrationProgressEvent struct {
-	Message string
-}
-
-func (e *IpfsMigrationProgressEvent) EventID() eventbus.EventID {
-	return IpfsMigrationProgressEventID
-}
-
-type IpfsMigrationCompletedEvent struct {
-}
-
-func (e *IpfsMigrationCompletedEvent) EventID() eventbus.EventID {
-	return IpfsMigrationCompletedEventID
 }
 
 type DatabaseInitEvent struct {
