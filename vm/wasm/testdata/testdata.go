@@ -8,6 +8,7 @@ import "embed"
 //go:embed sum_func.wasm
 //go:embed test-cases.wasm
 //go:embed shared-ft.wasm
+//go:embed idena-sdk-as-test.wasm
 var content embed.FS
 
 func Testdata1() ([]byte, error) {
@@ -32,4 +33,8 @@ func TestCases() ([]byte, error) {
 
 func SharedFungibleToken()([]byte, error) {
 	return content.ReadFile("shared-ft.wasm")
+}
+
+func IdenaSdkAsTest()([]byte, error) {
+	return content.ReadFile("idena-sdk-as-test.wasm")
 }

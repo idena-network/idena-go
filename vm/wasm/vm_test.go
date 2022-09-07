@@ -274,3 +274,36 @@ func Test_SharedFungibleToken(t *testing.T) {
 	})
 
 }
+
+
+
+func Test_IdenaSdkAsTest(t *testing.T) {
+	db := dbm.NewMemDB()
+	appState, _ := appstate.NewAppState(db, eventbus.New())
+	appState.Initialize(0)
+
+	rnd := rand.New(rand.NewSource(1))
+	key, _ := crypto.GenerateKeyFromSeed(rnd)
+
+
+	code, _ := testdata.IdenaSdkAsTest()
+	receipt := deployContract(key, appState, code)
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		t.Logf("key=%v, value=%v\n", key, string(value))
+		return false
+	})
+
+	receipt = callContract(key, appState, receipt.ContractAddress, "add", common.ToBytes(int32(1)), common.ToBytes(int32(2)))
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		t.Logf("key=%v, value=%v\n", key, string(value))
+		return false
+	})
+}
+
