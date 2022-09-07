@@ -101,7 +101,7 @@ func (j *Job) broadcast() {
 				contractErr, ok := err.(*embedded.ContractError)
 				tryLater := ok && contractErr.TryLater() || err == validation.LateTx
 				if tryLater {
-					tx.BroadcastBlock = calculateBroadcastBlock(tx.BroadcastBlock, tx.sendTry)
+					tx.BroadcastBlock = calculateBroadcastBlock(j.head.Height(), tx.sendTry)
 				} else if tx.sendTry > 3 {
 					tx.removed = true
 				}
