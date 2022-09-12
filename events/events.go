@@ -23,6 +23,8 @@ const (
 	BlockchainResetEventID        = eventbus.EventID("chain-reset")
 	IpfsMigrationProgressEventID  = eventbus.EventID("ipfs-migration-progress")
 	IpfsMigrationCompletedEventID = eventbus.EventID("ipfs-migration-completed")
+	DatabaseInitEventId           = eventbus.EventID("db-init")
+	DatabaseInitCompletedEventId  = eventbus.EventID("db-init-completed")
 )
 
 type NewTxEvent struct {
@@ -127,4 +129,19 @@ type IpfsMigrationCompletedEvent struct {
 
 func (e *IpfsMigrationCompletedEvent) EventID() eventbus.EventID {
 	return IpfsMigrationCompletedEventID
+}
+
+type DatabaseInitEvent struct {
+	Message string
+}
+
+func (e *DatabaseInitEvent) EventID() eventbus.EventID {
+	return DatabaseInitEventId
+}
+
+type DatabaseInitCompletedEvent struct {
+}
+
+func (e *DatabaseInitCompletedEvent) EventID() eventbus.EventID {
+	return DatabaseInitCompletedEventId
 }

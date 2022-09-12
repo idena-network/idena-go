@@ -18,6 +18,7 @@ import (
 	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/deferredtx"
+	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
@@ -30,16 +31,16 @@ import (
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/pkg/errors"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/tendermint/tm-db"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/tendermint/tm-db"
+	"time"
 )
 
 type Node struct {
@@ -150,7 +151,9 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		logger.Error("Cannot start initial RPC endpoint", "error", err.Error())
 	}
 
-	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16)
+	bus.Publish(&events.DatabaseInitEvent{})
+	db, err := OpenDatabase(config.DataDir, "idenachain", 16, 16, true)
+	bus.Publish(&events.DatabaseInitCompletedEvent{})
 
 	if err != nil {
 		return nil, err
@@ -406,13 +409,41 @@ func (node *Node) stopHTTP() {
 	}
 }
 
-func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, error) {
-	return db.NewGoLevelDBWithOpts(name, datadir, &opt.Options{
+func OpenDatabase(datadir string, name string, cache int, handles int, compact bool) (db.DB, error) {
+	res, err := db.NewGoLevelDBWithOpts(name, datadir, &opt.Options{
 		OpenFilesCacheCapacity: handles,
 		BlockCacheCapacity:     cache / 2 * opt.MiB,
 		WriteBuffer:            cache / 4 * opt.MiB,
 		Filter:                 filter.NewBloomFilter(10),
 	})
+	if err != nil {
+		return nil, err
+	}
+	if compact {
+		if err := compactDb(res); err != nil {
+			res.Close()
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func compactDb(goLevelDB *db.GoLevelDB) error {
+	start := time.Now()
+	logTimeout := time.After(time.Second)
+	completed := make(chan struct{})
+	go func() {
+		select {
+		case <-completed:
+		case <-logTimeout:
+			log.Info("Start compacting DB")
+			<-completed
+			log.Info("DB compacted", "d", time.Since(start))
+		}
+	}()
+	err := goLevelDB.ForceCompact(nil, nil)
+	completed <- struct{}{}
+	return err
 }
 
 // apis returns the collection of RPC descriptors this node offers.
