@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.30.1-rc0 (Sep 12, 2022)
+
+### Changes
+
+- Truncate blockchain ([#1015])
+- Update ipfs ([#1016])
+- Compact goLevelDB while starting node ([#1017])
+- Do not limit deferred tx attempts in case of LateTx error ([#1013])
+- Fix broadcast block calculation ([#1014])
+- Pass correct minted amount and burnt stake to collector ([#1019])
+
+[#1013]: https://github.com/idena-network/idena-go/pull/1013
+[#1014]: https://github.com/idena-network/idena-go/pull/1014
+[#1017]: https://github.com/idena-network/idena-go/pull/1017
+[#1015]: https://github.com/idena-network/idena-go/pull/1015
+[#1016]: https://github.com/idena-network/idena-go/pull/1016
+[#1019]: https://github.com/idena-network/idena-go/pull/1019
 
 ## 0.30.0 (23 Aug, 2022)
 
