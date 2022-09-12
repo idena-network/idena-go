@@ -638,7 +638,7 @@ func (chain *Blockchain) applyBlockRewards(totalFee *big.Int, totalTips *big.Int
 		updateOrResetPenaltyTimestamp(appState, coinbase, block.Header.Time())
 	}
 	collector.CompleteBalanceUpdate(statsCollector, appState)
-	collector.AddMintedCoins(statsCollector, new(big.Int).Add(totalCommitteeReward, blockProposerReward))
+	collector.AddMintedCoins(statsCollector, blockProposerReward)
 	collector.AfterAddStake(statsCollector, stakeDest, stakeAdd, appState)
 	collector.AddPenaltyBurntCoins(statsCollector, coinbase, penaltyBurn)
 	collector.AddProposerReward(statsCollector, coinbase, stakeDest, reward, stake, ctx.proposerStakeWeight)
@@ -1432,6 +1432,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			keepDelegationNonce: true,
 		})
 		appState.IdentityState.Remove(*tx.To)
+		collector.AddKilledBurntCoins(statsCollector, *tx.To, stateDB.GetStakeBalance(*tx.To))
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() {
 			stateDB.AddInvite(sender, 1)
 		}
