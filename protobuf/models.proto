@@ -597,6 +597,7 @@ message ProtoTxReceipts {
         bytes txHash = 7;
         repeated ProtoEvent events = 8;
         string method = 9;
+        bytes actionResult = 10;
     }
 
     message ProtoEvent {

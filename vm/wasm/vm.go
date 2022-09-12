@@ -17,14 +17,15 @@ type WasmVM struct {
 	head     *types.Header
 }
 
-func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (contractAddr common.Address, gasUsed uint64, err error) {
+func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (contractAddr common.Address, gasUsed uint64, actionResult []byte, err error) {
 	attach := attachments.ParseDeployContractAttachment(tx)
 	contractAddr = createContractAddr(tx)
+	actionResult = []byte{}
 	if attach == nil {
-		return contractAddr, limit, errors.New("can't parse attachment")
+		return contractAddr, limit, actionResult, errors.New("can't parse attachment")
 	}
 	if len(attach.Code) == 0 {
-		return contractAddr, limit, errors.New("code is empty")
+		return contractAddr, limit, actionResult, errors.New("code is empty")
 	}
 
 	defer func() {
@@ -33,22 +34,24 @@ func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (con
 			gasUsed = limit
 		}
 	}()
-	gasUsed, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, limit)
+	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, limit)
 	if err == nil {
 		env.Deploy(attach.Code)
 	}
-	return contractAddr, gasUsed, err
+	return contractAddr, gasUsed, actionResult, err
 }
 
-func (vm *WasmVM) call(env *WasmEnv, tx *types.Transaction, limit uint64) (contract common.Address, gasUsed uint64, method string, err error) {
+func (vm *WasmVM) call(env *WasmEnv, tx *types.Transaction, limit uint64) (contract common.Address, gasUsed uint64, actionResult []byte, method string, err error) {
 	contract = *tx.To
 	code := vm.appState.State.GetContractCode(contract)
+	actionResult = []byte{}
+
 	if len(code) == 0 {
-		return contract, limit, "", errors.New("code is empty")
+		return contract, limit, actionResult, "", errors.New("code is empty")
 	}
 	attach := attachments.ParseCallContractAttachment(tx)
 	if attach == nil {
-		return contract, limit, "", errors.New("can't parse attachment")
+		return contract, limit, actionResult, "", errors.New("can't parse attachment")
 	}
 	method = attach.Method
 	defer func() {
@@ -57,8 +60,8 @@ func (vm *WasmVM) call(env *WasmEnv, tx *types.Transaction, limit uint64) (contr
 			gasUsed = limit
 		}
 	}()
-	gasUsed, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attach.Method, attach.Args, limit)
-	return *tx.To, gasUsed, attach.Method, err
+	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attach.Method, attach.Args, limit)
+	return *tx.To, gasUsed, actionResult, attach.Method, err
 }
 
 func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
@@ -68,6 +71,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	var usedGas uint64
 	var err error
 	var contract common.Address
+	var actionResult []byte
 	var method string
 
 	sender, _ := types.Sender(tx)
@@ -75,9 +79,9 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	switch tx.Type {
 	case types.DeployContractTx:
 		method = "deploy"
-		contract, usedGas, err = vm.deploy(env, tx, gasLimit)
+		contract, usedGas, actionResult, err = vm.deploy(env, tx, gasLimit)
 	case types.CallContractTx:
-		contract, usedGas, method, err = vm.call(env, tx, gasLimit)
+		contract, usedGas, actionResult, method, err = vm.call(env, tx, gasLimit)
 	}
 
 	if err == nil {
@@ -99,6 +103,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 		ContractAddress: contract,
 		Events:          nil, // TODO add
 		Method:          method,
+		ActionResult:    actionResult,
 	}
 }
 
