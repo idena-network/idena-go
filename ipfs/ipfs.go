@@ -13,21 +13,21 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
-	config2 "github.com/ipfs/go-ipfs-config"
-	ipfsConf "github.com/ipfs/go-ipfs-config"
 	"github.com/ipfs/go-ipfs-files"
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/core/coreapi"
-	"github.com/ipfs/go-ipfs/core/corerepo"
-	"github.com/ipfs/go-ipfs/core/coreunix"
-	"github.com/ipfs/go-ipfs/plugin/loader"
-	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	dag "github.com/ipfs/go-merkledag"
 	dagtest "github.com/ipfs/go-merkledag/test"
 	"github.com/ipfs/go-mfs"
 	ft "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	ipfsConf "github.com/ipfs/kubo/config"
+	serialize "github.com/ipfs/kubo/config/serialize"
+	"github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/core/coreapi"
+	"github.com/ipfs/kubo/core/corerepo"
+	"github.com/ipfs/kubo/core/coreunix"
+	"github.com/ipfs/kubo/plugin/loader"
+	"github.com/ipfs/kubo/repo/fsrepo"
 	core2 "github.com/libp2p/go-libp2p-core"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/multiformats/go-multihash"
@@ -629,7 +629,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		}
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
 		ipfsConfig.Swarm.DisableBandwidthMetrics = true
-		ipfsConfig.Routing.Type = cfg.Routing
+		ipfsConfig.Routing.Type = ipfsConf.NewOptionalString(cfg.Routing)
 		ipfsConfig.Swarm.ConnMgr.GracePeriod = cfg.GracePeriod
 		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
 		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
@@ -639,9 +639,10 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
 		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
+		ipfsConfig.Swarm.EnableAutoRelay = false
 
 		if cfg.Profile != "" {
-			transformer, ok := config2.Profiles[cfg.Profile]
+			transformer, ok := ipfsConf.Profiles[cfg.Profile]
 			if !ok {
 				return fmt.Errorf("invalid IPFS configuration profile: %s", cfg.Profile)
 			}
@@ -665,7 +666,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
 		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
 
-		transformer, _ := config2.Profiles["badgerds"]
+		transformer, _ := ipfsConf.Profiles["badgerds"]
 
 		if err := transformer.Transform(ipfsConfig); err != nil {
 			return nil, err
@@ -678,10 +679,10 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 			return nil, err
 		}
 	} else {
-		ipfsConfig, err := fsrepo.ConfigAt(datadir)
+		ipfsConfig, err := configAt(datadir)
 		if err != nil {
 			if strings.Contains(err.Error(), "failure to decode config") {
-				configFilename, err := ipfsConf.Filename(datadir)
+				configFilename, err := ipfsConf.Filename(datadir, "")
 				if err != nil {
 					return nil, err
 				}
@@ -698,14 +699,6 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		}
 
 		repo, err := fsrepo.Open(datadir)
-
-		if err == fsrepo.ErrNeedMigration {
-			err = Migrate(datadir, fsrepo.RepoVersion, eventBus)
-			if err != nil {
-				return nil, err
-			}
-			repo, err = fsrepo.Open(datadir)
-		}
 
 		if err != nil {
 			return nil, err
@@ -861,4 +854,12 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 		}
 	}
 	return n, err
+}
+
+func configAt(repoPath string) (*ipfsConf.Config, error) {
+	configFilename, err := ipfsConf.Filename(repoPath, "")
+	if err != nil {
+		return nil, err
+	}
+	return serialize.Load(configFilename)
 }
