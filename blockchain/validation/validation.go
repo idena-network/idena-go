@@ -110,6 +110,7 @@ func init() {
 		types.UndelegateTx:         validateUndelegateTx,
 		types.KillDelegatorTx:      validateKillDelegatorTx,
 		types.StoreToIpfsTx:        validateStoreToIpfsTx,
+		types.ReplenishStakeTx:     validateReplenishStakeTx,
 	}
 }
 func SetAppConfig(cfg *config.Config) {
@@ -119,11 +120,6 @@ func SetAppConfig(cfg *config.Config) {
 func getValidator(txType types.TxType) (validator, bool) {
 	if appCfg != nil && cfgInitVersion != appCfg.Consensus.Version {
 		cfgInitVersion = appCfg.Consensus.Version
-		if appCfg.Consensus.EnableUpgrade8 {
-			validators[types.ReplenishStakeTx] = validateReplenishStakeTx
-		} else {
-			delete(validators, types.ReplenishStakeTx)
-		}
 	}
 	v, ok := validators[txType]
 	return v, ok
@@ -225,12 +221,6 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 	if appState.State.ValidationPeriod() == state.NonePeriod {
 		return EarlyTx
 	}
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade7 {
-		return nil
-	}
-	if appState.State.BlocksCntWithoutCeremonialTxs() >= state.AfterLongRequiredBlocks {
-		return LateTx
-	}
 	return nil
 }
 
@@ -277,10 +267,8 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
-		if *tx.To == appState.State.GodAddress() && appState.State.Epoch() > 0 {
-			return InvalidRecipient
-		}
+	if *tx.To == appState.State.GodAddress() && appState.State.Epoch() > 0 {
+		return InvalidRecipient
 	}
 	if appState.ValidatorsCache.IsValidated(*tx.To) {
 		return NodeAlreadyActivated
@@ -319,7 +307,7 @@ func validateSendInviteTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if appState.State.GetIdentityState(*tx.To) != state.Undefined {
 		return InvalidRecipient
 	}
-	if *tx.To == godAddress && (sender != godAddress || appCfg != nil && appCfg.Consensus.EnableUpgrade9 && appState.State.Epoch() > 0) {
+	if *tx.To == godAddress && (sender != godAddress || appState.State.Epoch() > 0) {
 		return InvalidRecipient
 	}
 
@@ -512,11 +500,9 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee() != nil {
 		return InvalidSender
 	}
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
-		discriminated := identity.IsDiscriminated(appState.State.Epoch())
-		if discriminated && sender != appState.State.GodAddress() {
-			return InvalidSender
-		}
+	discriminated := identity.IsDiscriminated(appState.State.Epoch())
+	if discriminated && sender != appState.State.GodAddress() {
+		return InvalidSender
 	}
 	if err := validateCeremonyTx(sender, appState, tx); err != nil {
 		return err
@@ -596,10 +582,8 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	if tx.To == nil || *tx.To == (common.Address{}) {
 		return RecipientRequired
 	}
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
-		if *tx.To == appState.State.GodAddress() {
-			return InvalidRecipient
-		}
+	if *tx.To == appState.State.GodAddress() {
+		return InvalidRecipient
 	}
 	if !common.ZeroOrNil(tx.AmountOrZero()) {
 		return InvalidAmount
@@ -611,11 +595,9 @@ func validateKillInviteeTx(appState *appstate.AppState, tx *types.Transaction, t
 	if inviter == nil || inviter.Address != sender {
 		return InvalidRecipient
 	}
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade9 {
-		identityState := appState.State.GetIdentityState(*tx.To)
-		if identityState != state.Invite && identityState != state.Candidate {
-			return InvalidRecipient
-		}
+	identityState := appState.State.GetIdentityState(*tx.To)
+	if identityState != state.Invite && identityState != state.Candidate {
+		return InvalidRecipient
 	}
 	return nil
 }
@@ -747,7 +729,7 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	attachment := attachments.ParseTerminateContractAttachment(tx, appCfg != nil && appCfg.Consensus.EnableUpgrade9)
+	attachment := attachments.ParseTerminateContractAttachment(tx)
 	if attachment == nil {
 		return InvalidPayload
 	}
@@ -780,11 +762,9 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return InvalidRecipient
 	}
 
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
-		to := appState.State.GetIdentity(*tx.To)
-		if to.PendingUndelegation() != nil {
-			return InvalidRecipient
-		}
+	to := appState.State.GetIdentity(*tx.To)
+	if to.PendingUndelegation() != nil {
+		return InvalidRecipient
 	}
 
 	delegatee := appState.State.Delegatee(sender)
@@ -794,20 +774,16 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		if delegationSwitch != nil && !delegationSwitch.Delegatee.IsEmpty() {
 			return SenderHasDelegatee
 		}
-		if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
-			identity := appState.State.GetIdentity(sender)
-			if prevDelegatee := identity.PendingUndelegation(); prevDelegatee != nil && *prevDelegatee != *tx.To {
-				return InvalidRecipient
-			}
+		identity := appState.State.GetIdentity(sender)
+		if prevDelegatee := identity.PendingUndelegation(); prevDelegatee != nil && *prevDelegatee != *tx.To {
+			return InvalidRecipient
 		}
 	} else {
 		if delegationSwitch == nil || !delegationSwitch.Delegatee.IsEmpty() {
 			return SenderHasDelegatee
 		}
-		if appCfg != nil && appCfg.Consensus.EnableUpgrade8 {
-			if *delegatee != *tx.To {
-				return InvalidRecipient
-			}
+		if *delegatee != *tx.To {
+			return InvalidRecipient
 		}
 	}
 

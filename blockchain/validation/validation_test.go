@@ -15,9 +15,7 @@ import (
 
 func Test_validateDelegateTx(t *testing.T) {
 	SetAppConfig(&config.Config{
-		Consensus: &config.ConsensusConf{
-			EnableUpgrade8: true,
-		},
+		Consensus: &config.ConsensusConf{},
 	})
 
 	key, _ := crypto.GenerateKey()
@@ -42,7 +40,7 @@ func Test_validateDelegateTx(t *testing.T) {
 	}
 
 	commitAppState := func(appState *appstate.AppState) {
-		appState.Precommit(true)
+		appState.Precommit()
 		require.Nil(t, appState.CommitAt(1))
 		require.Nil(t, appState.Initialize(1))
 	}

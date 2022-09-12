@@ -52,33 +52,23 @@ type ConsensusConf struct {
 	UpgradeIntervalBeforeValidation   time.Duration
 	ReductionOneDelay                 time.Duration
 	NewKeyWordsEpoch                  uint16
-	EnableUpgrade7                    bool
-	EnableUpgrade8                    bool
-	EnableUpgrade9                    bool
 }
 
 type ConsensusVerson uint16
 
 const (
-	// Enables validation sharding
-	ConsensusV6 ConsensusVerson = 6
-
-	ConsensusV7 ConsensusVerson = 7
-
-	ConsensusV8 ConsensusVerson = 8
-
 	ConsensusV9 ConsensusVerson = 9
 )
 
 var (
-	v6, v7, v8, v9    ConsensusConf
+	v9                ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
 func init() {
 	ConsensusVersions = map[ConsensusVerson]*ConsensusConf{}
-	v6 = ConsensusConf{
-		Version:                           ConsensusV6,
+	v9 = ConsensusConf{
+		Version:                           ConsensusV9,
 		MaxSteps:                          150,
 		CommitteePercent:                  0.3,  // 30% of valid nodes will be committee members
 		FinalCommitteePercent:             0.7,  // 70% of valid nodes will be committee members
@@ -117,45 +107,14 @@ func init() {
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 		NewKeyWordsEpoch:                  76,
+		OfflinePenaltyDuration:            time.Hour * 8,
 	}
-	ConsensusVersions[ConsensusV6] = &v6
-
-	v7 = v6
-	ApplyConsensusVersion(ConsensusV7, &v7)
-	ConsensusVersions[ConsensusV7] = &v7
-
-	v8 = v7
-	ApplyConsensusVersion(ConsensusV8, &v8)
-	ConsensusVersions[ConsensusV8] = &v8
-
-	v9 = v8
-	ApplyConsensusVersion(ConsensusV9, &v9)
 	ConsensusVersions[ConsensusV9] = &v9
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
-	switch ver {
-	case ConsensusV7:
-		cfg.EnableUpgrade7 = true
-		cfg.Version = ConsensusV7
-		cfg.StartActivationDate = time.Date(2021, 11, 15, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2021, 11, 18, 0, 0, 0, 0, time.UTC).Unix()
-		cfg.MigrationTimeout = 0
-	case ConsensusV8:
-		cfg.EnableUpgrade8 = true
-		cfg.Version = ConsensusV8
-		cfg.StartActivationDate = time.Date(2022, 5, 17, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2022, 5, 24, 0, 0, 0, 0, time.UTC).Unix()
-	case ConsensusV9:
-		cfg.EnableUpgrade9 = true
-		cfg.Version = ConsensusV9
-		cfg.OfflinePenaltyDuration = time.Hour * 8
-		cfg.GenerateGenesisAfterUpgrade = true
-		cfg.StartActivationDate = time.Date(2022, 8, 29, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2022, 9, 5, 0, 0, 0, 0, time.UTC).Unix()
-	}
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {
-	return &v6
+	return &v9
 }

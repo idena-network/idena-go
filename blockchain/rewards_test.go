@@ -38,8 +38,6 @@ func Test_rewardValidIdentities(t *testing.T) {
 	conf := GetDefaultConsensusConfig()
 	conf.BlockReward = big.NewInt(5)
 	conf.FinalCommitteeReward = big.NewInt(5)
-	conf.EnableUpgrade7 = true
-	conf.EnableUpgrade8 = true
 
 	memdb := db.NewMemDB()
 
@@ -63,7 +61,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(auth4, state.Suspended)
 	appState.State.SetState(badAuth, state.Newbie)
 	appState.State.SetShardsNum(2)
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	validationResults := map[common.ShardId]*types.ValidationResults{
 		1: {
@@ -130,7 +128,7 @@ func Test_rewardValidIdentities(t *testing.T) {
 
 	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil)
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	candidateReward := float32(20) / 3
 	stakingReward := float32(180) / 614.2688878 // 10^0.9 + 95^0.9 + 1100^0.9
@@ -280,10 +278,7 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 	appState, _ := appstate.NewAppState(memdb, eventbus.New())
 	_ = appState.Initialize(0)
 
-	conf := config.GetDefaultConsensusConfig()
-	conf.EnableUpgrade7 = true
-	conf.EnableUpgrade8 = true
-	conf.EnableUpgrade9 = true
+	conf := GetDefaultConsensusConfig()
 
 	appState.State.SetGlobalEpoch(1)
 
@@ -321,7 +316,7 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 	appState.State.SetState(addr6, state.Verified)
 	appState.State.AddStake(addr6, ConvertToInt(decimal.RequireFromString("0.0000000000000005")))
 
-	_ = appState.Commit(nil, true)
+	_ = appState.Commit(nil)
 	validationResults := map[common.ShardId]*types.ValidationResults{
 		1: {
 			BadAuthors: map[common.Address]types.BadAuthorReason{addrPenalized: types.WrongWordsBadAuthor},
@@ -331,7 +326,7 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 	totalReward := decimal.RequireFromString("545000149673614247952282")
 
 	addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
-	_ = appState.Commit(nil, true)
+	_ = appState.Commit(nil)
 
 	require.Zero(t, appState.State.GetBalance(addrZeroStake).Sign())
 	require.Zero(t, appState.State.GetBalance(addrPenalized).Sign())
@@ -350,9 +345,6 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 	_ = appState.Initialize(0)
 
 	conf := config.GetDefaultConsensusConfig()
-	conf.EnableUpgrade7 = true
-	conf.EnableUpgrade8 = true
-	conf.EnableUpgrade9 = true
 
 	appState.State.SetGlobalEpoch(1)
 
@@ -402,7 +394,7 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 		appState.State.AddStake(addr, ConvertToInt(decimal.RequireFromString(data[i].initialStake)))
 	}
 
-	_ = appState.Commit(nil, true)
+	_ = appState.Commit(nil)
 	validationResults := map[common.ShardId]*types.ValidationResults{
 		1: {},
 	}
@@ -410,7 +402,7 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 	totalReward := decimal.RequireFromString("1000000000000000000000")
 
 	addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
-	_ = appState.Commit(nil, true)
+	_ = appState.Commit(nil)
 
 	for i, addr := range addrs {
 		require.Equal(t, data[i].expectedBalance, ConvertToFloat(appState.State.GetBalance(addr)).String(), fmt.Sprintf("wrong balance of address with index %v", i))

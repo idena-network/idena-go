@@ -21,14 +21,14 @@ func newReportersToReward() *reportersToReward {
 	}
 }
 
-func (r *reportersToReward) addReport(flipIdx int, reporterAddress common.Address, enableUpgrade7 bool) {
+func (r *reportersToReward) addReport(flipIdx int, reporterAddress common.Address) {
 	reporters, ok := r.reportersByFlip[flipIdx]
 	if !ok {
 		reporters = make(map[common.Address]*types.Candidate)
 		r.reportersByFlip[flipIdx] = reporters
 	}
 	var reporter *types.Candidate
-	if curReporter, ok := r.reportersByAddr[reporterAddress]; ok && enableUpgrade7 {
+	if curReporter, ok := r.reportersByAddr[reporterAddress]; ok {
 		reporter = curReporter
 	} else {
 		reporter = &types.Candidate{

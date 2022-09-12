@@ -88,7 +88,7 @@ func (fs *fullSync) applyDeferredBlocks(checkState *appstate.AppState) (uint64, 
 			if !b.Cert.Empty() {
 				fs.chain.WriteCertificate(block.Hash(), b.Cert, true)
 			}
-			if checkState.FinalizePrecommit(block, fs.chain.Config().Consensus.EnableUpgrade8) != nil {
+			if checkState.FinalizePrecommit(block) != nil {
 				return block.Height(), err
 			}
 		}

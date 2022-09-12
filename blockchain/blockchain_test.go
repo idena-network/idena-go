@@ -52,7 +52,7 @@ func Test_ApplyBlockRewards(t *testing.T) {
 	fee.Mul(big.NewInt(1e+18), big.NewInt(100))
 	tips := new(big.Int).Mul(big.NewInt(1e+18), big.NewInt(10))
 
-	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
+	chain.applyBlockRewards(fee, tips, appState, block, ctx, nil)
 
 	burnFee := decimal.NewFromBigInt(fee, 0)
 	coef := decimal.NewFromFloat32(0.9)
@@ -103,14 +103,12 @@ func Test_ApplyBlockRewards2(t *testing.T) {
 	chain.appState.State.SetDelegationNonce(chain.coinBaseAddress, 1)
 	chain.appState.State.AddStake(chain.coinBaseAddress, ConvertToInt(decimal.RequireFromString("0.0005")))
 
-	chain.appState.State.SetPenalty(identities[2], ConvertToInt(decimal.RequireFromString("0.6")), 0)
-	chain.appState.State.SetPenalty(identities[3], ConvertToInt(decimal.RequireFromString("2")), 0)
-	chain.appState.State.SetPenalty(identities[4], nil, 100)
+	chain.appState.State.SetPenaltySeconds(identities[4], 100)
 	chain.appState.State.SetPenaltyTimestamp(identities[4], 1000)
-	chain.appState.State.SetPenalty(chain.coinBaseAddress, nil, 100)
+	chain.appState.State.SetPenaltySeconds(chain.coinBaseAddress, 100)
 	chain.appState.State.SetPenaltyTimestamp(chain.coinBaseAddress, 1450)
 
-	chain.appState.Precommit(true)
+	chain.appState.Precommit()
 	require.NoError(t, chain.appState.CommitAt(2))
 	chain.appState.ValidatorsCache.Load()
 
@@ -136,7 +134,7 @@ func Test_ApplyBlockRewards2(t *testing.T) {
 	fee := ConvertToInt(decimal.RequireFromString("1000"))
 	tips := ConvertToInt(decimal.RequireFromString("10"))
 
-	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
+	chain.applyBlockRewards(fee, tips, appState, block, ctx, nil)
 
 	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(chain.coinBaseAddress)).String())
 	require.Equal(t, "0.0005", ConvertToFloat(appState.State.GetStakeBalance(chain.coinBaseAddress)).String())
@@ -149,15 +147,12 @@ func Test_ApplyBlockRewards2(t *testing.T) {
 	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[1])).String())
 	require.Equal(t, "15", ConvertToFloat(appState.State.GetStakeBalance(identities[1])).String())
 
-	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[2])).String())
-	// 25 initial stake + 0.142894106... reward stake - (0.6 initial penalty - 0.5715764239... balance reward) remaining penalty
-	require.Equal(t, "25.114470529881165211", ConvertToFloat(appState.State.GetStakeBalance(identities[2])).String())
-	require.Zero(t, appState.State.GetPenalty(identities[2]).Sign())
+	require.Equal(t, "0.571576423904932169", ConvertToFloat(appState.State.GetBalance(identities[2])).String())
+	// 25 initial stake + 0.142894106... reward stake
+	require.Equal(t, "25.142894105976233042", ConvertToFloat(appState.State.GetStakeBalance(identities[2])).String())
 
-	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[3])).String())
-	require.Equal(t, "50", ConvertToFloat(appState.State.GetStakeBalance(identities[3])).String())
-	// 2 initial penalty - 1.333249152... reward
-	require.Equal(t, "0.666750848280176939", ConvertToFloat(appState.State.GetPenalty(identities[3])).String())
+	require.Equal(t, "1.066599321375858449", ConvertToFloat(appState.State.GetBalance(identities[3])).String())
+	require.Equal(t, "50.266649830343964612", ConvertToFloat(appState.State.GetStakeBalance(identities[3])).String())
 
 	require.Equal(t, "0", ConvertToFloat(appState.State.GetBalance(identities[4])).String())
 	require.Equal(t, "100", ConvertToFloat(appState.State.GetStakeBalance(identities[4])).String())
@@ -184,7 +179,7 @@ func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
 	chain.appState.IdentityState.SetOnline(chain.coinBaseAddress, true)
 	chain.appState.IdentityState.SetOnline(addr, true)
 
-	chain.appState.Precommit(true)
+	chain.appState.Precommit()
 	require.NoError(t, chain.appState.CommitAt(2))
 	chain.appState.ValidatorsCache.Load()
 
@@ -210,7 +205,7 @@ func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
 	fee := ConvertToInt(decimal.RequireFromString("1000"))
 	tips := ConvertToInt(decimal.RequireFromString("10"))
 
-	chain.applyBlockRewards(fee, tips, appState, block, chain.Head, ctx, nil)
+	chain.applyBlockRewards(fee, tips, appState, block, ctx, nil)
 
 	// fee + tips (no rewards due to zero stake)
 	require.Equal(t, "88", ConvertToFloat(appState.State.GetBalance(chain.coinBaseAddress)).String())
@@ -300,7 +295,7 @@ func Test_ApplyActivateTx(t *testing.T) {
 	identity := appState.State.GetIdentity(sender)
 	require.NotNil(t, identity.Metadata())
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	require.Equal(t, []byte{0x1}, appState.State.GetProfileHash(sender))
 	require.Equal(t, uint16(1), appState.State.GetPenaltySeconds(sender))
 	require.Equal(t, int64(2), appState.State.GetPenaltyTimestamp(sender))
@@ -381,7 +376,7 @@ func Test_ApplyKillTx(t *testing.T) {
 	identity := appState.State.GetIdentity(sender)
 	require.NotNil(identity.Metadata())
 
-	require.NoError(appState.Commit(nil, true))
+	require.NoError(appState.Commit(nil))
 	require.Equal([]byte{0x1}, appState.State.GetProfileHash(sender))
 	require.Zero(appState.State.GetPenaltySeconds(sender))
 	require.Zero(appState.State.GetPenaltyTimestamp(sender))
@@ -462,7 +457,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	appState.State.GetOrNewIdentityObject(inviteeNewbie).SetStake(inviteeStake)
 
 	appState.State.SetProfileHash(inviteeCandidate, []byte{0x1})
-	appState.State.SetPenalty(inviteeCandidate, nil, 1)
+	appState.State.SetPenaltySeconds(inviteeCandidate, 1)
 	appState.State.SetPenaltyTimestamp(inviteeCandidate, 2)
 	appState.State.SetDelegationNonce(inviteeCandidate, 3)
 
@@ -523,7 +518,7 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 	identity := appState.State.GetIdentity(inviteeCandidate)
 	require.NotNil(t, identity.Metadata())
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	require.Equal(t, []byte{0x1}, appState.State.GetProfileHash(inviteeCandidate))
 	require.Equal(t, uint16(1), appState.State.GetPenaltySeconds(inviteeCandidate))
 	require.Equal(t, int64(2), appState.State.GetPenaltyTimestamp(inviteeCandidate))
@@ -630,7 +625,7 @@ func Test_applyNextBlockFee(t *testing.T) {
 	for _, tx := range block.Body.Transactions {
 		usedGas += uint64(fee2.CalculateGas(tx))
 	}
-	chain.applyNextBlockFee(appState, block, usedGas)
+	chain.applyNextBlockFee(appState, usedGas)
 	require.Equal(t, big.NewInt(10996093750000000), appState.State.FeePerGas())
 
 	block = generateBlock(5, 1500)
@@ -638,11 +633,11 @@ func Test_applyNextBlockFee(t *testing.T) {
 	for _, tx := range block.Body.Transactions {
 		usedGas += uint64(fee2.CalculateGas(tx))
 	}
-	chain.applyNextBlockFee(appState, block, usedGas)
+	chain.applyNextBlockFee(appState, usedGas)
 	require.Equal(t, big.NewInt(10547766685485839), appState.State.FeePerGas())
 
 	block = generateBlock(6, 0)
-	chain.applyNextBlockFee(appState, block, 0)
+	chain.applyNextBlockFee(appState, 0)
 	// 0.01 / networkSize, where networkSize is 0, feePerGas = 0.01 DNA
 	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(100)), appState.State.FeePerGas())
 }
@@ -834,7 +829,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require := require.New(t)
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	consensusCfg := config.ConsensusVersions[config.ConsensusV6]
+	consensusCfg := config.ConsensusVersions[config.ConsensusV9]
 	consensusCfg.Automine = true
 	consensusCfg.StatusSwitchRange = 10
 	cfg := &config.Config{
@@ -933,7 +928,7 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	state.State.AddDelayedPenalty(common.Address{0x2})
 	state.State.AddDelayedPenalty(addr)
 	state.State.AddDelayedPenalty(common.Address{0x3})
-	state.Commit(nil, true)
+	state.Commit(nil)
 	chain.CommitState()
 
 	tx, _ = chain.secStore.SignTx(BuildTx(state, addr, nil, types.OnlineStatusTx, decimal.Zero, decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateOnlineStatusAttachment(true)))
@@ -946,12 +941,12 @@ func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
 	require.Zero(len(state.State.StatusSwitchAddresses()))
 
 	state.State.AddDelayedPenalty(addr)
-	state.Commit(nil, true)
+	state.Commit(nil)
 	chain.CommitState()
 	chain.GenerateBlocks(10, 0)
 
 	require.False(state.IdentityState.IsOnline(addr))
-	require.True(state.State.GetPenalty(addr).Sign() > 0)
+	require.True(state.State.GetPenaltySeconds(addr) > 0)
 	require.Len(state.State.DelayedOfflinePenalties(), 0)
 }
 
@@ -983,7 +978,7 @@ func Test_ApplySubmitCeremonyTxs(t *testing.T) {
 	defer chain.SecStore().Destroy()
 
 	app.State.SetValidationPeriod(state.LongSessionPeriod)
-	app.Commit(nil, true)
+	app.Commit(nil)
 
 	block := chain.GenerateEmptyBlock()
 	chain.Head = block.Header
@@ -1092,15 +1087,15 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		var addr common.Address
 		copy(addr[:], item.Code)
 		s.State.SetState(addr, item.State)
-		s.State.SetPenalty(addr, nil, 99)
+		s.State.SetPenaltySeconds(addr, 99)
 		s.State.SetPenaltyTimestamp(addr, 999)
 		for _, score := range item.Scores {
-			s.State.AddNewScore(addr, score, true)
+			s.State.AddNewScore(addr, score)
 		}
 	}
-	require.NoError(s.Commit(nil, true))
+	require.NoError(s.Commit(nil))
 
-	setNewIdentitiesAttributes(s, true, true, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	for _, item := range identities {
 		var addr common.Address
@@ -1119,13 +1114,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, true, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, true, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -1134,7 +1129,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, true, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1145,7 +1140,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, true, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1156,7 +1151,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, true, true, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -1192,7 +1187,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	s.State.SetProfileHash(killedWithProfile, []byte{0x1})
 	s.State.AddStake(killedWithProfile, big.NewInt(2))
 
-	require.NoError(s.Commit(nil, true))
+	require.NoError(s.Commit(nil))
 
 	s.State.SetState(killedWithProfile, state.Killed)
 
@@ -1200,7 +1195,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		s.State.IncEpoch()
 	}
 
-	setNewIdentitiesAttributes(s, true, true, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -1221,7 +1216,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(state.Killed, s.State.GetIdentityState(killedWithProfile))
 	require.Equal([]byte{0x1}, s.State.GetProfileHash(killedWithProfile))
 
-	require.NoError(s.Commit(nil, true))
+	require.NoError(s.Commit(nil))
 	s.ValidatorsCache.Load()
 	require.False(s.ValidatorsCache.IsDiscriminated(common.Address{0x1}))
 	require.True(s.ValidatorsCache.IsDiscriminated(common.Address{0x2}))
@@ -1304,24 +1299,24 @@ func TestBlockchain_applyStatusSwitch(t *testing.T) {
 	appState.IdentityState.SetValidated(identity2, true)
 
 	appState.IdentityState.SetOnline(pool2, true)
-	appState.State.SetPenalty(pool2, nil, 12)
+	appState.State.SetPenaltySeconds(pool2, 12)
 	appState.State.SetPenaltyTimestamp(pool2, 1480)
 	appState.IdentityState.SetOnline(identity2, true)
 	appState.State.SetPenaltyTimestamp(identity2, 1490)
-	appState.State.SetPenalty(identity2, nil, 13)
+	appState.State.SetPenaltySeconds(identity2, 13)
 
 	appState.IdentityState.SetDelegatee(delegator1, pool1)
 	appState.IdentityState.SetDelegatee(delegator2, pool2)
 
-	appState.State.SetPenalty(pool1, nil, 10)
-	appState.State.SetPenalty(identity1, nil, 11)
+	appState.State.SetPenaltySeconds(pool1, 10)
+	appState.State.SetPenaltySeconds(identity1, 11)
 
 	appState.State.ToggleStatusSwitchAddress(pool1)
 	appState.State.ToggleStatusSwitchAddress(pool2)
 	appState.State.ToggleStatusSwitchAddress(identity1)
 	appState.State.ToggleStatusSwitchAddress(identity2)
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	appState.Initialize(1)
 
 	require.True(t, appState.ValidatorsCache.IsPool(pool1))
@@ -1352,7 +1347,6 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 		},
 	}
 
-	chain.config.Consensus.EnableUpgrade9 = true
 	chain.config.Consensus.OfflinePenaltyDuration = time.Hour
 
 	db := dbm.NewMemDB()
@@ -1370,9 +1364,9 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 			appState.IdentityState.SetDelegatee(addr, pool1)
 		}
 	}
-	appState.State.SetPenalty(pool1, nil, 5)
+	appState.State.SetPenaltySeconds(pool1, 5)
 	appState.State.SetPenaltyTimestamp(pool1, 15)
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	appState.Initialize(1)
 
 	require.True(t, appState.ValidatorsCache.IsPool(pool1))
@@ -1384,7 +1378,6 @@ func TestBlockchain_applyOfflinePenalty(t *testing.T) {
 		},
 	}}, nil)
 
-	require.Zero(t, appState.State.GetPenalty(pool1).Sign())
 	require.Equal(t, uint16(3600), appState.State.GetPenaltySeconds(pool1))
 	require.Zero(t, appState.State.GetPenaltyTimestamp(pool1))
 }
@@ -1416,7 +1409,7 @@ func Test_Delegation(t *testing.T) {
 	}
 	delegatorToKill := addrs[3]
 	appState.State.SetProfileHash(delegatorToKill, []byte{0x1})
-	appState.State.SetPenalty(delegatorToKill, nil, 1)
+	appState.State.SetPenaltySeconds(delegatorToKill, 1)
 	appState.State.SetPenaltyTimestamp(delegatorToKill, 2)
 	appState.State.SetDelegationNonce(delegatorToKill, 3)
 
@@ -1436,7 +1429,7 @@ func Test_Delegation(t *testing.T) {
 	appState.IdentityState.SetValidated(pool3, true)
 	appState.IdentityState.SetOnline(pool3, true)
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	appState.ValidatorsCache.Load()
 	chain.CommitState()
 
@@ -1501,7 +1494,7 @@ func Test_Delegation(t *testing.T) {
 	require.ErrorIs(t, validation.WrongEpoch, addTx(keys[1], types.UndelegateTx, 2, 0, nil, nil))
 
 	appState.State.SetGlobalEpoch(1)
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	chain.CommitState()
 
 	require.NoError(t, addTx(keys[1], types.UndelegateTx, 1, 1, nil, nil))
@@ -1559,7 +1552,7 @@ func TestBalance_shards_reducing(t *testing.T) {
 		}
 	}
 	appState.State.SetShardsNum(uint32(shardsNum))
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 
 	require.Equal(t, uint32(1), appState.State.ShardsNum())
@@ -1610,7 +1603,7 @@ func TestBalance_shards_increasing(t *testing.T) {
 		}
 	}
 	appState.State.SetShardsNum(uint32(shardsNum))
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 
 	require.Equal(t, uint32(4), appState.State.ShardsNum())
@@ -1630,9 +1623,7 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	chain := &Blockchain{}
 
 	chain.config = &config.Config{
-		Consensus: &config.ConsensusConf{
-			EnableUpgrade8: true,
-		},
+		Consensus: &config.ConsensusConf{},
 	}
 
 	block := &types.Block{
@@ -1703,12 +1694,12 @@ func Test_applyDelegationSwitch(t *testing.T) {
 	appState.State.SetPendingUndelegation(common.Address{0x9, 0x9})
 	appState.State.ToggleDelegationAddress(common.Address{0x9}, common.Address{0x9, 0x9})
 
-	appState.Precommit(true)
+	appState.Precommit()
 	require.Nil(t, appState.CommitAt(1))
 	require.Nil(t, appState.Initialize(1))
 
 	undelegations := chain.applyDelegationSwitch(appState, block)
-	appState.Precommit(true)
+	appState.Precommit()
 	require.Nil(t, appState.CommitAt(2))
 	require.Nil(t, appState.Initialize(2))
 	appState.ValidatorsCache.Load()
@@ -1815,8 +1806,6 @@ func Test_prepareBlockRewardCtx(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, bus)
 
 	conf := GetDefaultConsensusConfig()
-	config.ApplyConsensusVersion(config.ConsensusV8, conf)
-	config.ApplyConsensusVersion(config.ConsensusV9, conf)
 
 	res := prepareBlockRewardCtx(proposer, appState, nil, conf)
 

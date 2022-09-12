@@ -48,7 +48,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 		appState.State.SetPubKey(addr, crypto.FromECDSAPub(&key.PublicKey))
 		appState.IdentityState.SetValidated(addr, true)
 	}
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	appState.Initialize(1)
 

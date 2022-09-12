@@ -426,13 +426,10 @@ func (t *TerminateContractAttachment) FromBytes(data []byte) error {
 	return nil
 }
 
-func ParseTerminateContractAttachment(tx *types.Transaction, nonNil bool) *TerminateContractAttachment {
+func ParseTerminateContractAttachment(tx *types.Transaction) *TerminateContractAttachment {
 	attachment := new(TerminateContractAttachment)
 	if len(tx.Payload) == 0 {
-		if nonNil {
-			return attachment
-		}
-		return nil
+		return attachment
 	}
 	if err := attachment.FromBytes(tx.Payload); err != nil {
 		return nil
