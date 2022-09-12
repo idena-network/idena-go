@@ -66,7 +66,7 @@ func main() {
 		log.Root().SetHandler(handler)
 
 		cfg, err := config.MakeConfig(context, func(cfg *config.Config) {
-			db, err := node.OpenDatabase(cfg.DataDir, "idenachain", 16, 16)
+			db, err := node.OpenDatabase(cfg.DataDir, "idenachain", 16, 16, false)
 			if err != nil {
 				log.Error("Cannot transform consensus config", "err", err)
 				return
