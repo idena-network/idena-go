@@ -189,7 +189,7 @@ func TestVm_DeployContractViaContract(t *testing.T) {
 		return false
 	})
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	sum := big.NewInt(0)
 	appState.State.IterateAccounts(func(key []byte, value []byte) bool {
@@ -261,7 +261,7 @@ func Test_SharedFungibleToken(t *testing.T) {
 		return false
 	})
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(uint64(100)))
 	t.Logf("%+v\n", receipt)

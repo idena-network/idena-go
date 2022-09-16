@@ -38,7 +38,7 @@ func TestNewWasmEnv(t *testing.T) {
 
 	appState.State.DeployWasmContract(contractAddr, code, big.NewInt(1))
 
-	appState.Commit(nil, true)
+	appState.Commit(nil)
 
 	callAttach := attachments.CreateCallContractAttachment("inc", []byte{0x7})
 	payload, _ := callAttach.ToBytes()

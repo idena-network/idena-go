@@ -9,7 +9,17 @@ import (
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"github.com/pkg/errors"
 	"math/big"
+	"regexp"
 )
+
+var (
+	eventRegexp *regexp.Regexp
+)
+
+func init() {
+	// any ASCII character
+	eventRegexp, _ = regexp.Compile("^[\x00-\x7F]{1,32}$")
+}
 
 type contractValue struct {
 	value   []byte
@@ -32,6 +42,27 @@ type WasmEnv struct {
 	balancesCache         map[common.Address]*big.Int
 	deployedContractCache map[common.Address]ContractData
 	contractStakeCache    map[common.Address]*big.Int
+	events                []*types.TxEvent
+}
+
+func (w *WasmEnv) ReadContractData(meter *lib.GasMeter, address lib.Address, key []byte) []byte {
+	value := w.readContractData(address, key)
+	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.ReadStatePerByteGas * len(value))))
+	return value
+}
+
+func (w *WasmEnv) Event(meter *lib.GasMeter, name string, args ...[]byte) {
+	if !eventRegexp.MatchString(name) {
+		panic("event name should contain only ASCII characters. Length should be 1-32")
+	}
+	size := 0
+	for _, a := range args {
+		size += len(a)
+	}
+	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.EmitEventBase + costs.EmitEventPerByteGas*size)))
+	w.events = append(w.events, &types.TxEvent{
+		EventName: name, Data: args,
+	})
 }
 
 func (w *WasmEnv) CodeHash(meter *lib.GasMeter) []byte {
@@ -146,7 +177,7 @@ func (w *WasmEnv) SetStorage(meter *lib.GasMeter, key []byte, value []byte) {
 
 func (w *WasmEnv) GetStorage(meter *lib.GasMeter, key []byte) []byte {
 	value := w.readContractData(w.ctx.ContractAddr(), key)
-	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.WriteStatePerByteGas * len(value))))
+	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.ReadStatePerByteGas * len(value))))
 	return value
 }
 
@@ -319,6 +350,16 @@ func (w *WasmEnv) Commit() {
 	for contract, stake := range w.contractStakeCache {
 		w.appState.State.SetContractStake(contract, stake)
 	}
+	for _, e := range w.events {
+		if w.parent != nil {
+			w.parent.events = append(w.parent.events, e)
+		}
+	}
+}
+
+func (w *WasmEnv) InternalCommit() []*types.TxEvent {
+	w.Commit()
+	return w.events
 }
 
 func (w *WasmEnv) Clear() {

@@ -83,9 +83,9 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	case types.CallContractTx:
 		contract, usedGas, actionResult, method, err = vm.call(env, tx, gasLimit)
 	}
-
+	var events []*types.TxEvent
 	if err == nil {
-		env.Commit()
+		events = env.InternalCommit()
 	}
 
 	if gasLimit >= 0 {
@@ -101,7 +101,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 		Success:         err == nil,
 		From:            sender,
 		ContractAddress: contract,
-		Events:          nil, // TODO add
+		Events:          events,
 		Method:          method,
 		ActionResult:    actionResult,
 	}
