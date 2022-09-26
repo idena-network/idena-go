@@ -42,18 +42,17 @@ func TestVm_Erc20(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	receipt := vm.Run(tx, 100000)
+	receipt := vm.Run(tx, 1000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		v, _ := helpers.ExtractUInt64(0, value)
-		t.Logf("key=%v, value=%v\n", key, v)
+		t.Logf("key=%v, value=%v\n", key, string(value))
 		return false
 	})
 
 	addr := common.Address{0x1}
-	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), common.ToBytes(uint64(777)))
+	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), append(common.ToBytes(uint64(777)), []byte{0,0,0,0,0,0,0,0}...))
 	payload, _ = callAttach.ToBytes()
 
 	tx = &types.Transaction{
@@ -65,7 +64,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key)
-	receipt = vm.Run(tx, 1000000)
+	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -85,7 +84,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key2)
-	receipt = vm.Run(tx, 1000000)
+	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.False(t, receipt.Success)
 }
