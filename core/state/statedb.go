@@ -1767,11 +1767,10 @@ func (s *StateDB) DeployContract(addr common.Address, codeHash common.Hash, stak
 	contract.SetContractStake(stake)
 }
 
-func (s *StateDB) DeployWasmContract(addr common.Address, code []byte, stake *big.Int) {
+func (s *StateDB) DeployWasmContract(addr common.Address, code []byte) {
 	contract := s.GetOrNewAccountObject(addr)
 	codeHash := crypto.Hash(code)
 	contract.SetCodeHash(codeHash)
-	contract.SetContractStake(stake)
 	s.contractCodeCache[codeHash] = code
 }
 

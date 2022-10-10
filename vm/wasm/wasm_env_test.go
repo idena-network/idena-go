@@ -36,7 +36,7 @@ func TestNewWasmEnv(t *testing.T) {
 
 	code, _ := testdata.Testdata1()
 
-	appState.State.DeployWasmContract(contractAddr, code, big.NewInt(1))
+	appState.State.DeployWasmContract(contractAddr, code)
 
 	appState.Commit(nil)
 

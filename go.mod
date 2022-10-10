@@ -13,7 +13,6 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
-	github.com/idena-network/idena-wasm-binding v0.0.0-20220802044816-0a49889bfdf9
 	github.com/ipfs/go-blockservice v0.4.0
 	github.com/ipfs/go-cid v0.2.0
 	github.com/ipfs/go-ipfs-files v0.1.1
@@ -109,6 +108,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
+	github.com/idena-network/idena-wasm-binding v0.0.0-20221010093137-d566ac6db3aa // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-bitfield v1.0.0 // indirect
 	github.com/ipfs/go-bitswap v0.9.0 // indirect

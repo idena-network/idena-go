@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	MaxPayloadSize           = 3 * 1024 * 1024
+	MaxPayloadSize          = 3 * 1024
+	MaxPayloadSizeUpgrade10 = 3 * 1024 * 1024
+
 	GodValidUntilNetworkSize = 10
 )
 
@@ -145,7 +147,11 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 		return InvalidSignature
 	}
 
-	if len(tx.Payload) > MaxPayloadSize {
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade10 {
+		if len(tx.Payload) > MaxPayloadSizeUpgrade10 {
+			return InvalidPayload
+		}
+	} else if len(tx.Payload) > MaxPayloadSize {
 		return InvalidPayload
 	}
 

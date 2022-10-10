@@ -34,10 +34,8 @@ func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (con
 			gasUsed = limit
 		}
 	}()
+	env.Deploy(attach.Code)
 	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, limit)
-	if err == nil {
-		env.Deploy(attach.Code)
-	}
 	return contractAddr, gasUsed, actionResult, err
 }
 

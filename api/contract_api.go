@@ -373,6 +373,7 @@ func convertActionResult(protoModel *models.ActionResult) *ActionResult {
 	result.Error = protoModel.Error
 	result.GasUsed = protoModel.GasUsed
 	result.RemainingGas = protoModel.RemainingGas
+	result.OutputData = protoModel.OutputData
 	for _, subAction := range protoModel.SubActionResults {
 		result.SubActionResults = append(result.SubActionResults, convertActionResult(subAction))
 	}

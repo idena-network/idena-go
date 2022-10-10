@@ -27,8 +27,7 @@ type contractValue struct {
 }
 
 type ContractData struct {
-	Code  []byte
-	Stake *big.Int
+	Code []byte
 }
 
 type WasmEnv struct {
@@ -43,6 +42,34 @@ type WasmEnv struct {
 	deployedContractCache map[common.Address]ContractData
 	contractStakeCache    map[common.Address]*big.Int
 	events                []*types.TxEvent
+}
+
+func (w *WasmEnv) PayAmount(meter *lib.GasMeter) *big.Int {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	return w.ctx.payAmount
+}
+
+func (w *WasmEnv) ContractCodeHash(addr lib.Address) *[]byte {
+	if data, ok := w.deployedContractCache[addr]; ok {
+		hash := common.Hash(crypto.Hash(data.Code)).Bytes()
+		return &hash
+	}
+
+	if w.parent != nil {
+		return w.parent.ContractCodeHash(addr)
+	}
+	codeHash := w.appState.State.GetCodeHash(addr)
+	if codeHash != nil {
+		hash := codeHash.Bytes()
+		return &hash
+	}
+
+	return nil
+}
+
+func (w *WasmEnv) Epoch(meter *lib.GasMeter) uint16 {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadGlobalStateGas))
+	return w.appState.State.Epoch()
 }
 
 func (w *WasmEnv) ReadContractData(meter *lib.GasMeter, address lib.Address, key []byte) []byte {
@@ -99,11 +126,11 @@ func (w *WasmEnv) BlockSeed(meter *lib.GasMeter) []byte {
 func (w *WasmEnv) SubBalance(meter *lib.GasMeter, amount *big.Int) error {
 	meter.ConsumeGas(costs.GasToWasmGas(costs.MoveBalanceGas))
 	balance := w.getBalance(w.ctx.ContractAddr())
-	if balance.Cmp(amount) < 0 {
-		return errors.New("insufficient funds")
-	}
 	if amount.Sign() < 0 {
 		return errors.New("value must be non-negative")
+	}
+	if balance.Cmp(amount) < 0 {
+		return errors.New("insufficient funds")
 	}
 	w.subBalance(w.ctx.ContractAddr(), amount)
 	return nil
@@ -263,12 +290,14 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int, isDeplo
 }
 
 func (w *WasmEnv) GetCode(addr lib.Address) []byte {
-	if w.parent != nil {
-		return w.parent.GetCode(addr)
-	}
 	if data, ok := w.deployedContractCache[addr]; ok {
 		return data.Code
 	}
+
+	if w.parent != nil {
+		return w.parent.GetCode(addr)
+	}
+
 	return w.appState.State.GetContractCode(addr)
 }
 
@@ -299,8 +328,7 @@ func (w *WasmEnv) setBalance(address common.Address, amount *big.Int) {
 func (w *WasmEnv) Deploy(code []byte) {
 	contractAddr := w.ctx.ContractAddr()
 	w.deployedContractCache[contractAddr] = ContractData{
-		Stake: big.NewInt(0),
-		Code:  code,
+		Code: code,
 	}
 }
 
@@ -345,10 +373,7 @@ func (w *WasmEnv) Commit() {
 		w.appState.State.SetBalance(addr, b)
 	}
 	for contract, data := range w.deployedContractCache {
-		w.appState.State.DeployWasmContract(contract, data.Code, data.Stake)
-	}
-	for contract, stake := range w.contractStakeCache {
-		w.appState.State.SetContractStake(contract, stake)
+		w.appState.State.DeployWasmContract(contract, data.Code)
 	}
 	for _, e := range w.events {
 		if w.parent != nil {

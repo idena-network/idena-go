@@ -722,7 +722,7 @@ func (pool *TxPool) createBuildingContext() *buildingContext {
 		}
 	}
 
-	return newBuildingContext(pool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender)
+	return newBuildingContext(pool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender, types.MaxBlockSize(pool.cfg.Consensus.EnableUpgrade10))
 }
 
 func (pool *TxPool) StartSync() {

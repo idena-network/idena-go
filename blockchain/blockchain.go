@@ -1303,7 +1303,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 				gas += receipt.GasUsed
 			}
 			if !chain.config.Consensus.EnableUpgrade10 {
-				if usedGas+gas > types.MaxBlockGas {
+				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11)s {
 					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
 				}
 			}
@@ -1635,7 +1635,7 @@ func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState
 	}
 
 	k := chain.config.Consensus.FeeSensitivityCoef
-	maxBlockGas := types.MaxBlockGas
+	maxBlockGas := types.MaxBlockSize(chain.config.Consensus.EnableUpgrade10)
 
 	// curBlockFee = prevBlockFee * (1 + k * (prevBlockGas / maxBlockGas - 0.5))
 	newFeePerGasD := decimal.New(int64(usedGas), 0).
@@ -1982,6 +1982,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	return flags
 }
 
+
 func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction, header *types.ProposedHeader) ([]*types.Transaction, *big.Int, *big.Int, types.TxReceipts, uint64) {
 	var result []*types.Transaction
 
@@ -2004,7 +2005,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 				gas += r.GasUsed
 			}
 			if !chain.config.Consensus.EnableUpgrade10 {
-				if usedGas+gas > types.MaxBlockGas {
+				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
 					break
 				}
 			}
