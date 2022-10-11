@@ -1532,10 +1532,14 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	case types.DeployContractTx, types.CallContractTx, types.TerminateContractTx:
 		amount := tx.AmountOrZero()
-		if amount.Sign() > 0 && tx.Type == types.CallContractTx {
+
+		shouldAddPayAmount := amount.Sign() > 0 && (tx.Type == types.CallContractTx || context.vm.IsWasm(tx))
+		contractAddr := context.vm.ContractAddr(tx, &sender)
+
+		if shouldAddPayAmount {
 			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 			stateDB.SubBalance(sender, amount)
-			stateDB.AddBalance(*tx.To, amount)
+			stateDB.AddBalance(contractAddr, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
 		receipt = context.vm.Run(tx, nil, chain.getGasLimit(appState, tx))
@@ -1545,11 +1549,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
-		if !receipt.Success && tx.Type == types.CallContractTx {
+		if !receipt.Success && shouldAddPayAmount {
 			stateDB.AddBalance(sender, amount)
-			stateDB.SubBalance(*tx.To, amount)
+			stateDB.SubBalance(contractAddr, amount)
 		}
-		if receipt.Success && tx.Type == types.DeployContractTx {
+		if receipt.Success && !shouldAddPayAmount {
 			stateDB.SubBalance(sender, amount)
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
@@ -1982,7 +1986,6 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	return flags
 }
 
-
 func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Transaction, header *types.ProposedHeader) ([]*types.Transaction, *big.Int, *big.Int, types.TxReceipts, uint64) {
 	var result []*types.Transaction
 
@@ -2082,9 +2085,9 @@ func (chain *Blockchain) WriteTxReceipts(cid []byte, receipts types.TxReceipts) 
 			ReceiptCid: cid,
 		}
 		chain.repo.WriteReceiptIndex(r.TxHash, idx)
-		if eventMap, ok := m[r.ContractAddress]; ok {
+		if eventMap, ok := m[r.ContractAddress]; ok || chain.config.Blockchain.WriteAllEvents {
 			for idx, event := range r.Events {
-				if _, ok := eventMap[event.EventName]; ok {
+				if _, ok := eventMap[event.EventName]; ok || chain.config.Blockchain.WriteAllEvents {
 					chain.repo.WriteEvent(r.ContractAddress, r.TxHash, uint32(idx), event)
 				}
 			}

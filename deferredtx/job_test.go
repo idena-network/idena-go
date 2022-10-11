@@ -21,6 +21,14 @@ var fakeVmError error
 type fakeVm struct {
 }
 
+func (f fakeVm) ContractAddr(tx *types.Transaction, from *common.Address) common.Address {
+	panic("implement me")
+}
+
+func (f fakeVm) IsWasm(tx *types.Transaction) bool {
+	return false
+}
+
 func (f fakeVm) Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error) {
 	panic("implement me")
 }

@@ -23,6 +23,8 @@ var (
 type VM interface {
 	Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt
 	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
+	IsWasm(tx *types.Transaction) bool
+	ContractAddr(tx *types.Transaction, from *common.Address) common.Address
 }
 
 type VmImpl struct {
@@ -33,6 +35,8 @@ type VmImpl struct {
 	cfg            *config.Config
 	head           *types.Header
 }
+
+
 
 type VmCreator = func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
 
@@ -137,7 +141,7 @@ func (vm *VmImpl) terminate(tx *types.Transaction, from *common.Address) (addr c
 	return addr, err
 }
 
-func (vm *VmImpl) runWasm(tx *types.Transaction) bool {
+func (vm *VmImpl) IsWasm(tx *types.Transaction) bool {
 	switch tx.Type {
 	case types.DeployContractTx:
 		attach := attachments.ParseDeployContractAttachment(tx)
@@ -153,12 +157,29 @@ func (vm *VmImpl) runWasm(tx *types.Transaction) bool {
 	return false
 }
 
+func (vm *VmImpl) ContractAddr(tx *types.Transaction, from *common.Address) common.Address {
+	switch tx.Type {
+	case types.CallContractTx, types.TerminateContractTx :
+		return *tx.To
+	case types.DeployContractTx:
+		if vm.IsWasm(tx) {
+			return wasm.CreateContractAddr(tx)
+		}
+		if from != nil {
+			return env2.ComputeContractAddr(tx, *from)
+		}
+		sender, _ := types.Sender(tx)
+		return env2.ComputeContractAddr(tx, sender)
+	}
+	panic("unknown tx type")
+}
+
 func (vm *VmImpl) Run(tx *types.Transaction,  from *common.Address, gasLimit int64) *types.TxReceipt {
 	if tx.Type != types.CallContractTx && tx.Type != types.DeployContractTx && tx.Type != types.TerminateContractTx {
 		return &types.TxReceipt{Success: false, Error: UnexpectedTx}
 	}
 
-	if vm.runWasm(tx) {
+	if vm.IsWasm(tx) {
 		wasmVm := wasm.NewWasmVM(vm.appState, vm.head)
 		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
 	}

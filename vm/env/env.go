@@ -6,7 +6,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/pkg/errors"
@@ -457,10 +456,7 @@ func (d *DeployContextImpl) Caller() common.Address {
 }
 
 func (d *DeployContextImpl) ContractAddr() common.Address {
-	hash := crypto.Hash(append(append(d.Caller().Bytes(), common.ToBytes(d.tx.Epoch)...), common.ToBytes(d.tx.AccountNonce)...))
-	var result common.Address
-	result.SetBytes(hash[:])
-	return result
+	return ComputeContractAddr(d.tx, d.Caller())
 }
 
 type ReadContextImpl struct {

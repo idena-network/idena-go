@@ -19,7 +19,7 @@ type WasmVM struct {
 
 func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (contractAddr common.Address, gasUsed uint64, actionResult []byte, err error) {
 	attach := attachments.ParseDeployContractAttachment(tx)
-	contractAddr = createContractAddr(tx)
+	contractAddr = CreateContractAddr(tx)
 	actionResult = []byte{}
 	if attach == nil {
 		return contractAddr, limit, actionResult, errors.New("can't parse attachment")

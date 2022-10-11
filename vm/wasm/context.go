@@ -24,7 +24,7 @@ func NewContractContext(tx *types.Transaction) *ContractContext {
 	if tx.To != nil {
 		ctx.contractAddr = *tx.To
 	} else {
-		ctx.contractAddr = createContractAddr(tx)
+		ctx.contractAddr = CreateContractAddr(tx)
 	}
 	return ctx
 }
@@ -59,7 +59,7 @@ func (c *ContractContext) CreateSubContext(contract lib.Address, amount *big.Int
 	}
 }
 
-func createContractAddr(tx *types.Transaction) common.Address {
+func CreateContractAddr(tx *types.Transaction) common.Address {
 	attach := attachments.ParseDeployContractAttachment(tx)
 	if attach == nil {
 		return common.Address{}

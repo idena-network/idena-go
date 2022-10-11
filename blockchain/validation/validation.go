@@ -738,6 +738,9 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 	if attachment == nil {
 		return InvalidPayload
 	}
+	if len(attachment.Code) > 0 && (appCfg == nil || !appCfg.Consensus.EnableUpgrade10) {
+		return InvalidPayload
+	}
 	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok && len(attachment.Code) == 0 {
 		return InvalidPayload
 	}
@@ -752,6 +755,14 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 	codeHash := appState.State.GetCodeHash(*tx.To)
 	if codeHash == nil {
 		return InvalidRecipient
+	}
+
+	if _, ok := embedded.AvailableContracts[*codeHash]; !ok && appCfg != nil && appCfg.Consensus.EnableUpgrade10 {
+		return InvalidRecipient
+	}
+
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade10 && !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
 	}
 
 	attachment := attachments.ParseTerminateContractAttachment(tx)
