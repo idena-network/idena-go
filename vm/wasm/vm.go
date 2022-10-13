@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 )
@@ -16,11 +17,12 @@ type WasmVM struct {
 	blockHeaderProvider BlockHeaderProvider
 	head                *types.Header
 	isDebug             bool
+	statsCollector      collector.StatsCollector
 }
 
 func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, err error) {
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, "deploy", vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, "deploy", vm.isDebug, vm.statsCollector)
 	attach := attachments.ParseDeployContractAttachment(tx)
 	actionResult = []byte{}
 	if attach == nil {
@@ -48,7 +50,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 		method = attachment.Method
 	}
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, method, vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, method, vm.isDebug, vm.statsCollector)
 	contract := *tx.To
 	code := vm.appState.State.GetContractCode(contract)
 	actionResult = []byte{}
@@ -109,6 +111,6 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxRecei
 	}
 }
 
-func NewWasmVM(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, head *types.Header, isDebug bool) *WasmVM {
-	return &WasmVM{appState: appState, blockHeaderProvider: blockHeaderProvider, head: head, isDebug: isDebug}
+func NewWasmVM(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, head *types.Header, isDebug bool, statsCollector collector.StatsCollector) *WasmVM {
+	return &WasmVM{appState: appState, blockHeaderProvider: blockHeaderProvider, head: head, isDebug: isDebug, statsCollector: statsCollector}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"github.com/pkg/errors"
@@ -42,6 +43,8 @@ type WasmEnv struct {
 	head           *types.Header
 	parent         *WasmEnv
 	headerProvider BlockHeaderProvider
+
+	statsCollector collector.StatsCollector
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
@@ -186,7 +189,7 @@ func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
 	return w.ctx.ContractAddr()
 }
 
-func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool, statsCollector collector.StatsCollector) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
 		headerProvider:        blockHeaderProvider,
@@ -198,6 +201,7 @@ func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProv
 		deployedContractCache: map[common.Address]ContractData{},
 		method:                method,
 		isDebug:               isDebug,
+		statsCollector:        statsCollector,
 	}
 }
 
@@ -306,6 +310,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		deployedContractCache: map[common.Address]ContractData{},
 		head:                  w.head,
 		isDebug:               w.isDebug,
+		statsCollector:        w.statsCollector,
 	}
 	if w.isDebug {
 		log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
@@ -346,6 +351,7 @@ func (w *WasmEnv) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (w *WasmEnv) setBalance(address common.Address, amount *big.Int) {
+	collector.AddContractBalanceUpdate(w.statsCollector, address, w.getBalance, amount, w.appState)
 	w.balancesCache[address] = amount
 }
 
