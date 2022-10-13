@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"github.com/pkg/errors"
@@ -42,6 +43,8 @@ type WasmEnv struct {
 	head           *types.Header
 	parent         *WasmEnv
 	headerProvider BlockHeaderProvider
+
+	statsCollector collector.StatsCollector
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
@@ -188,7 +191,7 @@ func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
 	return w.ctx.ContractAddr()
 }
 
-func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool, commitToState bool, enableUpgrade12 bool) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool, commitToState bool, enableUpgrade12 bool, statsCollector collector.StatsCollector) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
 		headerProvider:        blockHeaderProvider,
@@ -202,6 +205,7 @@ func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProv
 		isDebug:               isDebug,
 		enableUpgrade12:       enableUpgrade12,
 		commitToState:         commitToState,
+		statsCollector:        statsCollector,
 	}
 }
 
@@ -312,6 +316,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		isDebug:               w.isDebug,
 		enableUpgrade12:       w.enableUpgrade12,
 		commitToState:         w.commitToState,
+		statsCollector:        w.statsCollector,
 	}
 	if w.isDebug {
 		log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
@@ -352,6 +357,7 @@ func (w *WasmEnv) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (w *WasmEnv) setBalance(address common.Address, amount *big.Int) {
+	collector.AddContractBalanceUpdate(w.statsCollector, address, w.getBalance, amount, w.appState)
 	w.balancesCache[address] = amount
 }
 
