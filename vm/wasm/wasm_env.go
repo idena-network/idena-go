@@ -267,6 +267,10 @@ func (w *WasmEnv) Identity(meter *lib.GasMeter, address lib.Address) []byte {
 }
 
 func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int, isDeploy bool) (lib.HostEnv, error) {
+	const maxDepth = 16
+	if w.id > maxDepth {
+		return nil, errors.New("max recursion depth reached")
+	}
 
 	if payAmount.Sign() < 0 {
 		return nil, errors.New("value must be non-negative")
