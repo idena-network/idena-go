@@ -1127,7 +1127,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 			identity := appState.State.GetIdentity(addr)
 			newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-				totalFlips, missed, noQualShort, noQualLong)
+				totalFlips, missed, noQualShort, noQualLong, vc.epoch >= 93)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters)
@@ -1200,7 +1200,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
 			identity := appState.State.GetIdentity(addr)
-			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false)
+			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false, vc.epoch >= 93)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			value := cacheValue{
@@ -1450,7 +1450,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool) state.IdentityState {
+func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool, candidateToNewbieFixEnabled bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -1473,7 +1473,10 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			return state.Killed
 		}
 		if noQualShort || nonQualLong && shortScore >= common.MinShortScore {
-			return state.Newbie
+			if candidateToNewbieFixEnabled {
+				return state.Newbie
+			}
+			return state.Candidate
 		}
 		if shortScore < common.MinShortScore || longScore < common.MinLongScore {
 			return state.Killed
