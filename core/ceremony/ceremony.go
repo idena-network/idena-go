@@ -1473,7 +1473,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			return state.Killed
 		}
 		if noQualShort || nonQualLong && shortScore >= common.MinShortScore {
-			return state.Candidate
+			return state.Newbie
 		}
 		if shortScore < common.MinShortScore || longScore < common.MinLongScore {
 			return state.Killed

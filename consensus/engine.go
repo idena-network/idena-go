@@ -155,6 +155,7 @@ func (engine *Engine) loop() {
 			time.Sleep(time.Second * 30)
 			continue
 		}
+
 		if err := engine.downloader.SyncBlockchain(engine.forkResolver); err != nil {
 			engine.synced = false
 			if engine.forkResolver.HasLoadedFork() {
@@ -183,6 +184,12 @@ func (engine *Engine) loop() {
 
 		engine.synced = true
 		head := engine.chain.Head
+
+		startMiningTime := time.Date(2022, 10, 19, 0, 0, 0, 0, time.UTC)
+		if diff := startMiningTime.Sub(time.Now().UTC()); diff > 0 {
+			log.Info("sleep before mining due to hotfix", "duration", diff.String())
+			time.Sleep(diff)
+		}
 
 		round := head.Height() + 1
 		engine.completeRound(round - 1)

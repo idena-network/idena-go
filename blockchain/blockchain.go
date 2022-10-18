@@ -404,6 +404,7 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
 
+	applyHotfixToState(checkState, prevBlock)
 	_, _, stateDiff, identityStateDiff := chain.applyEmptyBlockOnState(checkState, block, statsCollector)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
@@ -476,7 +477,6 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 }
 
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
-
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
@@ -1823,7 +1823,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	if chain.upgrader.CanUpgrade() && !block.Header.ProposedHeader.Flags.HasFlag(types.NewGenesis) {
 		header.Upgrade = chain.upgrader.UpgradeBits()
 	}
-
+	applyHotfixToState(checkState, head)
 	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _, _ = chain.applyBlockOnState(checkState, block, totalFee, totalTips, usedGas, blockRewardCtx, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
@@ -2100,6 +2100,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
+	applyHotfixToState(checkState, prevBlock)
 	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, totalFee, totalTips, usedGas, blockRewardCtx, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
@@ -2864,4 +2865,22 @@ func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
 		res.DelegationNonce = identity.DelegationNonce
 	}
 	*identity = res
+}
+
+func (chain *Blockchain) ApplyHotfixToState() {
+	applyHotfixToState(chain.appState, chain.Head)
+}
+
+func applyHotfixToState(appState *appstate.AppState, prevBlock *types.Header) {
+	if prevBlock.Height() == 5087986 { // 5087986 - latest mined block
+		appState.State.SetValidationPeriod(state.NonePeriod)
+		appState.State.SetNextValidationTime(time.Date(2022, 10, 22, 13, 30, 0, 0, time.UTC))
+		newShardId := common.ShardId(1)
+		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+			if identity.ShiftedShardId() > 2 {
+				appState.State.SetShardId(addr, newShardId)
+				appState.State.IncreaseShardSize(newShardId)
+			}
+		})
+	}
 }

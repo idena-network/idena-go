@@ -183,8 +183,18 @@ func Test_determineNewIdentityState(t *testing.T) {
 		},
 		{
 			state.Candidate,
+			0, 0, 0, 5, false,
+			state.Newbie, true, false,
+		},
+		{
+			state.Candidate,
 			common.MinShortScore, 0, 0, 5, false,
-			state.Candidate, true, false,
+			state.Newbie, false, true,
+		},
+		{
+			state.Candidate,
+			0, 0, 0, 5, false,
+			state.Killed, false, true,
 		},
 		{
 			state.Candidate,
