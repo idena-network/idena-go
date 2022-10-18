@@ -401,8 +401,11 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 		Body: &types.Body{},
 	}
 
+	applyHotfixToState(checkState, prevBlock)
+
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
+
 
 	_, _, stateDiff, identityStateDiff := chain.applyEmptyBlockOnState(checkState, block, statsCollector)
 
@@ -463,6 +466,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 			chain.genesisInfo.OldGenesis = chain.genesisInfo.Genesis
 			chain.genesisInfo.Genesis = block.Header
 		}
+		applyHotfixToState(chain.appState, block.Header)
 		chain.bus.Publish(&events.NewBlockEvent{
 			Block: block,
 		})
@@ -476,7 +480,6 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 }
 
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
-
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block)
@@ -1816,6 +1819,8 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 		Body: body,
 	}
 
+	applyHotfixToState(checkState, head)
+
 	block.Header.ProposedHeader.TxBloom = calculateTxBloom(block, receipts)
 
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block, head)
@@ -2087,6 +2092,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return nil, err
 	}
 
+	applyHotfixToState(checkState, prevBlock)
+
 	if bytes.Compare(calculateTxBloom(block, receipts), block.Header.ProposedHeader.TxBloom) != 0 {
 		return nil, errors.New("tx bloom is invalid")
 	}
@@ -2100,6 +2107,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	var root, identityRoot common.Hash
 	var stateDiff []*state.StateTreeDiff
 	var identityStateDiff *state.IdentityStateDiff
+
 	if root, identityRoot, stateDiff, identityStateDiff = chain.applyBlockOnState(checkState, block, totalFee, totalTips, usedGas, blockRewardCtx, statsCollector); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return nil, errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
@@ -2864,4 +2872,23 @@ func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
 		res.DelegationNonce = identity.DelegationNonce
 	}
 	*identity = res
+}
+
+func (chain *Blockchain) ApplyHotfixToState() {
+	applyHotfixToState(chain.appState, chain.Head)
+}
+
+func applyHotfixToState(appState *appstate.AppState, prevBlock *types.Header) {
+	blockHash := common.HexToHash("0x6abb1df1cba0979e81bc5db268f29ab13fa4d96595e3a40de6045df3254c802a") // latest mined block
+	if prevBlock.Hash() == blockHash {
+		appState.State.SetValidationPeriod(state.NonePeriod)
+		appState.State.SetNextValidationTime(time.Date(2022, 10, 22, 13, 30, 0, 0, time.UTC))
+		newShardId := common.ShardId(1)
+		appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+			if identity.ShiftedShardId() > 2 {
+				appState.State.SetShardId(addr, newShardId)
+				appState.State.IncreaseShardSize(newShardId)
+			}
+		})
+	}
 }
