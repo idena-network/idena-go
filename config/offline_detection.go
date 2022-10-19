@@ -13,7 +13,7 @@ type OfflineDetectionConfig struct {
 func GetDefaultOfflineDetectionConfig() *OfflineDetectionConfig {
 	return &OfflineDetectionConfig{
 		PersistInterval:             50,
-		MaxSelfOffline:              1 * time.Hour,
+		MaxSelfOffline:              90 * time.Minute,
 		OfflineProposeInterval:      90 * time.Minute,
 		OfflineVoteInterval:         45 * time.Minute,
 		IntervalBetweenOfflineRetry: 5 * time.Minute,
