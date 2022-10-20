@@ -56,6 +56,7 @@ func (engine *Engine) maybeIpfsGC() {
 			minutesLeft := int((timeout - time.Since(start)).Minutes()) + 1
 			engine.eventBus.Publish(&events.IpfsGcEvent{Message: message(minutesLeft)})
 			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
