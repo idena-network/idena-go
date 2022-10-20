@@ -49,7 +49,6 @@ import (
 const (
 	CidLength        = 36
 	ZeroPeersTimeout = 2 * time.Minute
-	GcPeriod         = time.Second * 15
 )
 
 type DataType = uint32
@@ -92,6 +91,7 @@ type Proxy interface {
 	ShouldPin(dataType DataType) bool
 	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
 	PubSub() *pubsub.PubSub
+	GC() (ctx context.Context, cancel context.CancelFunc)
 }
 
 type ipfsProxy struct {
@@ -105,8 +105,6 @@ type ipfsProxy struct {
 	nilNode              *core.IpfsNode
 	lastPeersUpdatedTime time.Time
 	bus                  eventbus.Bus
-	lastGcCancel         time.Time
-	gcCancel             context.CancelFunc
 	gcMutex              sync.RWMutex
 }
 
@@ -157,7 +155,6 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 	}
 
 	go p.watchPeers()
-	go p.gc()
 	return p, nil
 }
 
@@ -185,42 +182,20 @@ func createNode(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*core.IpfsNode, 
 	return node, ctx, cancelCtx, nil
 }
 
-func (p *ipfsProxy) gc() {
-	for {
-		time.Sleep(GcPeriod)
-
-		p.gcMutex.RLock()
-		t := p.lastGcCancel
-		p.gcMutex.RUnlock()
-		if time.Since(t) < GcPeriod {
-			continue
-		}
-		p.gcMutex.Lock()
-		ctx, cancel := context.WithCancel(p.nodeCtx)
-		p.gcCancel = cancel
-		p.gcMutex.Unlock()
-		if err := corerepo.ConditionalGC(ctx, p.node, 0); err != nil {
-			p.log.Debug("ipfs gc error", "err", err)
-		}
-		cancel()
-		p.gcMutex.Lock()
-		p.gcCancel = nil
-		p.lastGcCancel = time.Now()
-		p.gcMutex.Unlock()
-	}
+func (p *ipfsProxy) GC() (ctx context.Context, cancel context.CancelFunc) {
+	ctx, cancel = context.WithCancel(p.nodeCtx)
+	go p.gc(ctx, cancel)
+	return
 }
 
-func (p *ipfsProxy) cancelGc() {
+func (p *ipfsProxy) gc(ctx context.Context, cancel context.CancelFunc) {
 	p.gcMutex.Lock()
-	p.lastGcCancel = time.Now()
-	cancelFunc := p.gcCancel
-	p.gcMutex.Unlock()
-	if cancelFunc != nil {
-		cancelFunc()
-		p.gcMutex.Lock()
-		p.gcCancel = nil
-		p.gcMutex.Unlock()
+	defer p.gcMutex.Unlock()
+
+	if err := corerepo.ConditionalGC(ctx, p.node, 0); err != nil {
+		p.log.Debug("ipfs gc error", "err", err)
 	}
+	cancel()
 }
 
 func (p *ipfsProxy) changePort() {
@@ -317,7 +292,8 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 		return EmptyCid, nil
 	}
 
-	p.cancelGc()
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
@@ -359,7 +335,8 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.cancelGc()
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -415,7 +392,8 @@ func (p *ipfsProxy) get(path path.Path, dataType DataType, maxSize int64) ([]byt
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.cancelGc()
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -479,7 +457,8 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 	p.rwLock.RLock()
 	defer p.rwLock.RUnlock()
 
-	p.cancelGc()
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
@@ -511,7 +490,8 @@ func (p *ipfsProxy) Pin(key []byte) error {
 		return err
 	}
 
-	p.cancelGc()
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -537,7 +517,9 @@ func (p *ipfsProxy) Unpin(key []byte) error {
 	if err != nil {
 		return err
 	}
-	p.cancelGc()
+
+	p.gcMutex.RLock()
+	defer p.gcMutex.RUnlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -862,4 +844,8 @@ func configAt(repoPath string) (*ipfsConf.Config, error) {
 		return nil, err
 	}
 	return serialize.Load(configFilename)
+}
+
+func (i *memoryIpfs) GC() (ctx context.Context, cancel context.CancelFunc) {
+	panic("implement me")
 }

@@ -11,18 +11,19 @@ import (
 )
 
 const (
-	NewTxEventID                  = eventbus.EventID("transaction-new")
-	AddBlockEventID               = eventbus.EventID("block-add")
-	NewFlipKeyID                  = eventbus.EventID("flip-key-new")
-	FastSyncCompleted             = eventbus.EventID("fast-sync-completed")
-	NewFlipEventID                = eventbus.EventID("flip-new")
-	NewFlipKeysPackageID          = eventbus.EventID("flip-keys-package-new")
-	IpfsPortChangedEventId        = eventbus.EventID("ipfs-port-changed")
-	DeleteFlipEventID             = eventbus.EventID("flip-delete")
-	PeersEventID                  = eventbus.EventID("peers")
-	BlockchainResetEventID        = eventbus.EventID("chain-reset")
-	DatabaseInitEventId           = eventbus.EventID("db-init")
-	DatabaseInitCompletedEventId  = eventbus.EventID("db-init-completed")
+	NewTxEventID                 = eventbus.EventID("transaction-new")
+	AddBlockEventID              = eventbus.EventID("block-add")
+	NewFlipKeyID                 = eventbus.EventID("flip-key-new")
+	FastSyncCompleted            = eventbus.EventID("fast-sync-completed")
+	NewFlipEventID               = eventbus.EventID("flip-new")
+	NewFlipKeysPackageID         = eventbus.EventID("flip-keys-package-new")
+	IpfsPortChangedEventId       = eventbus.EventID("ipfs-port-changed")
+	DeleteFlipEventID            = eventbus.EventID("flip-delete")
+	PeersEventID                 = eventbus.EventID("peers")
+	BlockchainResetEventID       = eventbus.EventID("chain-reset")
+	DatabaseInitEventId          = eventbus.EventID("db-init")
+	DatabaseInitCompletedEventId = eventbus.EventID("db-init-completed")
+	IpfsGcEventId                = eventbus.EventID("ipfc-gc")
 )
 
 type NewTxEvent struct {
@@ -127,4 +128,13 @@ type DatabaseInitCompletedEvent struct {
 
 func (e *DatabaseInitCompletedEvent) EventID() eventbus.EventID {
 	return DatabaseInitCompletedEventId
+}
+
+type IpfsGcEvent struct {
+	Message   string
+	Completed bool
+}
+
+func (e *IpfsGcEvent) EventID() eventbus.EventID {
+	return IpfsGcEventId
 }
