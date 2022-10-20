@@ -83,6 +83,7 @@ func (dt *OfflineDetector) Start(head *types.Header) {
 	dt.selfAddress = dt.secStore.GetAddress()
 	dt.lastPersistBlock = head.Height()
 	dt.restore()
+	dt.fillActivityMap()
 
 	_ = dt.bus.Subscribe(events.AddBlockEventID,
 		func(e eventbus.Event) {
@@ -349,6 +350,16 @@ func (dt *OfflineDetector) restore() {
 	}
 }
 
+func (dt *OfflineDetector) fillActivityMap() {
+	for v := range dt.appState.ValidatorsCache.GetAllOnlineValidators().Iter() {
+		if addr, isAddr := v.(common.Address); isAddr {
+			if _, ok := dt.activityMap[addr]; !ok {
+				dt.activityMap[addr] = time.Now().UTC()
+			}
+		}
+	}
+}
+
 func (dt *OfflineDetector) verifyOfflineProposing(hash common.Hash) bool {
 
 	dt.mutex.Lock()
@@ -392,6 +403,7 @@ func (dt *OfflineDetector) restart() {
 	dt.offlineProposals = make(map[common.Address]time.Time)
 	dt.activityMap = make(map[common.Address]time.Time)
 	dt.offlineVoting = make(map[common.Hash]*voteList)
+	dt.fillActivityMap()
 }
 
 func (dt *OfflineDetector) PushValidators(round uint64, step uint8, stepValidators *validators.StepValidators) {
