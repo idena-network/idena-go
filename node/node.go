@@ -297,6 +297,8 @@ func (node *Node) StartWithHeight(height uint64) {
 		}
 	}
 
+	node.blockchain.ApplyHotfixToState()
+
 	node.txpool.Initialize(node.blockchain.Head, node.secStore.GetAddress(), true)
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.votes.Initialize(node.blockchain.Head)
