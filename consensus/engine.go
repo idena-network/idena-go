@@ -7,6 +7,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
@@ -15,6 +16,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/upgrade"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
 	"github.com/idena-network/idena-go/protocol"
@@ -52,14 +54,16 @@ type Engine struct {
 	peekingBlocks     chan *types.Block
 	forkResolver      *ForkResolver
 	offlineDetector   *blockchain.OfflineDetector
+	ipfsProxy         ipfs.Proxy
+	nextIpfsGC        time.Time
 	prevRoundDuration time.Duration
 	avgTimeDiffs      []decimal.Decimal
 	timeDrift         time.Duration
 	timeDriftMutex    sync.Mutex
-
 	synced            bool
 	nextBlockDetector *nextBlockDetector
 	upgrader          *upgrade.Upgrader
+	eventBus          eventbus.Bus
 	statsCollector    collector.StatsCollector
 }
 
@@ -69,6 +73,8 @@ func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossip
 	txpool *mempool.TxPool, secStore *secstore.SecStore, downloader *protocol.Downloader,
 	offlineDetector *blockchain.OfflineDetector,
 	upgrader *upgrade.Upgrader,
+	ipfsProxy ipfs.Proxy,
+	eventBus eventbus.Bus,
 	statsCollector collector.StatsCollector) *Engine {
 	return &Engine{
 		chain:             chain,
@@ -85,6 +91,8 @@ func NewEngine(chain *blockchain.Blockchain, gossipHandler *protocol.IdenaGossip
 		offlineDetector:   offlineDetector,
 		nextBlockDetector: newNextBlockDetector(gossipHandler, downloader, chain),
 		upgrader:          upgrader,
+		ipfsProxy:         ipfsProxy,
+		eventBus:          eventBus,
 		statsCollector:    statsCollector,
 	}
 }
@@ -155,6 +163,8 @@ func (engine *Engine) loop() {
 			time.Sleep(time.Second * 30)
 			continue
 		}
+
+		engine.maybeIpfsGC()
 
 		if err := engine.downloader.SyncBlockchain(engine.forkResolver); err != nil {
 			engine.synced = false

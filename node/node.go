@@ -72,6 +72,7 @@ type Node struct {
 	deferJob        *deferredtx.Job
 	subManager      *subscriptions.Manager
 	upgrader        *upgrade.Upgrader
+	nodeState       *state2.NodeState
 }
 
 type NodeCtx struct {
@@ -206,7 +207,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	sm := state.NewSnapshotManager(db, appState.State, bus, ipfsProxy, config)
 	downloader := protocol.NewDownloader(pm, config, chain, ipfsProxy, appState, sm, bus, secStore, statsCollector, subManager, keyStore, upgrader)
 	consensusEngine := consensus.NewEngine(chain, pm, proposals, config, appState, votes, txpool, secStore,
-		downloader, offlineDetector, upgrader, statsCollector)
+		downloader, offlineDetector, upgrader, ipfsProxy, bus, statsCollector)
 	ceremony := ceremony.NewValidationCeremony(appState, bus, flipper, secStore, db, txpool, chain, downloader, flipKeyPool, config)
 	profileManager := profile.NewProfileManager(ipfsProxy)
 
@@ -239,6 +240,7 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 		deferJob:        deferJob,
 		subManager:      subManager,
 		upgrader:        upgrader,
+		nodeState:       nodeState,
 		httpListener:    httpListener,
 		httpHandler:     httpHandler,
 		httpServer:      httpServer,
@@ -481,7 +483,7 @@ func (node *Node) apis() []rpc.API {
 		{
 			Namespace: "bcn",
 			Version:   "1.0",
-			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool, node.downloader, node.pm),
+			Service:   api.NewBlockchainApi(baseApi, node.blockchain, node.ipfsProxy, node.txpool, node.downloader, node.pm, node.nodeState),
 			Public:    true,
 		},
 		{

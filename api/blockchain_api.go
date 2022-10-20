@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/keywords"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/idena-network/idena-go/rlp"
+	"github.com/idena-network/idena-go/state"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
@@ -49,16 +50,17 @@ var (
 )
 
 type BlockchainApi struct {
-	bc      *blockchain.Blockchain
-	baseApi *BaseApi
-	ipfs    ipfs.Proxy
-	pool    *mempool.TxPool
-	d       *protocol.Downloader
-	pm      *protocol.IdenaGossipHandler
+	bc        *blockchain.Blockchain
+	baseApi   *BaseApi
+	ipfs      ipfs.Proxy
+	pool      *mempool.TxPool
+	d         *protocol.Downloader
+	pm        *protocol.IdenaGossipHandler
+	nodeState *state.NodeState
 }
 
-func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm}
+func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler, nodeState *state.NodeState) *BlockchainApi {
+	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState}
 }
 
 type Block struct {
@@ -202,7 +204,7 @@ type Syncing struct {
 }
 
 func (api *BlockchainApi) Syncing() Syncing {
-	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers() || !api.baseApi.engine.Synced()
+	isSyncing := api.d.IsSyncing() || !api.pm.HasPeers() || !api.baseApi.engine.Synced() || api.nodeState.Syncing()
 	if api.bc.Config().Consensus.Automine {
 		isSyncing = false
 	}
@@ -217,6 +219,7 @@ func (api *BlockchainApi) Syncing() Syncing {
 		CurrentBlock: current,
 		HighestBlock: highest,
 		WrongTime:    api.pm.WrongTime(),
+		Message:      api.nodeState.Info(),
 	}
 }
 
