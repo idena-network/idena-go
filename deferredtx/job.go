@@ -99,7 +99,7 @@ func (j *Job) broadcast() {
 				log.Error("error while sending deferred tx", "err", err)
 				tx.sendTry++
 				contractErr, ok := err.(*embedded.ContractError)
-				tryLater := ok && contractErr.TryLater() || err == validation.LateTx
+				tryLater := ok && contractErr.TryLater() || err == validation.LateTx || err == validation.InsufficientFunds
 				if tryLater {
 					tx.BroadcastBlock = calculateBroadcastBlock(j.head.Height(), tx.sendTry)
 				} else if tx.sendTry > 3 {
