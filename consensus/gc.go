@@ -26,14 +26,14 @@ func (engine *Engine) maybeIpfsGC() {
 	}()
 
 	if engine.appState.State.ValidationPeriod() != state.NonePeriod {
-		engine.log.Info(fmt.Sprintf("ipfs gc skipped due to validation"))
+		engine.log.Info("ipfs gc skipped due to validation")
 		return
 	}
 
 	deadline := engine.appState.State.NextValidationTime().Add(-engine.cfg.IpfsConf.Gc.IntervalBeforeValidation)
 
 	if start.After(deadline) {
-		engine.log.Info(fmt.Sprintf("ipfs gc skipped due to soon validation"))
+		engine.log.Info("ipfs gc skipped due to soon validation")
 		return
 	}
 
