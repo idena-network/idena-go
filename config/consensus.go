@@ -55,6 +55,7 @@ type ConsensusConf struct {
 	ReductionOneDelay                 time.Duration
 	NewKeyWordsEpoch                  uint16
 	EnableUpgrade10                   bool
+	BurnTxRange                       uint64
 }
 
 type ConsensusVerson uint16
@@ -114,6 +115,7 @@ func init() {
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 		NewKeyWordsEpoch:                  76,
 		OfflinePenaltyDuration:            time.Hour * 8,
+		BurnTxRange:                       4320,
 	}
 	ConsensusVersions[ConsensusV9] = &v9
 
@@ -127,6 +129,9 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV10:
 		cfg.EnableUpgrade10 = true
 		cfg.Version = ConsensusV10
+		cfg.FirstInvitationRewardCoef = 0.2
+		cfg.SecondInvitationRewardCoef = 0.5
+		cfg.ThirdInvitationRewardCoef = 0.8
 		cfg.StartActivationDate = time.Date(2022, time.December, 23, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2022, time.December, 30, 0, 0, 0, 0, time.UTC).Unix()
 	}

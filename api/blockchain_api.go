@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/core/mempool"
+	state2 "github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keywords"
 	"github.com/idena-network/idena-go/protocol"
@@ -19,6 +20,7 @@ import (
 	"github.com/shopspring/decimal"
 	"math/big"
 	"sort"
+	"sync"
 )
 
 var (
@@ -57,10 +59,27 @@ type BlockchainApi struct {
 	d         *protocol.Downloader
 	pm        *protocol.IdenaGossipHandler
 	nodeState *state.NodeState
+	cache     *cache
+}
+
+type cache struct {
+	burntCoins      *burntCoinsCache
+	burntCoinsMutex sync.Mutex
+}
+
+type burntCoinsCache struct {
+	version int64
+	value   []BurntCoins
+}
+
+func newCache() *cache {
+	return &cache{
+		burntCoins: &burntCoinsCache{},
+	}
 }
 
 func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler, nodeState *state.NodeState) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState}
+	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState, newCache()}
 }
 
 type Block struct {
@@ -395,14 +414,91 @@ func (api *BlockchainApi) Transactions(args TransactionsArgs) Transactions {
 }
 
 func (api *BlockchainApi) BurntCoins() []BurntCoins {
-	var res []BurntCoins
-	for _, bc := range api.bc.ReadTotalBurntCoins() {
+
+	appState := api.baseApi.getReadonlyAppState()
+
+	if api.cache.burntCoins.version == appState.State.Version() {
+		return api.cache.burntCoins.value
+	}
+
+	api.cache.burntCoinsMutex.Lock()
+	defer api.cache.burntCoinsMutex.Unlock()
+
+	if api.cache.burntCoins.version == appState.State.Version() {
+		return api.cache.burntCoins.value
+	}
+
+	type burntCoins struct {
+		Address common.Address
+		Key     string
+		Amount  *big.Int
+	}
+	var list []*burntCoins
+	var coinsByAddressAndKey map[common.Address]map[string]*burntCoins
+
+	// TODO temporary code to support burnt coins from local repo
+	for _, value := range api.bc.ReadTotalBurntCoins() {
+		address, key, amount := value.Address, value.Key, value.Amount
+		if common.ZeroOrNil(amount) {
+			continue
+		}
+		if coinsByAddressAndKey == nil {
+			coinsByAddressAndKey = make(map[common.Address]map[string]*burntCoins)
+		}
+		if addressCoinsByKey, ok := coinsByAddressAndKey[address]; ok {
+			if total, ok := addressCoinsByKey[key]; ok {
+				total.Amount = new(big.Int).Add(total.Amount, amount)
+			} else {
+				bc := &burntCoins{address, key, amount}
+				addressCoinsByKey[key] = bc
+				list = append(list, bc)
+			}
+		} else {
+			bc := &burntCoins{address, key, amount}
+			addressCoinsByKey = make(map[string]*burntCoins)
+			addressCoinsByKey[key] = bc
+			coinsByAddressAndKey[address] = addressCoinsByKey
+			list = append(list, bc)
+		}
+	}
+
+	appState.State.IterateBurntCoins(func(height uint64, value state2.BurntCoins) {
+		for _, bc := range value.Items {
+			address, key, amount := bc.Address, bc.Key, bc.Amount
+			if common.ZeroOrNil(amount) {
+				continue
+			}
+			if coinsByAddressAndKey == nil {
+				coinsByAddressAndKey = make(map[common.Address]map[string]*burntCoins)
+			}
+			if addressCoinsByKey, ok := coinsByAddressAndKey[address]; ok {
+				if total, ok := addressCoinsByKey[key]; ok {
+					total.Amount = new(big.Int).Add(total.Amount, amount)
+				} else {
+					bc := &burntCoins{address, key, amount}
+					addressCoinsByKey[key] = bc
+					list = append(list, bc)
+				}
+			} else {
+				bc := &burntCoins{address, key, amount}
+				addressCoinsByKey = make(map[string]*burntCoins)
+				addressCoinsByKey[key] = bc
+				coinsByAddressAndKey[address] = addressCoinsByKey
+				list = append(list, bc)
+			}
+		}
+	})
+
+	res := make([]BurntCoins, 0, len(list))
+	for _, bc := range list {
 		res = append(res, BurntCoins{
 			Address: bc.Address,
 			Amount:  blockchain.ConvertToFloat(bc.Amount),
 			Key:     bc.Key,
 		})
 	}
+	api.cache.burntCoins.version = appState.State.Version()
+	api.cache.burntCoins.value = res
 	return res
 }
 

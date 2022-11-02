@@ -258,8 +258,5 @@ func GetDefaultConsensusConfig() *config.ConsensusConf {
 	base := config.GetDefaultConsensusConfig()
 	res := *base
 	config.ApplyConsensusVersion(config.ConsensusV10, &res)
-	res.FirstInvitationRewardCoef = 0.2
-	res.SecondInvitationRewardCoef = 0.5
-	res.ThirdInvitationRewardCoef = 0.8
 	return &res
 }

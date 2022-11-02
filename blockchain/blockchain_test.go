@@ -726,6 +726,7 @@ func Test_ApplyBurnTx(t *testing.T) {
 		AccountNonce: 1,
 		Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
 		Tips:         new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
+		Payload:      attachments.CreateBurnAttachment("key"),
 	}
 	signedTx, _ := types.SignTx(tx, senderKey)
 
@@ -2030,4 +2031,130 @@ func Test_activateInvitationToInviteState(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+}
+
+func Test_burntCoins(t *testing.T) {
+
+	key1, _ := crypto.GenerateKey()
+	addr1 := crypto.PubkeyToAddress(key1.PublicKey)
+	key2, _ := crypto.GenerateKey()
+	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
+
+	consensusCfg := GetDefaultConsensusConfig()
+	consensusCfg.Automine = true
+	consensusCfg.BurnTxRange = 5
+
+	cfg := &config.Config{
+		Network:   0x99,
+		Consensus: consensusCfg,
+		GenesisConf: &config.GenesisConf{
+			Alloc: map[common.Address]config.GenesisAllocation{
+				addr1: {Balance: ConvertToInt(decimal.RequireFromString("999999"))},
+				addr2: {Balance: ConvertToInt(decimal.RequireFromString("999999"))},
+			},
+			GodAddress:        addr1,
+			FirstCeremonyTime: 9999999999999,
+		},
+		Validation: &config.ValidationConfig{},
+		Blockchain: &config.BlockchainConfig{},
+	}
+	chain, _ := NewCustomTestBlockchainWithConfig(153, 100, key1, cfg)
+	defer chain.SecStore().Destroy()
+
+	type wrapper struct {
+		height uint64
+		value  state.BurntCoins
+	}
+	read := func() []wrapper {
+		var res []wrapper
+		chain.appState.State.IterateBurntCoins(func(height uint64, value state.BurntCoins) {
+			res = append(res, wrapper{height, value})
+		})
+		return res
+	}
+
+	txPool := chain.txpool
+
+	height := chain.Head.Height()
+
+	values := read()
+	require.Empty(t, values)
+
+	{
+		tx := BuildTx(chain.appState, addr1, nil, types.BurnTx, decimal.New(1000, 0), decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateBurnAttachment("key1"))
+		signedTx, err := types.SignTx(tx, key1)
+		require.NoError(t, err)
+		err = txPool.AddInternalTx(signedTx)
+		require.NoError(t, err)
+	}
+
+	chain.GenerateBlocks(1, 0)
+
+	values = read()
+	require.Len(t, values, 1)
+	require.Equal(t, height+1, values[0].height)
+	require.Len(t, values[0].value.Items, 1)
+	require.Equal(t, addr1, values[0].value.Items[0].Address)
+	require.Equal(t, "key1", values[0].value.Items[0].Key)
+	require.Equal(t, "1000", ConvertToFloat(values[0].value.Items[0].Amount).String())
+
+	{
+		tx := BuildTx(chain.appState, addr2, nil, types.BurnTx, decimal.New(2000, 0), decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateBurnAttachment("key1"))
+		signedTx, err := types.SignTx(tx, key2)
+		require.NoError(t, err)
+		err = txPool.AddInternalTx(signedTx)
+		require.NoError(t, err)
+	}
+	{
+		tx := BuildTx(chain.appState, addr2, nil, types.BurnTx, decimal.New(0, 0), decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateBurnAttachment("key2"))
+		signedTx, err := types.SignTx(tx, key2)
+		require.NoError(t, err)
+		err = txPool.AddInternalTx(signedTx)
+		require.NoError(t, err)
+	}
+	{
+		tx := BuildTx(chain.appState, addr2, nil, types.BurnTx, decimal.New(3000, 0), decimal.New(20, 0), decimal.Zero, 0, 0, attachments.CreateBurnAttachment("key3"))
+		signedTx, err := types.SignTx(tx, key2)
+		require.NoError(t, err)
+		err = txPool.AddInternalTx(signedTx)
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 4; i++ {
+		chain.GenerateBlocks(1, 0)
+
+		values = read()
+		require.Len(t, values, 2)
+		require.Equal(t, height+1, values[0].height)
+		require.Len(t, values[0].value.Items, 1)
+		require.Equal(t, addr1, values[0].value.Items[0].Address)
+		require.Equal(t, "key1", values[0].value.Items[0].Key)
+		require.Equal(t, "1000", ConvertToFloat(values[0].value.Items[0].Amount).String())
+		require.Equal(t, height+2, values[1].height)
+		require.Len(t, values[1].value.Items, 2)
+		require.Equal(t, addr2, values[1].value.Items[0].Address)
+		require.Equal(t, "key1", values[1].value.Items[0].Key)
+		require.Equal(t, "2000", ConvertToFloat(values[1].value.Items[0].Amount).String())
+		require.Equal(t, addr2, values[1].value.Items[1].Address)
+		require.Equal(t, "key3", values[1].value.Items[1].Key)
+		require.Equal(t, "3000", ConvertToFloat(values[1].value.Items[1].Amount).String())
+	}
+
+	chain.GenerateBlocks(1, 0)
+
+	values = read()
+	require.Len(t, values, 1)
+	require.Equal(t, height+2, values[0].height)
+	require.Len(t, values[0].value.Items, 2)
+	require.Equal(t, addr2, values[0].value.Items[0].Address)
+	require.Equal(t, "key1", values[0].value.Items[0].Key)
+	require.Equal(t, "2000", ConvertToFloat(values[0].value.Items[0].Amount).String())
+	require.Equal(t, addr2, values[0].value.Items[1].Address)
+	require.Equal(t, "key3", values[0].value.Items[1].Key)
+	require.Equal(t, "3000", ConvertToFloat(values[0].value.Items[1].Amount).String())
+
+	chain.GenerateEmptyBlocks(1)
+
+	values = read()
+	require.Empty(t, values)
 }
