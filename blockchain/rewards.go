@@ -28,16 +28,23 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
 
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
+	stakeWeights := addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addFlipReward(appState, config, validationResults, totalRewardD, statsCollector)
 	addReportReward(appState, config, validationResults, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, validationResults, totalRewardD, epochDurations, statsCollector)
+	addInvitationReward(appState, config, validationResults, totalRewardD, epochDurations, stakeWeights, statsCollector)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
 }
 
+func stakeWeight(stake *big.Int) float32 {
+	stakeF, _ := ConvertToFloat(stake).Float64()
+	return float32(math2.Pow(stakeF, 0.9))
+}
+
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
-	validationResults map[common.ShardId]*types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) {
+	validationResults map[common.ShardId]*types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) (stakeWeights map[common.Address]float32) {
+
+	stakeWeights = make(map[common.Address]float32)
 
 	epoch := appState.State.Epoch()
 
@@ -69,13 +76,19 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			totalCandidates++
 		}
 		if common.ZeroOrNil(identity.Stake) {
+			stakeWeights[addr] = 0
 			return
 		}
-		stake, _ := ConvertToFloat(identity.Stake).Float64()
-		weight := float32(math2.Pow(stake, 0.9))
+		weight := stakeWeight(identity.Stake)
 		totalStakingWeight += weight
 		cv.stakeWeight = weight
+		stakeWeights[addr] = weight
 	})
+
+	godAddress := appState.State.GodAddress()
+	if _, ok := stakeWeights[godAddress]; !ok {
+		stakeWeights[godAddress] = stakeWeight(appState.State.GetStakeBalance(godAddress))
+	}
 
 	if totalStakingWeight == 0 && totalCandidates == 0 {
 		return
@@ -123,7 +136,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
 		})
 	}
-
+	return stakeWeights
 }
 
 func getFlipRewardCoef(grade types.Grade) float32 {
@@ -296,56 +309,88 @@ func addReportReward(appState *appstate.AppState, config *config.ConsensusConf, 
 	}
 }
 
-func getInvitationRewardCoef(age uint16, epochHeight uint32, epochDurations []uint32, config *config.ConsensusConf) float32 {
+func getInvitationRewardCoef(stakeWeight float32, age uint16, inviteePenalized bool, epochHeight uint32, epochDurations []uint32, config *config.ConsensusConf) (inviter, invitee float32) {
+
+	split := func(value float32) (inviter, invitee float32) {
+		if config.EnableUpgrade10 {
+			var k float32
+			switch age {
+			case 1:
+				k = config.FirstInvitationRewardCoef
+			case 2:
+				k = config.SecondInvitationRewardCoef
+			case 3:
+				k = config.ThirdInvitationRewardCoef
+			}
+			inviter = value * k
+			if !inviteePenalized {
+				invitee = value - inviter
+			}
+		} else {
+			inviter = value
+		}
+		return
+	}
+
+	if age == 0 || age > 3 {
+		return 0, 0
+	}
+
 	var baseCoef float32
-	switch age {
-	case 1:
-		baseCoef = config.FirstInvitationRewardCoef
-	case 2:
-		baseCoef = config.SecondInvitationRewardCoef
-	case 3:
-		baseCoef = config.ThirdInvitationRewardCoef
-	default:
-		return 0
+	if config.EnableUpgrade10 {
+		baseCoef = stakeWeight
+	} else {
+		switch age {
+		case 1:
+			baseCoef = config.FirstInvitationRewardCoef
+		case 2:
+			baseCoef = config.SecondInvitationRewardCoef
+		case 3:
+			baseCoef = config.ThirdInvitationRewardCoef
+		}
 	}
 	if len(epochDurations) < int(age) {
-		return baseCoef
+		return split(baseCoef)
 	}
 	epochDuration := epochDurations[len(epochDurations)-int(age)]
 	if epochDuration == 0 {
-		return baseCoef
+		return split(baseCoef)
 	}
 	t := math2.Min(float64(epochHeight)/float64(epochDuration), 1.0)
-	return baseCoef * float32(1-math2.Pow(t, 4)*0.5)
+	return split(baseCoef * float32(1-math2.Pow(t, 4)*0.5))
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
-	totalReward decimal.Decimal, epochDurations []uint32, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, epochDurations []uint32, stakeWeights map[common.Address]float32, statsCollector collector.StatsCollector) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
 	totalWeight := float32(0)
 
+	type weightRapper struct {
+		inviter, invitee float32
+	}
 	type inviterWrapper struct {
 		address common.Address
 		inviter *types.InviterValidationResult
+		weights []weightRapper
 	}
-	addInviter := func(data []inviterWrapper, elem inviterWrapper) []inviterWrapper {
+	addInviter := func(data []*inviterWrapper, elem *inviterWrapper) []*inviterWrapper {
 		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
-		data = append(data, inviterWrapper{})
+		data = append(data, nil)
 		copy(data[index+1:], data[index:])
 		data[index] = elem
 		return data
 	}
-	goodInviters := make([]inviterWrapper, 0)
+	goodInviters := make([]*inviterWrapper, 0)
 
 	for i := uint32(1); i <= appState.State.ShardsNum(); i++ {
 		if shard, ok := validationResults[common.ShardId(i)]; ok {
 			if len(shard.GoodInviters) == 0 {
 				continue
 			}
-			shardGoodInviters := make([]inviterWrapper, 0, len(shard.GoodInviters))
+			shardGoodInviters := make([]*inviterWrapper, 0, len(shard.GoodInviters))
 			for addr, inviter := range shard.GoodInviters {
-				shardGoodInviters = addInviter(shardGoodInviters, inviterWrapper{addr, inviter})
+				shardGoodInviters = addInviter(shardGoodInviters, &inviterWrapper{addr, inviter, nil})
 			}
 			goodInviters = append(goodInviters, shardGoodInviters...)
 		}
@@ -357,7 +402,11 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			continue
 		}
 		for _, successfulInvite := range inviter.SuccessfulInvites {
-			totalWeight += getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config)
+			stakeWeight := stakeWeights[inviterWrapper.address]
+			inviterWeight, inviteeWeight := getInvitationRewardCoef(stakeWeight, successfulInvite.Age, successfulInvite.Penalized, successfulInvite.EpochHeight, epochDurations, config)
+			totalWeight += inviterWeight
+			totalWeight += inviteeWeight
+			inviterWrapper.weights = append(inviterWrapper.weights, weightRapper{inviterWeight, inviteeWeight})
 		}
 	}
 
@@ -384,6 +433,17 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
+	addRewardToStake := func(addr common.Address, totalReward decimal.Decimal, age uint16, txHash *common.Hash, epochHeight uint32, isSavedInviteWinner bool) {
+		stake := math.ToInt(totalReward)
+		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, addr, appState)
+		appState.State.AddStake(addr, stake)
+		appState.State.AddReplenishedStake(addr, stake)
+		collector.CompleteBalanceUpdate(statsCollector, appState)
+		collector.AddMintedCoins(statsCollector, stake)
+		collector.AddInvitationsReward(statsCollector, addr, addr, nil, stake, age, txHash, epochHeight, isSavedInviteWinner)
+		collector.AfterAddStake(statsCollector, addr, stake, appState)
+	}
+
 	for _, inviterWrapper := range goodInviters {
 		inviter := inviterWrapper.inviter
 		addr := inviterWrapper.address
@@ -391,10 +451,19 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			continue
 		}
 		isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
-		for _, successfulInvite := range inviter.SuccessfulInvites {
-			if weight := getInvitationRewardCoef(successfulInvite.Age, successfulInvite.EpochHeight, epochDurations, config); weight > 0 {
-				totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weight))
-				addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
+		for i, successfulInvite := range inviter.SuccessfulInvites {
+			if weightRapper := inviterWrapper.weights[i]; weightRapper.inviter > 0 {
+				if config.EnableUpgrade10 {
+					inviterTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.inviter))
+					addReward(addr, inviterTotalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
+					if weightRapper.invitee > 0 {
+						inviteeTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.invitee))
+						addRewardToStake(successfulInvite.Address, inviteeTotalReward, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
+					}
+				} else {
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.inviter))
+					addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
+				}
 			}
 		}
 	}

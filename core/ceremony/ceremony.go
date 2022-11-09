@@ -1130,7 +1130,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 				totalFlips, missed, noQualShort, noQualLong, vc.epoch >= 93)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
-			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters)
+			incSuccessfulInvites(shardValidationResults, god, addr, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters)
 			setValidationResultToGoodAuthor(addr, newIdentityState, missed, shardValidationResults)
 			setValidationResultToGoodInviter(shardValidationResults, addr, newIdentityState, allGoodInviters)
 			reportersToReward.setValidationResult(addr, newIdentityState, missed, flipsByAuthor, vc.config.Consensus)
@@ -1263,7 +1263,7 @@ func setValidationResultToGoodInviter(validationResults *types.ValidationResults
 	goodInviter.NewIdentityState = uint8(newState)
 }
 
-func incSuccessfulInvites(validationResults *types.ValidationResults, god common.Address, invitee state.Identity,
+func incSuccessfulInvites(validationResults *types.ValidationResults, god common.Address, address common.Address, invitee state.Identity,
 	birthday uint16, newState state.IdentityState, currentEpoch uint16, allGoodInviters map[common.Address]*types.InviterValidationResult) {
 	if invitee.Inviter == nil || newState != state.Newbie && newState != state.Verified {
 		return
@@ -1276,10 +1276,13 @@ func incSuccessfulInvites(validationResults *types.ValidationResults, god common
 	if !ok {
 		return
 	}
+	_, penalized := validationResults.BadAuthors[address]
 	goodInviter.SuccessfulInvites = append(goodInviter.SuccessfulInvites, &types.SuccessfulInvite{
 		Age:         newAge,
 		TxHash:      invitee.Inviter.TxHash,
 		EpochHeight: invitee.Inviter.EpochHeight,
+		Address:     address,
+		Penalized:   penalized,
 	})
 	if invitee.Inviter.Address == god {
 		goodInviter.PayInvitationReward = true

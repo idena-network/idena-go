@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tm-db"
+	math2 "math"
 	"math/big"
 	"sort"
 	"testing"
@@ -73,12 +74,26 @@ func Test_rewardValidIdentities(t *testing.T) {
 				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
 			},
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
-				auth1:  {SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 100}}, PayInvitationReward: true, NewIdentityState: uint8(state.Verified)},
-				auth2:  {PayInvitationReward: true, NewIdentityState: uint8(state.Newbie)},
-				auth3:  {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
-				auth4:  {PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{{3, common.Hash{}, 200}}},
-				failed: {PayInvitationReward: false, SuccessfulInvites: []*types.SuccessfulInvite{{2, common.Hash{}, 0}}},
-				god:    {SuccessfulInvites: []*types.SuccessfulInvite{{1, common.Hash{}, 50}, {2, common.Hash{}, 100}, {3, common.Hash{}, 200}}, PayInvitationReward: true},
+				auth1: {
+					SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 100, true, common.Address{}},
+					}, PayInvitationReward: true, NewIdentityState: uint8(state.Verified)},
+				auth2: {PayInvitationReward: true, NewIdentityState: uint8(state.Newbie)},
+				auth3: {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
+				auth4: {PayInvitationReward: true, NewIdentityState: uint8(state.Verified),
+					SuccessfulInvites: []*types.SuccessfulInvite{
+						{3, common.Hash{}, 200, false, common.Address{}},
+					}},
+				failed: {PayInvitationReward: false,
+					SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 0, false, common.Address{}},
+					}},
+				god: {
+					SuccessfulInvites: []*types.SuccessfulInvite{
+						{1, common.Hash{}, 50, false, common.Address{}},
+						{2, common.Hash{}, 100, false, common.Address{}},
+						{3, common.Hash{}, 200, false, common.Address{}},
+					}, PayInvitationReward: true},
 			},
 			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
 				100: {
@@ -135,18 +150,12 @@ func Test_rewardValidIdentities(t *testing.T) {
 	flipReward := float32(350) / 23
 	godPayout := float32(100)
 
-	// sum all coefficients
-	// auth1: conf.SecondInvitationRewardCoef + conf.SavedInviteWinnerRewardCoef (9 + 0)
-	// auth2: conf.SavedInviteRewardCoef (0)
-	// auth4: conf.ThirdInvitationRewardCoef (18)
-	// god: conf.FirstInvitationRewardCoef + conf.SecondInvitationRewardCoef + conf.ThirdInvitationRewardCoef (3 + 9 + 18)
-	// total: 57
-	invitationReward := float32(3.1578947) // 180/57
+	invitationReward := float32(180)
 
 	reportReward := float32(50) // 150 / 3
 
 	const stake10Weight = 7.9432823 // 10^0.9
-	reward, stake := splitAndSum(conf, false, stakingReward*stake10Weight, flipReward*12.0, invitationReward*conf.SecondInvitationRewardCoef)
+	reward, stake := splitAndSum(conf, false, stakingReward*stake10Weight, flipReward*12.0, invitationReward)
 
 	require.Equal(t, reward.String(), appState.State.GetBalance(poolOfAuth1).String())
 	require.True(t, new(big.Int).Add(big.NewInt(10), stake).Cmp(appState.State.GetStakeBalance(auth1)) == 0)
@@ -169,12 +178,12 @@ func Test_rewardValidIdentities(t *testing.T) {
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth3)) == 0)
 	require.True(t, new(big.Int).Add(big.NewInt(95), stake).Cmp(appState.State.GetStakeBalance(auth3)) == 0)
 
-	reward, stake = splitAndSum(conf, false, invitationReward*conf.ThirdInvitationRewardCoef)
+	reward, stake = splitAndSum(conf, false, 0)
 
 	require.True(t, reward.Cmp(appState.State.GetBalance(auth4)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(auth4)) == 0)
 
-	reward, stake = splitAndSum(conf, false, invitationReward*conf.FirstInvitationRewardCoef, invitationReward*conf.SecondInvitationRewardCoef, invitationReward*conf.ThirdInvitationRewardCoef)
+	reward, stake = splitAndSum(conf, false, 0)
 	reward.Add(reward, float32ToBigInt(godPayout))
 	require.True(t, reward.Cmp(appState.State.GetBalance(god)) == 0)
 	require.True(t, stake.Cmp(appState.State.GetStakeBalance(god)) == 0)
@@ -226,51 +235,88 @@ func Test_splitReward(t *testing.T) {
 }
 
 func Test_getInvitationRewardCoef(t *testing.T) {
-	consensusConf := &config.ConsensusConf{}
-	consensusConf.FirstInvitationRewardCoef = 1.0
-	consensusConf.SecondInvitationRewardCoef = 2.0
-	consensusConf.ThirdInvitationRewardCoef = 4.0
+	consensusConf := GetDefaultConsensusConfig()
 
-	var coef float32
+	var inviter, invitee float32
 
-	coef = getInvitationRewardCoef(0, 0, []uint32{}, consensusConf)
-	require.Zero(t, coef)
+	inviter, invitee = getInvitationRewardCoef(1, 0, false, 0, []uint32{}, consensusConf)
+	require.Zero(t, invitee)
+	require.Zero(t, inviter)
+	inviter, invitee = getInvitationRewardCoef(1, 0, true, 0, []uint32{}, consensusConf)
+	require.Zero(t, invitee)
+	require.Zero(t, inviter)
 
-	coef = getInvitationRewardCoef(1, 0, []uint32{}, consensusConf)
-	require.Equal(t, float32(1.0), coef)
+	inviter, invitee = getInvitationRewardCoef(2.1, 1, false, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(2.1), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(2.1, 1, true, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(0.42), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(2, 0, []uint32{}, consensusConf)
-	require.Equal(t, float32(2.0), coef)
+	inviter, invitee = getInvitationRewardCoef(3.21, 2, false, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(3.21), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(3.21, 2, true, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(1.605), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(3, 0, []uint32{}, consensusConf)
-	require.Equal(t, float32(4.0), coef)
+	inviter, invitee = getInvitationRewardCoef(4.321, 3, false, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(4.321), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(4.321, 3, true, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(3.4568002), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(4, 0, []uint32{}, consensusConf)
-	require.Equal(t, float32(0.0), coef)
+	inviter, invitee = getInvitationRewardCoef(5.4321, 4, false, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(0.0), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(5.4321, 4, true, 0, []uint32{}, consensusConf)
+	require.Equal(t, float32(0.0), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(1, 0, []uint32{90}, consensusConf)
-	require.Equal(t, float32(1.0), coef)
+	inviter, invitee = getInvitationRewardCoef(6.54321, 1, false, 0, []uint32{90}, consensusConf)
+	require.Equal(t, float32(6.54321), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(6.54321, 1, true, 0, []uint32{90}, consensusConf)
+	require.Equal(t, float32(1.308642), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(1, 90, []uint32{90}, consensusConf)
-	require.Equal(t, float32(0.5), coef)
+	inviter, invitee = getInvitationRewardCoef(6.54321, 1, false, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(3.271605), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(6.54321, 1, true, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(0.654321), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(2, 90, []uint32{90}, consensusConf)
-	require.Equal(t, float32(2.0), coef)
+	inviter, invitee = getInvitationRewardCoef(7.654321, 2, false, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(7.654321), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(7.654321, 2, true, 90, []uint32{90}, consensusConf)
+	require.Equal(t, float32(3.8271605), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(2, 70, []uint32{100, 90}, consensusConf)
-	require.Equal(t, float32(1.7599), coef)
+	inviter, invitee = getInvitationRewardCoef(8.7654321, 2, false, 70, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(7.713142), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(8.7654321, 2, true, 70, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(3.856571), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(3, 192, []uint32{100, 90}, consensusConf)
-	require.Equal(t, float32(4.0), coef)
+	inviter, invitee = getInvitationRewardCoef(9.87654321, 3, false, 192, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(9.87654321), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(9.87654321, 3, true, 192, []uint32{100, 90}, consensusConf)
+	require.Equal(t, float32(7.9012346), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(3, 192, []uint32{200, 100, 90}, consensusConf)
-	require.Equal(t, float32(2.301307), coef)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, false, 192, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(6.3214917), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, true, 192, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(5.0571933), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(3, 200, []uint32{200, 100, 90}, consensusConf)
-	require.Equal(t, float32(2.0), coef)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, false, 200, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(5.4938273), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, true, 200, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(4.395062), inviter)
+	require.Zero(t, invitee)
 
-	coef = getInvitationRewardCoef(3, 1000, []uint32{200, 100, 90}, consensusConf)
-	require.Equal(t, float32(2.0), coef)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, false, 1000, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(5.4938273), inviter+invitee)
+	inviter, invitee = getInvitationRewardCoef(10.987654321, 3, true, 1000, []uint32{200, 100, 90}, consensusConf)
+	require.Equal(t, float32(4.395062), inviter)
+	require.Zero(t, invitee)
 }
 
 func Test_addSuccessfulValidationReward1(t *testing.T) {
@@ -325,7 +371,7 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 
 	totalReward := decimal.RequireFromString("545000149673614247952282")
 
-	addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
+	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
 	_ = appState.Commit(nil)
 
 	require.Zero(t, appState.State.GetBalance(addrZeroStake).Sign())
@@ -337,6 +383,20 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 	require.Equal(t, "156.106680689089783251", ConvertToFloat(appState.State.GetBalance(addr4)).String())
 	require.Equal(t, "78323.87772688500601495", ConvertToFloat(appState.State.GetBalance(addr5)).String())
 	require.Equal(t, "0.000000000000000001", ConvertToFloat(appState.State.GetBalance(addr6)).String())
+
+	require.Len(t, stakeWeights, 8)
+	weight, ok := stakeWeights[addrZeroStake]
+	require.True(t, ok)
+	require.Zero(t, weight)
+	weight, ok = stakeWeights[appState.State.GodAddress()]
+	require.True(t, ok)
+	require.Zero(t, weight)
+	require.Equal(t, calculateWeight("0.0000000000000001"), stakeWeights[addr1])
+	require.Equal(t, calculateWeight("2.013650178560176501"), stakeWeights[addr2])
+	require.Equal(t, calculateWeight("915.160012350876913691"), stakeWeights[addr3])
+	require.Equal(t, calculateWeight("9125849.019823751067178698"), stakeWeights[addr4])
+	require.Equal(t, calculateWeight("9136892363.230579078150897132"), stakeWeights[addr5])
+	require.Equal(t, calculateWeight("0.0000000000000005"), stakeWeights[addr6])
 }
 
 func Test_addSuccessfulValidationReward2(t *testing.T) {
@@ -347,6 +407,7 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 	conf := config.GetDefaultConsensusConfig()
 
 	appState.State.SetGlobalEpoch(1)
+	appState.State.SetGodAddress(common.Address{})
 
 	type Data struct {
 		initialStake, expectedBalance, expectedStake string
@@ -401,7 +462,7 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 
 	totalReward := decimal.RequireFromString("1000000000000000000000")
 
-	addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
+	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
 	_ = appState.Commit(nil)
 
 	for i, addr := range addrs {
@@ -409,4 +470,204 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 		require.Equal(t, data[i].expectedStake, ConvertToFloat(appState.State.GetStakeBalance(addr)).String(), fmt.Sprintf("wrong stake of address with index %v", i))
 	}
 
+	require.Len(t, stakeWeights, len(addrs)+1)
+	for i, addr := range addrs {
+		weight, ok := stakeWeights[addr]
+		require.True(t, ok)
+		require.Equal(t, calculateWeight(data[i].initialStake), weight)
+	}
+	weight, ok := stakeWeights[appState.State.GodAddress()]
+	require.True(t, ok)
+	require.Zero(t, weight)
+}
+
+func calculateWeight(stakeS string) float32 {
+	stake, _ := decimal.RequireFromString(stakeS).Float64()
+	return float32(math2.Pow(stake, 0.9))
+}
+
+func Test_addInvitationReward(t *testing.T) {
+	memdb := db.NewMemDB()
+
+	appState, _ := appstate.NewAppState(memdb, eventbus.New())
+	require.NoError(t, appState.Initialize(0))
+
+	cfg := GetDefaultConsensusConfig()
+
+	var addrs []common.Address
+	for i := byte(1); i <= byte(13); i++ {
+		addrs = append(addrs, common.Address{i})
+	}
+
+	stakeWeights := make(map[common.Address]float32)
+	appState.State.SetGodAddress(addrs[0])
+
+	stakeWeights[addrs[0]] = calculateWeight("48.972831666678647531")
+	stakeWeights[addrs[1]] = calculateWeight("1518501.612011012002755181")
+	stakeWeights[addrs[2]] = calculateWeight("91206.147842382102804845")
+	stakeWeights[addrs[3]] = calculateWeight("43904.383871607742557663")
+	stakeWeights[addrs[4]] = calculateWeight("19852.173267418088262289")
+	stakeWeights[addrs[5]] = calculateWeight("9604.202734533158562331")
+	stakeWeights[addrs[6]] = calculateWeight("2804.507900290687139989")
+	stakeWeights[addrs[7]] = calculateWeight("54.088262289871399891")
+	stakeWeights[addrs[8]] = calculateWeight("99999")
+	stakeWeights[addrs[9]] = calculateWeight("0.007900290687139989")
+	stakeWeights[addrs[10]] = calculateWeight("99999")
+	stakeWeights[addrs[11]] = calculateWeight("0.000000000000000989")
+
+	pool := common.Address{0xff}
+	appState.State.SetDelegatee(addrs[4], pool)
+	appState.State.SetDelegatee(addrs[5], pool)
+	appState.State.SetDelegatee(addrs[6], pool)
+
+	validationResults := map[common.ShardId]*types.ValidationResults{
+		1: {
+			GoodInviters: map[common.Address]*types.InviterValidationResult{
+				addrs[0]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Undefined), SuccessfulInvites: []*types.SuccessfulInvite{
+						{1, common.Hash{}, 0, true, common.Address{0xa1}},
+						{2, common.Hash{}, 999999, false, common.Address{0xa2}},
+					},
+				},
+				addrs[1]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 3000, true, common.Address{0xa3}},
+						{3, common.Hash{}, 70000, true, common.Address{0xa4}},
+					},
+				},
+				addrs[2]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
+						{3, common.Hash{}, 10000, true, common.Address{0xa5}},
+						{1, common.Hash{}, 30000, false, common.Address{0xa6}},
+					},
+				},
+				addrs[3]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 15000, false, common.Address{0xa7}},
+						{2, common.Hash{}, 25000, false, common.Address{0xa8}},
+					},
+				},
+				addrs[4]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 3000, true, common.Address{0xa9}},
+						{3, common.Hash{}, 70000, true, common.Address{0xaa}},
+					},
+				},
+				addrs[5]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
+						{3, common.Hash{}, 10000, true, common.Address{0xab}},
+						{1, common.Hash{}, 30000, false, common.Address{0xac}},
+					},
+				},
+				addrs[6]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 15000, false, common.Address{0xad}},
+						{2, common.Hash{}, 25000, false, common.Address{0xae}},
+					},
+				},
+				addrs[7]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
+						{1, common.Hash{}, 33333, true, common.Address{0xaf}},
+					},
+				},
+				addrs[8]: {
+					PayInvitationReward: false, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 33333, false, common.Address{0xb0}},
+					},
+				},
+				addrs[9]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
+						{3, common.Hash{}, 33333, false, common.Address{0xb1}},
+					},
+				},
+				addrs[10]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{},
+				},
+				addrs[11]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
+						{2, common.Hash{}, 33333, false, common.Address{0xb3}},
+					},
+				},
+				addrs[12]: {
+					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
+						{3, common.Hash{}, 33333, false, common.Address{0xb4}},
+					},
+				},
+			},
+		},
+	}
+
+	totalReward := new(big.Int).Mul(new(big.Int).SetInt64(554454), common.DnaBase)
+	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
+
+	epochDurations := []uint32{72644, 92409, 86329}
+
+	addInvitationReward(appState, cfg, validationResults, totalRewardD, epochDurations, stakeWeights, nil)
+
+	require.Equal(t, "2.660363363372324272", ConvertToFloat(appState.State.GetBalance(addrs[0])).String())
+	require.Equal(t, "0.665090840843081067", ConvertToFloat(appState.State.GetStakeBalance(addrs[0])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa1}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xa1}).Sign())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa2}).Sign())
+	require.Equal(t, "1.847474595010569582", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xa2})).String())
+
+	require.Equal(t, "62245.168908884489584627", ConvertToFloat(appState.State.GetBalance(addrs[1])).String())
+	require.Equal(t, "15561.292227221122396156", ConvertToFloat(appState.State.GetStakeBalance(addrs[1])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa3}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xa3}).Sign())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa4}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xa4}).Sign())
+
+	require.Equal(t, "1294.297600637698061009", ConvertToFloat(appState.State.GetBalance(addrs[2])).String())
+	require.Equal(t, "5177.190402550792244031", ConvertToFloat(appState.State.GetStakeBalance(addrs[2])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa5}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xa5}).Sign())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa6}).Sign())
+	require.Equal(t, "5147.686539282495524245", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xa6})).String())
+
+	require.Equal(t, "2681.44154436890331253", ConvertToFloat(appState.State.GetBalance(addrs[3])).String())
+	require.Equal(t, "670.360386092225828132", ConvertToFloat(appState.State.GetStakeBalance(addrs[3])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa7}).Sign())
+	require.Equal(t, "1677.857398311075623942", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xa7})).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa8}).Sign())
+	require.Equal(t, "1673.94453215005351672", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xa8})).String())
+
+	require.Equal(t, "1651.83896803968129109", ConvertToFloat(appState.State.GetBalance(common.Address{0xff})).String())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xff}).Sign())
+
+	require.Zero(t, appState.State.GetBalance(addrs[4]).Sign())
+	require.Equal(t, "313.905685117772372841", ConvertToFloat(appState.State.GetStakeBalance(addrs[4])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xa9}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xa9}).Sign())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xaa}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xaa}).Sign())
+
+	require.Zero(t, appState.State.GetBalance(addrs[5]).Sign())
+	require.Equal(t, "682.790776141615700033", ConvertToFloat(appState.State.GetStakeBalance(addrs[5])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xab}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xab}).Sign())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xac}).Sign())
+	require.Equal(t, "678.899670146385092848", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xac})).String())
+
+	require.Zero(t, appState.State.GetBalance(addrs[6]).Sign())
+	require.Equal(t, "56.379633383296968678", ConvertToFloat(appState.State.GetStakeBalance(addrs[6])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xad}).Sign())
+	require.Equal(t, "141.11363524819448702", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xad})).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xae}).Sign())
+	require.Equal(t, "140.784531668290356371", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xae})).String())
+
+	require.Equal(t, "1.278609777010080814", ConvertToFloat(appState.State.GetBalance(addrs[7])).String())
+	require.Equal(t, "0.319652444252520203", ConvertToFloat(appState.State.GetStakeBalance(addrs[7])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xaf}).Sign())
+	require.Zero(t, appState.State.GetStakeBalance(common.Address{0xaf}).Sign())
+
+	require.Equal(t, "0.001786500169903872", ConvertToFloat(appState.State.GetBalance(addrs[9])).String())
+	require.Equal(t, "0.000446625042475968", ConvertToFloat(appState.State.GetStakeBalance(addrs[9])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xb1}).Sign())
+	require.Equal(t, "0.000558281147219847", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xb1})).String())
+
+	require.Equal(t, "0.000000000000000692", ConvertToFloat(appState.State.GetBalance(addrs[11])).String())
+	require.Equal(t, "0.000000000000002764", ConvertToFloat(appState.State.GetStakeBalance(addrs[11])).String())
+	require.Zero(t, appState.State.GetBalance(common.Address{0xb3}).Sign())
+	require.Equal(t, "0.000000000000003456", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xb3})).String())
 }

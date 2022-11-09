@@ -747,34 +747,36 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	god := common.Address{0x1}
 	auth1 := common.Address{0x2}
 	badAuth := common.Address{0x3}
+	penalizedInvitee := common.Address{0x4}
+	nonPenalizedInvitee := common.Address{0x5}
 
 	validationResults := &types.ValidationResults{
-		BadAuthors:   map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
+		BadAuthors:   map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor, penalizedInvitee: types.NoQualifiedFlipsBadAuthor},
 		GoodInviters: make(map[common.Address]*types.InviterValidationResult),
 	}
 
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Verified,
 		Inviter: &state.Inviter{
 			Address: god,
 		},
 	}, 0, state.Newbie, epoch, allGoodInviters)
 
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, penalizedInvitee, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: auth1,
 		},
 	}, 5, state.Newbie, epoch, allGoodInviters)
 
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: badAuth,
 		},
 	}, 5, state.Newbie, epoch, allGoodInviters)
 
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Candidate,
 		Inviter: &state.Inviter{
 			Address: god,
@@ -782,7 +784,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	}, 5, state.Newbie, epoch, allGoodInviters)
 
 	// 4th validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Newbie,
 		Inviter: &state.Inviter{
 			Address: auth1,
@@ -790,7 +792,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	}, 2, state.Newbie, epoch, allGoodInviters)
 
 	// 4th validation (Newbie->Verified)
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Newbie,
 		Inviter: &state.Inviter{
 			Address: auth1,
@@ -798,7 +800,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	}, 2, state.Verified, epoch, allGoodInviters)
 
 	// 3rd validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Newbie,
 		Inviter: &state.Inviter{
 			Address: auth1,
@@ -806,7 +808,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	}, 3, state.Newbie, epoch, allGoodInviters)
 
 	// 2nd validation (Newbie->Newbie)
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, common.Address{}, state.Identity{
 		State: state.Newbie,
 		Inviter: &state.Inviter{
 			Address: auth1,
@@ -814,7 +816,7 @@ func Test_incSuccessfulInvites(t *testing.T) {
 	}, 4, state.Newbie, epoch, allGoodInviters)
 
 	// 3rd validation (Newbie->Verified)
-	incSuccessfulInvites(validationResults, god, state.Identity{
+	incSuccessfulInvites(validationResults, god, nonPenalizedInvitee, state.Identity{
 		State: state.Newbie,
 		Inviter: &state.Inviter{
 			Address: auth1,
@@ -827,10 +829,17 @@ func Test_incSuccessfulInvites(t *testing.T) {
 
 	require.Equal(t, len(validationResults.GoodInviters[auth1].SuccessfulInvites), 4)
 	var ages []uint16
+	var invitees, penalizedInvitees []common.Address
 	for _, si := range validationResults.GoodInviters[auth1].SuccessfulInvites {
 		ages = append(ages, si.Age)
+		invitees = append(invitees, si.Address)
+		if si.Penalized {
+			penalizedInvitees = append(penalizedInvitees, si.Address)
+		}
 	}
 	require.Equal(t, []uint16{1, 3, 2, 3}, ages)
+	require.Equal(t, []common.Address{penalizedInvitee, {}, {}, nonPenalizedInvitee}, invitees)
+	require.Equal(t, []common.Address{penalizedInvitee}, penalizedInvitees)
 
 	require.Equal(t, len(validationResults.GoodInviters[god].SuccessfulInvites), 1)
 	require.Equal(t, uint16(1), validationResults.GoodInviters[god].SuccessfulInvites[0].Age)
