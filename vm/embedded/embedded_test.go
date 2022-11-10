@@ -188,7 +188,7 @@ func (c *contractTester) createContract(ctx env.CallContext, e env.Env) Contract
 	case TimeLockContract:
 		return NewTimeLock(ctx, e, nil)
 	case OracleVotingContract:
-		return NewOracleVotingContract6(ctx, e, nil)
+		return NewOracleVotingContract2(ctx, e, nil)
 	case OracleLockContract:
 		return NewOracleLock2(ctx, e, nil)
 	case RefundableOracleLockContract:
