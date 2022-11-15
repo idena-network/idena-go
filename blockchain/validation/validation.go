@@ -62,6 +62,7 @@ var (
 	SenderHasDelegatee   = errors.New("sender has delegatee already")
 	SenderHasNoDelegatee = errors.New("sender has no delegatee")
 	WrongEpoch           = errors.New("wrong epoch")
+	InvalidDeployAmount  = errors.New("insufficient amount to create contract")
 
 	validators map[types.TxType]validator
 )
@@ -706,7 +707,7 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 	minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
 
 	if tx.AmountOrZero().Cmp(minStake) < 0 {
-		return InvalidAmount
+		return InvalidDeployAmount
 	}
 
 	attachment := attachments.ParseDeployContractAttachment(tx)
