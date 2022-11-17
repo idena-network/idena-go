@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
-	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/vm/costs"
@@ -17,15 +16,16 @@ type WasmVM struct {
 	head     *types.Header
 }
 
-func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (contractAddr common.Address, gasUsed uint64, actionResult []byte, err error) {
+func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, err error) {
+	ctx := NewContractContext(tx)
+	env = NewWasmEnv(vm.appState, ctx, vm.head, "deploy")
 	attach := attachments.ParseDeployContractAttachment(tx)
-	contractAddr = CreateContractAddr(tx)
 	actionResult = []byte{}
 	if attach == nil {
-		return contractAddr, limit, actionResult, errors.New("can't parse attachment")
+		return env, limit, actionResult, errors.New("can't parse attachment")
 	}
 	if len(attach.Code) == 0 {
-		return contractAddr, limit, actionResult, errors.New("code is empty")
+		return env, limit, actionResult, errors.New("code is empty")
 	}
 
 	defer func() {
@@ -36,39 +36,41 @@ func (vm *WasmVM) deploy(env *WasmEnv, tx *types.Transaction, limit uint64) (con
 	}()
 	env.Deploy(attach.Code)
 	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, limit)
-	return contractAddr, gasUsed, actionResult, err
+	return env, gasUsed, actionResult, err
 }
 
-func (vm *WasmVM) call(env *WasmEnv, tx *types.Transaction, limit uint64) (contract common.Address, gasUsed uint64, actionResult []byte, method string, err error) {
-	contract = *tx.To
+func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, method string, err error) {
+	attachment := attachments.ParseCallContractAttachment(tx)
+	method = ""
+	if attachment != nil {
+		method = attachment.Method
+	}
+	ctx := NewContractContext(tx)
+	env = NewWasmEnv(vm.appState, ctx, vm.head, method)
+	contract := *tx.To
 	code := vm.appState.State.GetContractCode(contract)
 	actionResult = []byte{}
 
 	if len(code) == 0 {
-		return contract, limit, actionResult, "", errors.New("code is empty")
+		return env, limit, actionResult, "", errors.New("code is empty")
 	}
-	attach := attachments.ParseCallContractAttachment(tx)
-	if attach == nil {
-		return contract, limit, actionResult, "", errors.New("can't parse attachment")
+	if attachment == nil {
+		return env, limit, actionResult, "", errors.New("can't parse attachment")
 	}
-	method = attach.Method
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.New(fmt.Sprint(r))
 			gasUsed = limit
 		}
 	}()
-	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attach.Method, attach.Args, limit)
-	return *tx.To, gasUsed, actionResult, attach.Method, err
+	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, limit)
+	return env, gasUsed, actionResult, attachment.Method, err
 }
 
 func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
-	ctx := NewContractContext(tx)
-	env := NewWasmEnv(vm.appState, ctx, vm.head)
-
 	var usedGas uint64
 	var err error
-	var contract common.Address
+	var env *WasmEnv
 	var actionResult []byte
 	var method string
 
@@ -77,9 +79,9 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	switch tx.Type {
 	case types.DeployContractTx:
 		method = "deploy"
-		contract, usedGas, actionResult, err = vm.deploy(env, tx, gasLimit)
+		env, usedGas, actionResult, err = vm.deploy(tx, gasLimit)
 	case types.CallContractTx:
-		contract, usedGas, actionResult, method, err = vm.call(env, tx, gasLimit)
+		env, usedGas, actionResult, method, err = vm.call(tx, gasLimit)
 	}
 	var events []*types.TxEvent
 	if err == nil {
@@ -98,7 +100,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 		Error:           err,
 		Success:         err == nil,
 		From:            sender,
-		ContractAddress: contract,
+		ContractAddress: env.ContractAddress(nil),
 		Events:          events,
 		Method:          method,
 		ActionResult:    actionResult,

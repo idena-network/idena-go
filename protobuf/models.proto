@@ -575,6 +575,7 @@ message ProtoDeployContractAttachment {
     bytes CodeHash = 1;
     repeated bytes args = 2;
     bytes Code = 3;
+    bytes Nonce = 4;
 }
 
 message ProtoTerminateContractAttachment {

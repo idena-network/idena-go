@@ -361,13 +361,15 @@ type DeployContractAttachment struct {
 	CodeHash common.Hash
 	Code     []byte
 	Args     [][]byte
+	Nonce    []byte
 }
 
-func CreateDeployContractAttachment(codeHash common.Hash, code []byte, args ...[]byte) *DeployContractAttachment {
+func CreateDeployContractAttachment(codeHash common.Hash, code []byte, nonce []byte, args ...[]byte) *DeployContractAttachment {
 	attach := &DeployContractAttachment{
 		CodeHash: codeHash,
 		Args:     args,
 		Code:     code,
+		Nonce:    nonce,
 	}
 	return attach
 }
@@ -377,6 +379,7 @@ func (d *DeployContractAttachment) ToBytes() ([]byte, error) {
 		CodeHash: d.CodeHash.Bytes(),
 		Args:     d.Args,
 		Code:     d.Code,
+		Nonce:    d.Nonce,
 	}
 	return proto.Marshal(protoAttachment)
 }
@@ -389,6 +392,7 @@ func (d *DeployContractAttachment) FromBytes(data []byte) error {
 	d.CodeHash.SetBytes(protoAttachment.CodeHash)
 	d.Args = protoAttachment.Args
 	d.Code = protoAttachment.Code
+	d.Nonce = protoAttachment.Nonce
 	return nil
 }
 

@@ -39,6 +39,7 @@ type DeployArgs struct {
 	CodeHash hexutil.Bytes   `json:"codeHash"`
 	Amount   decimal.Decimal `json:"amount"`
 	Args     DynamicArgs     `json:"args"`
+	Nonce    hexutil.Bytes   `json:"nonce"`
 	MaxFee   decimal.Decimal `json:"maxFee"`
 	Code     hexutil.Bytes   `json:"code"`
 }
@@ -230,7 +231,7 @@ func (api *ContractApi) buildDeployContractTx(args DeployArgs, estimate bool) (*
 	if err != nil {
 		return nil, err
 	}
-	payload, _ := attachments.CreateDeployContractAttachment(codeHash, args.Code, convertedArgs...).ToBytes()
+	payload, _ := attachments.CreateDeployContractAttachment(codeHash, args.Code, args.Nonce, convertedArgs...).ToBytes()
 	tx := api.baseApi.getTx(from, nil, types.DeployContractTx, args.Amount, args.MaxFee, decimal.Zero, 0, 0, payload)
 	return api.signIfNeeded(from, tx, estimate)
 }

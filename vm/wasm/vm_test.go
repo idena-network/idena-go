@@ -30,7 +30,7 @@ func TestVm_Erc20(t *testing.T) {
 
 	code, _ := testdata.Erc20()
 
-	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code)
+	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil)
 	payload, _ := deployAttach.ToBytes()
 
 	tx := &types.Transaction{
@@ -52,7 +52,7 @@ func TestVm_Erc20(t *testing.T) {
 	})
 
 	addr := common.Address{0x1}
-	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), append(common.ToBytes(uint64(777)), []byte{0,0,0,0,0,0,0,0}...))
+	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), append(common.ToBytes(uint64(777)), []byte{0, 0, 0, 0, 0, 0, 0, 0}...))
 	payload, _ = callAttach.ToBytes()
 
 	tx = &types.Transaction{
@@ -93,7 +93,7 @@ var nonce = uint32(1)
 
 func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []byte, args ...[]byte) *types.TxReceipt {
 	vm := NewWasmVM(appState, createHeader(1, 1))
-	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, args...)
+	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil, args...)
 	payload, _ := deployAttach.ToBytes()
 
 	tx := &types.Transaction{
@@ -105,7 +105,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 1000000)
+	return vm.Run(tx, 2000000)
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
@@ -123,7 +123,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 10000000)
+	return vm.Run(tx, 100000000)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
@@ -233,6 +233,8 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
+	t.Logf("addr=%v", addr.Hex());
+
 	code, _ := testdata.SharedFungibleToken()
 	receipt := deployContract(key, appState, code, addr.Bytes(), common.Address{0xA}.Bytes())
 	t.Logf("%+v\n", receipt)
@@ -240,19 +242,7 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	firstContract := receipt.ContractAddress
 
-	appState.State.SetContractValue(firstContract, []byte("tokens"), common.ToBytes(uint64(1000)))
-
-	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		v, _ := helpers.ExtractUInt64(0, value)
-		t.Logf("key=%v, value=%v\n", key, v)
-		return false
-	})
-
-	destination := common.Address{0x3}
-
-	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(uint64(100)))
-	t.Logf("%+v\n", receipt)
-	require.True(t, receipt.Success)
+	appState.State.SetContractValue(firstContract, []byte("b"), u64Tou128(uint64(1000)))
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		v, _ := helpers.ExtractUInt64(0, value)
@@ -262,7 +252,34 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	appState.Commit(nil)
 
-	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(uint64(100)))
+	destination := common.Address{0x3}
+
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(u64Tou128(100)))
+	t.Logf("%+v\n", receipt)
+	require.True(t, receipt.Success)
+
+	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	appState.State.IterateContractStore(firstContract, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	secondContract := common.Address{0x9d, 0x8c, 0x32, 0x5a, 0xeb, 0x35,0x34, 0x4d, 0x80, 0xff, 0x7a, 0xcb, 0x50, 0x6d, 0x7d, 0xf3, 0xb7, 0x36, 0xa1, 0xf8}
+	appState.State.IterateContractStore(secondContract, nil, nil, func(key []byte, value []byte) bool {
+		v, _ := helpers.ExtractUInt64(0, value)
+		t.Logf("[deployed contract] key=%v, value=%v\n", key, v)
+		return false
+	})
+
+	appState.Commit(nil)
+
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(u64Tou128(100)))
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -274,8 +291,6 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 }
 
-
-
 func Test_IdenaSdkAsTest(t *testing.T) {
 	db := dbm.NewMemDB()
 	appState, _ := appstate.NewAppState(db, eventbus.New())
@@ -284,12 +299,10 @@ func Test_IdenaSdkAsTest(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
-
 	code, _ := testdata.IdenaSdkAsTest()
 	receipt := deployContract(key, appState, code)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
-
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		t.Logf("key=%v, value=%v\n", key, string(value))
@@ -306,3 +319,6 @@ func Test_IdenaSdkAsTest(t *testing.T) {
 	})
 }
 
+func u64Tou128(n uint64) []byte {
+	return append(common.ToBytes(n), []byte{0, 0, 0, 0, 0, 0, 0, 0}...)
+}

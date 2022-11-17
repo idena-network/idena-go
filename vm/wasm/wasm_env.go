@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
@@ -42,6 +43,7 @@ type WasmEnv struct {
 	deployedContractCache map[common.Address]ContractData
 	contractStakeCache    map[common.Address]*big.Int
 	events                []*types.TxEvent
+	method                string
 }
 
 func (w *WasmEnv) PayAmount(meter *lib.GasMeter) *big.Int {
@@ -142,7 +144,9 @@ func (w *WasmEnv) AddBalance(meter *lib.GasMeter, address lib.Address, amount *b
 }
 
 func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
-	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	if meter != nil {
+		meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	}
 	return w.ctx.ContractAddr()
 }
 
@@ -151,7 +155,7 @@ func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
 	return w.GetCode(addr)
 }
 
-func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header, method string) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
 		appState:              appState,
@@ -161,6 +165,7 @@ func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.H
 		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]ContractData{},
 		contractStakeCache:    map[common.Address]*big.Int{},
+		method:                method,
 	}
 }
 
@@ -266,7 +271,7 @@ func (w *WasmEnv) Identity(meter *lib.GasMeter, address lib.Address) []byte {
 	return w.appState.State.RawIdentity(address)
 }
 
-func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int, isDeploy bool) (lib.HostEnv, error) {
+func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *big.Int, isDeploy bool) (lib.HostEnv, error) {
 	const maxDepth = 16
 	if w.id > maxDepth {
 		return nil, errors.New("max recursion depth reached")
@@ -281,6 +286,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int, isDeplo
 
 	subEnv := &WasmEnv{
 		id:                    w.id + 1,
+		method:                method,
 		appState:              w.appState,
 		parent:                w,
 		ctx:                   w.ctx.CreateSubContext(contract, payAmount),
@@ -290,6 +296,8 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, payAmount *big.Int, isDeplo
 		contractStakeCache:    map[common.Address]*big.Int{},
 		head:                  w.head,
 	}
+	println(fmt.Sprintf("created sub env id=%v, method=%v, parent method=%v", subEnv.id, method, subEnv.parent.method))
+	//log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
 	return subEnv, nil
 }
 
@@ -347,10 +355,15 @@ func (w *WasmEnv) OriginalCaller(meter *lib.GasMeter) lib.Address {
 }
 
 func (w *WasmEnv) Commit() {
-	println("Commit to wasm env id=", w.id)
+	println(fmt.Sprintf("сommit to wasm env id=%v, method=%v", w.id, w.method))
 	if w.parent != nil {
 		for contract, cache := range w.contractStoreCache {
-			w.parent.contractStoreCache[contract] = cache
+			if w.parent.contractStoreCache[contract] == nil {
+				w.parent.contractStoreCache[contract] = map[string]*contractValue{}
+			}
+			for k, v := range cache {
+				w.parent.contractStoreCache[contract][k] = v
+			}
 		}
 		for addr, b := range w.balancesCache {
 			w.parent.balancesCache[addr] = b
