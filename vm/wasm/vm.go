@@ -35,7 +35,7 @@ func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gas
 		}
 	}()
 	env.Deploy(attach.Code)
-	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, limit)
+	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, ctx.ContractAddr(), limit)
 	return env, gasUsed, actionResult, err
 }
 
@@ -63,7 +63,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 			gasUsed = limit
 		}
 	}()
-	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, limit)
+	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, contract,  limit)
 	return env, gasUsed, actionResult, attachment.Method, err
 }
 
