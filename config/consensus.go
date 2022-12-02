@@ -33,6 +33,8 @@ type ConsensusConf struct {
 	StakingRewardPercent              float32
 	CandidateRewardPercent            float32
 	FlipRewardPercent                 float32
+	FlipRewardBasicPercent            float32
+	FlipRewardExtraPercent            float32
 	ValidInvitationRewardPercent      float32
 	ReportsRewardPercent              float32
 	FoundationPayoutsPercent          float32
@@ -91,6 +93,8 @@ func init() {
 		StakingRewardPercent:              0.18,
 		CandidateRewardPercent:            0.02,
 		FlipRewardPercent:                 0.35,
+		FlipRewardBasicPercent:            0.15,
+		FlipRewardExtraPercent:            0.20,
 		ValidInvitationRewardPercent:      0.18,
 		ReportsRewardPercent:              0.15,
 		FoundationPayoutsPercent:          0.1,

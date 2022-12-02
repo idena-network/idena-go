@@ -96,6 +96,7 @@ type epochApplyingCache struct {
 	validationFailed    bool
 	validationResults   map[common.ShardId]*types.ValidationResults
 	pools               map[common.Address]struct{}
+	nonValidatedStakes  map[common.Address]*big.Int
 }
 
 type cacheValue struct {
@@ -943,7 +944,10 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 	return signedTx.Hash(), err
 }
 
-func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (validated bool, pool *common.Address) {
+func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (validated bool, pool *common.Address, nonValidatedStake *big.Int) {
+	if !value.state.NewbieOrBetter() {
+		nonValidatedStake = appState.State.GetStakeBalance(addr)
+	}
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if value.state == state.Killed && value.participated {
 		stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
@@ -994,7 +998,7 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 		// Stake of killed identity is burnt
 		collector.AddKilledBurntCoins(statsCollector, addr, appState.State.GetStakeBalance(addr))
 	}
-	return validated, pool
+	return validated, pool, nonValidatedStake
 }
 
 func determineStakeShareToBurn(identityState state.IdentityState, birthday uint16, curEpoch uint16) int {
@@ -1025,25 +1029,27 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	if applyingCache, ok := vc.epochApplyingCache[height]; ok {
 		if applyingCache.validationFailed {
 			return types.TotalValidationResult{
-				IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
-				ShardResults:    applyingCache.validationResults,
-				Pools:           applyingCache.pools,
-				Failed:          true,
+				IdentitiesCount:    vc.appState.ValidatorsCache.NetworkSize(),
+				ShardResults:       applyingCache.validationResults,
+				Pools:              applyingCache.pools,
+				NonValidatedStakes: applyingCache.nonValidatedStakes,
+				Failed:             true,
 			}
 		}
 
 		if len(applyingCache.epochApplyingResult) > 0 {
 			for addr, value := range applyingCache.epochApplyingResult {
-				validated, _ := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+				validated, _, _ := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
 				if validated {
 					identitiesCount++
 				}
 			}
 			return types.TotalValidationResult{
-				IdentitiesCount: identitiesCount,
-				ShardResults:    applyingCache.validationResults,
-				Pools:           applyingCache.pools,
-				Failed:          false,
+				IdentitiesCount:    identitiesCount,
+				ShardResults:       applyingCache.validationResults,
+				Pools:              applyingCache.pools,
+				NonValidatedStakes: applyingCache.nonValidatedStakes,
+				Failed:             false,
 			}
 		}
 	}
@@ -1168,6 +1174,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		validationResults[shardId] = shardValidationResults
 	}
 	pools := make(map[common.Address]struct{})
+	nonValidatedStakes := make(map[common.Address]*big.Int)
 	if intermediateIdentitiesCount == 0 {
 		vc.log.Warn("validation failed, nobody is validated, identities remains the same")
 		vc.validationStats.Failed = true
@@ -1176,12 +1183,14 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 			validationResults:   validationResults,
 			validationFailed:    true,
 			pools:               pools,
+			nonValidatedStakes:  nonValidatedStakes,
 		}
 		return types.TotalValidationResult{
-			IdentitiesCount: vc.appState.ValidatorsCache.NetworkSize(),
-			ShardResults:    validationResults,
-			Pools:           pools,
-			Failed:          true,
+			IdentitiesCount:    vc.appState.ValidatorsCache.NetworkSize(),
+			ShardResults:       validationResults,
+			Pools:              pools,
+			NonValidatedStakes: nonValidatedStakes,
+			Failed:             true,
 		}
 	}
 	if !isGodCeremonyCandidate {
@@ -1189,12 +1198,15 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	}
 
 	for addr, value := range epochApplyingValues {
-		validated, pool := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
+		validated, pool, nonValidatedStake := applyOnState(vc.config.Consensus, appState, vc.epoch, statsCollector, addr, value)
 		if validated {
 			identitiesCount++
 		}
 		if pool != nil {
 			pools[*pool] = struct{}{}
+		}
+		if nonValidatedStake != nil {
+			nonValidatedStakes[addr] = nonValidatedStake
 		}
 	}
 	for _, shard := range vc.shardCandidates {
@@ -1222,13 +1234,15 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		validationResults:   validationResults,
 		validationFailed:    false,
 		pools:               pools,
+		nonValidatedStakes:  nonValidatedStakes,
 	}
 
 	return types.TotalValidationResult{
-		IdentitiesCount: identitiesCount,
-		ShardResults:    validationResults,
-		Pools:           pools,
-		Failed:          false,
+		IdentitiesCount:    identitiesCount,
+		ShardResults:       validationResults,
+		Pools:              pools,
+		NonValidatedStakes: nonValidatedStakes,
+		Failed:             false,
 	}
 }
 

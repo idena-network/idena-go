@@ -141,13 +141,13 @@ func Test_rewardValidIdentities(t *testing.T) {
 	appState.State.SetState(addr2, state.Newbie)
 	appState.State.SetBirthday(addr2, 5)
 
-	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil)
+	rewardValidIdentities(appState, conf, validationResults, []uint32{400, 200, 100}, nil, nil)
 
 	appState.Commit(nil)
 
 	candidateReward := float32(20) / 3
 	stakingReward := float32(180) / 614.2688878 // 10^0.9 + 95^0.9 + 1100^0.9
-	flipReward := float32(350) / 23
+	flipReward := float32(150) / 23
 	godPayout := float32(100)
 
 	invitationReward := float32(180)
@@ -670,4 +670,37 @@ func Test_addInvitationReward(t *testing.T) {
 	require.Equal(t, "0.000000000000002764", ConvertToFloat(appState.State.GetStakeBalance(addrs[11])).String())
 	require.Zero(t, appState.State.GetBalance(common.Address{0xb3}).Sign())
 	require.Equal(t, "0.000000000000003456", ConvertToFloat(appState.State.GetStakeBalance(common.Address{0xb3})).String())
+}
+
+func Test_splitFlipsToReward(t *testing.T) {
+	src := []*types.FlipToReward{
+		{
+			Grade: types.GradeD,
+			Cid:   []byte{0x1},
+		},
+		{
+			Grade: types.GradeD,
+			Cid:   []byte{0x2},
+		},
+		{
+			Grade: types.GradeA,
+			Cid:   []byte{0x3},
+		},
+		{
+			Grade: types.GradeB,
+			Cid:   []byte{0x4},
+		},
+	}
+
+	base, extra := splitFlipsToReward(src)
+	require.Len(t, base, 3)
+	require.Len(t, extra, 1)
+
+	require.Equal(t, types.GradeA, base[0].Grade)
+	require.Equal(t, types.GradeB, base[1].Grade)
+	require.Equal(t, types.GradeD, base[2].Grade)
+	require.Equal(t, []byte{0x1}, base[2].Cid)
+
+	require.Equal(t, types.GradeD, extra[0].Grade)
+	require.Equal(t, []byte{0x2}, extra[0].Cid)
 }
