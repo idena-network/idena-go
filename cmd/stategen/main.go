@@ -156,6 +156,7 @@ func main() {
 				DelegationNonce:     data.DelegationNonce,
 				DelegationEpoch:     uint32(data.DelegationEpoch),
 				PendingUndelegation: data.PendingUndelegation() != nil,
+				UndelegationEpoch:   uint32(data.UndelegationEpoch()),
 				PenaltySeconds:      uint32(data.PenaltySeconds()),
 				PenaltyTimestamp:    data.PenaltyTimestamp(),
 			}

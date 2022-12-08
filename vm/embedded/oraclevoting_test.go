@@ -748,7 +748,7 @@ func TestOracleVoting_AllVotesDiscriminated(t *testing.T) {
 	builder := createTestContractBuilder(&networkConfig{
 		identityGroups: []identityGroupConfig{
 			{count: 500, state: state.Newbie},
-			{count: 500, state: state.Human, pendingUndelegation: true, delegatee: &common.Address{0x1}},
+			{count: 500, state: state.Human, undelegationEpoch: 1},
 			{count: 1000, state: state.Verified},
 		},
 	}, ownerBalance)
@@ -880,10 +880,9 @@ func TestOracleVoting_successScenarioWithPoolsAndDiscriminations(t *testing.T) {
 				state: state.Newbie,
 			},
 			{
-				count:               100,
-				state:               state.Human,
-				delegatee:           &common.Address{0x1},
-				pendingUndelegation: true,
+				count:             100,
+				state:             state.Human,
+				undelegationEpoch: 1,
 			},
 			{
 				count:     100,

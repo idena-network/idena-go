@@ -42,7 +42,7 @@ type StatsCollector interface {
 	AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 	AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 
-	BeforeSetPenalty(addr common.Address, seconds uint16, appState *appstate.AppState)
+	BeforeSetPenalty(addr common.Address, seconds uint16, inheritedFrom *common.Address, appState *appstate.AppState)
 
 	AddMintedCoins(amount *big.Int)
 	AddPenaltyBurntCoins(addr common.Address, amount *big.Int)
@@ -407,15 +407,15 @@ func (c *collectorStub) CompleteCollecting() {
 	// do nothing
 }
 
-func (c *collectorStub) BeforeSetPenalty(addr common.Address, seconds uint16, appState *appstate.AppState) {
+func (c *collectorStub) BeforeSetPenalty(addr common.Address, seconds uint16, inheritedFrom *common.Address, appState *appstate.AppState) {
 	// do nothing
 }
 
-func BeforeSetPenalty(c StatsCollector, addr common.Address, seconds uint16, appState *appstate.AppState) {
+func BeforeSetPenalty(c StatsCollector, addr common.Address, seconds uint16, inheritedFrom *common.Address, appState *appstate.AppState) {
 	if c == nil {
 		return
 	}
-	c.BeforeSetPenalty(addr, seconds, appState)
+	c.BeforeSetPenalty(addr, seconds, inheritedFrom, appState)
 }
 
 func (c *collectorStub) AddMintedCoins(amount *big.Int) {

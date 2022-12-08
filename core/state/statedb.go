@@ -1434,6 +1434,7 @@ func (s *StateDB) SetPredefinedIdentities(state *models.ProtoPredefinedState) {
 		stateObject.data.DelegationEpoch = uint16(identity.DelegationEpoch)
 		stateObject.data.DelegationNonce = identity.DelegationNonce
 		stateObject.data.pendingUndelegation = identity.PendingUndelegation
+		stateObject.data.undelegationEpoch = uint16(identity.UndelegationEpoch)
 		stateObject.data.penaltySeconds = uint16(identity.PenaltySeconds)
 		stateObject.data.penaltyTimestamp = identity.PenaltyTimestamp
 
@@ -1627,6 +1628,10 @@ func (s *StateDB) SetDelegationEpoch(addr common.Address, epoch uint16) {
 
 func (s *StateDB) SetPendingUndelegation(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).SetPendingUndelegation()
+}
+
+func (s *StateDB) SetUndelegationEpoch(addr common.Address, epoch uint16) {
+	s.GetOrNewIdentityObject(addr).SetUndelegationEpoch(epoch)
 }
 
 func (s *StateDB) PendingUndelegation(addr common.Address) *common.Address {
