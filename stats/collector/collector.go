@@ -99,7 +99,7 @@ type StatsCollector interface {
 
 	AddRefundableOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address, value byte,
 		successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-		refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int)
+		refundDelay, depositDeadline uint64, oracleVotingFeeOld byte, oracleVotingFee uint64, state byte, sum *big.Int)
 	AddRefundableOracleLockCallDeposit(ownSum, sum, fee *big.Int)
 	AddRefundableOracleLockCallPush(state byte, oracleVotingExists bool, oracleVotingResult byte, oracleVotingResultErr error, transfer *big.Int, refundBlock uint64)
 	AddRefundableOracleLockCallRefund(balance *big.Int, coef decimal.Decimal)
@@ -875,18 +875,18 @@ func AddOracleLockTermination(c StatsCollector, dest common.Address) {
 
 func (c *collectorStub) AddRefundableOracleLockDeploy(contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-	refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int) {
+	refundDelay, depositDeadline uint64, oracleVotingFeeOld byte, oracleVotingFee uint64, state byte, sum *big.Int) {
 	// do nothing
 }
 
 func AddRefundableOracleLockDeploy(c StatsCollector, contractAddress common.Address, oracleVotingAddress common.Address,
 	value byte, successAddress common.Address, successAddressErr error, failAddress common.Address, failAddressErr error,
-	refundDelay, depositDeadline uint64, oracleVotingFee byte, state byte, sum *big.Int) {
+	refundDelay, depositDeadline uint64, oracleVotingFeeOld byte, oracleVotingFee uint64, state byte, sum *big.Int) {
 	if c == nil {
 		return
 	}
 	c.AddRefundableOracleLockDeploy(contractAddress, oracleVotingAddress, value, successAddress, successAddressErr,
-		failAddress, failAddressErr, refundDelay, depositDeadline, oracleVotingFee, state, sum)
+		failAddress, failAddressErr, refundDelay, depositDeadline, oracleVotingFeeOld, oracleVotingFee, state, sum)
 }
 
 func (c *collectorStub) AddRefundableOracleLockCallDeposit(ownSum, sum, fee *big.Int) {
