@@ -52,16 +52,18 @@ type ConsensusConf struct {
 	UpgradeIntervalBeforeValidation   time.Duration
 	ReductionOneDelay                 time.Duration
 	NewKeyWordsEpoch                  uint16
+	EnableUpgrade10                   bool
 }
 
 type ConsensusVerson uint16
 
 const (
-	ConsensusV9 ConsensusVerson = 9
+	ConsensusV9  ConsensusVerson = 9
+	ConsensusV10 ConsensusVerson = 10
 )
 
 var (
-	v9                ConsensusConf
+	v9, v10           ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -110,9 +112,20 @@ func init() {
 		OfflinePenaltyDuration:            time.Hour * 8,
 	}
 	ConsensusVersions[ConsensusV9] = &v9
+
+	v10 = v9
+	ApplyConsensusVersion(ConsensusV10, &v10)
+	ConsensusVersions[ConsensusV10] = &v10
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
+	switch ver {
+	case ConsensusV10:
+		cfg.EnableUpgrade10 = true
+		cfg.Version = ConsensusV10
+		cfg.StartActivationDate = time.Date(2022, time.December, 23, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2022, time.December, 30, 0, 0, 0, 0, time.UTC).Unix()
+	}
 }
 
 func GetDefaultConsensusConfig() *ConsensusConf {

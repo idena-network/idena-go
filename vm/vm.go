@@ -48,7 +48,10 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.OracleLockContract:
 		return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableOracleLockContract:
-		return embedded.NewRefundableOracleLock2(ctx, vm.env, vm.statsCollector)
+		if vm.cfg.Consensus.EnableUpgrade10 {
+			return embedded.NewRefundableOracleLock2(ctx, vm.env, vm.statsCollector)
+		}
+		return embedded.NewRefundableOracleLock(ctx, vm.env, vm.statsCollector)
 	case embedded.MultisigContract:
 		return embedded.NewMultisig(ctx, vm.env, vm.statsCollector)
 	default:

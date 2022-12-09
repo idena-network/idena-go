@@ -257,5 +257,6 @@ func (chain *TestBlockchain) Bus() eventbus.Bus {
 func GetDefaultConsensusConfig() *config.ConsensusConf {
 	base := config.GetDefaultConsensusConfig()
 	res := *base
+	config.ApplyConsensusVersion(config.ConsensusV10, &res)
 	return &res
 }

@@ -19,14 +19,14 @@ import (
 
 func TestRefundableEvidenceLock_Call(t *testing.T) {
 
-	oraceVotingAddr := common.Address{0x1}
+	oracleVotingAddr := common.Address{0x1}
 	successAddr := common.Address{0x2}
 	failAddr := common.Address{0x3}
 
 	db := dbm.NewMemDB()
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 
-	appState.State.DeployContract(oraceVotingAddr, OracleVotingContract, common.DnaBase)
+	appState.State.DeployContract(oracleVotingAddr, OracleVotingContract, common.DnaBase)
 
 	appState.State.SetFeePerGas(big.NewInt(1))
 	rnd := rand.New(rand.NewSource(1))
@@ -52,8 +52,8 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	appState.Initialize(1)
 
-	attachment := attachments.CreateDeployContractAttachment(RefundableOracleLockContract, oraceVotingAddr.Bytes(),
-		common.ToBytes(byte(1)), successAddr.Bytes(), failAddr.Bytes(), nil, common.ToBytes(uint64(1000)), common.ToBytes(byte(5)))
+	attachment := attachments.CreateDeployContractAttachment(RefundableOracleLockContract, oracleVotingAddr.Bytes(),
+		common.ToBytes(byte(1)), successAddr.Bytes(), failAddr.Bytes(), nil, common.ToBytes(uint64(1000)), common.ToBytes(uint64(5000)))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)
 
@@ -82,7 +82,6 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := identities[i]
-		//addr := crypto.PubkeyToAddress(key.PublicKey)
 
 		attachment := attachments.CreateCallContractAttachment("deposit")
 		payload, err := attachment.ToBytes()
@@ -107,7 +106,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	require.True(t, big.NewInt(0).Mul(common.DnaBase, big.NewInt(5)).Cmp(appState.State.GetBalance(oraceVotingAddr)) == 0)
+	require.True(t, big.NewInt(0).Mul(common.DnaBase, big.NewInt(5)).Cmp(appState.State.GetBalance(oracleVotingAddr)) == 0)
 
 	totalSum := e.ReadContractData(contractAddr, []byte("sum"))
 
