@@ -366,13 +366,13 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 
 	totalWeight := float32(0)
 
-	type weightRapper struct {
+	type weightWrapper struct {
 		inviter, invitee float32
 	}
 	type inviterWrapper struct {
 		address common.Address
 		inviter *types.InviterValidationResult
-		weights []weightRapper
+		weights []weightWrapper
 	}
 	addInviter := func(data []*inviterWrapper, elem *inviterWrapper) []*inviterWrapper {
 		index := sort.Search(len(data), func(i int) bool { return bytes.Compare(data[i].address[:], elem.address[:]) > 0 })
@@ -406,7 +406,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			inviterWeight, inviteeWeight := getInvitationRewardCoef(stakeWeight, successfulInvite.Age, successfulInvite.Penalized, successfulInvite.EpochHeight, epochDurations, config)
 			totalWeight += inviterWeight
 			totalWeight += inviteeWeight
-			inviterWrapper.weights = append(inviterWrapper.weights, weightRapper{inviterWeight, inviteeWeight})
+			inviterWrapper.weights = append(inviterWrapper.weights, weightWrapper{inviterWeight, inviteeWeight})
 		}
 	}
 
@@ -452,16 +452,16 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		}
 		isNewbie := inviter.NewIdentityState == uint8(state.Newbie)
 		for i, successfulInvite := range inviter.SuccessfulInvites {
-			if weightRapper := inviterWrapper.weights[i]; weightRapper.inviter > 0 {
+			if weightWrapper := inviterWrapper.weights[i]; weightWrapper.inviter > 0 {
 				if config.EnableUpgrade10 {
-					inviterTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.inviter))
+					inviterTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.inviter))
 					addReward(addr, inviterTotalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
-					if weightRapper.invitee > 0 {
-						inviteeTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.invitee))
+					if weightWrapper.invitee > 0 {
+						inviteeTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.invitee))
 						addRewardToStake(successfulInvite.Address, inviteeTotalReward, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 					}
 				} else {
-					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightRapper.inviter))
+					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.inviter))
 					addReward(addr, totalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 				}
 			}

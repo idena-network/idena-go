@@ -866,17 +866,12 @@ func validateStoreToIpfsTx(appState *appstate.AppState, tx *types.Transaction, t
 	return nil
 }
 
-func isGodSender(appState *appstate.AppState, tx *types.Transaction) bool {
-	sender, _ := types.Sender(tx)
-	return sender == appState.State.GodAddress()
-}
-
 func validateReplenishStakeTx(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
 	if tx.To == nil {
 		return RecipientRequired
 	}
 	recipient := appState.State.GetIdentity(*tx.To)
-	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed || appCfg != nil && appCfg.Consensus.EnableUpgrade10 && isGodSender(appState, tx)
+	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed || appCfg != nil && appCfg.Consensus.EnableUpgrade10 && *tx.To == appState.State.GodAddress()
 	if !canReplenishStake {
 		return InvalidRecipient
 	}
