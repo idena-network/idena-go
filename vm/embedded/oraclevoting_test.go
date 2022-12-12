@@ -1213,3 +1213,149 @@ func TestOracleVoting_finishVotingWithZeroSecretVotesDuringPublicVoting(t *testi
 	require.Equal(t, "voting can not be prolonged", prolongRes.Error())
 	require.NoError(t, caller.finishVoting())
 }
+
+func TestOracleVoting_committeeSizePercent(t *testing.T) {
+	deployContractStake := common.DnaBase
+
+	ownerBalance := common.DnaBase
+
+	builder := createTestContractBuilder(&networkConfig{
+		identityGroups: []identityGroupConfig{
+			{count: 2000, state: state.Verified},
+		},
+	}, ownerBalance)
+	tester := builder.Build()
+	deploy := tester.ConfigureDeploy(deployContractStake).OracleVoting().SetCommitteeSize(1000).SetQuorum(90)
+	caller, err := deploy.Deploy()
+	require.NoError(t, err)
+
+	caller.contractTester.Commit()
+
+	committeeSize, err := helpers.ExtractUInt64(0, caller.contractTester.ReadData("committeeSize"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1000), committeeSize)
+
+	cs, err := helpers.ExtractUInt64(0, caller.contractTester.ReadData("cs"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1000), cs)
+
+	ns, err := helpers.ExtractUInt64(0, caller.contractTester.ReadData("ns"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(2000), ns)
+
+	keyToKill := caller.contractTester.identities[0]
+	addrToKill := crypto.PubkeyToAddress(keyToKill.PublicKey)
+	caller.contractTester.appState.State.SetState(addrToKill, state.Killed)
+	caller.contractTester.appState.IdentityState.SetValidated(addrToKill, false)
+	caller.contractTester.Commit()
+	caller.contractTester.appState.ValidatorsCache.Load()
+
+	require.Equal(t, 1999, caller.contractTester.env.NetworkSize())
+
+	caller.contractTester.setHeight(3)
+	caller.contractTester.setTimestamp(30)
+
+	caller.contractTester.SetBalance(ConvertToInt(decimal.NewFromFloat(2499)))
+	require.Error(t, caller.StartVoting())
+
+	caller.contractTester.SetBalance(ConvertToInt(decimal.NewFromFloat(2500)))
+	require.NoError(t, caller.StartVoting())
+
+	caller.contractTester.Commit()
+
+	committeeSize, err = helpers.ExtractUInt64(0, caller.contractTester.ReadData("committeeSize"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(999), committeeSize)
+
+	network, err := helpers.ExtractUInt64(0, caller.contractTester.ReadData("network"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1999), network)
+
+	minPayment := big.NewInt(0).SetBytes(caller.contractTester.ReadData("votingMinPayment"))
+	votedIdentities := map[common.Address]struct{}{}
+	sendVoteProof := func(key *ecdsa.PrivateKey) {
+		err = caller.sendVoteProof(key, 1, minPayment)
+		if err == nil {
+			caller.contractTester.AddBalance(minPayment)
+			caller.contractTester.Commit()
+			addr := crypto.PubkeyToAddress(key.PublicKey)
+			votedIdentities[addr] = struct{}{}
+		}
+	}
+	caller.contractTester.setHeight(4)
+	i := 0
+	for len(votedIdentities) < 500 && i < 2000 {
+		key := caller.contractTester.identities[i]
+		sendVoteProof(key)
+		i++
+	}
+	require.Equal(t, 500, len(votedIdentities))
+
+	caller.contractTester.setHeight(3 + 40)
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, ok := votedIdentities[addr]; !ok {
+			continue
+		}
+		err := caller.sendVote(key, 1, addr.Bytes())
+		require.Error(t, err)
+		require.Equal(t, "quorum is not reachable", err.Error())
+		caller.contractTester.Commit()
+	}
+
+	caller.contractTester.setHeight(3 + 80)
+
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+
+	committeeSize, err = helpers.ExtractUInt64(0, caller.contractTester.ReadData("committeeSize"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(999), committeeSize)
+
+	network, err = helpers.ExtractUInt64(0, caller.contractTester.ReadData("network"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1999), network)
+
+	caller.contractTester.setHeight(3 + 120)
+
+	for i := 1; i < 1000; i++ {
+		keyToKill := caller.contractTester.identities[i]
+		addrToKill := crypto.PubkeyToAddress(keyToKill.PublicKey)
+		caller.contractTester.appState.State.SetState(addrToKill, state.Killed)
+		caller.contractTester.appState.IdentityState.SetValidated(addrToKill, false)
+	}
+
+	caller.contractTester.Commit()
+	caller.contractTester.appState.ValidatorsCache.Load()
+
+	require.Equal(t, 1000, caller.contractTester.env.NetworkSize())
+
+	require.Error(t, caller.finishVoting())
+	require.NoError(t, caller.prolong())
+	caller.contractTester.Commit()
+
+	committeeSize, err = helpers.ExtractUInt64(0, caller.contractTester.ReadData("committeeSize"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(500), committeeSize)
+
+	network, err = helpers.ExtractUInt64(0, caller.contractTester.ReadData("network"))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1000), network)
+
+	caller.contractTester.setHeight(3 + 160)
+
+	for _, key := range caller.contractTester.identities {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		if _, ok := votedIdentities[addr]; !ok {
+			continue
+		}
+		require.NoError(t, caller.sendVote(key, 1, addr.Bytes()))
+		caller.contractTester.Commit()
+	}
+
+	caller.contractTester.setHeight(3 + 200)
+	require.Error(t, caller.prolong())
+	require.NoError(t, caller.finishVoting())
+	caller.contractTester.Commit()
+}
