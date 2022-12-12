@@ -1404,6 +1404,8 @@ type SuccessfulInvite struct {
 	Age         uint16
 	TxHash      common.Hash
 	EpochHeight uint32
+	Penalized   bool
+	Address     common.Address
 }
 
 type AuthorResults struct {

@@ -876,7 +876,7 @@ func validateReplenishStakeTx(appState *appstate.AppState, tx *types.Transaction
 		return RecipientRequired
 	}
 	recipient := appState.State.GetIdentity(*tx.To)
-	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed
+	canReplenishStake := recipient.State != state.Undefined && recipient.State != state.Killed || appCfg != nil && appCfg.Consensus.EnableUpgrade10 && *tx.To == appState.State.GodAddress()
 	if !canReplenishStake {
 		return InvalidRecipient
 	}
