@@ -1127,7 +1127,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 			identity := appState.State.GetIdentity(addr)
 			newIdentityState := determineNewIdentityState(identity, shortScore, longScore, totalScore,
-				totalFlips, missed, noQualShort, noQualLong, vc.epoch >= 93)
+				totalFlips, missed, noQualShort, noQualLong, vc.epoch >= 93, vc.config.Consensus.EnableUpgrade10)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			incSuccessfulInvites(shardValidationResults, god, identity, identityBirthday, newIdentityState, vc.epoch, allGoodInviters)
@@ -1200,7 +1200,7 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	for _, shard := range vc.shardCandidates {
 		for _, addr := range shard.nonCandidates {
 			identity := appState.State.GetIdentity(addr)
-			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false, vc.epoch >= 93)
+			newIdentityState := determineNewIdentityState(identity, 0, 0, 0, 0, true, false, false, vc.epoch >= 93, vc.config.Consensus.EnableUpgrade10)
 			identityBirthday := determineIdentityBirthday(vc.epoch, identity, newIdentityState)
 
 			value := cacheValue{
@@ -1450,7 +1450,7 @@ func determineIdentityBirthday(currentEpoch uint16, identity state.Identity, new
 	return 0
 }
 
-func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool, candidateToNewbieFixEnabled bool) state.IdentityState {
+func determineNewIdentityState(identity state.Identity, shortScore, longScore, totalScore float32, totalQualifiedFlips uint32, missed, noQualShort, nonQualLong bool, candidateToNewbieFixEnabled, enableUpgrade10 bool) state.IdentityState {
 
 	if !identity.HasDoneAllRequiredFlips() {
 		switch identity.State {
@@ -1473,7 +1473,7 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			return state.Killed
 		}
 		if noQualShort || nonQualLong && shortScore >= common.MinShortScore {
-			if candidateToNewbieFixEnabled {
+			if enableUpgrade10 || candidateToNewbieFixEnabled {
 				return state.Newbie
 			}
 			return state.Candidate
@@ -1516,28 +1516,46 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 		if missed {
 			return state.Zombie
 		}
-		if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
-			return state.Suspended
+		if !enableUpgrade10 {
+			if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
+				return state.Suspended
+			}
 		}
-		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore &&
+			(shortScore >= common.MinShortScore || enableUpgrade10 && noQualShort) &&
+			(longScore >= common.MinLongScore || enableUpgrade10 && nonQualLong) {
 			return state.Human
 		}
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
 			return state.Verified
+		}
+		if enableUpgrade10 {
+			if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
+				return state.Verified
+			}
 		}
 		return state.Killed
 	case state.Zombie:
 		if missed {
 			return state.Killed
 		}
-		if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
-			return state.Zombie
+		if !enableUpgrade10 {
+			if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
+				return state.Zombie
+			}
 		}
-		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore &&
+			(shortScore >= common.MinShortScore || enableUpgrade10 && noQualShort) &&
+			(longScore >= common.MinLongScore || enableUpgrade10 && nonQualLong) {
 			return state.Human
 		}
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
 			return state.Verified
+		}
+		if enableUpgrade10 {
+			if noQualShort {
+				return state.Verified
+			}
 		}
 		return state.Killed
 	case state.Human:
