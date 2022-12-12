@@ -286,7 +286,7 @@ func TestOracleVoting_successScenario(t *testing.T) {
 
 	for addr := range votedIdentities {
 		b := caller.contractTester.appState.State.GetBalance(addr)
-		require.Equal(t, "113885869565217391304", b.String())
+		require.Equal(t, "118885869565217391304", b.String())
 	}
 
 	stakeAfterFinish := caller.contractTester.ContractStake()
@@ -311,7 +311,7 @@ func TestOracleVoting_successScenario(t *testing.T) {
 	caller.contractTester.Commit()
 
 	stakeToBalance := big.NewInt(0).Quo(stakeAfterFinish, big.NewInt(2))
-	require.Equal(t, "722500000000000000000", caller.contractTester.appState.State.GetBalance(refundRecipient).String())
+	require.Equal(t, "262500000000000000000", caller.contractTester.appState.State.GetBalance(refundRecipient).String())
 	require.Equal(t, big.NewInt(0).Add(ownerBalance, stakeToBalance).String(), caller.contractTester.appState.State.GetBalance(dest).String())
 	require.Nil(t, caller.contractTester.CodeHash())
 	require.Nil(t, caller.contractTester.ContractStake())
@@ -476,9 +476,9 @@ func TestOracleVoting2_TerminateRefund(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		addr := crypto.PubkeyToAddress(canVoteKeys[i].PublicKey)
-		require.Equal(t, "247500000000000000000", caller.contractTester.appState.State.GetBalance(addr).String())
+		require.Equal(t, "257500000000000000000", caller.contractTester.appState.State.GetBalance(addr).String())
 	}
-	expectedOwnerReward := ConvertToInt(decimal.RequireFromString("525"))
+	expectedOwnerReward := ConvertToInt(decimal.RequireFromString("425"))
 	stakeToBalance := big.NewInt(0).Quo(stakeBeforeTermination, big.NewInt(2))
 	expectedOwnerBalance := new(big.Int).Add(expectedOwnerReward, new(big.Int).Add(ownerBalance, stakeToBalance))
 	require.Equal(t, expectedOwnerBalance.String(), caller.contractTester.appState.State.GetBalance(dest).String())
