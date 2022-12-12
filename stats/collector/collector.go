@@ -80,13 +80,13 @@ type StatsCollector interface {
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-		committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte)
+		committeeSize, networkSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte)
 	AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
 	AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminated bool)
 	AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
 		newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminated bool)
 	AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int)
-	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize, newCommitteeSize uint64,
 		newEpochWithoutGrowth *byte, newProlongVoteCount *uint64)
 	AddOracleVotingCallAddStake()
 	AddOracleVotingTermination(fund, oracleReward, ownerReward *big.Int)
@@ -730,18 +730,18 @@ func AddContractTerminationBurntCoins(c StatsCollector, address common.Address, 
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
+	committeeSize, networkSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
 	// do nothing
 }
 
 func AddOracleVotingDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
 	votingMinPayment *big.Int, fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
-	committeeSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
+	committeeSize, networkSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte) {
 	if c == nil {
 		return
 	}
 	c.AddOracleVotingDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
-		publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
+		publicVotingDuration, winnerThreshold, quorum, committeeSize, networkSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
 }
 
 func (c *collectorStub) AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte,
@@ -792,17 +792,17 @@ func AddOracleVotingCallFinish(c StatsCollector, state byte, result *byte, fund,
 	c.AddOracleVotingCallFinish(state, result, fund, oracleReward, ownerReward)
 }
 
-func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+func (c *collectorStub) AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize, newCommitteeSize uint64,
 	newEpochWithoutGrowth *byte, newProlongVoteCount *uint64) {
 	// do nothing
 }
 
-func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize uint64,
+func AddOracleVotingCallProlongation(c StatsCollector, startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize, newCommitteeSize uint64,
 	newEpochWithoutGrowth *byte, newProlongVoteCount *uint64) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
+	c.AddOracleVotingCallProlongation(startBlock, epoch, vrfSeed, committeeSize, networkSize, newCommitteeSize, newEpochWithoutGrowth, newProlongVoteCount)
 }
 
 func (c *collectorStub) AddOracleVotingCallAddStake() {

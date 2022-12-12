@@ -142,7 +142,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetArray(keyHash, hash)
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, networkSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
 	return nil
 }
 
@@ -600,7 +600,7 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 		f.SetUint16("epoch", epoch)
 		networkSize := uint64(f.env.NetworkSize())
 		f.SetUint64("network", networkSize)
-		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
+		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
