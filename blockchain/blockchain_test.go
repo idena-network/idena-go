@@ -1896,3 +1896,95 @@ func Test_prepareBlockRewardCtx(t *testing.T) {
 	require.Equal(t, committeeMember9, res.committee[8].address)
 	require.Equal(t, "1866318.88", res.committee[8].stakeWeight.String())
 }
+
+func Test_activateInvitationToInviteState(t *testing.T) {
+	chain, _, _, _ := NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
+
+	validation.SetAppConfig(chain.config)
+
+	key1, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	inviteKey1, _ := crypto.GenerateKey()
+	inviteKey2, _ := crypto.GenerateKey()
+	addr1 := crypto.PubkeyToAddress(key1.PublicKey)
+	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
+	inviteAddr1 := crypto.PubkeyToAddress(inviteKey1.PublicKey)
+	inviteAddr2 := crypto.PubkeyToAddress(inviteKey2.PublicKey)
+
+	chain.appState.State.AddInvite(addr1, 1)
+	chain.appState.State.AddInvite(addr2, 1)
+
+	{
+		tx := &types.Transaction{
+			Type:         types.InviteTx,
+			Amount:       new(big.Int),
+			To:           &inviteAddr1,
+			AccountNonce: 1,
+		}
+		signedTx, err := types.SignTx(tx, key1)
+		require.NoError(t, err)
+
+		require.NoError(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerGas, validation.InBlockTx))
+
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
+		_, _, _, err = chain.applyTxOnState(signedTx, context)
+		require.NoError(t, err)
+	}
+
+	{
+		tx := &types.Transaction{
+			Type:         types.InviteTx,
+			Amount:       new(big.Int),
+			To:           &inviteAddr2,
+			AccountNonce: 1,
+		}
+		signedTx, err := types.SignTx(tx, key2)
+		require.NoError(t, err)
+
+		require.NoError(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerGas, validation.InBlockTx))
+
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
+		_, _, _, err = chain.applyTxOnState(signedTx, context)
+		require.NoError(t, err)
+	}
+
+	{
+		tx := &types.Transaction{
+			Type:         types.ActivationTx,
+			Amount:       new(big.Int),
+			AccountNonce: 1,
+			To:           &inviteAddr1,
+			Payload:      crypto.FromECDSAPub(&inviteKey1.PublicKey),
+		}
+		signedTx, err := types.SignTx(tx, inviteKey2)
+		require.NoError(t, err)
+
+		require.Equal(t, validation.InvalidRecipient, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerGas, validation.InBlockTx))
+	}
+
+	{
+		tx := &types.Transaction{
+			Type:         types.ActivationTx,
+			Amount:       new(big.Int),
+			AccountNonce: 1,
+			To:           &inviteAddr1,
+			Payload:      crypto.FromECDSAPub(&inviteKey1.PublicKey),
+		}
+		signedTx, err := types.SignTx(tx, inviteKey1)
+		require.NoError(t, err)
+
+		require.NoError(t, validation.ValidateTx(chain.appState, signedTx, fee2.MinFeePerGas, validation.InBlockTx))
+
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
+		_, _, _, err = chain.applyTxOnState(signedTx, context)
+		require.NoError(t, err)
+	}
+
+}
