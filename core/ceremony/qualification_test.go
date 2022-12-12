@@ -162,6 +162,10 @@ func Test_qualifyOneFlip(t *testing.T) {
 	ans = fillArray(3, 3, 00)
 	q = qual.qualifyOneFlip(ans, 4, 0, 2, 6)
 	require.Equal(types.GradeReported, q.grade)
+
+	ans = fillArray(2, 3, 0)
+	q = qual.qualifyOneFlip(ans, 3, 10, 2, 5)
+	require.Equal(types.GradeD, q.grade)
 }
 
 func Test_getFlipStatusForCandidate(t *testing.T) {
