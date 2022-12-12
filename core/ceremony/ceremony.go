@@ -1521,7 +1521,9 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 				return state.Suspended
 			}
 		}
-		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore &&
+			(shortScore >= common.MinShortScore || enableUpgrade10 && noQualShort) &&
+			(longScore >= common.MinLongScore || enableUpgrade10 && nonQualLong) {
 			return state.Human
 		}
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
@@ -1542,7 +1544,9 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 				return state.Zombie
 			}
 		}
-		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore && shortScore >= common.MinShortScore && longScore >= common.MinLongScore {
+		if totalQualifiedFlips >= common.MinFlipsForHuman && totalScore >= common.MinHumanTotalScore &&
+			(shortScore >= common.MinShortScore || enableUpgrade10 && noQualShort) &&
+			(longScore >= common.MinLongScore || enableUpgrade10 && nonQualLong) {
 			return state.Human
 		}
 		if totalScore >= common.MinTotalScore && shortScore >= common.MinShortScore {
