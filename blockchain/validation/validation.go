@@ -285,6 +285,11 @@ func validateActivationTx(appState *appstate.AppState, tx *types.Transaction, tx
 	if recipientState != state.Invite && recipientState != state.Undefined {
 		return InvalidRecipient
 	}
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade10 {
+		if recipientState == state.Invite && sender != *tx.To {
+			return InvalidRecipient
+		}
+	}
 
 	return nil
 }
