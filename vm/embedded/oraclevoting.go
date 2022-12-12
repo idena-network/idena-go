@@ -638,7 +638,7 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 	enabledDiscrimination := f.GetByte("dis") == 1
 	allVotesDiscriminatedAfterSecretVoting := duration >= votingDuration && enabledDiscrimination && f.GetByte("notDisP") == 0
 	allVotesDiscriminatedAfterPublicVoting := duration >= votingDuration+publicVotingDuration && enabledDiscrimination && f.GetByte("notDisV") == 0
-	if f.env.Epoch() != f.GetUint16("epoch") || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting || allVotesDiscriminatedAfterSecretVoting || allVotesDiscriminatedAfterPublicVoting {
+	if f.env.Epoch() != f.GetUint16("epoch") && duration < votingDuration || noWinnerAfterPublicVoting || noConsensusAfterSecretVoting || allVotesDiscriminatedAfterSecretVoting || allVotesDiscriminatedAfterPublicVoting {
 		vrfSeed := f.env.BlockSeed()
 		f.SetArray("vrfSeed", vrfSeed)
 		var startBlock *uint64
