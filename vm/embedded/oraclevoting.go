@@ -29,6 +29,8 @@ const (
 	keyFact                   = "fact"
 	keyResult                 = "result"
 	keyHash                   = "hash"
+	keyInitialCommitteeSize   = "cs"
+	keyInitialNetworkSize     = "ns"
 )
 
 const FinishVotingMethod = "finishVoting"
@@ -166,6 +168,9 @@ func (f *OracleVoting2) Deploy(args ...[]byte) error {
 	f.SetByte("winnerThreshold", winnerThreshold)
 	f.SetByte("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
+	f.SetUint64(keyInitialCommitteeSize, committeeSize)
+	f.SetUint64(keyInitialNetworkSize, networkSize)
+
 	f.SetByte("ownerFee", ownerFee)
 	if votingMinPayment != nil {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
@@ -181,7 +186,7 @@ func (f *OracleVoting2) Deploy(args ...[]byte) error {
 	f.SetArray(keyHash, hash)
 
 	collector.AddOracleVotingDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, fact,
-		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, networkSize, ownerFee, ownerDeposit, oracleRewardFund, refundRecipient, hash)
 	return nil
 }
 
@@ -208,8 +213,8 @@ func (f *OracleVoting2) startVoting() error {
 	}
 
 	balance := f.env.Balance(f.ctx.ContractAddr())
-	committeeSize := f.GetUint64("committeeSize")
 	networkSize := f.env.NetworkSize()
+	committeeSize := f.calculateCommitteeSize(f.GetUint64("committeeSize"), uint64(networkSize))
 	if ownerDeposit := f.GetBigInt("ownerDeposit"); ownerDeposit != nil {
 		if balance.Cmp(ownerDeposit) < 0 {
 			return errors.New("contract balance is less than minimal deposit")
@@ -225,6 +230,7 @@ func (f *OracleVoting2) startVoting() error {
 	startBlock := f.env.BlockNumber()
 	f.SetUint64("startBlock", startBlock)
 	f.SetUint64("network", uint64(networkSize))
+	f.SetUint64("committeeSize", committeeSize)
 	var votingMinPayment *big.Int
 	if f.GetBigInt("votingMinPayment") == nil {
 		payment := decimal.NewFromBigInt(balance, 0)
@@ -658,11 +664,28 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 		epoch := f.env.Epoch()
 		f.SetUint16("epoch", epoch)
 		networkSize := uint64(f.env.NetworkSize())
+		newCommitteeSize := f.calculateCommitteeSize(committeeSize, networkSize)
 		f.SetUint64("network", networkSize)
-		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
+		f.SetUint64("committeeSize", newCommitteeSize)
+
+		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, newCommitteeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
+}
+
+func (f *OracleVoting2) calculateCommitteeSize(currentCommitteeSize, networkSize uint64) uint64 {
+	initialNetworkSize := f.GetUint64(keyInitialNetworkSize)
+	if initialNetworkSize == 0 {
+		return currentCommitteeSize
+	}
+	initialCommitteeSize := f.GetUint64(keyInitialCommitteeSize)
+	if initialNetworkSize == networkSize {
+		return initialCommitteeSize
+	}
+	return uint64(decimal.NewFromInt(int64(networkSize)).
+		Div(decimal.NewFromInt(int64(initialNetworkSize))).
+		Mul(decimal.NewFromInt(int64(initialCommitteeSize))).IntPart())
 }
 
 func (f *OracleVoting2) addStake(args ...[]byte) error {
