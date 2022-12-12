@@ -44,7 +44,10 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 	case embedded.TimeLockContract:
 		return embedded.NewTimeLock(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleVotingContract:
-		return embedded.NewOracleVotingContract6(ctx, vm.env, vm.statsCollector)
+		if vm.cfg.Consensus.EnableUpgrade10 {
+			return embedded.NewOracleVotingContract2(ctx, vm.env, vm.statsCollector)
+		}
+		return embedded.NewOracleVotingContract(ctx, vm.env, vm.statsCollector)
 	case embedded.OracleLockContract:
 		return embedded.NewOracleLock2(ctx, vm.env, vm.statsCollector)
 	case embedded.RefundableOracleLockContract:

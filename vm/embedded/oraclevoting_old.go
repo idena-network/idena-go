@@ -2,11 +2,9 @@ package embedded
 
 import (
 	"bytes"
-	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
-	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
@@ -18,32 +16,7 @@ import (
 	"time"
 )
 
-var (
-	maxHash *big.Float
-)
-
-const (
-	oracleVotingStatePending  = byte(0)
-	oracleVotingStateStarted  = byte(1)
-	oracleVotingStateFinished = byte(2)
-	keyFact                   = "fact"
-	keyResult                 = "result"
-	keyHash                   = "hash"
-)
-
-const FinishVotingMethod = "finishVoting"
-
-func init() {
-	var max [32]byte
-	for i := range max {
-		max[i] = 0xFF
-	}
-	i := new(big.Int)
-	i.SetBytes(max[:])
-	maxHash = new(big.Float).SetInt(i)
-}
-
-type OracleVoting2 struct {
+type OracleVoting struct {
 	*BaseContract
 	voteHashes  *env.Map
 	votes       *env.Map
@@ -52,8 +25,8 @@ type OracleVoting2 struct {
 	allVotes    *env.Map
 }
 
-func NewOracleVotingContract2(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting2 {
-	return &OracleVoting2{
+func NewOracleVotingContract(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *OracleVoting {
+	return &OracleVoting{
 		&BaseContract{
 			ctx:            ctx,
 			env:            e,
@@ -67,7 +40,7 @@ func NewOracleVotingContract2(ctx env.CallContext, e env.Env, statsCollector col
 	}
 }
 
-func (f *OracleVoting2) Call(method string, args ...[]byte) error {
+func (f *OracleVoting) Call(method string, args ...[]byte) error {
 	switch method {
 	case "startVoting":
 		return f.startVoting()
@@ -86,19 +59,7 @@ func (f *OracleVoting2) Call(method string, args ...[]byte) error {
 	}
 }
 
-func hashArgs(args ...[]byte) ([]byte, error) {
-	protoData := &models.ProtoOracleVotingHashData{
-		Args: args,
-	}
-	data, err := proto.Marshal(protoData)
-	if err != nil {
-		return nil, err
-	}
-	hash := crypto.Hash128(data)
-	return hash[:], nil
-}
-
-func (f *OracleVoting2) Deploy(args ...[]byte) error {
+func (f *OracleVoting) Deploy(args ...[]byte) error {
 	fact, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -185,21 +146,7 @@ func (f *OracleVoting2) Deploy(args ...[]byte) error {
 	return nil
 }
 
-func calculateOwnerDeposit(committeeSize, networkSize uint64) *big.Int {
-	return big.NewInt(0).Mul(minOracleReward(int(networkSize)), big.NewInt(int64(committeeSize)))
-}
-
-func minOracleReward(networkSize int) *big.Int {
-	network := float64(networkSize)
-	if network == 0 {
-		network = 1
-	}
-	dnaReward := decimal.NewFromFloat(5000).Div(decimal.NewFromFloat(network))
-	decimalOneDna := decimal.NewFromBigInt(common.DnaBase, 0)
-	return math.ToInt(dnaReward.Mul(decimalOneDna))
-}
-
-func (f *OracleVoting2) startVoting() error {
+func (f *OracleVoting) startVoting() error {
 	if f.GetByte("state") != oracleVotingStatePending {
 		return errors.New("contract is not in pending state")
 	}
@@ -240,7 +187,7 @@ func (f *OracleVoting2) startVoting() error {
 	return nil
 }
 
-func (f *OracleVoting2) sendVoteProof(args ...[]byte) error {
+func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	voteHash, err := helpers.ExtractArray(0, args...)
 	if err != nil {
 		return err
@@ -309,7 +256,7 @@ func (f *OracleVoting2) sendVoteProof(args ...[]byte) error {
 	return nil
 }
 
-func (f *OracleVoting2) sendVote(args ...[]byte) error {
+func (f *OracleVoting) sendVote(args ...[]byte) error {
 
 	//vote = [0..255]
 	vote, err := helpers.ExtractByte(0, args...)
@@ -426,7 +373,7 @@ func (f *OracleVoting2) sendVote(args ...[]byte) error {
 	return nil
 }
 
-func (f *OracleVoting2) finishVoting(args ...[]byte) error {
+func (f *OracleVoting) finishVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
@@ -549,11 +496,7 @@ func (f *OracleVoting2) finishVoting(args ...[]byte) error {
 	return errors.New("not enough votes to finish voting")
 }
 
-func (f *OracleVoting2) calculateOwnerReward(fundI *big.Int, fundD decimal.Decimal, votedCount, secretVotes uint64) *big.Int {
-	calculateUserLocks := func() *big.Int {
-		payment := f.GetBigInt("votingMinPayment")
-		return big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount+secretVotes)))
-	}
+func (f *OracleVoting) calculateOwnerReward(fundI *big.Int, fundD decimal.Decimal, votedCount, secretVotes uint64) *big.Int {
 	ownerDeposit := f.GetBigInt("ownerDeposit")
 	ownerFee := f.GetByte("ownerFee")
 	if ownerDeposit != nil {
@@ -563,9 +506,6 @@ func (f *OracleVoting2) calculateOwnerReward(fundI *big.Int, fundD decimal.Decim
 			if oracleRewardFund := f.GetBigInt("oracleRewardFund"); oracleRewardFund != nil {
 				replenishedAmount = new(big.Int).Sub(replenishedAmount, oracleRewardFund)
 			}
-			if userLocks := calculateUserLocks(); userLocks.Sign() > 0 {
-				replenishedAmount = new(big.Int).Sub(replenishedAmount, userLocks)
-			}
 			if replenishedAmount.Sign() > 0 {
 				feeAmount := decimal.NewFromBigInt(replenishedAmount, 0).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
 				result = new(big.Int).Add(result, math.ToInt(feeAmount))
@@ -574,21 +514,22 @@ func (f *OracleVoting2) calculateOwnerReward(fundI *big.Int, fundD decimal.Decim
 		return result
 	}
 	if ownerFee > 0 {
-		userLocks := decimal.NewFromBigInt(calculateUserLocks(), 0)
+		payment := f.GetBigInt("votingMinPayment")
+		userLocks := decimal.NewFromBigInt(big.NewInt(0).Mul(payment, big.NewInt(int64(votedCount+secretVotes))), 0)
 		ownerRewardD := fundD.Sub(userLocks).Mul(decimal.NewFromFloat(float64(ownerFee) / 100.0))
 		return math.ToInt(ownerRewardD)
 	}
 	return common.Big0
 }
 
-func (f *OracleVoting2) getRefundRecipient() common.Address {
+func (f *OracleVoting) getRefundRecipient() common.Address {
 	if v := f.GetArray("refundRecipient"); len(v) > 0 {
 		return common.BytesToAddress(v)
 	}
 	return f.Owner()
 }
 
-func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
+func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	if f.GetByte("state") != oracleVotingStateStarted {
 		return errors.New("contract is not in running state")
 	}
@@ -665,7 +606,7 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 	return errors.New("voting can not be prolonged")
 }
 
-func (f *OracleVoting2) addStake(args ...[]byte) error {
+func (f *OracleVoting) addStake(args ...[]byte) error {
 	var err error
 	if f.ctx.PayAmount() != nil && f.ctx.PayAmount().Sign() > 0 {
 		err = f.env.MoveToStake(f.ctx, f.ctx.PayAmount())
@@ -676,7 +617,7 @@ func (f *OracleVoting2) addStake(args ...[]byte) error {
 	return err
 }
 
-func (f *OracleVoting2) Read(method string, args ...[]byte) ([]byte, error) {
+func (f *OracleVoting) Read(method string, args ...[]byte) ([]byte, error) {
 
 	switch method {
 	case "proof":
@@ -734,7 +675,7 @@ func (f *OracleVoting2) Read(method string, args ...[]byte) ([]byte, error) {
 	}
 }
 
-func (f *OracleVoting2) getSecretVotesCount() uint64 {
+func (f *OracleVoting) getSecretVotesCount() uint64 {
 	data := f.env.GetValue(f.ctx, []byte("secretVotesCount"))
 	if data != nil {
 		ret, _ := helpers.ExtractUInt64(0, data)
@@ -749,11 +690,11 @@ func (f *OracleVoting2) getSecretVotesCount() uint64 {
 	return secretVotes
 }
 
-func (f *OracleVoting2) setSecretVotesCount(newValue uint64) {
+func (f *OracleVoting) setSecretVotesCount(newValue uint64) {
 	f.SetUint64("secretVotesCount", newValue)
 }
 
-func (f *OracleVoting2) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
+func (f *OracleVoting) Terminate(args ...[]byte) (common.Address, [][]byte, error) {
 	if f.GetByte("state") == oracleVotingStatePending {
 
 		period := time.Duration(uint64(f.env.BlockTimeStamp())-f.GetUint64("startTime")) * time.Second
@@ -833,24 +774,4 @@ func (f *OracleVoting2) Terminate(args ...[]byte) (common.Address, [][]byte, err
 		return f.Owner(), keysToSave, nil
 	}
 	return common.Address{}, nil, errors.New("voting can not be terminated")
-}
-
-type ContractError struct {
-	error    string
-	tryLater bool
-}
-
-func NewContractError(text string, tryLater bool) *ContractError {
-	return &ContractError{
-		error:    text,
-		tryLater: tryLater,
-	}
-}
-
-func (e *ContractError) Error() string {
-	return e.error
-}
-
-func (e *ContractError) TryLater() bool {
-	return e.tryLater
 }
