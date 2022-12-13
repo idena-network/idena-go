@@ -1423,10 +1423,11 @@ type ValidationResults struct {
 }
 
 type TotalValidationResult struct {
-	IdentitiesCount int
-	ShardResults    map[common.ShardId]*ValidationResults
-	Pools           map[common.Address]struct{}
-	Failed          bool
+	IdentitiesCount    int
+	ShardResults       map[common.ShardId]*ValidationResults
+	Pools              map[common.Address]struct{}
+	NonValidatedStakes map[common.Address]*big.Int
+	Failed             bool
 }
 
 type Candidate struct {

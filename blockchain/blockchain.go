@@ -406,7 +406,6 @@ func (chain *Blockchain) generateEmptyBlock(checkState *appstate.AppState, prevB
 	block.Header.EmptyBlockHeader.BlockSeed = types.Seed(crypto.Keccak256Hash(getSeedData(prevBlock)))
 	block.Header.EmptyBlockHeader.Flags = chain.calculateFlags(checkState, block, prevBlock)
 
-
 	_, _, stateDiff, identityStateDiff := chain.applyEmptyBlockOnState(checkState, block, statsCollector)
 
 	block.Header.EmptyBlockHeader.Root = checkState.State.Root()
@@ -707,7 +706,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 		for i := 0; i < epochDurationsLen; i++ {
 			epochDurations = append(epochDurations, uint32(epochBlocks[i+1]-epochBlocks[i]))
 		}
-		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, statsCollector)
+		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, validationResult.NonValidatedStakes, statsCollector)
 		balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 	}
 
