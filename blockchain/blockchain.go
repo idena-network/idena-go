@@ -488,6 +488,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyGlobalParams(appState, block)
 	chain.applyNextBlockFee(appState, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
+	chain.clearOutdatedBurntCoins(appState, block)
 
 	stateDiff, diff = appState.Precommit()
 
@@ -508,6 +509,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 
 	chain.applyGlobalParams(appState, block)
 	chain.applyVrfProposerThreshold(appState, block)
+	chain.clearOutdatedBurntCoins(appState, block)
 	stateDiff, identityStateDiff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, identityStateDiff
@@ -1067,6 +1069,17 @@ func removeLinkWithInvitees(stateDB *state.StateDB, inviterAddr common.Address) 
 	}
 }
 
+func (chain *Blockchain) clearOutdatedBurntCoins(appState *appstate.AppState, block *types.Block) {
+	if !chain.config.Consensus.EnableUpgrade10 {
+		return
+	}
+	if block.Height() <= chain.config.Consensus.BurnTxRange {
+		return
+	}
+	heightToClear := block.Height() - chain.config.Consensus.BurnTxRange
+	appState.State.ClearOutdatedBurntCoins(heightToClear)
+}
+
 func (chain *Blockchain) applyGlobalParams(appState *appstate.AppState, block *types.Block) {
 
 	if appState.State.ValidationPeriod() == state.AfterLongSessionPeriod && !block.IsEmpty() {
@@ -1393,6 +1406,12 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		collector.AddBurnTxBurntCoins(statsCollector, sender, tx)
+		if chain.config.Consensus.EnableUpgrade10 {
+			if tx.AmountOrZero().Sign() > 0 {
+				attachment := attachments.ParseBurnAttachment(tx)
+				stateDB.AddBurntCoins(context.height, sender, attachment.Key, tx.AmountOrZero())
+			}
+		}
 	case types.InviteTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)

@@ -115,6 +115,13 @@ type stateDelayedOfflinePenalties struct {
 	onDirty func()
 }
 
+type stateBurntCoins struct {
+	data    BurntCoins
+	height  uint64
+	deleted bool
+	onDirty func(height uint64)
+}
+
 type ValidationPeriod uint32
 
 const (
@@ -205,6 +212,45 @@ func (dp *DelayedPenalties) FromBytes(data []byte) error {
 	for idx := range protoObj.Identities {
 		addr := protoObj.Identities[idx]
 		dp.Identities = append(dp.Identities, common.BytesToAddress(addr))
+	}
+	return nil
+}
+
+type BurntCoins struct {
+	Items []BurntCoinsItem
+}
+
+type BurntCoinsItem struct {
+	Address common.Address
+	Key     string
+	Amount  *big.Int
+}
+
+func (v *BurntCoins) ToBytes() ([]byte, error) {
+	protoObj := new(models.ProtoStateBurntCoins)
+	for idx := range v.Items {
+		item := v.Items[idx]
+		protoObj.Items = append(protoObj.Items, &models.ProtoStateBurntCoins_Item{
+			Address: item.Address.Bytes(),
+			Key:     item.Key,
+			Amount:  common.BigIntBytesOrNil(item.Amount),
+		})
+	}
+	return proto.Marshal(protoObj)
+}
+
+func (v *BurntCoins) FromBytes(data []byte) error {
+	protoObj := new(models.ProtoStateBurntCoins)
+	if err := proto.Unmarshal(data, protoObj); err != nil {
+		return err
+	}
+	for idx := range protoObj.Items {
+		item := protoObj.Items[idx]
+		v.Items = append(v.Items, BurntCoinsItem{
+			Address: common.BytesToAddress(item.Address),
+			Key:     item.Key,
+			Amount:  common.BigIntOrNil(item.Amount),
+		})
 	}
 	return nil
 }
@@ -697,6 +743,14 @@ func newDelegationSwitchObject(data DelegationSwitch, onDirty func()) *stateDele
 func newDelayedOfflinePenaltiesObject(data DelayedPenalties, onDirty func()) *stateDelayedOfflinePenalties {
 	return &stateDelayedOfflinePenalties{
 		data:    data,
+		onDirty: onDirty,
+	}
+}
+
+func newBurntCoinsObject(height uint64, data BurntCoins, onDirty func(height uint64)) *stateBurntCoins {
+	return &stateBurntCoins{
+		data:    data,
+		height:  height,
 		onDirty: onDirty,
 	}
 }
@@ -1620,4 +1674,28 @@ func (s *stateDelayedOfflinePenalties) Remove(addr common.Address) {
 			return
 		}
 	}
+}
+
+func (s *stateBurntCoins) touch() {
+	if s.onDirty != nil {
+		s.onDirty(s.height)
+	}
+}
+
+func (s *stateBurntCoins) empty() bool {
+	return len(s.data.Items) == 0
+}
+
+func (s *stateBurntCoins) AddBurntCoins(address common.Address, key string, amount *big.Int) {
+	s.data.Items = append(s.data.Items, BurntCoinsItem{
+		Address: address,
+		Key:     key,
+		Amount:  amount,
+	})
+	s.touch()
+}
+
+func (s *stateBurntCoins) ClearBurntCoins() {
+	s.data.Items = nil
+	s.touch()
 }

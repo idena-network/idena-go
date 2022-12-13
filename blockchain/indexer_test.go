@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
@@ -140,97 +139,4 @@ func Test_handleOwnTxsWithAccounts(t *testing.T) {
 
 	data, _ = chain.ReadTxs(addr4, 10, nil)
 	require.Equal(0, len(data))
-}
-
-func Test_Blockchain_saveBurntCoins(t *testing.T) {
-	require := require.New(t)
-
-	chain, _, _, key := NewTestBlockchain(true, nil)
-	defer chain.SecStore().Destroy()
-	chain.config.Blockchain.BurnTxRange = 3
-
-	key2, _ := crypto.GenerateKey()
-
-	createHeader := func(height uint64) *types.Header {
-		return &types.Header{
-			ProposedHeader: &types.ProposedHeader{
-				Height: height,
-				Time:   0,
-			},
-		}
-	}
-
-	// Block height=1
-	chain.indexer.HandleBlockTransactions(createHeader(1), []*types.Transaction{
-		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(3), nil,
-			attachments.CreateBurnAttachment("3")),
-		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(4), nil,
-			attachments.CreateBurnAttachment("2")),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(2), nil,
-			attachments.CreateBurnAttachment("1")),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
-			attachments.CreateBurnAttachment("1")),
-	})
-
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-	addr2 := crypto.PubkeyToAddress(key2.PublicKey)
-
-	burntCoins := chain.ReadTotalBurntCoins()
-	require.Equal(3, len(burntCoins))
-	require.Equal(addr, burntCoins[0].Address)
-	require.Equal(big.NewInt(5), burntCoins[0].Amount)
-
-	require.Equal(addr2, burntCoins[1].Address)
-	require.Equal("2", burntCoins[1].Key)
-	require.Equal(big.NewInt(4), burntCoins[1].Amount)
-
-	require.Equal(addr2, burntCoins[2].Address)
-	require.Equal("3", burntCoins[2].Key)
-	require.Equal(big.NewInt(3), burntCoins[2].Amount)
-
-	// Block height=2
-	chain.indexer.HandleBlockTransactions(createHeader(2), []*types.Transaction{
-		tests.GetFullTx(0, 0, key2, types.BurnTx, big.NewInt(5), nil,
-			attachments.CreateBurnAttachment("2")),
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
-			attachments.CreateBurnAttachment("1")),
-		tests.GetFullTx(0, 0, key, types.SendTx, big.NewInt(2), nil, nil),
-	})
-
-	burntCoins = chain.ReadTotalBurntCoins()
-	require.Equal(3, len(burntCoins))
-	require.Equal(addr2, burntCoins[0].Address)
-	require.Equal(big.NewInt(9), burntCoins[0].Amount)
-	require.Equal("2", burntCoins[0].Key)
-
-	require.Equal(addr, burntCoins[1].Address)
-	require.Equal(big.NewInt(6), burntCoins[1].Amount)
-
-	require.Equal(addr2, burntCoins[2].Address)
-	require.Equal("3", burntCoins[2].Key)
-	require.Equal(big.NewInt(3), burntCoins[2].Amount)
-
-	// Block height=4
-	chain.indexer.HandleBlockTransactions(createHeader(4), []*types.Transaction{
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(3), nil,
-			attachments.CreateBurnAttachment("1")),
-	})
-
-	burntCoins = chain.ReadTotalBurntCoins()
-	require.Equal(2, len(burntCoins))
-	require.Equal(addr2, burntCoins[0].Address)
-	require.Equal(big.NewInt(5), burntCoins[0].Amount)
-	require.Equal(addr, burntCoins[1].Address)
-	require.Equal(big.NewInt(4), burntCoins[1].Amount)
-
-	// Block height=7
-	chain.indexer.HandleBlockTransactions(createHeader(7), []*types.Transaction{
-		tests.GetFullTx(0, 0, key, types.BurnTx, big.NewInt(1), nil,
-			attachments.CreateBurnAttachment("1")),
-	})
-
-	burntCoins = chain.ReadTotalBurntCoins()
-	require.Equal(1, len(burntCoins))
-	require.Equal(addr, burntCoins[0].Address)
-	require.Equal(big.NewInt(1), burntCoins[0].Amount)
 }
