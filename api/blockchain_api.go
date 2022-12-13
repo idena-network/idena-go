@@ -52,17 +52,13 @@ var (
 )
 
 type BlockchainApi struct {
-	bc        *blockchain.Blockchain
-	baseApi   *BaseApi
-	ipfs      ipfs.Proxy
-	pool      *mempool.TxPool
-	d         *protocol.Downloader
-	pm        *protocol.IdenaGossipHandler
-	nodeState *state.NodeState
-	cache     *cache
-}
-
-type cache struct {
+	bc              *blockchain.Blockchain
+	baseApi         *BaseApi
+	ipfs            ipfs.Proxy
+	pool            *mempool.TxPool
+	d               *protocol.Downloader
+	pm              *protocol.IdenaGossipHandler
+	nodeState       *state.NodeState
 	burntCoins      *burntCoinsCache
 	burntCoinsMutex sync.Mutex
 }
@@ -72,14 +68,24 @@ type burntCoinsCache struct {
 	value   []BurntCoins
 }
 
-func newCache() *cache {
-	return &cache{
-		burntCoins: &burntCoinsCache{},
+func newBurntCoinsCache() *burntCoinsCache {
+	return &burntCoinsCache{}
+}
+
+func (c *burntCoinsCache) tryGet(version int64) ([]BurntCoins, bool) {
+	if c.version != version {
+		return nil, false
 	}
+	return c.value, true
+}
+
+func (c *burntCoinsCache) put(version int64, value []BurntCoins) {
+	c.version = version
+	c.value = value
 }
 
 func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler, nodeState *state.NodeState) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState, newCache()}
+	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState, newBurntCoinsCache(), sync.Mutex{}}
 }
 
 type Block struct {
@@ -417,15 +423,15 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 
 	appState := api.baseApi.getReadonlyAppState()
 
-	if api.cache.burntCoins.version == appState.State.Version() {
-		return api.cache.burntCoins.value
+	if value, ok := api.burntCoins.tryGet(appState.State.Version()); ok {
+		return value
 	}
 
-	api.cache.burntCoinsMutex.Lock()
-	defer api.cache.burntCoinsMutex.Unlock()
+	api.burntCoinsMutex.Lock()
+	defer api.burntCoinsMutex.Unlock()
 
-	if api.cache.burntCoins.version == appState.State.Version() {
-		return api.cache.burntCoins.value
+	if value, ok := api.burntCoins.tryGet(appState.State.Version()); ok {
+		return value
 	}
 
 	type burntCoins struct {
@@ -497,8 +503,7 @@ func (api *BlockchainApi) BurntCoins() []BurntCoins {
 			Key:     bc.Key,
 		})
 	}
-	api.cache.burntCoins.version = appState.State.Version()
-	api.cache.burntCoins.value = res
+	api.burntCoins.put(appState.State.Version(), res)
 	return res
 }
 
