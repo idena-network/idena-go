@@ -970,8 +970,15 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 		if transitiveDelegatee != nil {
 			delegatee := *value.delegatee
 			value.delegatee = nil
-			appState.State.SetDelegationEpoch(addr, appState.State.Epoch())
-			appState.State.SetPendingUndelegation(addr)
+			if cfg.EnableUpgrade10 {
+				appState.State.RemoveDelegatee(addr)
+				appState.State.SetDelegationEpoch(addr, 0)
+				appState.State.RemovePendingUndelegation(addr)
+				appState.State.SetUndelegationEpoch(addr, appState.State.Epoch())
+			} else {
+				appState.State.SetDelegationEpoch(addr, appState.State.Epoch())
+				appState.State.SetPendingUndelegation(addr)
+			}
 			collector.AddRemovedTransitiveDelegation(statsCollector, addr, delegatee)
 		}
 	}

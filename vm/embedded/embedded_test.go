@@ -56,10 +56,10 @@ type networkConfig struct {
 }
 
 type identityGroupConfig struct {
-	count               int
-	state               state.IdentityState
-	delegatee           *common.Address
-	pendingUndelegation bool
+	count             int
+	state             state.IdentityState
+	delegatee         *common.Address
+	undelegationEpoch uint16
 }
 
 func createTestContractBuilder(network *networkConfig, ownerBalance *big.Int) *contractTesterBuilder {
@@ -68,9 +68,9 @@ func createTestContractBuilder(network *networkConfig, ownerBalance *big.Int) *c
 		for _, identityGroup := range network.identityGroups {
 			for i := 0; i < identityGroup.count; i++ {
 				convertedNetwork.identityGroups = append(convertedNetwork.identityGroups, identityGroupConfig{
-					state:               identityGroup.state,
-					pendingUndelegation: identityGroup.pendingUndelegation,
-					delegatee:           identityGroup.delegatee,
+					state:             identityGroup.state,
+					undelegationEpoch: identityGroup.undelegationEpoch,
+					delegatee:         identityGroup.delegatee,
 				})
 			}
 		}
@@ -106,14 +106,12 @@ func (b *contractTesterBuilder) Build() *contractTester {
 		if cfg.state.NewbieOrBetter() {
 			appState.IdentityState.SetValidated(addr, true)
 		}
-		if cfg.pendingUndelegation {
-			appState.State.SetPendingUndelegation(addr)
+		if cfg.undelegationEpoch > 0 {
+			appState.State.SetUndelegationEpoch(addr, cfg.undelegationEpoch)
 		}
 		if cfg.delegatee != nil {
 			appState.State.SetDelegatee(addr, *cfg.delegatee)
-			if !cfg.pendingUndelegation {
-				appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
-			}
+			appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
 		}
 	} else {
 		appState.State.SetState(addr, state.Newbie)
@@ -134,14 +132,12 @@ func (b *contractTesterBuilder) Build() *contractTester {
 		if cfg.state.NewbieOrBetter() {
 			appState.IdentityState.SetValidated(addr, true)
 		}
-		if cfg.pendingUndelegation {
-			appState.State.SetPendingUndelegation(addr)
+		if cfg.undelegationEpoch > 0 {
+			appState.State.SetUndelegationEpoch(addr, cfg.undelegationEpoch)
 		}
 		if cfg.delegatee != nil {
 			appState.State.SetDelegatee(addr, *cfg.delegatee)
-			if !cfg.pendingUndelegation {
-				appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
-			}
+			appState.IdentityState.SetDelegatee(addr, *cfg.delegatee)
 		}
 	}
 	appState.Commit(nil)
