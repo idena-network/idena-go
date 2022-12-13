@@ -44,6 +44,11 @@ type WasmEnv struct {
 	contractStakeCache    map[common.Address]*big.Int
 	events                []*types.TxEvent
 	method                string
+	isDebug               bool
+}
+
+func (w *WasmEnv) IsDebug() bool {
+	return w.isDebug
 }
 
 func (w *WasmEnv) PayAmount(meter *lib.GasMeter) *big.Int {
@@ -155,7 +160,7 @@ func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
 	return w.GetCode(addr)
 }
 
-func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header, method string) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
 		appState:              appState,
@@ -166,6 +171,7 @@ func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.H
 		deployedContractCache: map[common.Address]ContractData{},
 		contractStakeCache:    map[common.Address]*big.Int{},
 		method:                method,
+		isDebug:               isDebug,
 	}
 }
 
@@ -251,9 +257,9 @@ func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) e
 	return nil
 }
 
-func (w *WasmEnv) Balance(meter *lib.GasMeter, address lib.Address) *big.Int {
+func (w *WasmEnv) Balance(meter *lib.GasMeter) *big.Int {
 	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
-	return w.getBalance(address)
+	return w.getBalance(w.ctx.ContractAddr())
 }
 
 func (w *WasmEnv) NetworkSize(meter *lib.GasMeter) uint64 {
@@ -295,6 +301,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		deployedContractCache: map[common.Address]ContractData{},
 		contractStakeCache:    map[common.Address]*big.Int{},
 		head:                  w.head,
+		isDebug:               w.isDebug,
 	}
 	println(fmt.Sprintf("created sub env id=%v, method=%v, parent method=%v", subEnv.id, method, subEnv.parent.method))
 	//log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)

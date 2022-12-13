@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestVm_Erc20(t *testing.T) {
@@ -24,7 +25,7 @@ func TestVm_Erc20(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 	appState.Initialize(0)
 
-	vm := NewWasmVM(appState, createHeader(1, 1))
+	vm := NewWasmVM(appState, createHeader(1, 1), false)
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -92,7 +93,7 @@ func TestVm_Erc20(t *testing.T) {
 var nonce = uint32(1)
 
 func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []byte, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, createHeader(1, 1))
+	vm := NewWasmVM(appState, createHeader(1, 1), true)
 	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil, args...)
 	payload, _ := deployAttach.ToBytes()
 
@@ -109,7 +110,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, createHeader(1, 1))
+	vm := NewWasmVM(appState, createHeader(1, 1), true)
 	callAttach := attachments.CreateCallContractAttachment(method, args...)
 	payload, _ := callAttach.ToBytes()
 
@@ -123,7 +124,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 100000000)
+	return vm.Run(tx, 512000000)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
@@ -289,6 +290,12 @@ func Test_SharedFungibleToken(t *testing.T) {
 		return false
 	})
 
+	start := time.Now()
+	receipt = callContract(key, appState, firstContract, "check_gas")
+	t.Logf("%+v\n", receipt)
+	require.False(t, receipt.Success)
+
+	t.Logf("call time = %v\n", time.Since(start).String())
 }
 
 func Test_IdenaSdkAsTest(t *testing.T) {
@@ -308,10 +315,10 @@ func Test_IdenaSdkAsTest(t *testing.T) {
 		t.Logf("key=%v, value=%v\n", key, string(value))
 		return false
 	})
-
 	receipt = callContract(key, appState, receipt.ContractAddress, "add", common.ToBytes(int32(1)), common.ToBytes(int32(2)))
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
+
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		t.Logf("key=%v, value=%v\n", key, string(value))

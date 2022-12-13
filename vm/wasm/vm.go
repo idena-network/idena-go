@@ -14,11 +14,12 @@ import (
 type WasmVM struct {
 	appState *appstate.AppState
 	head     *types.Header
+	isDebug  bool
 }
 
 func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, err error) {
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, ctx, vm.head, "deploy")
+	env = NewWasmEnv(vm.appState, ctx, vm.head, "deploy", vm.isDebug)
 	attach := attachments.ParseDeployContractAttachment(tx)
 	actionResult = []byte{}
 	if attach == nil {
@@ -35,7 +36,7 @@ func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gas
 		}
 	}()
 	env.Deploy(attach.Code)
-	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, ctx.ContractAddr(), limit)
+	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, ctx.ContractAddr(), limit, vm.isDebug)
 	return env, gasUsed, actionResult, err
 }
 
@@ -46,7 +47,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 		method = attachment.Method
 	}
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, ctx, vm.head, method)
+	env = NewWasmEnv(vm.appState, ctx, vm.head, method, vm.isDebug)
 	contract := *tx.To
 	code := vm.appState.State.GetContractCode(contract)
 	actionResult = []byte{}
@@ -63,11 +64,11 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 			gasUsed = limit
 		}
 	}()
-	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, contract,  limit)
+	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, contract, limit, vm.isDebug)
 	return env, gasUsed, actionResult, attachment.Method, err
 }
 
-func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
+func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxReceipt {
 	var usedGas uint64
 	var err error
 	var env *WasmEnv
@@ -79,17 +80,17 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	switch tx.Type {
 	case types.DeployContractTx:
 		method = "deploy"
-		env, usedGas, actionResult, err = vm.deploy(tx, gasLimit)
+		env, usedGas, actionResult, err = vm.deploy(tx, wasmGasLimit)
 	case types.CallContractTx:
-		env, usedGas, actionResult, method, err = vm.call(tx, gasLimit)
+		env, usedGas, actionResult, method, err = vm.call(tx, wasmGasLimit)
 	}
 	var events []*types.TxEvent
 	if err == nil {
 		events = env.InternalCommit()
 	}
 
-	if gasLimit >= 0 {
-		usedGas = math.Min(usedGas, gasLimit)
+	if wasmGasLimit >= 0 {
+		usedGas = math.Min(usedGas, wasmGasLimit)
 	}
 
 	usedGas = costs.WasmGasToGas(usedGas)
@@ -107,6 +108,6 @@ func (vm *WasmVM) Run(tx *types.Transaction, gasLimit uint64) *types.TxReceipt {
 	}
 }
 
-func NewWasmVM(appState *appstate.AppState, head *types.Header) *WasmVM {
-	return &WasmVM{appState: appState, head: head}
+func NewWasmVM(appState *appstate.AppState, head *types.Header, isDebug bool) *WasmVM {
+	return &WasmVM{appState: appState, head: head, isDebug: isDebug}
 }
