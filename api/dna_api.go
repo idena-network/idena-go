@@ -309,6 +309,7 @@ type Identity struct {
 	Delegatee           *common.Address `json:"delegatee"`
 	DelegationEpoch     uint16          `json:"delegationEpoch"`
 	DelegationNonce     uint32          `json:"delegationNonce"`
+	UndelegationEpoch   uint16          `json:"undelegationEpoch"`
 	PendingUndelegation *common.Address `json:"pendingUndelegation"`
 	IsPool              bool            `json:"isPool"`
 	Inviter             *Inviter        `json:"inviter"`
@@ -437,17 +438,12 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 	}
 
 	delegatee := data.Delegatee()
-	pendingUndelegation := data.PendingUndelegation()
 	switchDelegation := appState.State.DelegationSwitch(address)
-	delegationEpoch := data.DelegationEpoch
 	if switchDelegation != nil {
-		delegationEpoch = appState.State.Epoch()
 		if switchDelegation.Delegatee.IsEmpty() {
-			pendingUndelegation = delegatee
 			delegatee = nil
 		} else {
 			delegatee = &switchDelegation.Delegatee
-			pendingUndelegation = nil
 		}
 	}
 
@@ -492,9 +488,9 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Penalty:             blockchain.ConvertToFloat(data.Penalty),
 		LastValidationFlags: flags,
 		Delegatee:           delegatee,
-		DelegationEpoch:     delegationEpoch,
+		DelegationEpoch:     data.DelegationEpoch,
+		UndelegationEpoch:   data.UndelegationEpoch(),
 		DelegationNonce:     data.DelegationNonce,
-		PendingUndelegation: pendingUndelegation,
 		Online:              isOnline,
 		IsPool:              appState.ValidatorsCache.IsPool(address),
 		Inviter:             inviter,

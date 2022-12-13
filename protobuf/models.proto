@@ -396,6 +396,7 @@ message ProtoStateIdentity {
     bytes replenishedStake = 24;
     uint32 penaltySeconds = 25;
     int64 penaltyTimestamp = 26;
+    uint32 undelegationEpoch = 27;
 }
 
 message ProtoStateGlobal {
@@ -529,6 +530,7 @@ message ProtoPredefinedState {
         bytes replenishedStake = 25;
         uint32 penaltySeconds = 26;
         int64 penaltyTimestamp = 27;
+        uint32 undelegationEpoch = 28;
     }
 
     message ApprovedIdentity {
