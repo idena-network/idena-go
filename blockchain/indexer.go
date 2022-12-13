@@ -70,6 +70,9 @@ func (i *indexer) handleOwnTx(header *types.Header, sender common.Address, tx *t
 }
 
 func (i *indexer) handleBurnTx(height uint64, sender common.Address, tx *types.Transaction) {
+	if i.cfg.Consensus.EnableUpgrade10 {
+		return
+	}
 	if tx.Type != types.BurnTx {
 		return
 	}

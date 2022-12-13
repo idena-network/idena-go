@@ -17,23 +17,21 @@
 package state
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
-	"io"
-	"time"
-
-	"github.com/idena-network/idena-go/common"
 	dbm "github.com/tendermint/tm-db"
+	"io"
 	"math/big"
-	"sync"
-
-	"bytes"
 	"sort"
+	"sync"
+	"time"
 )
 
 const (
@@ -79,6 +77,9 @@ type StateDB struct {
 	stateDelayedOfflinePenalties      *stateDelayedOfflinePenalties
 	stateDelayedOfflinePenaltiesDirty bool
 
+	stateBurntCoins      map[uint64]*stateBurntCoins
+	stateBurntCoinsDirty map[uint64]struct{}
+
 	identityUpdateHook IdentityUpdateHook
 
 	log  log.Logger
@@ -93,13 +94,16 @@ func NewLazy(db dbm.DB) (*StateDB, error) {
 	pdb := dbm.NewPrefixDB(db, prefix)
 	tree := NewMutableTree(pdb)
 	return &StateDB{
-		original:           db,
-		db:                 pdb,
-		tree:               tree,
-		stateAccounts:      make(map[common.Address]*stateAccount),
-		stateAccountsDirty: make(map[common.Address]struct{}), stateIdentities: make(map[common.Address]*stateIdentity),
+		original:             db,
+		db:                   pdb,
+		tree:                 tree,
+		stateAccounts:        make(map[common.Address]*stateAccount),
+		stateAccountsDirty:   make(map[common.Address]struct{}),
+		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		stateBurntCoins:      make(map[uint64]*stateBurntCoins),
+		stateBurntCoinsDirty: make(map[uint64]struct{}),
 		log:                  log.New(),
 	}, nil
 }
@@ -123,6 +127,8 @@ func (s *StateDB) ForCheckWithOverwrite(height uint64) (*StateDB, error) {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		stateBurntCoins:      make(map[uint64]*stateBurntCoins),
+		stateBurntCoinsDirty: make(map[uint64]struct{}),
 		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
 	}, nil
@@ -142,6 +148,8 @@ func (s *StateDB) ForCheck(height uint64) (*StateDB, error) {
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
+		stateBurntCoins:      make(map[uint64]*stateBurntCoins),
+		stateBurntCoinsDirty: make(map[uint64]struct{}),
 		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
 	}, nil
@@ -159,6 +167,8 @@ func (s *StateDB) Readonly(height int64) (*StateDB, error) {
 		stateAccountsDirty:   make(map[common.Address]struct{}),
 		stateIdentities:      make(map[common.Address]*stateIdentity),
 		stateIdentitiesDirty: make(map[common.Address]struct{}),
+		stateBurntCoins:      make(map[uint64]*stateBurntCoins),
+		stateBurntCoinsDirty: make(map[uint64]struct{}),
 		contractStoreCache:   make(map[string]*contractStoreValue),
 		identityUpdateHook:   s.identityUpdateHook,
 		log:                  log.New(),
@@ -186,6 +196,8 @@ func (s *StateDB) Clear() {
 	s.stateDelegationSwitchDirty = false
 	s.stateDelayedOfflinePenalties = nil
 	s.stateDelayedOfflinePenaltiesDirty = false
+	s.stateBurntCoins = make(map[uint64]*stateBurntCoins)
+	s.stateBurntCoinsDirty = make(map[uint64]struct{})
 }
 
 func (s *StateDB) Version() int64 {
@@ -595,6 +607,53 @@ func (s *StateDB) ResetEmptyBlockByShard(shardId common.ShardId) {
 	s.GetOrNewGlobalObject().ResetEmptyBlockByShard(shardId)
 }
 
+func (s *StateDB) AddBurntCoins(height uint64, address common.Address, key string, amount *big.Int) {
+	stateObject := s.getOrNewBurntCoinsObject(height)
+	if stateObject != nil {
+		stateObject.AddBurntCoins(address, key, amount)
+	}
+}
+
+func (s *StateDB) ClearOutdatedBurntCoins(height uint64) bool {
+	return s.iterateBurntCoins(0, height+1, func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		coinsHeight := StateDbKeys.BurntCoinsKeyToHeight(key)
+		s.clearBurntCoins(coinsHeight)
+		return false
+	})
+}
+
+func (s *StateDB) IterateBurntCoins(callback func(height uint64, value BurntCoins)) {
+	s.iterateBurntCoins(0, uint64(s.Version())+1, func(key []byte, value []byte) bool {
+		if key == nil {
+			return true
+		}
+		height := StateDbKeys.BurntCoinsKeyToHeight(key)
+		var data BurntCoins
+		if err := data.FromBytes(value); err != nil {
+			return false
+		}
+		callback(height, data)
+		return false
+	})
+}
+
+func (s *StateDB) iterateBurntCoins(startHeight, endHeight uint64, fn func(key []byte, value []byte) bool) bool {
+	start := StateDbKeys.BurntCoinsKey(startHeight)
+	end := StateDbKeys.BurntCoinsKey(endHeight)
+	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+}
+
+func (s *StateDB) clearBurntCoins(height uint64) {
+	stateObject := s.getStateBurntCoins(height)
+	if stateObject == nil {
+		return
+	}
+	stateObject.ClearBurntCoins()
+}
+
 //
 // Setting, updating & deleting state object methods
 //
@@ -665,6 +724,16 @@ func (s *StateDB) updateStateDelayedOfflinePenaltyObject(stateObject *stateDelay
 	return &StateTreeDiff{Key: key, Value: data}
 }
 
+func (s *StateDB) updateStateBurntCoinsObject(stateObject *stateBurntCoins) *StateTreeDiff {
+	data, err := stateObject.data.ToBytes()
+	if err != nil {
+		panic(fmt.Errorf("can't encode burnt coins object at %d: %v", stateObject.height, err))
+	}
+	key := StateDbKeys.BurntCoinsKey(stateObject.height)
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
+}
+
 // deleteStateAccountObject removes the given object from the state trie.
 func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) *StateTreeDiff {
 	stateObject.deleted = true
@@ -700,6 +769,13 @@ func (s *StateDB) deleteStateDelegationSwitchObject(stateObject *stateDelegation
 func (s *StateDB) deleteStateDelayedOfflinePenaltyObject(stateObject *stateDelayedOfflinePenalties) *StateTreeDiff {
 	stateObject.deleted = true
 	key := StateDbKeys.DelayedOfflinePenaltyKey()
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
+}
+
+func (s *StateDB) deleteStateBurntCoinsObject(stateObject *stateBurntCoins) *StateTreeDiff {
+	stateObject.deleted = true
+	key := StateDbKeys.BurntCoinsKey(stateObject.height)
 	s.tree.Remove(key)
 	return &StateTreeDiff{Key: key, Deleted: true}
 }
@@ -859,6 +935,33 @@ func (s *StateDB) getStateDelayedOfflinePenalty() (stateObject *stateDelayedOffl
 	return obj
 }
 
+func (s *StateDB) getStateBurntCoins(height uint64) (stateObject *stateBurntCoins) {
+	// Prefer 'live' objects.
+	s.lock.Lock()
+	if obj := s.stateBurntCoins[height]; obj != nil {
+		s.lock.Unlock()
+		if obj.deleted {
+			return nil
+		}
+		return obj
+	}
+	s.lock.Unlock()
+	// Load the object from the database.
+	_, enc := s.tree.Get(StateDbKeys.BurntCoinsKey(height))
+	if len(enc) == 0 {
+		return nil
+	}
+	var data BurntCoins
+	if err := data.FromBytes(enc); err != nil {
+		s.log.Error("Failed to decode state burnt coins object", "height", height, "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newBurntCoinsObject(height, data, s.MarkStateBurntCoinsObjectDirty)
+	s.setStateBurntCoinsObject(obj)
+	return obj
+}
+
 func (s *StateDB) setStateAccountObject(object *stateAccount) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -899,6 +1002,13 @@ func (s *StateDB) setStateDelayedOfflinePenaltyObject(object *stateDelayedOfflin
 	defer s.lock.Unlock()
 
 	s.stateDelayedOfflinePenalties = object
+}
+
+func (s *StateDB) setStateBurntCoinsObject(object *stateBurntCoins) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateBurntCoins[object.height] = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -952,6 +1062,14 @@ func (s *StateDB) GetOrNewDelayedOfflinePenaltyObject() *stateDelayedOfflinePena
 	return stateObject
 }
 
+func (s *StateDB) getOrNewBurntCoinsObject(height uint64) *stateBurntCoins {
+	stateObject := s.getStateBurntCoins(height)
+	if stateObject == nil || stateObject.deleted {
+		stateObject = s.createBurntCoins(height)
+	}
+	return stateObject
+}
+
 // MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
 func (s *StateDB) MarkStateAccountObjectDirty(addr common.Address) {
@@ -1000,6 +1118,13 @@ func (s *StateDB) MarkStateDelayedOfflinePenaltyObjectDirty() {
 	s.stateDelayedOfflinePenaltiesDirty = true
 }
 
+func (s *StateDB) MarkStateBurntCoinsObjectDirty(height uint64) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stateBurntCoinsDirty[height] = struct{}{}
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
 	newobj = newAccountObject(addr, Account{}, s.MarkStateAccountObjectDirty)
@@ -1044,6 +1169,13 @@ func (s *StateDB) createDelayedOfflinePenalty() *stateDelayedOfflinePenalties {
 	stateObject := newDelayedOfflinePenaltiesObject(DelayedPenalties{}, s.MarkStateDelayedOfflinePenaltyObjectDirty)
 	stateObject.touch()
 	s.setStateDelayedOfflinePenaltyObject(stateObject)
+	return stateObject
+}
+
+func (s *StateDB) createBurntCoins(height uint64) *stateBurntCoins {
+	stateObject := newBurntCoinsObject(height, BurntCoins{}, s.MarkStateBurntCoinsObjectDirty)
+	stateObject.touch()
+	s.setStateBurntCoinsObject(stateObject)
 	return stateObject
 }
 
@@ -1139,6 +1271,16 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) []*StateTreeDiff {
 	}
 	s.contractStoreCache = make(map[string]*contractStoreValue)
 
+	for _, height := range getOrderedUint64Keys(s.stateBurntCoinsDirty) {
+		stateObject := s.stateBurntCoins[height]
+		if deleteEmptyObjects && stateObject.empty() {
+			diffs = append(diffs, s.deleteStateBurntCoinsObject(stateObject))
+		} else {
+			diffs = append(diffs, s.updateStateBurntCoinsObject(stateObject))
+		}
+		delete(s.stateBurntCoinsDirty, height)
+	}
+
 	s.lock.Unlock()
 
 	if s.stateGlobalDirty {
@@ -1187,6 +1329,19 @@ func getOrderedObjectsKeys(objects map[common.Address]struct{}) []common.Address
 
 	sort.Slice(keys, func(i, j int) bool {
 		return bytes.Compare(keys[i].Bytes(), keys[j].Bytes()) == 1
+	})
+
+	return keys
+}
+
+func getOrderedUint64Keys(objects map[uint64]struct{}) []uint64 {
+	keys := make([]uint64, 0, len(objects))
+	for k := range objects {
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] > keys[j]
 	})
 
 	return keys
@@ -1275,8 +1430,7 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		if key == nil {
 			return true
 		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
+		addr := StateDbKeys.IdentityKeyToAddress(key)
 
 		s.lock.Lock()
 		if obj := s.stateIdentities[addr]; obj != nil {
@@ -1310,8 +1464,7 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 		if key == nil {
 			return true
 		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
+		addr := StateDbKeys.AddressKeyToAddress(key)
 
 		if _, ok := usedAccounts[addr]; ok {
 			return false
