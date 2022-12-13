@@ -18,7 +18,6 @@ package state
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -620,7 +619,7 @@ func (s *StateDB) ClearOutdatedBurntCoins(height uint64) bool {
 		if key == nil {
 			return true
 		}
-		coinsHeight := binary.BigEndian.Uint64(key[1:])
+		coinsHeight := StateDbKeys.BurntCoinsKeyToHeight(key)
 		s.clearBurntCoins(coinsHeight)
 		return false
 	})
@@ -631,7 +630,7 @@ func (s *StateDB) IterateBurntCoins(callback func(height uint64, value BurntCoin
 		if key == nil {
 			return true
 		}
-		height := binary.BigEndian.Uint64(key[1:])
+		height := StateDbKeys.BurntCoinsKeyToHeight(key)
 		var data BurntCoins
 		if err := data.FromBytes(value); err != nil {
 			return false
@@ -1431,8 +1430,7 @@ func (s *StateDB) IterateOverIdentities(callback func(addr common.Address, ident
 		if key == nil {
 			return true
 		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
+		addr := StateDbKeys.IdentityKeyToAddress(key)
 
 		s.lock.Lock()
 		if obj := s.stateIdentities[addr]; obj != nil {
@@ -1466,8 +1464,7 @@ func (s *StateDB) IterateOverAccounts(callback func(addr common.Address, account
 		if key == nil {
 			return true
 		}
-		addr := common.Address{}
-		addr.SetBytes(key[1:])
+		addr := StateDbKeys.AddressKeyToAddress(key)
 
 		if _, ok := usedAccounts[addr]; ok {
 			return false
