@@ -373,20 +373,24 @@ func addReportReward(appState *appstate.AppState, config *config.ConsensusConf, 
 	}
 }
 
+func getCoefByAge(age uint16, config *config.ConsensusConf) float32 {
+	switch age {
+	case 1:
+		return config.FirstInvitationRewardCoef
+	case 2:
+		return config.SecondInvitationRewardCoef
+	case 3:
+		return config.ThirdInvitationRewardCoef
+	default:
+		return 0
+	}
+}
+
 func getInvitationRewardCoef(stakeWeight float32, age uint16, inviteePenalized bool, epochHeight uint32, epochDurations []uint32, config *config.ConsensusConf) (inviter, invitee float32) {
 
 	split := func(value float32) (inviter, invitee float32) {
 		if config.EnableUpgrade10 {
-			var k float32
-			switch age {
-			case 1:
-				k = config.FirstInvitationRewardCoef
-			case 2:
-				k = config.SecondInvitationRewardCoef
-			case 3:
-				k = config.ThirdInvitationRewardCoef
-			}
-			inviter = value * k
+			inviter = value * getCoefByAge(age, config)
 			if !inviteePenalized {
 				invitee = value - inviter
 			}
@@ -404,14 +408,7 @@ func getInvitationRewardCoef(stakeWeight float32, age uint16, inviteePenalized b
 	if config.EnableUpgrade10 {
 		baseCoef = stakeWeight
 	} else {
-		switch age {
-		case 1:
-			baseCoef = config.FirstInvitationRewardCoef
-		case 2:
-			baseCoef = config.SecondInvitationRewardCoef
-		case 3:
-			baseCoef = config.ThirdInvitationRewardCoef
-		}
+		baseCoef = getCoefByAge(age, config)
 	}
 	if len(epochDurations) < int(age) {
 		return split(baseCoef)
