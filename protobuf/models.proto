@@ -446,8 +446,18 @@ message ProtoStateDelegationSwitch {
     }
     repeated Delegation delegations = 1;
 }
+
 message ProtoStateDelayedPenalties {
     repeated bytes identities = 1;
+}
+
+message ProtoStateBurntCoins {
+    message Item {
+        bytes address = 1;
+        string key = 2;
+        bytes amount = 3;
+    }
+    repeated Item items = 1;
 }
 
 message ProtoPredefinedState {
