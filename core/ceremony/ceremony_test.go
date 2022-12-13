@@ -868,7 +868,7 @@ func Test_applyOnState(t *testing.T) {
 	appstate.State.AddNewScore(addr1, common.EncodeScore(5, 6))
 	appstate.State.SetDelegatee(addr1, delegatee)
 
-	validated, _ := applyOnState(blockchain.GetDefaultConsensusConfig(), appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
+	validated, _, _ := applyOnState(blockchain.GetDefaultConsensusConfig(), appstate, 0, collector.NewStatsCollector(), addr1, cacheValue{
 		prevState:                state.Newbie,
 		birthday:                 3,
 		shortFlipPoint:           1,
