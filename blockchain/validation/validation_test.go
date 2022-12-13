@@ -15,7 +15,9 @@ import (
 
 func Test_validateDelegateTx(t *testing.T) {
 	SetAppConfig(&config.Config{
-		Consensus: &config.ConsensusConf{},
+		Consensus: &config.ConsensusConf{
+			EnableUpgrade10: true,
+		},
 	})
 
 	key, _ := crypto.GenerateKey()
@@ -70,7 +72,17 @@ func Test_validateDelegateTx(t *testing.T) {
 		commitAppState(appState)
 		tx := buildTx(addressWithPendingUndelegation)
 		err := validateDelegateTx(appState, tx, InBlockTx)
-		require.Equal(t, InvalidRecipient, err)
+		require.NoError(t, err)
+	}
+
+	{
+		appState := initAppState()
+		addressWithUndelegationEpoch := common.Address{0x1}
+		appState.State.SetUndelegationEpoch(addressWithUndelegationEpoch, 1)
+		commitAppState(appState)
+		tx := buildTx(addressWithUndelegationEpoch)
+		err := validateDelegateTx(appState, tx, InBlockTx)
+		require.NoError(t, err)
 	}
 
 	{
@@ -135,10 +147,20 @@ func Test_validateDelegateTx(t *testing.T) {
 
 		tx := buildTx(common.Address{0x2})
 		err := validateDelegateTx(appState, tx, InBlockTx)
-		require.Equal(t, InvalidRecipient, err)
+		require.NoError(t, err)
 
 		tx = buildTx(common.Address{0x1})
 		err = validateDelegateTx(appState, tx, InBlockTx)
+		require.NoError(t, err)
+	}
+
+	{
+		appState := initAppState()
+		appState.State.SetUndelegationEpoch(sender, 1)
+		commitAppState(appState)
+
+		tx := buildTx(common.Address{0x1})
+		err := validateDelegateTx(appState, tx, InBlockTx)
 		require.NoError(t, err)
 	}
 }

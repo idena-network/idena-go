@@ -63,6 +63,7 @@ var (
 	SenderHasNoDelegatee = errors.New("sender has no delegatee")
 	WrongEpoch           = errors.New("wrong epoch")
 	InvalidDeployAmount  = errors.New("insufficient amount to create contract")
+	SenderHasPenalty     = errors.New("sender has penalty")
 
 	validators map[types.TxType]validator
 )
@@ -768,9 +769,12 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		return InvalidRecipient
 	}
 
-	to := appState.State.GetIdentity(*tx.To)
-	if to.PendingUndelegation() != nil {
-		return InvalidRecipient
+	enableUpgrade10 := appCfg != nil && appCfg.Consensus.EnableUpgrade10
+	if !enableUpgrade10 {
+		to := appState.State.GetIdentity(*tx.To)
+		if to.PendingUndelegation() != nil {
+			return InvalidRecipient
+		}
 	}
 
 	delegatee := appState.State.Delegatee(sender)
@@ -780,9 +784,11 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		if delegationSwitch != nil && !delegationSwitch.Delegatee.IsEmpty() {
 			return SenderHasDelegatee
 		}
-		identity := appState.State.GetIdentity(sender)
-		if prevDelegatee := identity.PendingUndelegation(); prevDelegatee != nil && *prevDelegatee != *tx.To {
-			return InvalidRecipient
+		if !enableUpgrade10 {
+			identity := appState.State.GetIdentity(sender)
+			if prevDelegatee := identity.PendingUndelegation(); prevDelegatee != nil && *prevDelegatee != *tx.To {
+				return InvalidRecipient
+			}
 		}
 	} else {
 		if delegationSwitch == nil || !delegationSwitch.Delegatee.IsEmpty() {
@@ -790,6 +796,12 @@ func validateDelegateTx(appState *appstate.AppState, tx *types.Transaction, txTy
 		}
 		if *delegatee != *tx.To {
 			return InvalidRecipient
+		}
+	}
+
+	if enableUpgrade10 {
+		if appState.State.GetPenaltySeconds(sender) > 0 {
+			return SenderHasPenalty
 		}
 	}
 

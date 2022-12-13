@@ -481,7 +481,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *types.Block, totalFee, totalTips *big.Int, usedGas uint64, blockRewardCtx *blockRewardCtx, statsCollector collector.StatsCollector) (root, identityRoot common.Hash, stateDiff []*state.StateTreeDiff, diff *state.IdentityStateDiff) {
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
-	undelegations := chain.applyDelegationSwitch(appState, block)
+	undelegations := chain.applyDelegationSwitch(appState, block, statsCollector)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, blockRewardCtx, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
@@ -502,7 +502,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
-	undelegations := chain.applyDelegationSwitch(appState, block)
+	undelegations := chain.applyDelegationSwitch(appState, block, statsCollector)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
 
@@ -832,6 +832,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			appState.State.SetDelegationEpoch(addr, 0)
 			appState.State.RemovePendingUndelegation(addr)
 		}
+		if undelegationEpoch := identity.UndelegationEpoch(); undelegationEpoch > 0 && epoch-undelegationEpoch >= 2 {
+			appState.State.SetUndelegationEpoch(addr, 0)
+		}
 		if !validationFailed {
 			switch identity.State {
 			case state.Verified, state.Human:
@@ -1156,20 +1159,23 @@ func (chain *Blockchain) applyOfflinePenalty(appState *appstate.AppState, addr c
 	appState.IdentityState.SetOnline(addr, false)
 }
 
+func applyDelayedOfflinePenalty(appState *appstate.AppState, addr common.Address, seconds uint16, inheritedFrom *common.Address, statsCollector collector.StatsCollector) {
+	collector.BeforeSetPenalty(statsCollector, addr, seconds, inheritedFrom, appState)
+	collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
+	appState.State.SetPenaltySeconds(addr, seconds)
+	collector.CompleteBalanceUpdate(statsCollector, appState)
+	appState.IdentityState.SetOnline(addr, false)
+	appState.State.SetPenaltyTimestamp(addr, 0)
+}
+
 func (chain *Blockchain) applyDelayedOfflinePenalties(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) {
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
 	identities := appState.State.DelayedOfflinePenalties()
 	for _, addr := range identities {
-		var seconds uint16
-		seconds = uint16(chain.config.Consensus.OfflinePenaltyDuration.Seconds())
-		collector.BeforeSetPenalty(statsCollector, addr, seconds, appState)
-		collector.BeginPenaltyBalanceUpdate(statsCollector, addr, appState)
-		appState.State.SetPenaltySeconds(addr, seconds)
-		collector.CompleteBalanceUpdate(statsCollector, appState)
-		appState.IdentityState.SetOnline(addr, false)
-		appState.State.SetPenaltyTimestamp(addr, 0)
+		seconds := uint16(chain.config.Consensus.OfflinePenaltyDuration.Seconds())
+		applyDelayedOfflinePenalty(appState, addr, seconds, nil, statsCollector)
 	}
 	appState.State.ClearDelayedOfflinePenalties()
 }
@@ -1671,11 +1677,12 @@ func (chain *Blockchain) applyStatusSwitch(appState *appstate.AppState, block *t
 	appState.State.ClearStatusSwitchAddresses()
 }
 
-func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, block *types.Block) (undelegations []*state.Delegation) {
+func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) (undelegations []*state.Delegation) {
 	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
 		return
 	}
 	delegations := appState.State.Delegations()
+	enableUpgrade10 := chain.config.Consensus.EnableUpgrade10
 
 	newPools := map[common.Address]struct{}{}
 
@@ -1684,17 +1691,38 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 		if delegation.Delegatee.IsEmpty() {
 			delegatee := appState.State.Delegatee(delegation.Delegator)
 			appState.IdentityState.RemoveDelegatee(delegation.Delegator)
+			if enableUpgrade10 {
+				appState.State.RemoveDelegatee(delegation.Delegator)
+			}
 			if delegatee != nil {
 				undelegations = append(undelegations, &state.Delegation{Delegator: delegation.Delegator, Delegatee: *delegatee})
-				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
-				appState.State.SetPendingUndelegation(delegation.Delegator)
+				if enableUpgrade10 {
+					appState.State.SetDelegationEpoch(delegation.Delegator, 0)
+					appState.State.RemovePendingUndelegation(delegation.Delegator)
+					appState.State.SetUndelegationEpoch(delegation.Delegator, appState.State.Epoch())
+					if penaltySeconds := appState.State.GetPenaltySeconds(*delegatee); penaltySeconds > 0 {
+						applyDelayedOfflinePenalty(appState, delegation.Delegator, penaltySeconds, delegatee, statsCollector)
+					}
+				} else {
+					appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
+					appState.State.SetPendingUndelegation(delegation.Delegator)
+				}
 			}
 			discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
 			appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 		} else {
 			_, becamePool := newPools[delegation.Delegator]
-			if appState.State.Delegatee(delegation.Delegatee) == nil && appState.State.PendingUndelegation(delegation.Delegatee) == nil && !becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) {
+			noDelegatorPenalty := appState.State.GetPenaltySeconds(delegation.Delegator) == 0
+			if appState.State.Delegatee(delegation.Delegatee) == nil &&
+				(enableUpgrade10 || appState.State.PendingUndelegation(delegation.Delegatee) == nil) &&
+				!becamePool && !appState.ValidatorsCache.IsPool(delegation.Delegator) &&
+				(!enableUpgrade10 || noDelegatorPenalty) {
 				appState.IdentityState.SetDelegatee(delegation.Delegator, delegation.Delegatee)
+				if enableUpgrade10 {
+					if pendingUndelegation := appState.State.PendingUndelegation(delegation.Delegator); pendingUndelegation != nil {
+						appState.State.SetUndelegationEpoch(delegation.Delegator, appState.State.DelegationEpoch(delegation.Delegator))
+					}
+				}
 				appState.State.RemovePendingUndelegation(delegation.Delegator)
 				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
 				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)

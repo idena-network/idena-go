@@ -395,6 +395,7 @@ type Identity struct {
 	DelegationNonce      uint32
 	DelegationEpoch      uint16
 	pendingUndelegation  bool
+	undelegationEpoch    uint16
 	replenishedStake     *big.Int
 	penaltySeconds       uint16
 	penaltyTimestamp     int64
@@ -439,6 +440,7 @@ func (i *Identity) ToBytes() ([]byte, error) {
 		ShardId:             uint32(i.ShardId),
 		PenaltySeconds:      uint32(i.penaltySeconds),
 		PenaltyTimestamp:    i.penaltyTimestamp,
+		UndelegationEpoch:   uint32(i.undelegationEpoch),
 	}
 	if i.delegatee != nil {
 		protoIdentity.Delegatee = i.delegatee.Bytes()
@@ -489,6 +491,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	i.DelegationEpoch = uint16(protoIdentity.DelegationEpoch)
 	i.DelegationNonce = protoIdentity.DelegationNonce
 	i.pendingUndelegation = protoIdentity.PendingUndelegation
+	i.undelegationEpoch = uint16(protoIdentity.UndelegationEpoch)
 	i.ShardId = common.ShardId(protoIdentity.ShardId)
 	i.penaltySeconds = uint16(protoIdentity.PenaltySeconds)
 	i.penaltyTimestamp = protoIdentity.PenaltyTimestamp
@@ -568,8 +571,12 @@ func (i *Identity) PendingUndelegation() *common.Address {
 	return nil
 }
 
+func (i *Identity) UndelegationEpoch() uint16 {
+	return i.undelegationEpoch
+}
+
 func (i *Identity) IsDiscriminated(epoch uint16) bool {
-	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil
+	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil || i.undelegationEpoch > 0
 }
 
 func (i *Identity) ReplenishedStake() *big.Int {
@@ -1167,6 +1174,11 @@ func (s *stateIdentity) SetPendingUndelegation() {
 func (s *stateIdentity) RemovePendingUndelegation() {
 	s.data.pendingUndelegation = false
 	s.data.delegatee = nil
+	s.touch()
+}
+
+func (s *stateIdentity) SetUndelegationEpoch(epoch uint16) {
+	s.data.undelegationEpoch = epoch
 	s.touch()
 }
 
