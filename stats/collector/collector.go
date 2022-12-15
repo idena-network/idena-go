@@ -38,6 +38,7 @@ type StatsCollector interface {
 	AddReportedFlipsReward(balanceDest, stakeDest common.Address, shardId common.ShardId, flipIdx int, balance, stake *big.Int)
 	AddInvitationsReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, age uint16, txHash *common.Hash,
 		epochHeight uint32, isSavedInviteWinner bool)
+	AddInviteeReward(addr common.Address, stake *big.Int, age uint16, txHash common.Hash, epochHeight uint32)
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 	AddNonValidatedStake(addr common.Address, amount *big.Int)
@@ -382,6 +383,17 @@ func AddInvitationsReward(c StatsCollector, balanceDest, stakeDest common.Addres
 		return
 	}
 	c.AddInvitationsReward(balanceDest, stakeDest, balance, stake, age, txHash, epochHeight, isSavedInviteWinner)
+}
+
+func (c *collectorStub) AddInviteeReward(addr common.Address, stake *big.Int, age uint16, txHash common.Hash, epochHeight uint32) {
+	// do nothing
+}
+
+func AddInviteeReward(c StatsCollector, addr common.Address, stake *big.Int, age uint16, txHash common.Hash, epochHeight uint32) {
+	if c == nil {
+		return
+	}
+	c.AddInviteeReward(addr, stake, age, txHash, epochHeight)
 }
 
 func (c *collectorStub) AddFoundationPayout(addr common.Address, balance *big.Int) {
