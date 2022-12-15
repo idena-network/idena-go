@@ -494,14 +494,14 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
-	addRewardToStake := func(addr common.Address, totalReward decimal.Decimal, age uint16, txHash *common.Hash, epochHeight uint32, isSavedInviteWinner bool) {
+	addRewardToStake := func(addr common.Address, totalReward decimal.Decimal, age uint16, txHash common.Hash, epochHeight uint32, isSavedInviteWinner bool) {
 		stake := math.ToInt(totalReward)
 		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, addr, appState)
 		appState.State.AddStake(addr, stake)
 		appState.State.AddReplenishedStake(addr, stake)
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, stake)
-		collector.AddInvitationsReward(statsCollector, addr, addr, nil, stake, age, txHash, epochHeight, isSavedInviteWinner)
+		collector.AddInviteeReward(statsCollector, addr, stake, age, txHash, epochHeight)
 		collector.AfterAddStake(statsCollector, addr, stake, appState)
 	}
 
@@ -519,7 +519,7 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 					addReward(addr, inviterTotalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 					if weightWrapper.invitee > 0 {
 						inviteeTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.invitee))
-						addRewardToStake(successfulInvite.Address, inviteeTotalReward, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
+						addRewardToStake(successfulInvite.Address, inviteeTotalReward, successfulInvite.Age, successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 					}
 				} else {
 					totalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.inviter))
