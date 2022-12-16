@@ -1281,6 +1281,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 
 	vm := vm.NewVmImpl(appState, header, context.statsCollector, chain.config)
 
+	var gasLimitReached bool
 	for i := 0; i < len(txs); i++ {
 		tx := txs[i]
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
@@ -1301,14 +1302,25 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 				receipts = append(receipts, receipt)
 				gas += receipt.GasUsed
 			}
-			if usedGas+gas > types.MaxBlockGas {
-				return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
+			if !chain.config.Consensus.EnableUpgrade10 {
+				if usedGas+gas > types.MaxBlockGas {
+					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
+				}
 			}
 			usedGas += gas
 			totalFee.Add(totalFee, usedFee)
 			totalTips.Add(totalTips, tx.TipsOrZero())
 			if task != nil {
 				tasks = append(tasks, task)
+			}
+			if chain.config.Consensus.EnableUpgrade10 {
+				if usedGas > types.MaxBlockGas {
+					if gasLimitReached {
+						return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
+					} else {
+						gasLimitReached = true
+					}
+				}
 			}
 		}
 	}
@@ -1991,13 +2003,22 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 				receipts = append(receipts, r)
 				gas += r.GasUsed
 			}
-			if usedGas+gas > types.MaxBlockGas {
-				break
+			if !chain.config.Consensus.EnableUpgrade10 {
+				if usedGas+gas > types.MaxBlockGas {
+					break
+				}
 			}
 			usedGas += gas
 			totalFee.Add(totalFee, f)
 			totalTips.Add(totalTips, tx.TipsOrZero())
 			result = append(result, tx)
+
+			if chain.config.Consensus.EnableUpgrade10 {
+				if usedGas > types.MaxBlockGas {
+					break
+				}
+			}
+
 		}
 	}
 	return result, totalFee, totalTips, receipts, usedGas

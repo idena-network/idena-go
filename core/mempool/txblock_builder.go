@@ -6,10 +6,12 @@ import (
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"math/big"
 )
 
 type buildingContext struct {
 	appState           *appstate.AppState
+	minFeePerGas       *big.Int
 	sortedTxs          []*types.Transaction
 	sortedPriorityTxs  []*types.Transaction
 	sortedTxsPerSender map[common.Address][]*types.Transaction
@@ -32,6 +34,7 @@ func newBuildingContext(
 		sortedPriorityTxs:  sortedPriorityTxs,
 		sortedTxsPerSender: sortedTxsPerSender,
 		curNoncesPerSender: curNoncesPerSender,
+		minFeePerGas:       appState.State.FeePerGas(),
 	}
 	return ctx
 }
@@ -101,5 +104,5 @@ func (ctx *buildingContext) addTxsToBlock() {
 }
 
 func (ctx *buildingContext) checkFee(tx *types.Transaction) bool {
-	return validation.ValidateFee(ctx.appState, tx, validation.InBlockTx) == nil
+	return validation.ValidateFee(ctx.appState, tx, validation.InBlockTx, ctx.minFeePerGas) == nil
 }
