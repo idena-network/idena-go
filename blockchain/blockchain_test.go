@@ -490,13 +490,13 @@ func Test_ApplyKillInviteeTx(t *testing.T) {
 		Type:         types.KillInviteeTx,
 		AccountNonce: 1,
 		To:           &inviteeCandidate,
-		MaxFee:       new(big.Int).Mul(big.NewInt(2), common.DnaBase),
+		MaxFee:       big.NewInt(1000000),
 	}
 	signedTx4, _ := types.SignTx(tx4, inviterKey)
 	require.NoError(t, validation.ValidateTx(chain.appState, signedTx4, fee2.MinFeePerGas, validation.InBlockTx))
 
 	chain.appState.State.SetFeePerGas(new(big.Int).Div(big.NewInt(1e+18), big.NewInt(1000)))
-	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx3)
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx4)
 
 	context := &txExecutionContext{
 		appState: chain.appState,

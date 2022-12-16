@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
@@ -14,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"math/big"
 )
 
@@ -41,13 +43,11 @@ var (
 	RecipientRequired    = errors.New("recipient is required")
 	InvitationIsMissing  = errors.New("invitation is missing")
 	EmptyPayload         = errors.New("payload can't be empty")
-	InvalidEpochTx       = errors.New("invalid epoch tx")
 	InvalidPayload       = errors.New("invalid payload")
 	InvalidRecipient     = errors.New("invalid recipient")
 	EarlyTx              = errors.New("tx can't be accepted due to wrong period")
 	LateTx               = errors.New("tx can't be accepted due to validation ceremony")
 	NotCandidate         = errors.New("user is not a candidate")
-	NotIdentity          = errors.New("user is not identity")
 	InsufficientFlips    = errors.New("insufficient flips")
 	IsAlreadyOnline      = errors.New("identity is already online or has pending online status")
 	IsAlreadyOffline     = errors.New("identity is already offline or has pending offline status")
@@ -55,6 +55,7 @@ var (
 	DuplicatedFlipPair   = errors.New("flip with these words already exists")
 	BigFee               = errors.New("current fee is greater than tx max fee")
 	InvalidMaxFee        = errors.New("invalid max fee")
+	TooHighMaxFee        = errors.New("too high max fee")
 	InvalidSender        = errors.New("invalid sender")
 	FlipIsMissing        = errors.New("flip is missing")
 	DuplicatedTx         = errors.New("duplicated tx")
@@ -182,7 +183,7 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 		return LateTx
 	}
 
-	if err := ValidateFee(appState, tx, txType); err != nil {
+	if err := ValidateFee(appState, tx, txType, minFeePerGas); err != nil {
 		return err
 	}
 	if err := validateTotalCost(sender, appState, tx, txType); err != nil {
@@ -226,7 +227,18 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 	return nil
 }
 
-func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxType) error {
+func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxType, minFeePerGas *big.Int) error {
+	enableUpgrade10 := appCfg != nil && appCfg.Consensus.EnableUpgrade10
+	if enableUpgrade10 {
+		maxBlockGas := uint64(types.MaxBlockGas)
+		gasCost := minFeePerGas
+		if gasCost != nil && gasCost.Sign() > 0 {
+			maxTxGas := math.ToInt(decimal.NewFromBigInt(tx.MaxFeeOrZero(), 0).Div(decimal.NewFromBigInt(gasCost, 0))).Uint64()
+			if maxTxGas > maxBlockGas {
+				return TooHighMaxFee
+			}
+		}
+	}
 	if txType != InBlockTx {
 		return nil
 	}
