@@ -2,18 +2,12 @@ package testdata
 
 import "embed"
 
-//go:embed optimized.wasm
 //go:embed erc20.wasm
 //go:embed inc_func.wasm
 //go:embed sum_func.wasm
 //go:embed test-cases.wasm
 //go:embed shared-fungible-token-wallet.wasm
-//go:embed idena-sdk-as-test.wasm
 var content embed.FS
-
-func Testdata1() ([]byte, error) {
-	return content.ReadFile("optimized.wasm")
-}
 
 func Erc20() ([]byte, error) {
 	return content.ReadFile("erc20.wasm")
@@ -33,8 +27,4 @@ func TestCases() ([]byte, error) {
 
 func SharedFungibleToken()([]byte, error) {
 	return content.ReadFile("shared-fungible-token-wallet.wasm")
-}
-
-func IdenaSdkAsTest()([]byte, error) {
-	return content.ReadFile("idena-sdk-as-test.wasm")
 }

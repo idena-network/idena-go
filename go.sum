@@ -9,7 +9,6 @@ cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 cloud.google.com/go v0.37.0/go.mod h1:TS1dMSSfndXH133OKGwekG838Om/cQT0BUHV3HcBgoo=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
 cloud.google.com/go v0.44.1/go.mod h1:iSa0KzasP4Uvy3f1mN/7PiObzGgflwredwwASm/v6AU=
-cloud.google.com/go v0.44.1/go.mod h1:iSa0KzasP4Uvy3f1mN/7PiObzGgflwredwwASm/v6AU=
 cloud.google.com/go v0.44.2/go.mod h1:60680Gw3Yr4ikxnPRS/oxxkBccT6SA1yMk63TGekxKY=
 cloud.google.com/go v0.45.1/go.mod h1:RpBamKRgapWJb87xiFSdk4g1CME7QZg3uwTez+TSTjc=
 cloud.google.com/go v0.46.3/go.mod h1:a6bKKbmY7er1mI7TEI4lsAkts/mkhTSZK8w33B4RAg0=
@@ -700,6 +699,8 @@ github.com/idena-network/idena-wasm-binding v0.0.0-20221101070452-a20fafdd4d76 h
 github.com/idena-network/idena-wasm-binding v0.0.0-20221101070452-a20fafdd4d76/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
 github.com/idena-network/idena-wasm-binding v0.0.0-20221122091408-cfc88d960c14 h1:hSBbLXyqhAegj4qZMi1gMrV5QpgsiMgoaOOLrfdh5a4=
 github.com/idena-network/idena-wasm-binding v0.0.0-20221122091408-cfc88d960c14/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
+github.com/idena-network/idena-wasm-binding v0.0.0-20221219142404-1be702d36627 h1:m74JJqU/VRmJWh7vmiuoYd9S/XIgQbQ/qSuRWrZRWqI=
+github.com/idena-network/idena-wasm-binding v0.0.0-20221219142404-1be702d36627/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
 github.com/imdario/mergo v0.3.4/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.8/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=

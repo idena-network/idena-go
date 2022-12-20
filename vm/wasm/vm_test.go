@@ -17,7 +17,6 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
-	"time"
 )
 
 func TestVm_Erc20(t *testing.T) {
@@ -25,7 +24,7 @@ func TestVm_Erc20(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 	appState.Initialize(0)
 
-	vm := NewWasmVM(appState, createHeader(1, 1), false)
+	vm := NewWasmVM(appState, createHeader(1, 1), true)
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -51,9 +50,11 @@ func TestVm_Erc20(t *testing.T) {
 		t.Logf("key=%v, value=%v\n", key, string(value))
 		return false
 	})
+	totalSupply := int64(1000000000)
+	transferAmount := int64(777)
 
 	addr := common.Address{0x1}
-	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), append(common.ToBytes(uint64(777)), []byte{0, 0, 0, 0, 0, 0, 0, 0}...))
+	callAttach := attachments.CreateCallContractAttachment("transfer", addr.Bytes(), big.NewInt(transferAmount).Bytes())
 	payload, _ = callAttach.ToBytes()
 
 	tx = &types.Transaction{
@@ -69,9 +70,14 @@ func TestVm_Erc20(t *testing.T) {
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
+	addrBalance := appState.State.GetContractValue(receipt.ContractAddress, append([]byte("b:"), addr.Bytes()...))
+	require.True(t, big.NewInt(transferAmount).Cmp(big.NewInt(0).SetBytes(addrBalance)) == 0)
+
+	ownerBalance := appState.State.GetContractValue(receipt.ContractAddress, append([]byte("b:"), crypto.PubkeyToAddress(key.PublicKey).Bytes()...))
+	require.True(t, big.NewInt(totalSupply-transferAmount).Cmp(big.NewInt(0).SetBytes(ownerBalance)) == 0)
+
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		v, _ := helpers.ExtractUInt64(0, value)
-		t.Logf("key=%v, value=%v\n", key, v)
+		t.Logf("key=%v, value=%v\n", key, value)
 		return false
 	})
 
@@ -140,8 +146,6 @@ func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
-	//appState.Commit(nil, true)
-
 	code, _ = testdata.SumFunc()
 
 	receipt = deployContract(key, appState, code, receipt.ContractAddress.Bytes())
@@ -157,6 +161,9 @@ func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
 	receipt = callContract(key, appState, receipt.ContractAddress, "invoke", common.ToBytes(uint64(1)), common.ToBytes(uint64(5)))
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
+
+	value := appState.State.GetContractValue(receipt.ContractAddress, []byte("sum"))
+	require.Equal(t, common.ToBytes(uint64(7)), value)
 }
 
 func TestVm_DeployContractViaContract(t *testing.T) {
@@ -212,7 +219,6 @@ func TestVm_DeployContractViaContract(t *testing.T) {
 		return false
 	})
 	require.Equal(t, initBalance.String(), sum.String())
-
 }
 
 func ConvertToFloat(amount *big.Int) decimal.Decimal {
@@ -234,7 +240,7 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
-	t.Logf("addr=%v", addr.Hex());
+	t.Logf("addr=%v", addr.Hex())
 
 	code, _ := testdata.SharedFungibleToken()
 	receipt := deployContract(key, appState, code, addr.Bytes(), common.Address{0xA}.Bytes())
@@ -243,7 +249,7 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	firstContract := receipt.ContractAddress
 
-	appState.State.SetContractValue(firstContract, []byte("b"), u64Tou128(uint64(1000)))
+	appState.State.SetContractValue(firstContract, []byte("b"), big.NewInt(1000).Bytes())
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		v, _ := helpers.ExtractUInt64(0, value)
@@ -255,7 +261,7 @@ func Test_SharedFungibleToken(t *testing.T) {
 
 	destination := common.Address{0x3}
 
-	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(u64Tou128(100)))
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), big.NewInt(100).Bytes())
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -271,61 +277,25 @@ func Test_SharedFungibleToken(t *testing.T) {
 		return false
 	})
 
-	secondContract := common.Address{0x9d, 0x8c, 0x32, 0x5a, 0xeb, 0x35,0x34, 0x4d, 0x80, 0xff, 0x7a, 0xcb, 0x50, 0x6d, 0x7d, 0xf3, 0xb7, 0x36, 0xa1, 0xf8}
-	appState.State.IterateContractStore(secondContract, nil, nil, func(key []byte, value []byte) bool {
-		v, _ := helpers.ExtractUInt64(0, value)
-		t.Logf("[deployed contract] key=%v, value=%v\n", key, v)
-		return false
-	})
+	secondContract := common.Address{138, 195, 233, 255, 186, 85, 141, 217, 130, 231, 18, 175, 192, 139, 128, 182, 215, 94, 36, 167}
 
 	appState.Commit(nil)
 
-	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), common.ToBytes(u64Tou128(100)))
+	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), big.NewInt(100).Bytes())
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
-
-	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		v, _ := helpers.ExtractUInt64(0, value)
-		t.Logf("key=%v, value=%v\n", key, v)
-		return false
-	})
-
-	start := time.Now()
-	receipt = callContract(key, appState, firstContract, "check_gas")
-	t.Logf("%+v\n", receipt)
-	require.False(t, receipt.Success)
-
-	t.Logf("call time = %v\n", time.Since(start).String())
+	require.Equal(t, big.NewInt(800), big.NewInt(0).SetBytes(appState.State.GetContractValue(firstContract,[]byte("b"))))
+	require.Equal(t, big.NewInt(200), big.NewInt(0).SetBytes(appState.State.GetContractValue(secondContract,[]byte("b"))))
 }
 
-func Test_IdenaSdkAsTest(t *testing.T) {
-	db := dbm.NewMemDB()
-	appState, _ := appstate.NewAppState(db, eventbus.New())
-	appState.Initialize(0)
-
-	rnd := rand.New(rand.NewSource(1))
-	key, _ := crypto.GenerateKeyFromSeed(rnd)
-
-	code, _ := testdata.IdenaSdkAsTest()
-	receipt := deployContract(key, appState, code)
-	t.Logf("%+v\n", receipt)
-	require.True(t, receipt.Success)
-
-	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		t.Logf("key=%v, value=%v\n", key, string(value))
-		return false
-	})
-	receipt = callContract(key, appState, receipt.ContractAddress, "add", common.ToBytes(int32(1)), common.ToBytes(int32(2)))
-	t.Logf("%+v\n", receipt)
-	require.True(t, receipt.Success)
-
-
-	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
-		t.Logf("key=%v, value=%v\n", key, string(value))
-		return false
-	})
-}
-
-func u64Tou128(n uint64) []byte {
-	return append(common.ToBytes(n), []byte{0, 0, 0, 0, 0, 0, 0, 0}...)
+func createHeader(height uint64, time int64) *types.Header {
+	seed := types.Seed{}
+	seed.SetBytes(common.ToBytes(height))
+	return &types.Header{
+		ProposedHeader: &types.ProposedHeader{
+			BlockSeed: seed,
+			Height:    height,
+			Time:      time,
+		},
+	}
 }

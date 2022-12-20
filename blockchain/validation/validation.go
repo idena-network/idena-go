@@ -236,7 +236,8 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxType, minFeePerGas *big.Int) error {
 	enableUpgrade10 := appCfg != nil && appCfg.Consensus.EnableUpgrade10
 	if enableUpgrade10 {
-		maxBlockGas := uint64(types.MaxBlockGas)
+		enableUpgrade11 := appCfg != nil && appCfg.Consensus.EnableUpgrade11
+		maxBlockGas := types.MaxBlockSize(enableUpgrade11)
 		gasCost := minFeePerGas
 		if gasCost != nil && gasCost.Sign() > 0 {
 			maxTxGas := math.ToInt(decimal.NewFromBigInt(tx.MaxFeeOrZero(), 0).Div(decimal.NewFromBigInt(gasCost, 0))).Uint64()
