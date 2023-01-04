@@ -65,6 +65,9 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			return
 		}
 		if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
+			if !common.ZeroOrNil(identity.Stake) {
+				collector.AddNonValidatedStake(statsCollector, addr, identity.Stake)
+			}
 			return
 		}
 		cv := cacheValue{
@@ -246,7 +249,6 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			if !ok {
 				if nonValidatedStake, ok := nonValidatedStakes[address]; ok {
 					w = stakeWeight(nonValidatedStake)
-					collector.AddNonValidatedStake(statsCollector, address, nonValidatedStake)
 				}
 			}
 
