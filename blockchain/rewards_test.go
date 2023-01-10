@@ -673,6 +673,92 @@ func Test_addInvitationReward(t *testing.T) {
 }
 
 func Test_splitFlipsToReward(t *testing.T) {
+	{
+		src := []*types.FlipToReward{
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x1},
+			},
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x2},
+			},
+		}
+
+		base, extra := splitFlipsToReward(src, true)
+		require.Len(t, base, 2)
+		require.Len(t, extra, 0)
+
+		require.Equal(t, types.GradeD, base[0].Grade)
+		require.Equal(t, []byte{0x1}, base[0].Cid)
+		require.Equal(t, types.GradeD, base[1].Grade)
+		require.Equal(t, []byte{0x2}, base[1].Cid)
+	}
+
+	{
+		src := []*types.FlipToReward{
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x1},
+			},
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x2},
+			},
+			{
+				Grade: types.GradeA,
+				Cid:   []byte{0x3},
+			},
+		}
+
+		base, extra := splitFlipsToReward(src, true)
+		require.Len(t, base, 3)
+		require.Len(t, extra, 0)
+
+		require.Equal(t, types.GradeA, base[0].Grade)
+		require.Equal(t, types.GradeD, base[1].Grade)
+		require.Equal(t, []byte{0x1}, base[1].Cid)
+		require.Equal(t, types.GradeD, base[2].Grade)
+		require.Equal(t, []byte{0x2}, base[2].Cid)
+	}
+
+	{
+		src := []*types.FlipToReward{
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x1},
+			},
+			{
+				Grade: types.GradeD,
+				Cid:   []byte{0x2},
+			},
+			{
+				Grade: types.GradeA,
+				Cid:   []byte{0x3},
+			},
+			{
+				Grade: types.GradeB,
+				Cid:   []byte{0x4},
+			},
+		}
+
+		base, extra := splitFlipsToReward(src, true)
+		require.Len(t, base, 4)
+		require.Len(t, extra, 1)
+
+		require.Equal(t, types.GradeA, base[0].Grade)
+		require.Equal(t, types.GradeB, base[1].Grade)
+		require.Equal(t, types.GradeD, base[2].Grade)
+		require.Equal(t, []byte{0x1}, base[2].Cid)
+		require.Equal(t, types.GradeD, base[3].Grade)
+		require.Equal(t, []byte{0x2}, base[3].Cid)
+
+		require.Equal(t, types.GradeD, extra[0].Grade)
+		require.Equal(t, []byte{0x2}, extra[0].Cid)
+	}
+}
+
+func Test_splitFlipsToReward(t *testing.T) {
 	src := []*types.FlipToReward{
 		{
 			GradeScore: decimal.NewFromInt32(2),
