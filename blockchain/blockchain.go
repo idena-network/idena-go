@@ -1494,7 +1494,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stake := stateDB.GetStakeBalance(*tx.To)
 		stateDB.SubStake(*tx.To, stake)
 		stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
-		if delegatorPrevState.VerifiedOrBetter() {
+		if delegatorPrevState.VerifiedOrBetter() || chain.config.Consensus.EnableUpgrade11 && (delegatorPrevState == state.Suspended || delegatorPrevState == state.Zombie) {
 			stateDB.AddBalance(sender, stake)
 		} else {
 			collector.AddKilledBurntCoins(statsCollector, *tx.To, stake)
