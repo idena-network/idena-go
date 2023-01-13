@@ -54,11 +54,11 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 		return
 	}
 
-	_, ok := m.pendingPushes.Get(key)
+	value, ok := m.pendingPushes.Get(key)
 
 	if !ok {
 		m.mutex.Lock()
-		_, ok = m.pendingPushes.Get(key)
+		value, ok = m.pendingPushes.Get(key)
 		if !ok {
 			m.pendingPushes.SetDefault(key, &pendingPush{
 				cnt:  1,
@@ -73,7 +73,6 @@ func (m *PushPullManager) addPush(id peer.ID, hash pushPullHash) {
 		}
 		m.mutex.Unlock()
 	}
-	value, _ := m.pendingPushes.Get(key)
 
 	pendingPush := value.(*pendingPush)
 	cnt := atomic.AddUint32(&pendingPush.cnt, 1)
