@@ -117,7 +117,9 @@ func StartMobileNode(path string, cfg string) string {
 		return err.Error()
 	}
 
-	n.Start()
+	if err := n.Start(); err != nil {
+		return err.Error()
+	}
 
 	return "started"
 }
@@ -259,13 +261,13 @@ func NewNodeWithInjections(config *config.Config, bus eventbus.Bus, statsCollect
 	}, nil
 }
 
-func (node *Node) Start() {
-	node.StartWithHeight(0)
+func (node *Node) Start() error {
+	return node.StartWithHeight(0)
 }
 
-func (node *Node) StartWithHeight(height uint64) {
+func (node *Node) StartWithHeight(height uint64) error {
 	if privateKey, err := node.config.NodeKey(); err != nil {
-		node.log.Crit("Cannot initialize node key", "error", err.Error())
+		return errors.Wrap(err, "cannot initialize node key")
 	} else {
 		node.secStore.AddKey(crypto.FromECDSA(privateKey))
 	}
@@ -277,25 +279,22 @@ func (node *Node) StartWithHeight(height uint64) {
 	}
 
 	if err := node.blockchain.InitializeChain(); err != nil {
-		node.log.Error("Cannot initialize blockchain", "error", err.Error())
-		return
+		return errors.Wrap(err, "cannot initialize blockchain")
 	}
 
 	if err := node.appState.Initialize(node.blockchain.Head.Height()); err != nil {
 		if err := node.appState.Initialize(0); err != nil {
-			node.log.Error("Cannot initialize state", "error", err.Error())
+			return errors.Wrap(err, "cannot initialize state")
 		}
 	}
 
 	if err := node.blockchain.EnsureIntegrity(); err != nil {
-		node.log.Error("Failed to recover blockchain", "err", err)
-		return
+		return errors.Wrap(err, "failed to recover blockchain")
 	}
 
 	if height > 0 && node.blockchain.Head.Height() > height {
 		if _, err := node.blockchain.ResetTo(height); err != nil {
-			node.log.Error(fmt.Sprintf("Cannot reset blockchain to %d", height), "error", err.Error())
-			return
+			return errors.Wrapf(err, "cannot reset blockchain to %d", height)
 		}
 	}
 
@@ -315,8 +314,9 @@ func (node *Node) StartWithHeight(height uint64) {
 	node.stopInitialRPC()
 	// Configure RPC
 	if err := node.startRPC(); err != nil {
-		node.log.Error("Cannot start RPC endpoint", "error", err.Error())
+		return errors.Wrap(err, "cannot start RPC endpoint")
 	}
+	return nil
 }
 
 func (node *Node) WaitForStop() {

@@ -106,7 +106,9 @@ func main() {
 		if err != nil {
 			return err
 		}
-		n.Start()
+		if err := n.Start(); err != nil {
+			return err
+		}
 		n.WaitForStop()
 		return nil
 	}
@@ -114,6 +116,7 @@ func main() {
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Error(err.Error())
+		os.Exit(1)
 	}
 }
 
