@@ -245,7 +245,7 @@ func (m *ConnManager) CanAcceptStream() bool {
 }
 
 func (m *ConnManager) NeedPeerFromSomeShard(shardsNum int) bool {
-	if m.ownShardId != common.MultiShard {
+	if m.ownShardId != common.MultiShard || shardsNum <= 1 {
 		return false
 	}
 	for i := common.ShardId(0); i <= common.ShardId(shardsNum); i++ {
@@ -378,14 +378,14 @@ func (m *ConnManager) NeedPeerFromShard(inbound bool, shardId common.ShardId) (c
 	if inbound {
 		if m.IsFromOwnShards(shardId) {
 			canConnect = m.NeedInboundOwnShardPeers()
-			shouldDisconnectAnotherPeer = !m.CanAcceptStream() && canConnect
+			shouldDisconnectAnotherPeer = canConnect && !m.CanAcceptStream()
 		} else {
 			canConnect = m.CanAcceptStream()
 		}
 	} else {
 		if m.IsFromOwnShards(shardId) {
 			canConnect = m.NeedOutboundOwnShardPeers()
-			shouldDisconnectAnotherPeer = !m.CanDial() && canConnect
+			shouldDisconnectAnotherPeer = canConnect && !m.CanDial()
 		} else {
 			canConnect = m.CanDial()
 		}

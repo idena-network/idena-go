@@ -525,6 +525,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
 			peer.log.Debug("Idena handshake failed", "err", err)
 		}
+		peer.disconnect("")
 		return nil, err
 	}
 
