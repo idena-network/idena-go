@@ -31,12 +31,17 @@ type ContractData struct {
 	Code []byte
 }
 
+type BlockHeaderProvider interface {
+	GetBlockHeaderByHeight(height uint64) *types.Header
+}
+
 type WasmEnv struct {
-	id       int
-	appState *appstate.AppState
-	ctx      *ContractContext
-	head     *types.Header
-	parent   *WasmEnv
+	id             int
+	appState       *appstate.AppState
+	ctx            *ContractContext
+	head           *types.Header
+	parent         *WasmEnv
+	headerProvider BlockHeaderProvider
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
@@ -45,6 +50,21 @@ type WasmEnv struct {
 	events                []*types.TxEvent
 	method                string
 	isDebug               bool
+}
+
+func (w *WasmEnv) BlockHeader(meter *lib.GasMeter, height uint64) []byte {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	if header := w.headerProvider.GetBlockHeaderByHeight(height); header != nil {
+		r, _ := header.ToBytes()
+		return r
+	}
+	return []byte{}
+}
+
+func (w *WasmEnv) Keccak256(meter *lib.GasMeter, data []byte) []byte {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ComputeHashGas))
+	hash := crypto.Hash(data)
+	return hash[:]
 }
 
 func (w *WasmEnv) IsDebug() bool {
@@ -160,9 +180,10 @@ func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
 	return w.GetCode(addr)
 }
 
-func NewWasmEnv(appState *appstate.AppState, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
+		headerProvider:        blockHeaderProvider,
 		appState:              appState,
 		ctx:                   ctx,
 		head:                  head,

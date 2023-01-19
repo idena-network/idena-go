@@ -12,14 +12,15 @@ import (
 )
 
 type WasmVM struct {
-	appState *appstate.AppState
-	head     *types.Header
-	isDebug  bool
+	appState            *appstate.AppState
+	blockHeaderProvider BlockHeaderProvider
+	head                *types.Header
+	isDebug             bool
 }
 
 func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, err error) {
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, ctx, vm.head, "deploy", vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, "deploy", vm.isDebug)
 	attach := attachments.ParseDeployContractAttachment(tx)
 	actionResult = []byte{}
 	if attach == nil {
@@ -47,7 +48,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 		method = attachment.Method
 	}
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, ctx, vm.head, method, vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, method, vm.isDebug)
 	contract := *tx.To
 	code := vm.appState.State.GetContractCode(contract)
 	actionResult = []byte{}
@@ -108,6 +109,6 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxRecei
 	}
 }
 
-func NewWasmVM(appState *appstate.AppState, head *types.Header, isDebug bool) *WasmVM {
-	return &WasmVM{appState: appState, head: head, isDebug: isDebug}
+func NewWasmVM(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, head *types.Header, isDebug bool) *WasmVM {
+	return &WasmVM{appState: appState, blockHeaderProvider: blockHeaderProvider, head: head, isDebug: isDebug}
 }

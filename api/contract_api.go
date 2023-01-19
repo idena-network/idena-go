@@ -278,7 +278,7 @@ func (api *ContractApi) signIfNeeded(from common.Address, tx *types.Transaction,
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildDeployContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -298,7 +298,7 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildCallContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -329,7 +329,7 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildTerminateContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -471,7 +471,7 @@ func (api *ContractApi) BatchReadData(contract common.Address, keys []KeyWithFor
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc, api.bc.Head, nil, api.bc.Config())
 	convertedArgs, err := args.Args.ToSlice()
 	if err != nil {
 		return nil, err

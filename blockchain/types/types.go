@@ -1370,7 +1370,6 @@ func (a *Answers) Right(flipIndex uint) {
 	if flipIndex >= a.FlipsCount {
 		panic("index is out of range")
 	}
-
 	t := big.NewInt(1)
 	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount))
 }

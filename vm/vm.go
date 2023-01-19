@@ -28,20 +28,21 @@ type VM interface {
 }
 
 type VmImpl struct {
-	env            *env2.EnvImp
-	appState       *appstate.AppState
-	gasCounter     *env2.GasCounter
-	statsCollector collector.StatsCollector
-	cfg            *config.Config
-	head           *types.Header
+	env                 *env2.EnvImp
+	appState            *appstate.AppState
+	blockHeaderProvider wasm.BlockHeaderProvider
+	gasCounter          *env2.GasCounter
+	statsCollector      collector.StatsCollector
+	cfg                 *config.Config
+	head                *types.Header
 }
 
-type VmCreator = func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
+type VmCreator = func(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
 
-func NewVmImpl(appState *appstate.AppState, head *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM {
+func NewVmImpl(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, head *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM {
 	gasCounter := new(env2.GasCounter)
 	return &VmImpl{env: env2.NewEnvImp(appState, head, gasCounter, statsCollector), appState: appState, gasCounter: gasCounter,
-		statsCollector: statsCollector, cfg: cfg, head: head}
+		statsCollector: statsCollector, cfg: cfg, head: head, blockHeaderProvider: blockHeaderProvider}
 }
 
 func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
@@ -178,7 +179,7 @@ func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int6
 	}
 
 	if vm.IsWasm(tx) {
-		wasmVm := wasm.NewWasmVM(vm.appState, vm.head, vm.cfg.IsDebug)
+		wasmVm := wasm.NewWasmVM(vm.appState, vm.blockHeaderProvider, vm.head, vm.cfg.IsDebug)
 		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
 	}
 

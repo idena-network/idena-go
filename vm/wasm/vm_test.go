@@ -24,7 +24,7 @@ func TestVm_Erc20(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 	appState.Initialize(0)
 
-	vm := NewWasmVM(appState, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -99,7 +99,7 @@ func TestVm_Erc20(t *testing.T) {
 var nonce = uint32(1)
 
 func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []byte, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
 	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil, args...)
 	payload, _ := deployAttach.ToBytes()
 
@@ -116,7 +116,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
 	callAttach := attachments.CreateCallContractAttachment(method, args...)
 	payload, _ := callAttach.ToBytes()
 
@@ -284,8 +284,8 @@ func Test_SharedFungibleToken(t *testing.T) {
 	receipt = callContract(key, appState, firstContract, "transferTo", destination.Bytes(), big.NewInt(100).Bytes())
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
-	require.Equal(t, big.NewInt(800), big.NewInt(0).SetBytes(appState.State.GetContractValue(firstContract,[]byte("b"))))
-	require.Equal(t, big.NewInt(200), big.NewInt(0).SetBytes(appState.State.GetContractValue(secondContract,[]byte("b"))))
+	require.Equal(t, big.NewInt(800), big.NewInt(0).SetBytes(appState.State.GetContractValue(firstContract, []byte("b"))))
+	require.Equal(t, big.NewInt(200), big.NewInt(0).SetBytes(appState.State.GetContractValue(secondContract, []byte("b"))))
 }
 
 func createHeader(height uint64, time int64) *types.Header {
