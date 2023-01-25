@@ -42,6 +42,7 @@ type StatsCollector interface {
 	AddFoundationPayout(addr common.Address, balance *big.Int)
 	AddZeroWalletFund(addr common.Address, balance *big.Int)
 	AddNonValidatedStake(addr common.Address, amount *big.Int)
+	AddPenalizedStake(addr common.Address, amount *big.Int)
 
 	AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
 	AddFinalCommitteeReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float)
@@ -427,6 +428,17 @@ func AddNonValidatedStake(c StatsCollector, addr common.Address, amount *big.Int
 		return
 	}
 	c.AddNonValidatedStake(addr, amount)
+}
+
+func (c *collectorStub) AddPenalizedStake(addr common.Address, amount *big.Int) {
+	// do nothing
+}
+
+func AddPenalizedStake(c StatsCollector, addr common.Address, amount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddPenalizedStake(addr, amount)
 }
 
 func (c *collectorStub) AddProposerReward(balanceDest, stakeDest common.Address, balance, stake *big.Int, stakeWeight *big.Float) {

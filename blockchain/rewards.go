@@ -66,7 +66,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 		}
 		if _, penalized := validationResults[identity.ShiftedShardId()].BadAuthors[addr]; penalized {
 			if !common.ZeroOrNil(identity.Stake) {
-				collector.AddNonValidatedStake(statsCollector, addr, identity.Stake)
+				collector.AddPenalizedStake(statsCollector, addr, identity.Stake)
 			}
 			return
 		}
