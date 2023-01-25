@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/debug"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -371,7 +372,7 @@ func Test_addSuccessfulValidationReward1(t *testing.T) {
 
 	totalReward := decimal.RequireFromString("545000149673614247952282")
 
-	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
+	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil, new(debug.Info))
 	_ = appState.Commit(nil)
 
 	require.Zero(t, appState.State.GetBalance(addrZeroStake).Sign())
@@ -462,7 +463,7 @@ func Test_addSuccessfulValidationReward2(t *testing.T) {
 
 	totalReward := decimal.RequireFromString("1000000000000000000000")
 
-	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil)
+	stakeWeights := addSuccessfulValidationReward(appState, conf, validationResults, totalReward, nil, new(debug.Info))
 	_ = appState.Commit(nil)
 
 	for i, addr := range addrs {
@@ -602,7 +603,7 @@ func Test_addInvitationReward(t *testing.T) {
 
 	epochDurations := []uint32{72644, 92409, 86329}
 
-	addInvitationReward(appState, cfg, validationResults, totalRewardD, epochDurations, stakeWeights, nil)
+	addInvitationReward(appState, cfg, validationResults, totalRewardD, epochDurations, stakeWeights, nil, new(debug.Info))
 
 	require.Equal(t, "2.660363363372324272", ConvertToFloat(appState.State.GetBalance(addrs[0])).String())
 	require.Equal(t, "0.665090840843081067", ConvertToFloat(appState.State.GetStakeBalance(addrs[0])).String())

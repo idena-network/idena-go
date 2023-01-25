@@ -38,6 +38,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
+	"io/ioutil"
 	math2 "math"
 	"math/big"
 	"math/rand"
@@ -489,6 +490,14 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyNextBlockFee(appState, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 	chain.clearOutdatedBurntCoins(appState, block)
+
+	const epochToDebug = 99
+	if appState.State.Epoch() == epochToDebug+1 && block.Header.Flags().HasFlag(types.ValidationFinished) {
+		stateInfo := appState.State.Info()
+		if err := ioutil.WriteFile("state.debug.log", []byte(stateInfo.String()), 0600); err != nil {
+			chain.log.Error("failed to write state info", "err", err)
+		}
+	}
 
 	stateDiff, diff = appState.Precommit()
 

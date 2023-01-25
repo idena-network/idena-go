@@ -254,7 +254,7 @@ func getDefaultConfig(dataDir string) *Config {
 		IpfsConf:   ipfsConfig,
 		Validation: &ValidationConfig{},
 		Sync: &SyncConfig{
-			FastSync:            true,
+			FastSync:            false,
 			ForceFullSync:       DefaultForceFullSync,
 			AllFlipsLoadingTime: time.Hour * 2,
 		},

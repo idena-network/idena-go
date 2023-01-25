@@ -2,15 +2,18 @@ package blockchain
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
+	"github.com/idena-network/idena-go/debug"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/shopspring/decimal"
+	"io/ioutil"
 	math2 "math"
 	"math/big"
 	"sort"
@@ -19,8 +22,11 @@ import (
 func rewardValidIdentities(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
 	epochDurations []uint32, nonValidatedStakes map[common.Address]*big.Int, statsCollector collector.StatsCollector) {
 
+	rewardsInfo := new(debug.Info)
+
 	totalReward := big.NewInt(0).Add(config.BlockReward, config.FinalCommitteeReward)
 	currentEpochDuration := epochDurations[len(epochDurations)-1]
+
 	totalReward = totalReward.Mul(totalReward, big.NewInt(int64(currentEpochDuration)))
 	collector.SetValidationResults(statsCollector, validationResults)
 	collector.SetTotalReward(statsCollector, totalReward)
@@ -28,12 +34,19 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 	log.Info("Total validation reward", "reward", ConvertToFloat(totalReward).String())
 
 	totalRewardD := decimal.NewFromBigInt(totalReward, 0)
-	stakeWeights := addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector)
-	addFlipReward(appState, config, validationResults, totalRewardD, stakeWeights, nonValidatedStakes, statsCollector)
+	stakeWeights := addSuccessfulValidationReward(appState, config, validationResults, totalRewardD, statsCollector, rewardsInfo)
+	addFlipReward(appState, config, validationResults, totalRewardD, stakeWeights, nonValidatedStakes, statsCollector, rewardsInfo)
 	addReportReward(appState, config, validationResults, totalRewardD, statsCollector)
-	addInvitationReward(appState, config, validationResults, totalRewardD, epochDurations, stakeWeights, statsCollector)
+	addInvitationReward(appState, config, validationResults, totalRewardD, epochDurations, stakeWeights, statsCollector, rewardsInfo)
 	addFoundationPayouts(appState, config, totalRewardD, statsCollector)
 	addZeroWalletFund(appState, config, totalRewardD, statsCollector)
+
+	const epochToDebug = 99
+	if appState.State.Epoch() == epochToDebug {
+		if err := ioutil.WriteFile("rewards.debug.log", []byte(rewardsInfo.String()), 0600); err != nil {
+			log.Error("failed to write rewards info", "err", err)
+		}
+	}
 }
 
 func stakeWeight(stake *big.Int) float32 {
@@ -42,7 +55,7 @@ func stakeWeight(stake *big.Int) float32 {
 }
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
-	validationResults map[common.ShardId]*types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector) (stakeWeights map[common.Address]float32) {
+	validationResults map[common.ShardId]*types.ValidationResults, totalReward decimal.Decimal, statsCollector collector.StatsCollector, rewardsInfo *debug.Info) (stakeWeights map[common.Address]float32) {
 
 	stakeWeights = make(map[common.Address]float32)
 
@@ -104,6 +117,8 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 		collector.SetTotalCandidateReward(statsCollector, math.ToInt(candidateRewardD), math.ToInt(candidateRewardShare))
 	}
 
+	rewardsInfo.Add(fmt.Sprintf("totalStakingWeight %f, stakingRewardD %v, stakingRewardShare %v", totalStakingWeight, stakingRewardD, stakingRewardShare))
+
 	addReward := func(addr common.Address, identity state.Identity, reward *big.Int, addRewardToCollectorFunc func(rewardDest common.Address, balance, stake *big.Int)) {
 		balance, stake := splitReward(reward, identity.State == state.Newbie, config)
 		rewardDest := addr
@@ -132,6 +147,7 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 			continue
 		}
 		reward := stakingRewardShare.Mul(decimal.NewFromFloat(float64(value.stakeWeight)))
+		rewardsInfo.Add(fmt.Sprintf("staking %v, sw %f, reward %v", addr.Hex(), value.stakeWeight, reward))
 		addReward(addr, identity, math.ToInt(reward), func(rewardDest common.Address, balance, stake *big.Int) {
 			collector.AddStakingReward(statsCollector, rewardDest, addr, identity.Stake, balance, stake)
 		})
@@ -175,7 +191,7 @@ func splitFlipsToReward(flipsToReward []*types.FlipToReward) (basic, extra []*ty
 }
 
 func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
-	totalReward decimal.Decimal, validatedStakeWeights map[common.Address]float32, nonValidatedStakes map[common.Address]*big.Int, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, validatedStakeWeights map[common.Address]float32, nonValidatedStakes map[common.Address]*big.Int, statsCollector collector.StatsCollector, rewardsInfo *debug.Info) {
 
 	type AuthorWrapper struct {
 		author  *types.ValidationResult
@@ -279,6 +295,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			weight += w
 		}
 		totalReward := rewardShare.Mul(decimal.NewFromFloat32(weight))
+		rewardsInfo.Add(fmt.Sprintf("flips %v, sw %f, reward %v", address.Hex(), weight, totalReward))
 		reward, stake := splitReward(math.ToInt(totalReward), newIdentityState == uint8(state.Newbie), config)
 		rewardDest := address
 		if delegatee := appState.State.Delegatee(address); delegatee != nil {
@@ -303,6 +320,9 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 		flipExtraRewardShare = flipRewardExtraD.Div(decimal.NewFromFloat32(totalExtraWeight))
 		collector.SetTotalFlipsExtraReward(statsCollector, math.ToInt(flipRewardExtraD), math.ToInt(flipExtraRewardShare))
 	}
+
+	rewardsInfo.Add(fmt.Sprintf("totalBasicWeight %f, flipRewardBasicD %v, flipBasicRewardShare %v", totalBasicWeight, flipRewardBasicD, flipBasicRewardShare))
+	rewardsInfo.Add(fmt.Sprintf("totalExtraWeight %f, flipRewardExtraD %v, flipExtraRewardShare %v", totalExtraWeight, flipRewardExtraD, flipExtraRewardShare))
 
 	for _, authorFlips := range flips {
 		address := authorFlips.address
@@ -422,7 +442,7 @@ func getInvitationRewardCoef(stakeWeight float32, age uint16, inviteePenalized b
 }
 
 func addInvitationReward(appState *appstate.AppState, config *config.ConsensusConf, validationResults map[common.ShardId]*types.ValidationResults,
-	totalReward decimal.Decimal, epochDurations []uint32, stakeWeights map[common.Address]float32, statsCollector collector.StatsCollector) {
+	totalReward decimal.Decimal, epochDurations []uint32, stakeWeights map[common.Address]float32, statsCollector collector.StatsCollector, rewardsInfo *debug.Info) {
 	invitationRewardD := totalReward.Mul(decimal.NewFromFloat32(config.ValidInvitationRewardPercent))
 
 	totalWeight := float32(0)
@@ -477,6 +497,8 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 	invitationRewardShare := invitationRewardD.Div(decimal.NewFromFloat32(totalWeight))
 	collector.SetTotalInvitationsReward(statsCollector, math.ToInt(invitationRewardD), math.ToInt(invitationRewardShare))
 
+	rewardsInfo.Add(fmt.Sprintf("totalWeight %f, invitationRewardD %v, invitationRewardShare %v", totalWeight, invitationRewardD, invitationRewardShare))
+
 	addReward := func(addr common.Address, totalReward decimal.Decimal, isNewbie bool, age uint16, txHash *common.Hash,
 		epochHeight uint32, isSavedInviteWinner bool) {
 		reward, stake := splitReward(math.ToInt(totalReward), isNewbie, config)
@@ -516,9 +538,11 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 			if weightWrapper := inviterWrapper.weights[i]; weightWrapper.inviter > 0 {
 				if config.EnableUpgrade10 {
 					inviterTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.inviter))
+					rewardsInfo.Add(fmt.Sprintf("inviter %v, sw %f, reward %v", addr.Hex(), weightWrapper.inviter, inviterTotalReward))
 					addReward(addr, inviterTotalReward, isNewbie, successfulInvite.Age, &successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 					if weightWrapper.invitee > 0 {
 						inviteeTotalReward := invitationRewardShare.Mul(decimal.NewFromFloat32(weightWrapper.invitee))
+						rewardsInfo.Add(fmt.Sprintf("invitee %v, sw %f, reward %v", successfulInvite.Address.Hex(), weightWrapper.invitee, inviteeTotalReward))
 						addRewardToStake(successfulInvite.Address, inviteeTotalReward, successfulInvite.Age, successfulInvite.TxHash, successfulInvite.EpochHeight, false)
 					}
 				} else {

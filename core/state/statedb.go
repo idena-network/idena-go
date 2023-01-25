@@ -23,6 +23,7 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/state/snapshot"
 	"github.com/idena-network/idena-go/database"
+	"github.com/idena-network/idena-go/debug"
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	"github.com/pkg/errors"
@@ -84,6 +85,212 @@ type StateDB struct {
 
 	log  log.Logger
 	lock sync.Mutex
+}
+
+func (s *StateDB) Info() *debug.Info {
+	res := &debug.Info{}
+	res.AddAll(s.stateAccountsInfo())
+	res.AddAll(s.stateAccountsDirtyInfo())
+	res.AddAll(s.stateIdentitiesInfo())
+	res.AddAll(s.stateIdentitiesDirtyInfo())
+	res.AddAll(s.stateGlobalInfo())
+	res.AddAll(s.stateGlobalDirtyInfo())
+	res.AddAll(s.stateStatusSwitchInfo())
+	res.AddAll(s.stateStatusSwitchDirtyInfo())
+	res.AddAll(s.stateDelegationSwitchInfo())
+	res.AddAll(s.stateDelegationSwitchDirtyInfo())
+	res.AddAll(s.stateDelayedOfflinePenaltiesInfo())
+	res.AddAll(s.stateDelayedOfflinePenaltiesDirtyInfo())
+	return res
+}
+
+func (s *StateDB) stateAccountsInfo() *debug.Info {
+	var addrs []common.Address
+	for addr := range s.stateAccounts {
+		addrs = append(addrs, addr)
+	}
+	sort.Slice(addrs, func(i, j int) bool {
+		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+	})
+	res := &debug.Info{}
+	for _, addr := range addrs {
+		value := s.stateAccounts[addr]
+		res.Add(fmt.Sprintf("account %v", addr.Hex()))
+		res.Add(fmt.Sprintf("address: %v", value.address.Hex()))
+		res.Add(fmt.Sprintf("nonce: %v", value.data.Nonce))
+		res.Add(fmt.Sprintf("epoch: %v", value.data.Epoch))
+		res.Add(fmt.Sprintf("balance: %v", value.data.Balance))
+		res.Add(fmt.Sprintf("contract: %v", value.data.Contract))
+		res.Add(fmt.Sprintf("deleted: %v", value.deleted))
+	}
+	return res
+}
+
+func (s *StateDB) stateAccountsDirtyInfo() *debug.Info {
+	var addrs []common.Address
+	for addr := range s.stateAccountsDirty {
+		addrs = append(addrs, addr)
+	}
+	sort.Slice(addrs, func(i, j int) bool {
+		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+	})
+	res := &debug.Info{}
+	for _, addr := range addrs {
+		_, value := s.stateAccountsDirty[addr]
+		res.Add(fmt.Sprintf("account %v dirty", addr.Hex()))
+		res.Add(fmt.Sprintf("%v", value))
+	}
+	return res
+}
+
+func (s *StateDB) stateIdentitiesInfo() *debug.Info {
+	itemsByAddr := s.stateIdentities
+	var addrs []common.Address
+	for addr := range itemsByAddr {
+		addrs = append(addrs, addr)
+	}
+	sort.Slice(addrs, func(i, j int) bool {
+		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+	})
+	res := &debug.Info{}
+	for _, addr := range addrs {
+		value := itemsByAddr[addr]
+		res.Add(fmt.Sprintf("identity %v", addr.Hex()))
+		res.Add(fmt.Sprintf("address: %v", value.address.Hex()))
+		res.Add(fmt.Sprintf("ProfileHash: %v", value.data.ProfileHash))
+		res.Add(fmt.Sprintf("Stake: %v", value.data.Stake))
+		res.Add(fmt.Sprintf("Invites: %v", value.data.Invites))
+		res.Add(fmt.Sprintf("Birthday: %v", value.data.Birthday))
+		res.Add(fmt.Sprintf("State: %v", value.data.State))
+		res.Add(fmt.Sprintf("QualifiedFlips: %v", value.data.QualifiedFlips))
+		res.Add(fmt.Sprintf("ShortFlipPoints: %v", value.data.ShortFlipPoints))
+		res.Add(fmt.Sprintf("PubKey: %v", value.data.PubKey))
+		res.Add(fmt.Sprintf("RequiredFlips: %v", value.data.RequiredFlips))
+		res.Add(fmt.Sprintf("Flips: %v", value.data.Flips))
+		res.Add(fmt.Sprintf("Generation: %v", value.data.Generation))
+		res.Add(fmt.Sprintf("Code: %v", value.data.Code))
+		res.Add(fmt.Sprintf("Invitees: %v", value.data.Invitees))
+		res.Add(fmt.Sprintf("Inviter: %v", value.data.Inviter))
+		res.Add(fmt.Sprintf("Penalty: %v", value.data.Penalty))
+		res.Add(fmt.Sprintf("ValidationTxsBits: %v", value.data.ValidationTxsBits))
+		res.Add(fmt.Sprintf("LastValidationStatus: %v", value.data.LastValidationStatus))
+		res.Add(fmt.Sprintf("Scores: %v", value.data.Scores))
+		res.Add(fmt.Sprintf("Delegatee: %v", value.data.Delegatee()))
+		res.Add(fmt.Sprintf("DelegationNonce: %v", value.data.DelegationNonce))
+		res.Add(fmt.Sprintf("DelegationEpoch: %v", value.data.DelegationEpoch))
+		res.Add(fmt.Sprintf("PendingUndelegation: %v", value.data.pendingUndelegation))
+		res.Add(fmt.Sprintf("UndelegationEpoch: %v", value.data.undelegationEpoch))
+		res.Add(fmt.Sprintf("ReplenishedStake: %v", value.data.replenishedStake))
+		res.Add(fmt.Sprintf("PenaltySeconds: %v", value.data.penaltySeconds))
+		res.Add(fmt.Sprintf("PenaltyTimestamp: %v", value.data.penaltyTimestamp))
+		res.Add(fmt.Sprintf("ShardId: %v", value.data.ShardId))
+		res.Add(fmt.Sprintf("deleted: %v", value.deleted))
+	}
+	return res
+}
+
+func (s *StateDB) stateIdentitiesDirtyInfo() *debug.Info {
+	dirtyByAddrs := s.stateAccountsDirty
+	var addrs []common.Address
+	for addr := range dirtyByAddrs {
+		addrs = append(addrs, addr)
+	}
+	sort.Slice(addrs, func(i, j int) bool {
+		return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
+	})
+	res := &debug.Info{}
+	for _, addr := range addrs {
+		_, value := dirtyByAddrs[addr]
+		res.Add(fmt.Sprintf("identity %v dirty", addr.Hex()))
+		res.Add(fmt.Sprintf("%v", value))
+	}
+	return res
+}
+
+func (s *StateDB) stateGlobalInfo() *debug.Info {
+	res := &debug.Info{}
+	res.Add("global")
+	res.Add(fmt.Sprintf("Epoch: %v", s.stateGlobal.data.Epoch))
+	res.Add(fmt.Sprintf("NextValidationTime: %v", s.stateGlobal.data.NextValidationTime))
+	res.Add(fmt.Sprintf("ValidationPeriod: %v", s.stateGlobal.data.ValidationPeriod))
+	res.Add(fmt.Sprintf("GodAddress: %v", s.stateGlobal.data.GodAddress))
+	res.Add(fmt.Sprintf("WordsSeed: %v", s.stateGlobal.data.WordsSeed))
+	res.Add(fmt.Sprintf("LastSnapshot: %v", s.stateGlobal.data.LastSnapshot))
+	res.Add(fmt.Sprintf("EpochBlock: %v", s.stateGlobal.data.EpochBlock))
+	res.Add(fmt.Sprintf("PrevEpochBlocks: %v", s.stateGlobal.data.PrevEpochBlocks))
+	res.Add(fmt.Sprintf("FeePerGas: %v", s.stateGlobal.data.FeePerGas))
+	res.Add(fmt.Sprintf("VrfProposerThreshold: %v", s.stateGlobal.data.VrfProposerThreshold))
+	res.Add(fmt.Sprintf("EmptyBlocksBits: %v", s.stateGlobal.data.EmptyBlocksBits))
+	res.Add(fmt.Sprintf("GodAddressInvites: %v", s.stateGlobal.data.GodAddressInvites))
+	res.Add(fmt.Sprintf("BlocksCntWithoutCeremonialTxs: %v", s.stateGlobal.data.BlocksCntWithoutCeremonialTxs))
+	res.Add(fmt.Sprintf("ShardsNum: %v", s.stateGlobal.data.ShardsNum))
+
+	itemsByShardId := s.stateGlobal.data.EmptyBlocksByShards
+	var shardIds []common.ShardId
+	for shardId := range itemsByShardId {
+		shardIds = append(shardIds, shardId)
+	}
+	sort.Slice(shardIds, func(i, j int) bool {
+		return shardIds[i] < shardIds[j]
+	})
+	for _, shardId := range shardIds {
+		value := s.stateGlobal.data.EmptyBlocksByShards[shardId]
+		res.Add(fmt.Sprintf("Shard %v EmptyBlocks: %v", shardId, value))
+	}
+	for _, shardId := range shardIds {
+		value := s.stateGlobal.data.ShardSizes[shardId]
+		res.Add(fmt.Sprintf("Shard %v Size: %v", shardId, value))
+	}
+	return res
+}
+
+func (s *StateDB) stateGlobalDirtyInfo() *debug.Info {
+	return new(debug.Info).Add(fmt.Sprintf("global dirty: %v", s.stateGlobalDirty))
+}
+
+func (s *StateDB) stateStatusSwitchInfo() *debug.Info {
+	res := new(debug.Info)
+	if s.stateStatusSwitch != nil {
+		res.Add(fmt.Sprintf("status switch: %v", s.stateStatusSwitch.data.Addresses)).
+			Add(fmt.Sprintf("status switch deleted: %v", s.stateStatusSwitch.deleted))
+	} else {
+		res.Add("status switch: -")
+	}
+	return res
+}
+
+func (s *StateDB) stateStatusSwitchDirtyInfo() *debug.Info {
+	return new(debug.Info).Add(fmt.Sprintf("status switch dirty: %v", s.stateStatusSwitchDirty))
+}
+
+func (s *StateDB) stateDelegationSwitchInfo() *debug.Info {
+	res := new(debug.Info)
+	if s.stateDelegationSwitch != nil {
+		res.Add(fmt.Sprintf("delegation switch: %v", s.stateDelegationSwitch.data.Delegations)).
+			Add(fmt.Sprintf("delegation switch deleted: %v", s.stateDelegationSwitch.deleted))
+	} else {
+		res.Add("delegation switch: -")
+	}
+	return res
+}
+
+func (s *StateDB) stateDelegationSwitchDirtyInfo() *debug.Info {
+	return new(debug.Info).Add(fmt.Sprintf("status switch dirty: %v", s.stateDelegationSwitchDirty))
+}
+
+func (s *StateDB) stateDelayedOfflinePenaltiesInfo() *debug.Info {
+	res := new(debug.Info)
+	if s.stateDelayedOfflinePenalties != nil {
+		res.Add(fmt.Sprintf("penalties switch: %v", s.stateDelayedOfflinePenalties.data.Identities)).
+			Add(fmt.Sprintf("penalties switch deleted: %v", s.stateDelayedOfflinePenalties.deleted))
+	} else {
+		res.Add("penalties switch: -")
+	}
+	return res
+}
+
+func (s *StateDB) stateDelayedOfflinePenaltiesDirtyInfo() *debug.Info {
+	return new(debug.Info).Add(fmt.Sprintf("penalties switch dirty: %v", s.stateDelayedOfflinePenalties))
 }
 
 func NewLazy(db dbm.DB) (*StateDB, error) {
