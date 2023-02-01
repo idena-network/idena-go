@@ -1388,6 +1388,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 					return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
 				}
 			}
+			collector.AddTxGas(context.statsCollector, tx, gas)
 			if !chain.config.Consensus.EnableUpgrade10 {
 				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
 					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
@@ -1410,6 +1411,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			}
 		}
 	}
+	collector.AddBlockGas(context.statsCollector, usedGas)
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
