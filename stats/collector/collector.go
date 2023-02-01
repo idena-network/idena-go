@@ -77,6 +77,8 @@ type StatsCollector interface {
 	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
 	CompleteApplyingTx(appState *appstate.AppState)
 	AddTxFee(feeAmount *big.Int)
+	AddTxGas(tx *types.Transaction, gas uint64)
+	AddBlockGas(gas uint64)
 
 	AddContractStake(amount *big.Int)
 	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
@@ -742,6 +744,28 @@ func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 		return
 	}
 	c.AddTxFee(feeAmount)
+}
+
+func (c *collectorStub) AddTxGas(tx *types.Transaction, gas uint64) {
+	// do nothing
+}
+
+func AddTxGas(c StatsCollector, tx *types.Transaction, gas uint64) {
+	if c == nil {
+		return
+	}
+	c.AddTxGas(tx, gas)
+}
+
+func (c *collectorStub) AddBlockGas(gas uint64) {
+	// do nothing
+}
+
+func AddBlockGas(c StatsCollector, gas uint64) {
+	if c == nil {
+		return
+	}
+	c.AddBlockGas(gas)
 }
 
 func (c *collectorStub) AddContractStake(amount *big.Int) {
