@@ -68,10 +68,10 @@ func Test_rewardValidIdentities(t *testing.T) {
 		1: {
 			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 			GoodAuthors: map[common.Address]*types.ValidationResult{
-				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeB}}, NewIdentityState: uint8(state.Verified)},
+				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeB, decimal.Zero}}, NewIdentityState: uint8(state.Verified)},
 				auth2:  {NewIdentityState: uint8(state.Newbie)},
-				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeC}, {[]byte{0x1}, types.GradeD}}, NewIdentityState: uint8(state.Verified)},
-				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}, {[]byte{0x1}, types.GradeA}}, Missed: true},
+				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeC, decimal.Zero}, {[]byte{0x1}, types.GradeD, decimal.Zero}}, NewIdentityState: uint8(state.Verified)},
+				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeA, decimal.Zero}}, Missed: true},
 			},
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
 				auth1: {
@@ -675,32 +675,32 @@ func Test_addInvitationReward(t *testing.T) {
 func Test_splitFlipsToReward(t *testing.T) {
 	src := []*types.FlipToReward{
 		{
-			Grade: types.GradeD,
-			Cid:   []byte{0x1},
+			GradeScore: decimal.NewFromInt32(2),
+			Cid:        []byte{0x1},
 		},
 		{
-			Grade: types.GradeD,
-			Cid:   []byte{0x2},
+			GradeScore: decimal.NewFromInt32(2),
+			Cid:        []byte{0x2},
 		},
 		{
-			Grade: types.GradeA,
-			Cid:   []byte{0x3},
+			GradeScore: decimal.NewFromInt32(8),
+			Cid:        []byte{0x3},
 		},
 		{
-			Grade: types.GradeB,
-			Cid:   []byte{0x4},
+			GradeScore: decimal.NewFromInt32(6),
+			Cid:        []byte{0x4},
 		},
 	}
 
-	base, extra := splitFlipsToReward(src)
+	base, extra := splitFlipsToReward(src, true)
 	require.Len(t, base, 3)
 	require.Len(t, extra, 1)
 
-	require.Equal(t, types.GradeA, base[0].Grade)
-	require.Equal(t, types.GradeB, base[1].Grade)
-	require.Equal(t, types.GradeD, base[2].Grade)
+	require.Equal(t, decimal.NewFromInt32(8), base[0].GradeScore)
+	require.Equal(t, decimal.NewFromInt32(6), base[1].GradeScore)
+	require.Equal(t, decimal.NewFromInt32(2), base[2].GradeScore)
 	require.Equal(t, []byte{0x1}, base[2].Cid)
 
-	require.Equal(t, types.GradeD, extra[0].Grade)
+	require.Equal(t, decimal.NewFromInt32(2), extra[0].GradeScore)
 	require.Equal(t, []byte{0x2}, extra[0].Cid)
 }

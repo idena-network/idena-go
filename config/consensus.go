@@ -56,6 +56,7 @@ type ConsensusConf struct {
 	NewKeyWordsEpoch                  uint16
 	EnableUpgrade10                   bool
 	BurnTxRange                       uint64
+	EnableUpgrade11                   bool
 }
 
 type ConsensusVerson uint16

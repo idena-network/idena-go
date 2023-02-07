@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
+	"github.com/shopspring/decimal"
 	math2 "math"
 	"sync"
 )
@@ -126,6 +127,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	}, totalFlipsCount)
 
 	reportersToReward := newReportersToReward()
+	grades := newGrades(q.config.Consensus.EnableUpgrade11)
 
 	for candidateIdx := 0; candidateIdx < len(flipsPerCandidate); candidateIdx++ {
 		candidate := candidates[candidateIdx]
@@ -141,6 +143,8 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		flipsCount := len(flips)
 		answers := types.NewAnswersFromBits(uint(flipsCount), attachment.Answers)
 		var reportedFlips []int
+		var hasApprove bool
+		var increasedGradeCnt int
 		for j := uint(0); j < uint(flipsCount); j++ {
 			answer, grade := answers.Answer(j)
 			flipIdx := flips[j]
@@ -153,11 +157,22 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 				data[flipIdx].totalGrade += int(grade)
 				data[flipIdx].gradesCount++
 				data[flipIdx].reportCommitteeSize++
+				hasApprove = true
+				if grade > types.GradeD {
+					increasedGradeCnt++
+				}
 			}
+			grades.addGrade(candidateIdx, flipIdx, grade)
 		}
 		if flipsCount > 0 {
 			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) >= 0.34
-			if ignoreReports {
+			if q.config.Consensus.EnableUpgrade11 {
+				ignoreGrades := ignoreReports || !hasApprove || increasedGradeCnt > 1
+				if ignoreGrades {
+					reportersToReward.deleteReporter(candidate.Address)
+					grades.deleteGrades(candidateIdx)
+				}
+			} else if ignoreReports {
 				reportersToReward.deleteReporter(candidate.Address)
 				for _, flipIdx := range reportedFlips {
 					data[flipIdx].reportCommitteeSize--
@@ -169,7 +184,17 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	result := make([]FlipQualification, totalFlipsCount)
 
 	for flipIdx := 0; flipIdx < len(data); flipIdx++ {
-		result[flipIdx] = q.qualifyOneFlip(data[flipIdx].answers, reportersToReward.getFlipReportsCount(flipIdx), data[flipIdx].totalGrade, data[flipIdx].gradesCount, data[flipIdx].reportCommitteeSize)
+		var totalGradeScore, approveCnt, gradeScoreCommitteeSize, reportCnt, reportCommitteeSize int
+		if q.config.Consensus.EnableUpgrade11 {
+			totalGradeScore, gradeScoreCommitteeSize, approveCnt, reportCnt = grades.flip(flipIdx)
+			reportCommitteeSize = approveCnt + reportCnt
+		} else {
+			totalGradeScore = data[flipIdx].totalGrade
+			approveCnt = data[flipIdx].gradesCount
+			reportCnt = reportersToReward.getFlipReportsCount(flipIdx)
+			reportCommitteeSize = data[flipIdx].reportCommitteeSize
+		}
+		result[flipIdx] = q.qualifyOneFlip(data[flipIdx].answers, reportCnt, totalGradeScore, approveCnt, reportCommitteeSize, gradeScoreCommitteeSize)
 		if result[flipIdx].grade != types.GradeReported {
 			reportersToReward.deleteFlip(flipIdx)
 		}
@@ -328,9 +353,7 @@ func getAnswersCount(a []types.Answer) (left uint, right uint, none uint) {
 	return left, right, none
 }
 
-func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int, totalGrade int, gradesCount int, reportCommitteeSize int) FlipQualification {
-	left, right, none := getAnswersCount(answers)
-	totalAnswersCount := float32(len(answers))
+func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount, totalGradeScore, approveCnt, reportCommitteeSize, gradeScoreCommitteeSize int) FlipQualification {
 	reported := false
 	switch reportCommitteeSize {
 	case 0, 1:
@@ -345,78 +368,102 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount int,
 	}
 
 	var graded bool
+	var gradedCommitteeSize int
+	if q.config.Consensus.EnableUpgrade11 {
+		gradedCommitteeSize = gradeScoreCommitteeSize
+	} else {
+		gradedCommitteeSize = len(answers)
+	}
 	if q.config.Consensus.EnableUpgrade10 {
-		switch len(answers) {
+		switch gradedCommitteeSize {
 		case 0:
 			graded = false
 		case 1:
-			graded = gradesCount == 1
+			graded = approveCnt == 1
 		case 2, 3, 4:
-			graded = gradesCount >= 2
+			graded = approveCnt >= 2
 		case 5:
-			graded = gradesCount >= 3
+			graded = approveCnt >= 3
 		default:
-			graded = float32(gradesCount)/float32(len(answers)) > 0.33
+			graded = float32(approveCnt)/float32(gradedCommitteeSize) > 0.33
 		}
 	} else {
-		graded = float32(gradesCount)/float32(len(answers)) > 0.33
+		graded = float32(approveCnt)/float32(gradedCommitteeSize) > 0.33
 	}
 
 	var grade types.Grade
+	var gradeScore decimal.Decimal
 	switch {
 	case reported:
 		grade = types.GradeReported
 		break
 	case graded:
-		grade = types.Grade(math2.Round(float64(totalGrade) / float64(gradesCount)))
+		if q.config.Consensus.EnableUpgrade11 {
+			gradeScore = decimal.NewFromInt32(int32(totalGradeScore)).Div(decimal.NewFromInt32(int32(gradeScoreCommitteeSize)))
+		} else {
+			grade = types.Grade(math2.Round(float64(totalGradeScore) / float64(approveCnt)))
+		}
 		break
 	default:
-		grade = types.GradeD
+		if q.config.Consensus.EnableUpgrade11 {
+			gradeScore = decimal.NewFromInt32(int32(grade.Score(true)))
+		} else {
+			grade = types.GradeD
+		}
 	}
+
+	left, right, none := getAnswersCount(answers)
+	totalAnswersCount := float32(len(answers))
 
 	if float32(left)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
-			answer: types.Left,
-			status: Qualified,
-			grade:  grade,
+			answer:     types.Left,
+			status:     Qualified,
+			grade:      grade,
+			gradeScore: gradeScore,
 		}
 	}
 
 	if float32(right)/totalAnswersCount >= 0.75 {
 		return FlipQualification{
-			answer: types.Right,
-			status: Qualified,
-			grade:  grade,
+			answer:     types.Right,
+			status:     Qualified,
+			grade:      grade,
+			gradeScore: gradeScore,
 		}
 	}
 
 	if float32(left)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
-			answer: types.Left,
-			status: WeaklyQualified,
-			grade:  grade,
+			answer:     types.Left,
+			status:     WeaklyQualified,
+			grade:      grade,
+			gradeScore: gradeScore,
 		}
 	}
 
 	if float32(right)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
-			answer: types.Right,
-			status: WeaklyQualified,
-			grade:  grade,
+			answer:     types.Right,
+			status:     WeaklyQualified,
+			grade:      grade,
+			gradeScore: gradeScore,
 		}
 	}
 
 	if float32(none)/totalAnswersCount >= 0.66 {
 		return FlipQualification{
-			answer: types.None,
-			status: QualifiedByNone,
-			grade:  grade,
+			answer:     types.None,
+			status:     QualifiedByNone,
+			grade:      grade,
+			gradeScore: gradeScore,
 		}
 	}
 
 	return FlipQualification{
-		answer: types.None,
-		status: NotQualified,
-		grade:  grade,
+		answer:     types.None,
+		status:     NotQualified,
+		grade:      grade,
+		gradeScore: gradeScore,
 	}
 }

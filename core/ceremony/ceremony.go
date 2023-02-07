@@ -1091,9 +1091,10 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 		for i, item := range flipQualification {
 			flipQualificationMap[i] = item
 			stats.FlipsPerIdx[i] = &statsTypes.FlipStats{
-				Status: byte(item.status),
-				Answer: item.answer,
-				Grade:  item.grade,
+				Status:     byte(item.status),
+				Answer:     item.answer,
+				Grade:      item.grade,
+				GradeScore: item.gradeScore,
 			}
 		}
 		var flipsByAuthor map[common.Address][]int
@@ -1376,8 +1377,9 @@ func (vc *ValidationCeremony) analyzeAuthors(qualifications []FlipQualification,
 				goodAuthors[author] = vr
 			}
 			vr.FlipsToReward = append(vr.FlipsToReward, &types.FlipToReward{
-				Cid:   cid,
-				Grade: item.grade,
+				Cid:        cid,
+				Grade:      item.grade,
+				GradeScore: item.gradeScore,
 			})
 		}
 	}

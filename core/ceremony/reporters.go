@@ -96,3 +96,70 @@ func (r *reportersToReward) setValidationResult(address common.Address, newState
 func (r *reportersToReward) getReportersByFlipMap() map[int]map[common.Address]*types.Candidate {
 	return r.reportersByFlip
 }
+
+type grades struct {
+	byCandidate     map[int]map[int]types.Grade
+	byFlip          map[int]*flipGrades
+	enableUpgrade11 bool
+}
+
+type flipGrades struct {
+	totalScore, cnt, approveCnt, reportCnt int
+}
+
+func newGrades(enableUpgrade11 bool) *grades {
+	return &grades{
+		byFlip:          make(map[int]*flipGrades),
+		byCandidate:     make(map[int]map[int]types.Grade),
+		enableUpgrade11: enableUpgrade11,
+	}
+}
+
+func (g *grades) addGrade(candidateIdx, flipIdx int, grade types.Grade) {
+	flips, ok := g.byCandidate[candidateIdx]
+	if !ok {
+		flips = make(map[int]types.Grade)
+		g.byCandidate[candidateIdx] = flips
+	}
+	flips[flipIdx] = grade
+
+	flip, ok := g.byFlip[flipIdx]
+	if !ok {
+		flip = new(flipGrades)
+		g.byFlip[flipIdx] = flip
+	}
+	flip.cnt++
+
+	if grade >= types.GradeD {
+		flip.approveCnt++
+	}
+
+	flip.totalScore += grade.Score(g.enableUpgrade11)
+
+	if grade == types.GradeReported {
+		flip.reportCnt++
+	}
+}
+
+func (g *grades) deleteGrades(candidateIdx int) {
+	for flipIdx, grade := range g.byCandidate[candidateIdx] {
+		flip := g.byFlip[flipIdx]
+		flip.cnt--
+		if grade >= types.GradeD {
+			flip.approveCnt--
+		}
+		flip.totalScore -= grade.Score(g.enableUpgrade11)
+		if grade == types.GradeReported {
+			flip.reportCnt--
+		}
+	}
+	delete(g.byCandidate, candidateIdx)
+}
+
+func (g *grades) flip(flipIdx int) (totalGradeScore, gradeCnt, approveCnt, reportCnt int) {
+	flipGrades, ok := g.byFlip[flipIdx]
+	if !ok {
+		return
+	}
+	return flipGrades.totalScore, flipGrades.cnt, flipGrades.approveCnt, flipGrades.reportCnt
+}
