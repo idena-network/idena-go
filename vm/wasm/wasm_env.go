@@ -217,7 +217,7 @@ func (w *WasmEnv) readContractData(contractAddr common.Address, key []byte) []by
 
 func (w *WasmEnv) SetStorage(meter *lib.GasMeter, key []byte, value []byte) {
 	ctx := w.ctx
-	if len(key) > common.MaxContractStoreKeyLength {
+	if len(key) > common.MaxWasmContractStoreKeyLength {
 		panic("key is too big")
 	}
 	addr := ctx.ContractAddr()
@@ -279,7 +279,7 @@ func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) e
 }
 
 func (w *WasmEnv) Balance(meter *lib.GasMeter) *big.Int {
-	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBalanceGas))
 	return w.getBalance(w.ctx.ContractAddr())
 }
 
@@ -382,6 +382,11 @@ func (w *WasmEnv) OriginalCaller(meter *lib.GasMeter) lib.Address {
 	return w.ctx.originCaller
 }
 
+func (w *WasmEnv) GlobalState(meter *lib.GasMeter) []byte {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadGlobalStateGas))
+	return w.appState.State.RawGlobal()
+}
+
 func (w *WasmEnv) Commit() {
 	println(fmt.Sprintf("сommit to wasm env id=%v, method=%v", w.id, w.method))
 	if w.parent != nil {
@@ -402,6 +407,9 @@ func (w *WasmEnv) Commit() {
 		for contract, stake := range w.contractStakeCache {
 			w.parent.contractStakeCache[contract] = stake
 		}
+		for _, e := range w.events {
+			w.parent.events = append(w.parent.events, e)
+		}
 		return
 	}
 
@@ -420,11 +428,6 @@ func (w *WasmEnv) Commit() {
 	for contract, data := range w.deployedContractCache {
 		w.appState.State.DeployWasmContract(contract, data.Code)
 	}
-	for _, e := range w.events {
-		if w.parent != nil {
-			w.parent.events = append(w.parent.events, e)
-		}
-	}
 }
 
 func (w *WasmEnv) InternalCommit() []*types.TxEvent {
@@ -437,4 +440,5 @@ func (w *WasmEnv) Clear() {
 	w.balancesCache = map[common.Address]*big.Int{}
 	w.deployedContractCache = map[common.Address]ContractData{}
 	w.contractStakeCache = map[common.Address]*big.Int{}
+	w.events = []*types.TxEvent{}
 }

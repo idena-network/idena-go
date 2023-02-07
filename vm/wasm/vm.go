@@ -54,10 +54,10 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 	actionResult = []byte{}
 
 	if len(code) == 0 {
-		return env, limit, actionResult, "", errors.New("code is empty")
+		return env, limit, actionResult, method, errors.New("code is empty")
 	}
 	if attachment == nil {
-		return env, limit, actionResult, "", errors.New("can't parse attachment")
+		return env, limit, actionResult, method, errors.New("can't parse attachment")
 	}
 	defer func() {
 		if r := recover(); r != nil {

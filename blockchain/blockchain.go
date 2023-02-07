@@ -1553,7 +1553,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.AddBalance(sender, amount)
 			stateDB.SubBalance(contractAddr, amount)
 		}
-		if receipt.Success && !shouldAddPayAmount {
+		if receipt.Success && !shouldAddPayAmount && (tx.Type != types.TerminateContractTx || chain.config.Consensus.EnableUpgrade11) {
 			stateDB.SubBalance(sender, amount)
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
@@ -2030,10 +2030,10 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 			if chain.config.Consensus.EnableUpgrade10 {
 				if usedGas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+					chain.repo.FinishApplyingTx(tx.Hash())
 					break
 				}
 			}
-
 		}
 		chain.repo.FinishApplyingTx(tx.Hash())
 	}

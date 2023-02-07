@@ -10,6 +10,7 @@ const ReadStatePerByteGas = 10
 const WriteStatePerByteGas = 20
 const RemoveStateGas = 5
 const ReadIdentityStateGas = 1
+const ReadBalanceGas = 5
 
 const MoveBalanceGas = 30
 const DeployContractGas = 200

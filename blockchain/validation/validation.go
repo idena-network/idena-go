@@ -21,7 +21,7 @@ import (
 
 const (
 	MaxPayloadSize          = 3 * 1024
-	MaxPayloadSizeUpgrade10 = 3 * 1024 * 1024
+	MaxPayloadSizeUpgrade11 = 3 * 1024 * 1024
 
 	GodValidUntilNetworkSize = 10
 )
@@ -147,8 +147,8 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 		return InvalidSignature
 	}
 
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade10 {
-		if len(tx.Payload) > MaxPayloadSizeUpgrade10 {
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade11 {
+		if len(tx.Payload) > MaxPayloadSizeUpgrade11 {
 			return InvalidPayload
 		}
 	} else if len(tx.Payload) > MaxPayloadSize {
@@ -739,7 +739,7 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 	if attachment == nil {
 		return InvalidPayload
 	}
-	if len(attachment.Code) > 0 && (appCfg == nil || !appCfg.Consensus.EnableUpgrade10) {
+	if len(attachment.Code) > 0 && (appCfg == nil || !appCfg.Consensus.EnableUpgrade11) {
 		return InvalidPayload
 	}
 	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok && len(attachment.Code) == 0 {
@@ -758,11 +758,11 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 		return InvalidRecipient
 	}
 
-	if _, ok := embedded.AvailableContracts[*codeHash]; !ok && appCfg != nil && appCfg.Consensus.EnableUpgrade10 {
+	if _, ok := embedded.AvailableContracts[*codeHash]; !ok && appCfg != nil && appCfg.Consensus.EnableUpgrade11 {
 		return InvalidRecipient
 	}
 
-	if appCfg != nil && appCfg.Consensus.EnableUpgrade10 && !common.ZeroOrNil(tx.AmountOrZero()) {
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade11 && !common.ZeroOrNil(tx.AmountOrZero()) {
 		return InvalidAmount
 	}
 

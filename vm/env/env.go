@@ -180,7 +180,7 @@ func (e *EnvImp) MinFeePerGas() *big.Int {
 }
 
 func (e *EnvImp) Balance(address common.Address) *big.Int {
-	e.gasCounter.AddGas(costs.ReadStateGas)
+	e.gasCounter.AddGas(costs.ReadBalanceGas)
 	return e.getBalance(address)
 }
 

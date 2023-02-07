@@ -534,7 +534,7 @@ func (api *ContractApi) IterateMap(contract common.Address, mapName string, cont
 
 	minKey := []byte(mapName)
 	maxKey := []byte(mapName)
-	for i := len([]byte(mapName)); i < common.MaxContractStoreKeyLength; i++ {
+	for i := len([]byte(mapName)); i < common.MaxWasmContractStoreKeyLength; i++ {
 		maxKey = append(maxKey, 0xFF)
 	}
 

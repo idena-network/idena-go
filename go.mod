@@ -108,7 +108,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
-	github.com/idena-network/idena-wasm-binding v0.0.0-20230119093315-44984665c16c // indirect
+	github.com/idena-network/idena-wasm-binding v0.0.0-20230207084120-b7d9d07ba81e // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-bitfield v1.0.0 // indirect
 	github.com/ipfs/go-bitswap v0.9.0 // indirect

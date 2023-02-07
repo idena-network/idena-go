@@ -46,7 +46,7 @@ var (
 )
 
 func init() {
-	contractStoreMaxKey = make([]byte, common.MaxContractStoreKeyLength)
+	contractStoreMaxKey = make([]byte, common.MaxWasmContractStoreKeyLength)
 	for i := 0; i < len(contractStoreMaxKey); i++ {
 		contractStoreMaxKey[i] = 0xFF
 	}
@@ -1943,6 +1943,15 @@ func (s *StateDB) RawIdentity(address common.Address) []byte {
 		return nil
 	}
 	data, _ := identity.data.ToBytes()
+	return data
+}
+
+func (s *StateDB) RawGlobal() []byte {
+	global := s.getStateGlobal()
+	if global == nil {
+		return nil
+	}
+	data, _ := global.data.ToBytes()
 	return data
 }
 
