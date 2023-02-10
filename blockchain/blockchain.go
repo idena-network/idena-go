@@ -86,6 +86,7 @@ type Blockchain struct {
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) types.TotalValidationResult
 	isSyncing       bool
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
+	middlewares     []Middleware
 }
 
 type txsExecutionContext struct {
@@ -125,6 +126,8 @@ type identityUpdateHookCtx struct {
 	keepProfileHash, keepPenalty, keepDelegationNonce bool
 }
 
+type Middleware = func(block *types.Block, appState *appstate.AppState)
+
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
 	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
@@ -142,6 +145,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		subManager:      subManager,
 		upgrader:        upgrader,
 		ipfsLoadQueue:   make(chan *attachments.StoreToIpfsAttachment, 100),
+		middlewares:     []Middleware{},
 	}
 }
 
@@ -489,7 +493,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyNextBlockFee(appState, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 	chain.clearOutdatedBurntCoins(appState, block)
-
+	chain.applyMiddlewares(appState, block)
 	stateDiff, diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, diff
@@ -1919,7 +1923,11 @@ func calculateTxBloom(block *types.Block, receipts types.TxReceipts) []byte {
 
 	for _, r := range receipts {
 		for _, e := range r.Events {
-			values[string(append(r.ContractAddress.Bytes(), []byte(e.EventName)...))] = struct{}{}
+			contract := r.ContractAddress
+			if !e.Contract.IsEmpty() {
+				contract = e.Contract
+			}
+			values[string(append(contract.Bytes(), []byte(e.EventName)...))] = struct{}{}
 		}
 	}
 
@@ -2100,7 +2108,11 @@ func (chain *Blockchain) WriteTxReceipts(cid []byte, receipts types.TxReceipts) 
 		if eventMap, ok := m[r.ContractAddress]; ok || chain.config.Blockchain.WriteAllEvents {
 			for idx, event := range r.Events {
 				if _, ok := eventMap[event.EventName]; ok || chain.config.Blockchain.WriteAllEvents {
-					chain.repo.WriteEvent(r.ContractAddress, r.TxHash, uint32(idx), event)
+					contract := r.ContractAddress
+					if !event.Contract.IsEmpty() {
+						contract = event.Contract
+					}
+					chain.repo.WriteEvent(contract, r.TxHash, uint32(idx), event)
 				}
 			}
 		}
@@ -2959,6 +2971,16 @@ func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
 
 func (chain *Blockchain) ApplyHotfixToState() {
 	applyHotfixToState(chain.appState, chain.Head)
+}
+
+func (chain *Blockchain) applyMiddlewares(appState *appstate.AppState, block *types.Block) {
+	for _, m := range chain.middlewares {
+		m(block, appState)
+	}
+}
+
+func (chain *Blockchain) UseMiddleware(middleWare Middleware) {
+	chain.middlewares = append(chain.middlewares, middleWare)
 }
 
 func applyHotfixToState(appState *appstate.AppState, prevBlock *types.Header) {

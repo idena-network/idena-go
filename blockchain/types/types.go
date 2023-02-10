@@ -75,7 +75,6 @@ func init() {
 	}
 }
 
-
 func MaxBlockSize(enableUpgrade11 bool) uint64 {
 	if enableUpgrade11 {
 		return MaxBlockGasUpgrade11
@@ -1499,6 +1498,7 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 }
 
 type TxEvent struct {
+	Contract  common.Address
 	EventName string
 	Data      [][]byte
 }
@@ -1562,10 +1562,14 @@ func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
 	}
 	for idx := range r.Events {
 		e := r.Events[idx]
-		protoObj.Events = append(protoObj.Events, &models.ProtoTxReceipts_ProtoEvent{
+		protoEvent := &models.ProtoTxReceipts_ProtoEvent{
 			Event: e.EventName,
 			Data:  e.Data,
-		})
+		}
+		if !e.Contract.IsEmpty() {
+			protoEvent.Contract = e.Contract.Bytes()
+		}
+		protoObj.Events = append(protoObj.Events, protoEvent)
 	}
 	return protoObj
 }
@@ -1600,10 +1604,14 @@ func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
 
 	for idx := range protoObj.Events {
 		e := protoObj.Events[idx]
-		r.Events = append(r.Events, &TxEvent{
+		event := &TxEvent{
 			EventName: e.Event,
 			Data:      e.Data,
-		})
+		}
+		if len(e.Contract) > 0 {
+			event.Contract = common.BytesToAddress(e.Contract)
+		}
+		r.Events = append(r.Events, event)
 	}
 }
 

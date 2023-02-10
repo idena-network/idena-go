@@ -604,6 +604,7 @@ message ProtoTxReceipts {
     message ProtoEvent {
         string event = 1;
         repeated bytes data = 2;
+        bytes contract = 3;
     }
 
     repeated ProtoTxReceipt receipts = 1;

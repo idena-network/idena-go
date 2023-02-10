@@ -115,6 +115,7 @@ func (w *WasmEnv) Event(meter *lib.GasMeter, name string, args ...[]byte) {
 	}
 	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.EmitEventBase + costs.EmitEventPerByteGas*size)))
 	w.events = append(w.events, &types.TxEvent{
+		Contract:  w.ctx.ContractAddr(),
 		EventName: name, Data: args,
 	})
 }
