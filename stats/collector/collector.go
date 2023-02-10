@@ -62,7 +62,7 @@ type StatsCollector interface {
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
 
 	BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState)
-	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
+	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address)
 	BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
 	BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
 	BeginEpochRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState)
@@ -592,15 +592,15 @@ func BeginVerifiedStakeTransferBalanceUpdate(c StatsCollector, addrFrom, addrTo 
 	c.BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo, appState)
 }
 
-func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState) {
+func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address) {
 	// do nothing
 }
 
-func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address) {
 	if c == nil {
 		return
 	}
-	c.BeginTxBalanceUpdate(tx, appState)
+	c.BeginTxBalanceUpdate(tx, appState, additionalAddresses...)
 }
 
 func (c *collectorStub) BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
