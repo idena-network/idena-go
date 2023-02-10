@@ -729,16 +729,18 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 		return InvalidRecipient
 	}
 
-	minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
-
-	if tx.AmountOrZero().Cmp(minStake) < 0 {
-		return InvalidDeployAmount
-	}
-
 	attachment := attachments.ParseDeployContractAttachment(tx)
 	if attachment == nil {
 		return InvalidPayload
 	}
+
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; ok {
+		minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
+		if tx.AmountOrZero().Cmp(minStake) < 0 {
+			return InvalidDeployAmount
+		}
+	}
+
 	if len(attachment.Code) > 0 && (appCfg == nil || !appCfg.Consensus.EnableUpgrade11) {
 		return InvalidPayload
 	}
