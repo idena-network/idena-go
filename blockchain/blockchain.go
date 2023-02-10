@@ -1678,7 +1678,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		contractAddr := context.vm.ContractAddr(tx, &sender)
 
 		if shouldAddPayAmount {
-			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+			collector.BeginTxBalanceUpdate(statsCollector, tx, appState, contractAddr)
 			stateDB.SubBalance(sender, amount)
 			stateDB.AddBalance(contractAddr, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -1687,7 +1687,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
-		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState, contractAddr)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
 		if !receipt.Success && shouldAddPayAmount {
