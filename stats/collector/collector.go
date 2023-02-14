@@ -82,7 +82,8 @@ type StatsCollector interface {
 	AddBlockGas(gas uint64)
 
 	AddContractStake(amount *big.Int)
-	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
+	AddContractBalanceUpdate(contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int)
+	ApplyContractBalanceUpdates(balancesCache, parentBalancesCache *map[common.Address]*big.Int)
 	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
 	AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int)
 
@@ -780,15 +781,26 @@ func AddContractStake(c StatsCollector, amount *big.Int) {
 	c.AddContractStake(amount)
 }
 
-func (c *collectorStub) AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+func (c *collectorStub) AddContractBalanceUpdate(contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int) {
 	// do nothing
 }
 
-func AddContractBalanceUpdate(c StatsCollector, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+func AddContractBalanceUpdate(c StatsCollector, contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddContractBalanceUpdate(address, getCurrentBalance, newBalance, appState)
+	c.AddContractBalanceUpdate(contractAddress, address, getCurrentBalance, newBalance, appState, balancesCache)
+}
+
+func (c *collectorStub) ApplyContractBalanceUpdates(balancesCache, parentBalancesCache *map[common.Address]*big.Int) {
+	// do nothing
+}
+
+func ApplyContractBalanceUpdates(c StatsCollector, balancesCache, parentBalancesCache *map[common.Address]*big.Int) {
+	if c == nil {
+		return
+	}
+	c.ApplyContractBalanceUpdates(balancesCache, parentBalancesCache)
 }
 
 func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc) {
