@@ -310,7 +310,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		parent:                w,
 		ctx:                   w.ctx.CreateSubContext(contract, payAmount),
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
-		balancesCache:         map[common.Address]*big.Int{contract: subContractBalance},
+		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]ContractData{},
 		head:                  w.head,
 		isDebug:               w.isDebug,
@@ -318,6 +318,7 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		commitToState:         w.commitToState,
 		statsCollector:        w.statsCollector,
 	}
+	subEnv.setBalance(contract, subContractBalance)
 	if w.isDebug {
 		log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
 	}
@@ -357,7 +358,8 @@ func (w *WasmEnv) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (w *WasmEnv) setBalance(address common.Address, amount *big.Int) {
-	collector.AddContractBalanceUpdate(w.statsCollector, address, w.getBalance, amount, w.appState)
+	contractAddress := w.ctx.ContractAddr()
+	collector.AddContractBalanceUpdate(w.statsCollector, &contractAddress, address, w.getBalance, amount, w.appState, &w.balancesCache)
 	w.balancesCache[address] = amount
 }
 
@@ -409,6 +411,7 @@ func (w *WasmEnv) Commit() {
 		if w.enableUpgrade12 {
 			w.events = nil
 		}
+		collector.ApplyContractBalanceUpdates(w.statsCollector, &w.balancesCache, &w.parent.balancesCache)
 		return
 	}
 	if !w.commitToState {
@@ -429,6 +432,7 @@ func (w *WasmEnv) Commit() {
 	for contract, data := range w.deployedContractCache {
 		w.appState.State.DeployWasmContract(contract, data.Code)
 	}
+	collector.ApplyContractBalanceUpdates(w.statsCollector, &w.balancesCache, nil)
 }
 
 func (w *WasmEnv) InternalCommit() []*types.TxEvent {
