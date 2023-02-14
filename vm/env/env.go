@@ -100,7 +100,7 @@ func (e *EnvImp) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (e *EnvImp) setBalance(address common.Address, amount *big.Int) {
-	collector.AddContractBalanceUpdate(e.statsCollector, address, e.getBalance, amount, e.state)
+	collector.AddContractBalanceUpdate(e.statsCollector, nil, address, e.getBalance, amount, e.state, &e.balancesCache)
 	e.balancesCache[address] = amount
 }
 
@@ -314,6 +314,7 @@ func (e *EnvImp) Commit() []*types.TxEvent {
 	for contract, stake := range e.contractStakeCache {
 		e.state.State.SetContractStake(contract, stake)
 	}
+	collector.ApplyContractBalanceUpdates(e.statsCollector, &e.balancesCache, nil)
 
 	return e.events
 }
