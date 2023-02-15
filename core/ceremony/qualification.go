@@ -406,7 +406,7 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount, tot
 		break
 	default:
 		if q.config.Consensus.EnableUpgrade11 {
-			gradeScore = decimal.NewFromInt32(int32(grade.Score(true)))
+			gradeScore = decimal.NewFromInt32(int32(types.GradeD.Score(true)))
 		} else {
 			grade = types.GradeD
 		}

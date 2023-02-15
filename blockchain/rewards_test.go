@@ -68,10 +68,10 @@ func Test_rewardValidIdentities(t *testing.T) {
 		1: {
 			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 			GoodAuthors: map[common.Address]*types.ValidationResult{
-				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeB, decimal.Zero}}, NewIdentityState: uint8(state.Verified)},
+				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(4.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(3.5)}}, NewIdentityState: uint8(state.Verified)},
 				auth2:  {NewIdentityState: uint8(state.Newbie)},
-				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeC, decimal.Zero}, {[]byte{0x1}, types.GradeD, decimal.Zero}}, NewIdentityState: uint8(state.Verified)},
-				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeA, decimal.Zero}, {[]byte{0x1}, types.GradeA, decimal.Zero}}, Missed: true},
+				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(2.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(1.5)}}, NewIdentityState: uint8(state.Verified)},
+				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(6.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.0)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(8.0)}}, Missed: true},
 			},
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
 				auth1: {
