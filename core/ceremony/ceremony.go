@@ -1613,10 +1613,10 @@ func (vc *ValidationCeremony) FlipKeyWordPairs() []int {
 }
 
 func (vc *ValidationCeremony) GetWordDictionaryRange() (firstIndex, size int) {
-	if vc.config.Consensus.NewKeyWordsEpoch > 0 && vc.epoch >= vc.config.Consensus.NewKeyWordsEpoch {
-		return common.WordDictionary2FirstIndex, common.WordDictionary2Size
+	if vc.config.Consensus.KeyWordsV3Epoch > 0 && vc.epoch >= vc.config.Consensus.KeyWordsV3Epoch {
+		return common.WordDictionary3FirstIndex, common.WordDictionary3Size
 	}
-	return 0, common.WordDictionarySize
+	return common.WordDictionary2FirstIndex, common.WordDictionary2Size
 }
 
 func (vc *ValidationCeremony) generateFlipKeyWordPairs(seed []byte) {
