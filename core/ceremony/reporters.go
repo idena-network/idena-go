@@ -98,20 +98,18 @@ func (r *reportersToReward) getReportersByFlipMap() map[int]map[common.Address]*
 }
 
 type grades struct {
-	byCandidate     map[int]map[int]types.Grade
-	byFlip          map[int]*flipGrades
-	enableUpgrade11 bool
+	byCandidate map[int]map[int]types.Grade
+	byFlip      map[int]*flipGrades
 }
 
 type flipGrades struct {
 	totalScore, cnt, approveCnt, reportCnt int
 }
 
-func newGrades(enableUpgrade11 bool) *grades {
+func newGrades() *grades {
 	return &grades{
-		byFlip:          make(map[int]*flipGrades),
-		byCandidate:     make(map[int]map[int]types.Grade),
-		enableUpgrade11: enableUpgrade11,
+		byFlip:      make(map[int]*flipGrades),
+		byCandidate: make(map[int]map[int]types.Grade),
 	}
 }
 
@@ -134,7 +132,7 @@ func (g *grades) addGrade(candidateIdx, flipIdx int, grade types.Grade) {
 		flip.approveCnt++
 	}
 
-	flip.totalScore += grade.Score(g.enableUpgrade11)
+	flip.totalScore += grade.Score()
 
 	if grade == types.GradeReported {
 		flip.reportCnt++
@@ -148,7 +146,7 @@ func (g *grades) deleteGrades(candidateIdx int) {
 		if grade >= types.GradeD {
 			flip.approveCnt--
 		}
-		flip.totalScore -= grade.Score(g.enableUpgrade11)
+		flip.totalScore -= grade.Score()
 		if grade == types.GradeReported {
 			flip.reportCnt--
 		}

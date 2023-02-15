@@ -127,7 +127,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 	}, totalFlipsCount)
 
 	reportersToReward := newReportersToReward()
-	grades := newGrades(q.config.Consensus.EnableUpgrade11)
+	grades := newGrades()
 
 	for candidateIdx := 0; candidateIdx < len(flipsPerCandidate); candidateIdx++ {
 		candidate := candidates[candidateIdx]
@@ -162,7 +162,9 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 					increasedGradeCnt++
 				}
 			}
-			grades.addGrade(candidateIdx, flipIdx, grade)
+			if q.config.Consensus.EnableUpgrade11 {
+				grades.addGrade(candidateIdx, flipIdx, grade)
+			}
 		}
 		if flipsCount > 0 {
 			ignoreReports := float32(reportersToReward.getReportedFlipsCountByReporter(candidate.Address))/float32(flipsCount) >= 0.34
@@ -406,7 +408,7 @@ func (q *qualification) qualifyOneFlip(answers []types.Answer, reportsCount, tot
 		break
 	default:
 		if q.config.Consensus.EnableUpgrade11 {
-			gradeScore = decimal.NewFromInt32(int32(types.GradeD.Score(true)))
+			gradeScore = decimal.NewFromInt32(int32(types.GradeD.Score()))
 		} else {
 			grade = types.GradeD
 		}

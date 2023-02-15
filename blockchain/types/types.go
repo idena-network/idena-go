@@ -1307,29 +1307,23 @@ const (
 	GradeA        Grade = 5
 )
 
-func (grade Grade) Score(enableUpgrade11 bool) int {
-	var score int
-	if enableUpgrade11 {
-		switch grade {
-		case GradeReported:
-			score = 0
-		case GradeNone:
-			score = 1
-		case GradeD:
-			score = 2
-		case GradeC:
-			score = 4
-		case GradeB:
-			score = 6
-		case GradeA:
-			score = 8
-		default:
-			score = 1
-		}
-	} else if grade >= GradeD {
-		score = int(grade)
+func (grade Grade) Score() int {
+	switch grade {
+	case GradeReported:
+		return 0
+	case GradeNone:
+		return 1
+	case GradeD:
+		return 2
+	case GradeC:
+		return 4
+	case GradeB:
+		return 6
+	case GradeA:
+		return 8
+	default:
+		return 1
 	}
-	return score
 }
 
 type Answers struct {
