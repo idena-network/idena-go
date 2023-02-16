@@ -52,6 +52,16 @@ type WasmEnv struct {
 	isDebug               bool
 }
 
+func (w *WasmEnv) Burn(meter *lib.GasMeter, amount *big.Int) error {
+	return w.SubBalance(meter, amount)
+}
+
+func (w *WasmEnv) Ecrecover(meter *lib.GasMeter, data []byte, signature []byte) []byte {
+	meter.ConsumeGas(costs.GasToWasmGas(costs.EcrecoverGas))
+	pubkey, _ := crypto.Ecrecover(data, signature)
+	return pubkey
+}
+
 func (w *WasmEnv) BlockHeader(meter *lib.GasMeter, height uint64) []byte {
 	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	if header := w.headerProvider.GetBlockHeaderByHeight(height); header != nil {
@@ -287,11 +297,6 @@ func (w *WasmEnv) Balance(meter *lib.GasMeter) *big.Int {
 func (w *WasmEnv) NetworkSize(meter *lib.GasMeter) uint64 {
 	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBlockGas))
 	return uint64(w.appState.ValidatorsCache.NetworkSize())
-}
-
-func (w *WasmEnv) IdentityState(meter *lib.GasMeter, address lib.Address) byte {
-	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadIdentityStateGas))
-	return byte(w.appState.State.GetIdentityState(address))
 }
 
 func (w *WasmEnv) Identity(meter *lib.GasMeter, address lib.Address) []byte {

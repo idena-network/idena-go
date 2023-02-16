@@ -1,6 +1,7 @@
 package costs
 
 const ComputeHashGas = 100
+const EcrecoverGas = 300
 
 const ReadGlobalStateGas = 10
 const ReadStateGas = 10

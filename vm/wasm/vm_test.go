@@ -42,7 +42,7 @@ func TestVm_Erc20(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	receipt := vm.Run(tx, 1000000)
+	receipt := vm.Run(tx, 4000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -112,7 +112,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 2000000)
+	return vm.Run(tx, 5000000)
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
@@ -130,7 +130,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 512000000)
+	return vm.Run(tx, 612000000)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
@@ -276,8 +276,8 @@ func Test_SharedFungibleToken(t *testing.T) {
 		t.Logf("key=%v, value=%v\n", key, v)
 		return false
 	})
-
-	secondContract := common.Address{138, 195, 233, 255, 186, 85, 141, 217, 130, 231, 18, 175, 192, 139, 128, 182, 215, 94, 36, 167}
+	// update addr if code is recompiled
+	secondContract := common.Address{111, 16, 67, 101, 164, 106, 165, 108, 212, 68, 160, 27, 240, 49, 207, 98, 95, 98, 34, 6}
 
 	appState.Commit(nil)
 
@@ -285,6 +285,8 @@ func Test_SharedFungibleToken(t *testing.T) {
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 	require.Equal(t, big.NewInt(800), big.NewInt(0).SetBytes(appState.State.GetContractValue(firstContract, []byte("b"))))
+
+	//check secondContract if assertion is failed
 	require.Equal(t, big.NewInt(200), big.NewInt(0).SetBytes(appState.State.GetContractValue(secondContract, []byte("b"))))
 }
 

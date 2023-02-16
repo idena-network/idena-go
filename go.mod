@@ -50,6 +50,8 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
 
+require github.com/idena-network/idena-wasm-binding v0.0.0-20230216175455-f50bdbeff409
+
 require (
 	bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
@@ -108,7 +110,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
-	github.com/idena-network/idena-wasm-binding v0.0.0-20230207084120-b7d9d07ba81e // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-bitfield v1.0.0 // indirect
 	github.com/ipfs/go-bitswap v0.9.0 // indirect
@@ -279,4 +280,5 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202112
 
 
 //replace github.com/idena-network/idena-wasm-binding => ..\idena-wasm-binding
+
 go 1.17
