@@ -215,7 +215,18 @@ func (q *qualification) qualifyCandidate(candidate common.Address, flipQualifica
 		shortAttachment := attachments.ParseShortAnswerBytesAttachment(q.shortAnswers[candidate])
 		h, _ := vrf.HashFromProof(attachment.Proof)
 		if shortAttachment == nil || hash != crypto.Hash(append(shortAttachment.Answers, attachment.Salt...)) || getWordsRnd(h) != shortAttachment.Rnd {
-			return 0, flipsCount, nil, false, false
+			flipAnswers = make(map[int]statsTypes.FlipAnswerStats, len(flipsToSolve))
+			answers := types.NewAnswersFromBits(uint(len(flipsToSolve)), answerBytes)
+			for i, flipIdx := range flipsToSolve {
+				answer, grade := answers.Answer(uint(i))
+				flipAnswers[flipIdx] = statsTypes.FlipAnswerStats{
+					Index:      i,
+					Respondent: candidate,
+					Answer:     answer,
+					Grade:      grade,
+				}
+			}
+			return 0, flipsCount, flipAnswers, false, false
 		}
 	}
 

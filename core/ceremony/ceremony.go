@@ -947,6 +947,7 @@ func (vc *ValidationCeremony) sendTx(txType uint16, payload []byte) (common.Hash
 func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, currentEpoch uint16, statsCollector collector.StatsCollector, addr common.Address, value cacheValue) (validated bool, pool *common.Address, nonValidatedStake *big.Int) {
 	if !value.state.NewbieOrBetter() {
 		nonValidatedStake = appState.State.GetStakeBalance(addr)
+		collector.AddNonValidatedStake(statsCollector, addr, nonValidatedStake)
 	}
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if value.state == state.Killed && value.participated {
