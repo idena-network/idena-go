@@ -668,7 +668,7 @@ func (f *OracleVoting2) prolongVoting(args ...[]byte) error {
 		f.SetUint64("network", networkSize)
 		f.SetUint64("committeeSize", newCommitteeSize)
 
-		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, newCommitteeSize, networkSize, newEpochWithoutGrowth, newProlongVoteCount)
+		collector.AddOracleVotingCallProlongation(f.statsCollector, startBlock, epoch, vrfSeed, committeeSize, networkSize, newCommitteeSize, newEpochWithoutGrowth, newProlongVoteCount)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
