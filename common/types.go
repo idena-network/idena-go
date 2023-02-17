@@ -38,7 +38,8 @@ const (
 
 	Hash128Length = 16
 
-	MaxContractStoreKeyLength = 32
+	MaxContractStoreKeyLength     = 32
+	MaxWasmContractStoreKeyLength = 128 * 1024
 )
 
 var (

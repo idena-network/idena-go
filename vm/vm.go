@@ -9,8 +9,10 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-go/vm/embedded"
 	env2 "github.com/idena-network/idena-go/vm/env"
+	"github.com/idena-network/idena-go/vm/wasm"
 	"github.com/pkg/errors"
 )
 
@@ -21,22 +23,26 @@ var (
 type VM interface {
 	Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt
 	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
+	IsWasm(tx *types.Transaction) bool
+	ContractAddr(tx *types.Transaction, from *common.Address) common.Address
 }
 
 type VmImpl struct {
-	env            *env2.EnvImp
-	appState       *appstate.AppState
-	gasCounter     *env2.GasCounter
-	statsCollector collector.StatsCollector
-	cfg            *config.Config
+	env                 *env2.EnvImp
+	appState            *appstate.AppState
+	blockHeaderProvider wasm.BlockHeaderProvider
+	gasCounter          *env2.GasCounter
+	statsCollector      collector.StatsCollector
+	cfg                 *config.Config
+	head                *types.Header
 }
 
-type VmCreator = func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
+type VmCreator = func(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM
 
-func NewVmImpl(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM {
+func NewVmImpl(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, head *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) VM {
 	gasCounter := new(env2.GasCounter)
-	return &VmImpl{env: env2.NewEnvImp(appState, block, gasCounter, statsCollector), appState: appState, gasCounter: gasCounter,
-		statsCollector: statsCollector, cfg: cfg}
+	return &VmImpl{env: env2.NewEnvImp(appState, head, gasCounter, statsCollector), appState: appState, gasCounter: gasCounter,
+		statsCollector: statsCollector, cfg: cfg, head: head, blockHeaderProvider: blockHeaderProvider}
 }
 
 func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
@@ -134,9 +140,47 @@ func (vm *VmImpl) terminate(tx *types.Transaction, from *common.Address) (addr c
 	return addr, err
 }
 
+func (vm *VmImpl) IsWasm(tx *types.Transaction) bool {
+	switch tx.Type {
+	case types.DeployContractTx:
+		attach := attachments.ParseDeployContractAttachment(tx)
+		return len(attach.Code) > 0
+	case types.CallContractTx:
+		codeHash := vm.appState.State.GetCodeHash(*tx.To)
+		if codeHash == nil {
+			return false
+		}
+		_, ok := embedded.AvailableContracts[*codeHash]
+		return !ok
+	}
+	return false
+}
+
+func (vm *VmImpl) ContractAddr(tx *types.Transaction, from *common.Address) common.Address {
+	switch tx.Type {
+	case types.CallContractTx, types.TerminateContractTx:
+		return *tx.To
+	case types.DeployContractTx:
+		if vm.IsWasm(tx) {
+			return wasm.CreateContractAddr(tx)
+		}
+		if from != nil {
+			return env2.ComputeContractAddr(tx, *from)
+		}
+		sender, _ := types.Sender(tx)
+		return env2.ComputeContractAddr(tx, sender)
+	}
+	panic("unknown tx type")
+}
+
 func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt {
 	if tx.Type != types.CallContractTx && tx.Type != types.DeployContractTx && tx.Type != types.TerminateContractTx {
 		return &types.TxReceipt{Success: false, Error: UnexpectedTx}
+	}
+
+	if vm.IsWasm(tx) {
+		wasmVm := wasm.NewWasmVM(vm.appState, vm.blockHeaderProvider, vm.head, vm.cfg.IsDebug)
+		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
 	}
 
 	vm.gasCounter.Reset(int(gasLimit))

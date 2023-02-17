@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	MaxPayloadSize           = 3 * 1024
+	MaxPayloadSize          = 3 * 1024
+	MaxPayloadSizeUpgrade11 = 3 * 1024 * 1024
+
 	GodValidUntilNetworkSize = 10
 )
 
@@ -145,7 +147,11 @@ func ValidateTx(appState *appstate.AppState, tx *types.Transaction, minFeePerGas
 		return InvalidSignature
 	}
 
-	if len(tx.Payload) > MaxPayloadSize {
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade11 {
+		if len(tx.Payload) > MaxPayloadSizeUpgrade11 {
+			return InvalidPayload
+		}
+	} else if len(tx.Payload) > MaxPayloadSize {
 		return InvalidPayload
 	}
 
@@ -230,7 +236,8 @@ func validateCeremonyTx(sender common.Address, appState *appstate.AppState, tx *
 func ValidateFee(appState *appstate.AppState, tx *types.Transaction, txType TxType, minFeePerGas *big.Int) error {
 	enableUpgrade10 := appCfg != nil && appCfg.Consensus.EnableUpgrade10
 	if enableUpgrade10 {
-		maxBlockGas := uint64(types.MaxBlockGas)
+		enableUpgrade11 := appCfg != nil && appCfg.Consensus.EnableUpgrade11
+		maxBlockGas := types.MaxBlockSize(enableUpgrade11)
 		gasCost := minFeePerGas
 		if gasCost != nil && gasCost.Sign() > 0 {
 			maxTxGas := math.ToInt(decimal.NewFromBigInt(tx.MaxFeeOrZero(), 0).Div(decimal.NewFromBigInt(gasCost, 0))).Uint64()
@@ -722,17 +729,22 @@ func validateDeployContractTx(appState *appstate.AppState, tx *types.Transaction
 		return InvalidRecipient
 	}
 
-	minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
-
-	if tx.AmountOrZero().Cmp(minStake) < 0 {
-		return InvalidDeployAmount
-	}
-
 	attachment := attachments.ParseDeployContractAttachment(tx)
 	if attachment == nil {
 		return InvalidPayload
 	}
-	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok {
+
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; ok {
+		minStake := big.NewInt(0).Mul(appState.State.FeePerGas(), big.NewInt(3000000))
+		if tx.AmountOrZero().Cmp(minStake) < 0 {
+			return InvalidDeployAmount
+		}
+	}
+
+	if len(attachment.Code) > 0 && (appCfg == nil || !appCfg.Consensus.EnableUpgrade11) {
+		return InvalidPayload
+	}
+	if _, ok := embedded.AvailableContracts[attachment.CodeHash]; !ok && len(attachment.Code) == 0 {
 		return InvalidPayload
 	}
 	return nil
@@ -746,6 +758,14 @@ func validateTerminateContractTx(appState *appstate.AppState, tx *types.Transact
 	codeHash := appState.State.GetCodeHash(*tx.To)
 	if codeHash == nil {
 		return InvalidRecipient
+	}
+
+	if _, ok := embedded.AvailableContracts[*codeHash]; !ok && appCfg != nil && appCfg.Consensus.EnableUpgrade11 {
+		return InvalidRecipient
+	}
+
+	if appCfg != nil && appCfg.Consensus.EnableUpgrade11 && !common.ZeroOrNil(tx.AmountOrZero()) {
+		return InvalidAmount
 	}
 
 	attachment := attachments.ParseTerminateContractAttachment(tx)

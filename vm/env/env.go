@@ -6,8 +6,8 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
-	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/stats/collector"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/pkg/errors"
 	"math/big"
 	"regexp"
@@ -78,7 +78,7 @@ func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter
 }
 
 func (e *EnvImp) Epoch() uint16 {
-	e.gasCounter.AddGas(10)
+	e.gasCounter.AddGas(costs.ReadGlobalStateGas)
 	return e.state.State.Epoch()
 }
 
@@ -115,7 +115,7 @@ func (e *EnvImp) Send(ctx CallContext, dest common.Address, amount *big.Int) err
 	e.subBalance(ctx.ContractAddr(), amount)
 	e.addBalance(dest, amount)
 
-	e.gasCounter.AddGas(30)
+	e.gasCounter.AddGas(costs.MoveBalanceGas)
 	return nil
 }
 
@@ -127,16 +127,16 @@ func (e *EnvImp) Deploy(ctx CallContext) {
 		CodeHash: ctx.CodeHash(),
 	}
 	collector.AddContractStake(e.statsCollector, stake)
-	e.gasCounter.AddGas(200)
+	e.gasCounter.AddGas(costs.DeployContractGas)
 }
 
 func (e *EnvImp) BlockTimeStamp() int64 {
-	e.gasCounter.AddGas(5)
+	e.gasCounter.AddGas(costs.ReadBlockGas)
 	return e.block.Time()
 }
 
 func (e *EnvImp) BlockNumber() uint64 {
-	e.gasCounter.AddGas(5)
+	e.gasCounter.AddGas(costs.ReadBlockGas)
 	return e.block.Height()
 }
 
@@ -155,7 +155,7 @@ func (e *EnvImp) SetValue(ctx CallContext, key []byte, value []byte) {
 		value:   value,
 		removed: false,
 	}
-	e.gasCounter.AddWrittenBytesAsGas(10 * (len(key) + len(value)))
+	e.gasCounter.AddGas(costs.WriteStatePerByteGas * (len(key) + len(value)))
 }
 
 func (e *EnvImp) GetValue(ctx CallContext, key []byte) []byte {
@@ -171,46 +171,46 @@ func (e *EnvImp) RemoveValue(ctx CallContext, key []byte) {
 		e.contractStoreCache[addr] = cache
 	}
 	cache[string(key)] = &contractValue{removed: true}
-	e.gasCounter.AddGas(5)
+	e.gasCounter.AddGas(costs.RemoveStateGas)
 }
 
 func (e *EnvImp) MinFeePerGas() *big.Int {
-	e.gasCounter.AddGas(5)
+	e.gasCounter.AddGas(costs.ReadBlockGas)
 	return e.state.State.FeePerGas()
 }
 
 func (e *EnvImp) Balance(address common.Address) *big.Int {
-	e.gasCounter.AddReadBytesAsGas(5)
+	e.gasCounter.AddGas(costs.ReadBalanceGas)
 	return e.getBalance(address)
 }
 
 func (e *EnvImp) BlockSeed() []byte {
-	e.gasCounter.AddReadBytesAsGas(5)
+	e.gasCounter.AddGas(costs.ReadBlockGas)
 	return e.block.Seed().Bytes()
 }
 
 func (e *EnvImp) NetworkSize() int {
-	e.gasCounter.AddReadBytesAsGas(5)
+	e.gasCounter.AddGas(costs.ReadBlockGas)
 	return e.state.ValidatorsCache.NetworkSize()
 }
 
 func (e *EnvImp) State(sender common.Address) state.IdentityState {
-	e.gasCounter.AddReadBytesAsGas(1)
+	e.gasCounter.AddGas(costs.ReadIdentityStateGas)
 	return e.state.State.GetIdentityState(sender)
 }
 
 func (e *EnvImp) PubKey(addr common.Address) []byte {
-	e.gasCounter.AddReadBytesAsGas(10)
+	e.gasCounter.AddGas(costs.ReadStateGas)
 	return e.state.State.GetIdentity(addr).PubKey
 }
 
 func (e *EnvImp) Delegatee(addr common.Address) *common.Address {
-	e.gasCounter.AddReadBytesAsGas(10)
+	e.gasCounter.AddGas(costs.ReadStateGas)
 	return e.state.State.Delegatee(addr)
 }
 
 func (e *EnvImp) IsDiscriminated(addr common.Address) bool {
-	e.gasCounter.AddReadBytesAsGas(10)
+	e.gasCounter.AddGas(costs.ReadStateGas)
 	identity := e.state.State.GetIdentity(addr)
 	return identity.IsDiscriminated(e.Epoch())
 }
@@ -225,7 +225,7 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 			keyBytes := []byte(key)
 			if (bytes.Compare(keyBytes, minKey) >= 0 || minKey == nil) && (bytes.Compare(keyBytes, maxKey) <= 0 || maxKey == nil) {
 				iteratedKeys[key] = struct{}{}
-				e.gasCounter.AddReadBytesAsGas(10 * len(value.value))
+				e.gasCounter.AddGas(costs.ReadStatePerByteGas * len(value.value))
 				if !value.removed && f(keyBytes, value.value) {
 					return
 				}
@@ -237,13 +237,13 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 		if _, ok := iteratedKeys[string(key)]; ok {
 			return false
 		}
-		e.gasCounter.AddReadBytesAsGas(10 * len(value))
+		e.gasCounter.AddGas(costs.ReadStatePerByteGas * len(value))
 		return f(key, value)
 	})
 }
 
 func (e *EnvImp) BurnAll(ctx CallContext) {
-	e.gasCounter.AddReadBytesAsGas(10)
+	e.gasCounter.AddGas(costs.BurnAllGas)
 	address := ctx.ContractAddr()
 	collector.AddContractBurntCoins(e.statsCollector, address, e.getBalance)
 	e.setBalance(address, common.Big0)
@@ -255,12 +255,12 @@ func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byt
 			if value.removed {
 				return nil
 			}
-			e.gasCounter.AddReadBytesAsGas(10 * len(value.value))
+			e.gasCounter.AddGas(costs.ReadStatePerByteGas * len(value.value))
 			return value.value
 		}
 	}
 	value := e.state.State.GetContractValue(contractAddr, key)
-	e.gasCounter.AddReadBytesAsGas(10 * len(value))
+	e.gasCounter.AddGas(costs.ReadStatePerByteGas * len(value))
 	return value
 }
 
@@ -324,7 +324,7 @@ func (e *EnvImp) Event(name string, args ...[]byte) {
 	for _, a := range args {
 		size += len(a)
 	}
-	e.gasCounter.AddGas(100 + 10*size)
+	e.gasCounter.AddGas(costs.EmitEventBase + costs.EmitEventPerByteGas*size)
 	e.events = append(e.events, &types.TxEvent{
 		EventName: name, Data: args,
 	})
@@ -341,7 +341,7 @@ func (e *EnvImp) contractStake(contract common.Address) *big.Int {
 }
 
 func (e *EnvImp) ContractStake(contract common.Address) *big.Int {
-	e.gasCounter.AddGas(10)
+	e.gasCounter.AddGas(costs.ReadStateGas)
 	return e.contractStake(contract)
 }
 
@@ -375,7 +375,7 @@ func (e *EnvImp) Reset() {
 }
 
 type CallContext interface {
-	Sender() common.Address
+	Caller() common.Address
 	ContractAddr() common.Address
 	Epoch() uint16
 	Nonce() uint32
@@ -409,7 +409,7 @@ func (c *CallContextImpl) ContractAddr() common.Address {
 	return *c.tx.To
 }
 
-func (c *CallContextImpl) Sender() common.Address {
+func (c *CallContextImpl) Caller() common.Address {
 	if c.from != nil {
 		return *c.from
 	}
@@ -447,7 +447,7 @@ func (d *DeployContextImpl) Nonce() uint32 {
 	return d.tx.AccountNonce
 }
 
-func (d *DeployContextImpl) Sender() common.Address {
+func (d *DeployContextImpl) Caller() common.Address {
 	if d.from != nil {
 		return *d.from
 	}
@@ -456,10 +456,7 @@ func (d *DeployContextImpl) Sender() common.Address {
 }
 
 func (d *DeployContextImpl) ContractAddr() common.Address {
-	hash := crypto.Hash(append(append(d.Sender().Bytes(), common.ToBytes(d.tx.Epoch)...), common.ToBytes(d.tx.AccountNonce)...))
-	var result common.Address
-	result.SetBytes(hash[:])
-	return result
+	return ComputeContractAddr(d.tx, d.Caller())
 }
 
 type ReadContextImpl struct {
@@ -471,7 +468,7 @@ func (r *ReadContextImpl) CodeHash() common.Hash {
 	return r.Hash
 }
 
-func (r *ReadContextImpl) Sender() common.Address {
+func (r *ReadContextImpl) Caller() common.Address {
 	panic("implement me")
 }
 

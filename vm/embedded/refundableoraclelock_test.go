@@ -52,7 +52,7 @@ func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	appState.Initialize(1)
 
-	attachment := attachments.CreateDeployContractAttachment(RefundableOracleLockContract, oracleVotingAddr.Bytes(),
+	attachment := attachments.CreateDeployContractAttachment(RefundableOracleLockContract, nil, nil, oracleVotingAddr.Bytes(),
 		common.ToBytes(byte(1)), successAddr.Bytes(), failAddr.Bytes(), nil, common.ToBytes(uint64(1000)), common.ToBytes(uint64(5000)))
 	payload, err := attachment.ToBytes()
 	require.NoError(t, err)

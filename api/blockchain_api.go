@@ -356,7 +356,7 @@ func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes, from *common.Addr
 
 	if tx.Type == types.CallContractTx || tx.Type == types.DeployContractTx || tx.Type == types.TerminateContractTx {
 		appState := api.baseApi.getAppStateForCheck()
-		vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+		vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 		if tx.Type == types.CallContractTx && !common.ZeroOrNil(tx.Amount) {
 			var sender common.Address
 			if tx.Signed() {
