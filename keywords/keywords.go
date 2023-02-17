@@ -14,7 +14,7 @@ type Keyword struct {
 var list []Keyword
 
 func init() {
-	list = make([]Keyword, 0, 3990)
+	list = make([]Keyword, 0)
 	data, _ := Asset("keywords.json")
 	if err := json.Unmarshal(data, &list); err != nil {
 		log.Warn("cannot parse keywords.json", "err", err)

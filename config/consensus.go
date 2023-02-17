@@ -53,9 +53,9 @@ type ConsensusConf struct {
 	MinProposerThreshold              float64
 	UpgradeIntervalBeforeValidation   time.Duration
 	ReductionOneDelay                 time.Duration
-	NewKeyWordsEpoch                  uint16
 	EnableUpgrade10                   bool
 	BurnTxRange                       uint64
+	KeyWordsV3Epoch                   uint16
 	EnableUpgrade11                   bool
 }
 
@@ -115,7 +115,6 @@ func init() {
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
-		NewKeyWordsEpoch:                  76,
 		OfflinePenaltyDuration:            time.Hour * 8,
 		BurnTxRange:                       4320,
 	}
@@ -142,6 +141,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.EndActivationDate = time.Date(2022, time.December, 30, 0, 0, 0, 0, time.UTC).Unix()
 	case ConsensusV11:
 		cfg.EnableUpgrade11 = true
+		cfg.KeyWordsV3Epoch = 104
 	}
 }
 
