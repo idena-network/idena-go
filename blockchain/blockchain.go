@@ -46,8 +46,7 @@ import (
 )
 
 const (
-	Mainnet types.Network = 0x0
-	Testnet types.Network = 0x1
+	Mainnet types.Network = 0x1
 )
 
 const (
@@ -198,7 +197,7 @@ func (chain *Blockchain) InitializeChain() error {
 
 		genesisHeight := uint64(1)
 
-		if chain.config.Network == Testnet {
+		if chain.config.Network == Mainnet {
 			predefinedState, err := readPredefinedState()
 			if err == nil {
 				genesisHeight = predefinedState.Block
@@ -263,7 +262,7 @@ func (chain *Blockchain) readBindataGenesis() (*types.Header, error) {
 
 func (chain *Blockchain) loadPredefinedGenesis(network types.Network) (*types.Block, error) {
 
-	if network != Testnet {
+	if network != Mainnet {
 		return nil, errors.New(fmt.Sprintf("predefined genesis for network=%v was not found", network))
 	}
 
@@ -321,7 +320,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 	blockNumber := uint64(1)
 	var feePerGas *big.Int
 
-	if network == Testnet {
+	if network == Mainnet {
 		predefinedState, err := readPredefinedState()
 		if err != nil {
 			return nil, err
