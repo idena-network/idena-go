@@ -45,6 +45,8 @@ const (
 	Final        = 255
 
 	MaxBlockGas = 3000 * 1024
+
+	MaxBlockGasUpgrade11 = 5000 * 1024
 )
 
 type BlockFlag uint32
@@ -71,6 +73,13 @@ func init() {
 		SubmitLongAnswersTx:  {},
 		EvidenceTx:           {},
 	}
+}
+
+func MaxBlockSize(enableUpgrade11 bool) uint64 {
+	if enableUpgrade11 {
+		return MaxBlockGasUpgrade11
+	}
+	return MaxBlockGas
 }
 
 type Network = uint32
@@ -1360,7 +1369,6 @@ func (a *Answers) Right(flipIndex uint) {
 	if flipIndex >= a.FlipsCount {
 		panic("index is out of range")
 	}
-
 	t := big.NewInt(1)
 	a.Bits.Or(a.Bits, t.Lsh(t, flipIndex+a.FlipsCount))
 }
@@ -1490,6 +1498,7 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 }
 
 type TxEvent struct {
+	Contract  common.Address
 	EventName string
 	Data      [][]byte
 }
@@ -1504,6 +1513,7 @@ type TxReceipt struct {
 	Error           error
 	Events          []*TxEvent
 	Method          string
+	ActionResult    []byte
 }
 
 type TxReceipts []*TxReceipt
@@ -1536,12 +1546,13 @@ func (txrs TxReceipts) FromProto(protoObj *models.ProtoTxReceipts) TxReceipts {
 
 func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
 	protoObj := &models.ProtoTxReceipts_ProtoTxReceipt{
-		Success:  r.Success,
-		Contract: r.ContractAddress.Bytes(),
-		From:     r.From.Bytes(),
-		GasUsed:  r.GasUsed,
-		TxHash:   r.TxHash.Bytes(),
-		Method:   r.Method,
+		Success:      r.Success,
+		Contract:     r.ContractAddress.Bytes(),
+		From:         r.From.Bytes(),
+		GasUsed:      r.GasUsed,
+		TxHash:       r.TxHash.Bytes(),
+		Method:       r.Method,
+		ActionResult: r.ActionResult,
 	}
 	if r.Error != nil {
 		protoObj.Error = r.Error.Error()
@@ -1551,10 +1562,14 @@ func (r *TxReceipt) ToProto() *models.ProtoTxReceipts_ProtoTxReceipt {
 	}
 	for idx := range r.Events {
 		e := r.Events[idx]
-		protoObj.Events = append(protoObj.Events, &models.ProtoTxReceipts_ProtoEvent{
+		protoEvent := &models.ProtoTxReceipts_ProtoEvent{
 			Event: e.EventName,
 			Data:  e.Data,
-		})
+		}
+		if !e.Contract.IsEmpty() {
+			protoEvent.Contract = e.Contract.Bytes()
+		}
+		protoObj.Events = append(protoObj.Events, protoEvent)
 	}
 	return protoObj
 }
@@ -1585,13 +1600,18 @@ func (r *TxReceipt) FromProto(protoObj *models.ProtoTxReceipts_ProtoTxReceipt) {
 	var hash common.Hash
 	hash.SetBytes(protoObj.TxHash)
 	r.TxHash = hash
+	r.ActionResult = protoObj.ActionResult
 
 	for idx := range protoObj.Events {
 		e := protoObj.Events[idx]
-		r.Events = append(r.Events, &TxEvent{
+		event := &TxEvent{
 			EventName: e.Event,
 			Data:      e.Data,
-		})
+		}
+		if len(e.Contract) > 0 {
+			event.Contract = common.BytesToAddress(e.Contract)
+		}
+		r.Events = append(r.Events, event)
 	}
 }
 

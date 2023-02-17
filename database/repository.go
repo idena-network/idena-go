@@ -94,6 +94,14 @@ func identityStateDiffKey(height uint64) []byte {
 	return append(identityStateDiffPrefix, encodeUint64Number(height)...)
 }
 
+func applyTxLogKey(hash common.Hash) []byte {
+	return append(applyTxLogPrefix, hash.Bytes()...)
+}
+
+func blackListTxKey(hash common.Hash) []byte {
+	return append(blackListedTxPrefix, hash.Bytes()...)
+}
+
 func (r *Repo) ReadBlockHeader(hash common.Hash) *types.Header {
 	data, err := r.db.Get(headerKey(hash))
 	assertNoError(err)
@@ -619,4 +627,26 @@ func (r *Repo) RemovePreliminaryIntermediateGenesis(batch dbm.Batch) {
 	} else {
 		r.db.Delete(preliminaryIntermediateGenesisKey)
 	}
+}
+
+func (r *Repo) StartApplyingTx(txHash common.Hash) {
+	r.db.Set(applyTxLogKey(txHash), txHash.Bytes())
+}
+
+func (r *Repo) FinishApplyingTx(txHash common.Hash) {
+	r.db.Delete(applyTxLogKey(txHash))
+}
+
+func (r *Repo) HasApplyingTxLog(txHash common.Hash) bool {
+	has, _ := r.db.Has(applyTxLogKey(txHash))
+	return has
+}
+
+func (r *Repo) AddToBlackList(txHash common.Hash) {
+	r.db.Set(blackListTxKey(txHash), txHash.Bytes())
+}
+
+func (r *Repo) IsInBlackList(txHash common.Hash) bool {
+	has, _ := r.db.Has(blackListTxKey(txHash))
+	return has
 }

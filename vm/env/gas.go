@@ -12,14 +12,6 @@ func (g *GasCounter) AddGas(gas int) {
 	}
 }
 
-func (g *GasCounter) AddWrittenBytesAsGas(size int) {
-	g.AddGas(size * 2)
-}
-
-func (g *GasCounter) AddReadBytesAsGas(size int) {
-	g.AddGas(size)
-}
-
 func (g *GasCounter) Reset(gasLimit int) {
 	g.UsedGas = 0
 	g.gasLimit = gasLimit

@@ -86,6 +86,7 @@ type Blockchain struct {
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) types.TotalValidationResult
 	isSyncing       bool
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
+	middlewares     []Middleware
 }
 
 type txsExecutionContext struct {
@@ -125,6 +126,8 @@ type identityUpdateHookCtx struct {
 	keepProfileHash, keepPenalty, keepDelegationNonce bool
 }
 
+type Middleware = func(block *types.Block, appState *appstate.AppState)
+
 func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, appState *appstate.AppState,
 	ipfs ipfs.Proxy, secStore *secstore.SecStore, bus eventbus.Bus, offlineDetector *OfflineDetector, keyStore *keystore.KeyStore, subManager *subscriptions.Manager, upgrader *upgrade.Upgrader) *Blockchain {
 	return &Blockchain{
@@ -142,6 +145,7 @@ func NewBlockchain(config *config.Config, db dbm.DB, txpool *mempool.TxPool, app
 		subManager:      subManager,
 		upgrader:        upgrader,
 		ipfsLoadQueue:   make(chan *attachments.StoreToIpfsAttachment, 100),
+		middlewares:     []Middleware{},
 	}
 }
 
@@ -489,7 +493,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyNextBlockFee(appState, usedGas)
 	chain.applyVrfProposerThreshold(appState, block)
 	chain.clearOutdatedBurntCoins(appState, block)
-
+	chain.applyMiddlewares(appState, block)
 	stateDiff, diff = appState.Precommit()
 
 	return appState.State.Root(), appState.IdentityState.Root(), stateDiff, diff
@@ -1279,7 +1283,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 	header := context.header
 	minFeePerGas := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, header, context.statsCollector, chain.config)
+	vm := vm.NewVmImpl(appState, chain, header, context.statsCollector, chain.config)
 
 	var gasLimitReached bool
 	for i := 0; i < len(txs); i++ {
@@ -1303,7 +1307,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 				gas += receipt.GasUsed
 			}
 			if !chain.config.Consensus.EnableUpgrade10 {
-				if usedGas+gas > types.MaxBlockGas {
+				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
 					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
 				}
 			}
@@ -1314,7 +1318,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 				tasks = append(tasks, task)
 			}
 			if chain.config.Consensus.EnableUpgrade10 {
-				if usedGas > types.MaxBlockGas {
+				if usedGas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
 					if gasLimitReached {
 						return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
 					} else {
@@ -1532,10 +1536,14 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SetValidationTxBit(sender, tx.Type)
 	case types.DeployContractTx, types.CallContractTx, types.TerminateContractTx:
 		amount := tx.AmountOrZero()
-		if amount.Sign() > 0 && tx.Type == types.CallContractTx {
+
+		shouldAddPayAmount := amount.Sign() > 0 && (tx.Type == types.CallContractTx || context.vm.IsWasm(tx))
+		contractAddr := context.vm.ContractAddr(tx, &sender)
+
+		if shouldAddPayAmount {
 			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 			stateDB.SubBalance(sender, amount)
-			stateDB.AddBalance(*tx.To, amount)
+			stateDB.AddBalance(contractAddr, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
 		receipt = context.vm.Run(tx, nil, chain.getGasLimit(appState, tx))
@@ -1545,11 +1553,11 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
-		if !receipt.Success && tx.Type == types.CallContractTx {
+		if !receipt.Success && shouldAddPayAmount {
 			stateDB.AddBalance(sender, amount)
-			stateDB.SubBalance(*tx.To, amount)
+			stateDB.SubBalance(contractAddr, amount)
 		}
-		if receipt.Success && tx.Type == types.DeployContractTx {
+		if receipt.Success && !shouldAddPayAmount && (tx.Type != types.TerminateContractTx || chain.config.Consensus.EnableUpgrade11) {
 			stateDB.SubBalance(sender, amount)
 		}
 		receipt.GasCost = chain.GetGasCost(appState, receipt.GasUsed)
@@ -1635,7 +1643,7 @@ func (chain *Blockchain) calculateNextBlockFeePerGas(appState *appstate.AppState
 	}
 
 	k := chain.config.Consensus.FeeSensitivityCoef
-	maxBlockGas := types.MaxBlockGas
+	maxBlockGas := types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11)
 
 	// curBlockFee = prevBlockFee * (1 + k * (prevBlockGas / maxBlockGas - 0.5))
 	newFeePerGasD := decimal.New(int64(usedGas), 0).
@@ -1915,7 +1923,11 @@ func calculateTxBloom(block *types.Block, receipts types.TxReceipts) []byte {
 
 	for _, r := range receipts {
 		for _, e := range r.Events {
-			values[string(append(r.ContractAddress.Bytes(), []byte(e.EventName)...))] = struct{}{}
+			contract := r.ContractAddress
+			if !e.Contract.IsEmpty() {
+				contract = e.Contract
+			}
+			values[string(append(contract.Bytes(), []byte(e.EventName)...))] = struct{}{}
 		}
 	}
 
@@ -1989,11 +2001,21 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
-	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, nil, chain.config)
+	vm := vm.NewVmImpl(appState, chain, &types.Header{ProposedHeader: header}, nil, chain.config)
 	var receipts []*types.TxReceipt
 	var usedGas uint64
 	for _, tx := range txs {
+		if chain.repo.IsInBlackList(tx.Hash()) {
+			continue
+		}
+		if chain.repo.HasApplyingTxLog(tx.Hash()) {
+			chain.repo.AddToBlackList(tx.Hash())
+			chain.repo.FinishApplyingTx(tx.Hash())
+			continue
+		}
+		chain.repo.StartApplyingTx(tx.Hash())
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
+			chain.repo.FinishApplyingTx(tx.Hash())
 			continue
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
@@ -2004,7 +2026,8 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 				gas += r.GasUsed
 			}
 			if !chain.config.Consensus.EnableUpgrade10 {
-				if usedGas+gas > types.MaxBlockGas {
+				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+					chain.repo.FinishApplyingTx(tx.Hash())
 					break
 				}
 			}
@@ -2014,12 +2037,13 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			result = append(result, tx)
 
 			if chain.config.Consensus.EnableUpgrade10 {
-				if usedGas > types.MaxBlockGas {
+				if usedGas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+					chain.repo.FinishApplyingTx(tx.Hash())
 					break
 				}
 			}
-
 		}
+		chain.repo.FinishApplyingTx(tx.Hash())
 	}
 	return result, totalFee, totalTips, receipts, usedGas
 }
@@ -2081,10 +2105,14 @@ func (chain *Blockchain) WriteTxReceipts(cid []byte, receipts types.TxReceipts) 
 			ReceiptCid: cid,
 		}
 		chain.repo.WriteReceiptIndex(r.TxHash, idx)
-		if eventMap, ok := m[r.ContractAddress]; ok {
+		if eventMap, ok := m[r.ContractAddress]; ok || chain.config.Blockchain.WriteAllEvents {
 			for idx, event := range r.Events {
-				if _, ok := eventMap[event.EventName]; ok {
-					chain.repo.WriteEvent(r.ContractAddress, r.TxHash, uint32(idx), event)
+				if _, ok := eventMap[event.EventName]; ok || chain.config.Blockchain.WriteAllEvents {
+					contract := r.ContractAddress
+					if !event.Contract.IsEmpty() {
+						contract = event.Contract
+					}
+					chain.repo.WriteEvent(contract, r.TxHash, uint32(idx), event)
 				}
 			}
 		}
@@ -2943,6 +2971,16 @@ func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
 
 func (chain *Blockchain) ApplyHotfixToState() {
 	applyHotfixToState(chain.appState, chain.Head)
+}
+
+func (chain *Blockchain) applyMiddlewares(appState *appstate.AppState, block *types.Block) {
+	for _, m := range chain.middlewares {
+		m(block, appState)
+	}
+}
+
+func (chain *Blockchain) UseMiddleware(middleWare Middleware) {
+	chain.middlewares = append(chain.middlewares, middleWare)
 }
 
 func applyHotfixToState(appState *appstate.AppState, prevBlock *types.Header) {

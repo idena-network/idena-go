@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/embedded"
+	"github.com/idena-network/idena-go/vm/wasm"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -19,6 +20,14 @@ import (
 var fakeVmError error
 
 type fakeVm struct {
+}
+
+func (f fakeVm) ContractAddr(tx *types.Transaction, from *common.Address) common.Address {
+	panic("implement me")
+}
+
+func (f fakeVm) IsWasm(tx *types.Transaction) bool {
+	return false
 }
 
 func (f fakeVm) Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error) {
@@ -64,7 +73,7 @@ func TestJob_tryLater(t *testing.T) {
 	os.RemoveAll("test")
 
 	txPool := &fakeTxPool{}
-	job, _ := NewJob(chain.Bus(), "test", appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
+	job, _ := NewJob(chain.Bus(), "test", appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
 		return &fakeVm{}
 	})
 	coinbase := chain.SecStore().GetAddress()

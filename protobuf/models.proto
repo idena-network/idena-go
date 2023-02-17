@@ -574,6 +574,8 @@ message ProtoCallContractAttachment {
 message ProtoDeployContractAttachment {
     bytes CodeHash = 1;
     repeated bytes args = 2;
+    bytes Code = 3;
+    bytes Nonce = 4;
 }
 
 message ProtoTerminateContractAttachment {
@@ -596,11 +598,13 @@ message ProtoTxReceipts {
         bytes txHash = 7;
         repeated ProtoEvent events = 8;
         string method = 9;
+        bytes actionResult = 10;
     }
 
     message ProtoEvent {
         string event = 1;
         repeated bytes data = 2;
+        bytes contract = 3;
     }
 
     repeated ProtoTxReceipt receipts = 1;

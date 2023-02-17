@@ -45,4 +45,8 @@ var (
 	consensusVersionKey = []byte("v")
 
 	preliminaryConsVersionKey = []byte("pv")
+
+	applyTxLogPrefix = []byte("applytxlog")
+
+	blackListedTxPrefix = []byte("blacktx")
 )

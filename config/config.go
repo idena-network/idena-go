@@ -30,6 +30,7 @@ type Config struct {
 	DataDir          string
 	Network          uint32
 	AutoOnline       bool
+	IsDebug          bool
 	Consensus        *ConsensusConf
 	P2P              P2P
 	RPC              *rpc.Config

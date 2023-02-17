@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/fee"
@@ -14,6 +15,7 @@ import (
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
+	models "github.com/idena-network/idena-wasm-binding/lib/protobuf"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"math/big"
@@ -37,7 +39,9 @@ type DeployArgs struct {
 	CodeHash hexutil.Bytes   `json:"codeHash"`
 	Amount   decimal.Decimal `json:"amount"`
 	Args     DynamicArgs     `json:"args"`
+	Nonce    hexutil.Bytes   `json:"nonce"`
 	MaxFee   decimal.Decimal `json:"maxFee"`
+	Code     hexutil.Bytes   `json:"code"`
 }
 
 type CallArgs struct {
@@ -170,14 +174,35 @@ func (d DynamicArgs) ToSlice() ([][]byte, error) {
 }
 
 type TxReceipt struct {
-	Contract common.Address  `json:"contract"`
-	Method   string          `json:"method"`
-	Success  bool            `json:"success"`
-	GasUsed  uint64          `json:"gasUsed"`
-	TxHash   *common.Hash    `json:"txHash"`
-	Error    string          `json:"error"`
-	GasCost  decimal.Decimal `json:"gasCost"`
-	TxFee    decimal.Decimal `json:"txFee"`
+	Contract     common.Address  `json:"contract"`
+	Method       string          `json:"method"`
+	Success      bool            `json:"success"`
+	GasUsed      uint64          `json:"gasUsed"`
+	TxHash       *common.Hash    `json:"txHash"`
+	Error        string          `json:"error"`
+	GasCost      decimal.Decimal `json:"gasCost"`
+	TxFee        decimal.Decimal `json:"txFee"`
+	ActionResult *ActionResult   `json:"actionResult"`
+	Events       []Event         `json:"events"`
+}
+
+type ActionResult struct {
+	InputAction      InputAction     `json:"inputAction"`
+	Success          bool            `json:"success"`
+	Error            string          `json:"error"`
+	GasUsed          uint64          `json:"gasUsed"`
+	RemainingGas     uint64          `json:"remainingGas"`
+	OutputData       hexutil.Bytes   `json:"outputData"`
+	SubActionResults []*ActionResult `json:"subActionResults"`
+	Contract         common.Address  `json:"contract"`
+}
+
+type InputAction struct {
+	ActionType uint32        `json:"actionType"`
+	Amount     hexutil.Bytes `json:"amount"`
+	Method     string        `json:"method"`
+	Args       hexutil.Bytes `json:"args"`
+	GasLimit   uint64        `json:"gasLimit"`
 }
 
 type Event struct {
@@ -208,7 +233,7 @@ func (api *ContractApi) buildDeployContractTx(args DeployArgs, estimate bool) (*
 	if err != nil {
 		return nil, err
 	}
-	payload, _ := attachments.CreateDeployContractAttachment(codeHash, convertedArgs...).ToBytes()
+	payload, _ := attachments.CreateDeployContractAttachment(codeHash, args.Code, args.Nonce, convertedArgs...).ToBytes()
 	tx := api.baseApi.getTx(from, nil, types.DeployContractTx, args.Amount, args.MaxFee, decimal.Zero, 0, 0, payload)
 	return api.signIfNeeded(from, tx, estimate)
 }
@@ -255,7 +280,7 @@ func (api *ContractApi) signIfNeeded(from common.Address, tx *types.Transaction,
 
 func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildDeployContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -275,7 +300,7 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildCallContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -306,7 +331,7 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 
 func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppStateForCheck()
-	vm := vm.NewVmImpl(appState, api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(appState, api.bc, api.bc.Head, nil, api.bc.Config())
 	tx, err := api.buildTerminateContractTx(args, true)
 	if err != nil {
 		return nil, err
@@ -324,6 +349,41 @@ func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error
 	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
 
+func convertActionResultBytes(actionResult []byte) *ActionResult {
+	if len(actionResult) == 0 {
+		return nil
+	}
+	protoModel := &models.ActionResult{}
+
+	if err := proto.Unmarshal(actionResult, protoModel); err != nil {
+		return nil
+	}
+	return convertActionResult(protoModel)
+}
+
+func convertActionResult(protoModel *models.ActionResult) *ActionResult {
+	result := &ActionResult{}
+	if protoModel.InputAction != nil {
+		result.InputAction = InputAction{
+			Args:       protoModel.InputAction.Args,
+			Method:     protoModel.InputAction.Method,
+			Amount:     protoModel.InputAction.Amount,
+			ActionType: protoModel.InputAction.ActionType,
+			GasLimit:   protoModel.InputAction.GasLimit,
+		}
+	}
+	result.Success = protoModel.Success
+	result.Error = protoModel.Error
+	result.GasUsed = protoModel.GasUsed
+	result.RemainingGas = protoModel.RemainingGas
+	result.OutputData = protoModel.OutputData
+	result.Contract = common.BytesToAddress(protoModel.Contract)
+	for _, subAction := range protoModel.SubActionResults {
+		result.SubActionResults = append(result.SubActionResults, convertActionResult(subAction))
+	}
+	return result
+}
+
 func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *big.Int) *TxReceipt {
 	fee := fee.CalculateFee(1, feePerGas, tx)
 	var err string
@@ -331,16 +391,32 @@ func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *
 		err = receipt.Error.Error()
 	}
 	txHash := receipt.TxHash
-	return &TxReceipt{
-		Success:  receipt.Success,
-		Error:    err,
-		Method:   receipt.Method,
-		Contract: receipt.ContractAddress,
-		TxHash:   &txHash,
-		GasUsed:  receipt.GasUsed,
-		GasCost:  blockchain.ConvertToFloat(receipt.GasCost),
-		TxFee:    blockchain.ConvertToFloat(fee),
+	result := &TxReceipt{
+		Success:      receipt.Success,
+		Error:        err,
+		Method:       receipt.Method,
+		Contract:     receipt.ContractAddress,
+		TxHash:       &txHash,
+		GasUsed:      receipt.GasUsed,
+		GasCost:      blockchain.ConvertToFloat(receipt.GasCost),
+		TxFee:        blockchain.ConvertToFloat(fee),
+		ActionResult: convertActionResultBytes(receipt.ActionResult),
 	}
+	for _, e := range receipt.Events {
+		event := Event{
+			Event: e.EventName,
+		}
+		for i := range e.Data {
+			event.Args = append(event.Args, e.Data[i])
+		}
+		if !e.Contract.IsEmpty() {
+			event.Contract = e.Contract
+		} else {
+			event.Contract = receipt.ContractAddress
+		}
+		result.Events = append(result.Events, event)
+	}
+	return result
 }
 
 func convertEstimatedReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *big.Int) *TxReceipt {
@@ -413,7 +489,7 @@ func (api *ContractApi) BatchReadData(contract common.Address, keys []KeyWithFor
 }
 
 func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc.Head, nil, api.bc.Config())
+	vm := vm.NewVmImpl(api.baseApi.getReadonlyAppState(), api.bc, api.bc.Head, nil, api.bc.Config())
 	convertedArgs, err := args.Args.ToSlice()
 	if err != nil {
 		return nil, err
@@ -476,7 +552,7 @@ func (api *ContractApi) IterateMap(contract common.Address, mapName string, cont
 
 	minKey := []byte(mapName)
 	maxKey := []byte(mapName)
-	for i := len([]byte(mapName)); i < common.MaxContractStoreKeyLength; i++ {
+	for i := len([]byte(mapName)); i < common.MaxWasmContractStoreKeyLength; i++ {
 		maxKey = append(maxKey, 0xFF)
 	}
 

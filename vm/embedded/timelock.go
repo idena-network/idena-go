@@ -29,7 +29,7 @@ func (t *TimeLock) Deploy(args ...[]byte) error {
 		return err
 	}
 	t.SetUint64("timestamp", time)
-	t.SetOwner(t.ctx.Sender())
+	t.SetOwner(t.ctx.Caller())
 	collector.AddTimeLockDeploy(t.statsCollector, t.ctx.ContractAddr(), time)
 	return nil
 }

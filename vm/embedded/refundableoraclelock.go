@@ -73,7 +73,7 @@ func (e *RefundableOracleLock2) Deploy(args ...[]byte) error {
 		oracleVotingFee = uint64(math2.MaxInt(0, math2.MinInt(100000, int(fee))))
 	}
 	e.SetUint64("factEvidenceFee", oracleVotingFee)
-	e.SetOwner(e.ctx.Sender())
+	e.SetOwner(e.ctx.Caller())
 
 	state := oracleLockLocked
 	e.SetByte("state", state)
@@ -115,13 +115,13 @@ func (e *RefundableOracleLock2) deposit(args ...[]byte) error {
 	if e.ctx.PayAmount().Cmp(minDeposit) < 0 {
 		return errors.New("deposit is low")
 	}
-	balanceBytes := e.deposits.Get(e.ctx.Sender().Bytes())
+	balanceBytes := e.deposits.Get(e.ctx.Caller().Bytes())
 	balance := big.NewInt(0)
 	balance.SetBytes(balanceBytes)
 
 	balance.Add(balance, e.ctx.PayAmount())
 
-	e.deposits.Set(e.ctx.Sender().Bytes(), balance.Bytes())
+	e.deposits.Set(e.ctx.Caller().Bytes(), balance.Bytes())
 
 	sum := e.GetBigInt("sum")
 	sum.Add(sum, e.ctx.PayAmount())

@@ -120,7 +120,7 @@ func (b *BaseContract) GetByte(s string) byte {
 }
 
 func (b *BaseContract) IsOwner() bool {
-	return b.Owner() == b.ctx.Sender()
+	return b.Owner() == b.ctx.Caller()
 }
 
 func (b *BaseContract) CalcPercent(value uint64, percent byte) float64 {
