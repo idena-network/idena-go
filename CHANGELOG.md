@@ -1,5 +1,6 @@
 # Changelogs
 
+- [v1.0](docs/changelogs/v1.0.md)
 - [v0.31](docs/changelogs/v0.31.md)
 - [v0.30](docs/changelogs/v0.30.md)
 - [v0.29](docs/changelogs/v0.29.md)
