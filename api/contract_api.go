@@ -194,6 +194,7 @@ type ActionResult struct {
 	RemainingGas     uint64          `json:"remainingGas"`
 	OutputData       hexutil.Bytes   `json:"outputData"`
 	SubActionResults []*ActionResult `json:"subActionResults"`
+	Contract         common.Address  `json:"contract"`
 }
 
 type InputAction struct {
@@ -376,6 +377,7 @@ func convertActionResult(protoModel *models.ActionResult) *ActionResult {
 	result.GasUsed = protoModel.GasUsed
 	result.RemainingGas = protoModel.RemainingGas
 	result.OutputData = protoModel.OutputData
+	result.Contract = common.BytesToAddress(protoModel.Contract)
 	for _, subAction := range protoModel.SubActionResults {
 		result.SubActionResults = append(result.SubActionResults, convertActionResult(subAction))
 	}

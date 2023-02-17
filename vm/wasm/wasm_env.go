@@ -1,11 +1,11 @@
 package wasm
 
 import (
-	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
 	"github.com/pkg/errors"
@@ -46,7 +46,6 @@ type WasmEnv struct {
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
 	deployedContractCache map[common.Address]ContractData
-	contractStakeCache    map[common.Address]*big.Int
 	events                []*types.TxEvent
 	method                string
 	isDebug               bool
@@ -143,7 +142,8 @@ func (w *WasmEnv) ContractAddrByHash(meter *lib.GasMeter, hash []byte, args []by
 
 func (w *WasmEnv) OwnCode(meter *lib.GasMeter) []byte {
 	addr := w.ContractAddress(meter)
-	return w.ContractCode(meter, addr)
+	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadStateGas))
+	return w.GetCode(addr)
 }
 
 func (w *WasmEnv) ContractAddr(meter *lib.GasMeter, code []byte, args []byte, nonce []byte) lib.Address {
@@ -186,11 +186,6 @@ func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
 	return w.ctx.ContractAddr()
 }
 
-func (w *WasmEnv) ContractCode(meter *lib.GasMeter, addr lib.Address) []byte {
-	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadStateGas))
-	return w.GetCode(addr)
-}
-
 func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
@@ -201,7 +196,6 @@ func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProv
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
 		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]ContractData{},
-		contractStakeCache:    map[common.Address]*big.Int{},
 		method:                method,
 		isDebug:               isDebug,
 	}
@@ -273,22 +267,6 @@ func (w *WasmEnv) BlockTimestamp(meter *lib.GasMeter) int64 {
 	return w.head.Time()
 }
 
-func (w *WasmEnv) Send(meter *lib.GasMeter, dest lib.Address, amount *big.Int) error {
-	panic("deprecated")
-	balance := w.getBalance(w.ctx.ContractAddr())
-	if balance.Cmp(amount) < 0 {
-		return errors.New("insufficient funds")
-	}
-	if amount.Sign() < 0 {
-		return errors.New("value must be non-negative")
-	}
-	w.subBalance(w.ctx.ContractAddr(), amount)
-	w.addBalance(dest, amount)
-
-	meter.ConsumeGas(30)
-	return nil
-}
-
 func (w *WasmEnv) Balance(meter *lib.GasMeter) *big.Int {
 	meter.ConsumeGas(costs.GasToWasmGas(costs.ReadBalanceGas))
 	return w.getBalance(w.ctx.ContractAddr())
@@ -326,12 +304,12 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
 		balancesCache:         map[common.Address]*big.Int{contract: subContractBalance},
 		deployedContractCache: map[common.Address]ContractData{},
-		contractStakeCache:    map[common.Address]*big.Int{},
 		head:                  w.head,
 		isDebug:               w.isDebug,
 	}
-	println(fmt.Sprintf("created sub env id=%v, method=%v, parent method=%v", subEnv.id, method, subEnv.parent.method))
-	//log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
+	if w.isDebug {
+		log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
+	}
 	return subEnv, nil
 }
 
@@ -394,7 +372,10 @@ func (w *WasmEnv) GlobalState(meter *lib.GasMeter) []byte {
 }
 
 func (w *WasmEnv) Commit() {
-	println(fmt.Sprintf("сommit to wasm env id=%v, method=%v", w.id, w.method))
+
+	if w.isDebug {
+		log.Info("commit to wasm env", "id", w.id, "method", w.method)
+	}
 	if w.parent != nil {
 		for contract, cache := range w.contractStoreCache {
 			if w.parent.contractStoreCache[contract] == nil {
@@ -409,9 +390,6 @@ func (w *WasmEnv) Commit() {
 		}
 		for contract, data := range w.deployedContractCache {
 			w.parent.deployedContractCache[contract] = data
-		}
-		for contract, stake := range w.contractStakeCache {
-			w.parent.contractStakeCache[contract] = stake
 		}
 		for _, e := range w.events {
 			w.parent.events = append(w.parent.events, e)
@@ -439,12 +417,4 @@ func (w *WasmEnv) Commit() {
 func (w *WasmEnv) InternalCommit() []*types.TxEvent {
 	w.Commit()
 	return w.events
-}
-
-func (w *WasmEnv) Clear() {
-	w.contractStoreCache = map[common.Address]map[string]*contractValue{}
-	w.balancesCache = map[common.Address]*big.Int{}
-	w.deployedContractCache = map[common.Address]ContractData{}
-	w.contractStakeCache = map[common.Address]*big.Int{}
-	w.events = []*types.TxEvent{}
 }
