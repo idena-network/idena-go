@@ -626,15 +626,15 @@ func Test_applyNextBlockFee(t *testing.T) {
 		usedGas += uint64(fee2.CalculateGas(tx))
 	}
 	chain.applyNextBlockFee(appState, usedGas)
-	require.Equal(t, big.NewInt(10996093750000000), appState.State.FeePerGas())
+	require.Equal(t, big.NewInt(10097656250000000), appState.State.FeePerGas())
 
-	block = generateBlock(5, 1500)
+	block = generateBlock(5, 5000)
 	usedGas = 0
 	for _, tx := range block.Body.Transactions {
 		usedGas += uint64(fee2.CalculateGas(tx))
 	}
 	chain.applyNextBlockFee(appState, usedGas)
-	require.Equal(t, big.NewInt(10547766685485839), appState.State.FeePerGas())
+	require.Equal(t, big.NewInt(10536470413208007), appState.State.FeePerGas())
 
 	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, 0)
