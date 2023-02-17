@@ -56,6 +56,7 @@ type ConsensusConf struct {
 	NewKeyWordsEpoch                  uint16
 	EnableUpgrade10                   bool
 	BurnTxRange                       uint64
+	EnableUpgrade11                   bool
 }
 
 type ConsensusVerson uint16
@@ -63,10 +64,11 @@ type ConsensusVerson uint16
 const (
 	ConsensusV9  ConsensusVerson = 9
 	ConsensusV10 ConsensusVerson = 10
+	ConsensusV11 ConsensusVerson = 11
 )
 
 var (
-	v9, v10           ConsensusConf
+	v9, v10, v11      ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -122,6 +124,10 @@ func init() {
 	v10 = v9
 	ApplyConsensusVersion(ConsensusV10, &v10)
 	ConsensusVersions[ConsensusV10] = &v10
+
+	v11 = v10
+	ApplyConsensusVersion(ConsensusV11, &v11)
+	ConsensusVersions[ConsensusV11] = &v11
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -134,6 +140,8 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.ThirdInvitationRewardCoef = 0.8
 		cfg.StartActivationDate = time.Date(2022, time.December, 23, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2022, time.December, 30, 0, 0, 0, 0, time.UTC).Unix()
+	case ConsensusV11:
+		cfg.EnableUpgrade11 = true
 	}
 }
 

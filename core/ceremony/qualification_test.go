@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/tests"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	db2 "github.com/tendermint/tm-db"
 	"math/rand"
@@ -38,134 +39,140 @@ func Test_qualifyOneFlip(t *testing.T) {
 	}
 	qual := &qualification{config: cfg}
 	ans := fillArray(6, 1, 1)
-	q := qual.qualifyOneFlip(ans, 4, 18, 4, 8)
+	q := qual.qualifyOneFlip(ans, 4, 18, 4, 8, 8)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeA, q.grade)
-
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(18).Div(decimal.NewFromInt32(8)).Cmp(q.gradeScore))
 	ans = fillArray(6, 0, 0)
-	q = qual.qualifyOneFlip(ans, 2, 6, 2, 4)
+	q = qual.qualifyOneFlip(ans, 2, 6, 2, 4, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeC, q.grade)
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(6).Div(decimal.NewFromInt32(4)).Cmp(q.gradeScore))
 
 	ans = fillArray(7, 0, 0)
-	q = qual.qualifyOneFlip(ans, 2, 8, 2, 4)
+	q = qual.qualifyOneFlip(ans, 2, 8, 2, 4, 4)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeD, q.grade)
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(8).Div(decimal.NewFromInt32(4)).Cmp(q.gradeScore))
 
 	ans = fillArray(7, 0, 0)
-	q = qual.qualifyOneFlip(ans, 3, 12, 3, 6)
+	q = qual.qualifyOneFlip(ans, 3, 12, 3, 6, 7)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeB, q.grade)
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(12).Div(decimal.NewFromInt32(7)).Cmp(q.gradeScore))
 
 	ans = fillArray(6, 1, 1)
-	q = qual.qualifyOneFlip(ans, 3, 13, 3, 6)
+	q = qual.qualifyOneFlip(ans, 3, 13, 3, 6, 6)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeB, q.grade)
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(13).Div(decimal.NewFromInt32(6)).Cmp(q.gradeScore))
 
 	ans = fillArray(6, 1, 1)
-	q = qual.qualifyOneFlip(ans, 4, 12, 4, 8)
+	q = qual.qualifyOneFlip(ans, 4, 12, 4, 8, 8)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeC, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qual.qualifyOneFlip(ans, 4, 8, 4, 8)
+	q = qual.qualifyOneFlip(ans, 4, 8, 4, 8, 8)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(6, 1, 1)
-	q = qual.qualifyOneFlip(ans, 5, 6, 3, 8)
+	q = qual.qualifyOneFlip(ans, 5, 6, 3, 8, 8)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Left, q.answer)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(25, 75, 0)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(0, 10, 0)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(15, 3, 4)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Left, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(30, 66, 4)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(WeaklyQualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(4, 4, 4)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(NotQualified, q.status)
 	require.Equal(types.None, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(1, 2, 10)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(QualifiedByNone, q.status)
 	require.Equal(types.None, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(0, 15, 0)
-	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0)
+	q = qual.qualifyOneFlip(ans, 0, 0, 0, 0, 0)
 	require.Equal(Qualified, q.status)
 	require.Equal(types.Right, q.answer)
-	require.Equal(types.GradeD, q.grade)
 
 	ans = fillArray(1, 2, 00)
-	q = qual.qualifyOneFlip(ans, 3, 0, 0, 3)
+	q = qual.qualifyOneFlip(ans, 3, 0, 0, 3, 3)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(1, 2, 00)
-	q = qual.qualifyOneFlip(ans, 2, 0, 0, 2)
+	q = qual.qualifyOneFlip(ans, 2, 0, 0, 2, 2)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(1, 2, 00)
-	q = qual.qualifyOneFlip(ans, 2, 0, 1, 3)
+	q = qual.qualifyOneFlip(ans, 2, 0, 1, 3, 3)
 	require.NotEqual(types.GradeReported, q.grade)
+	require.Zero(decimal.NewFromInt32(2).Cmp(q.gradeScore))
 
 	ans = fillArray(2, 2, 00)
-	q = qual.qualifyOneFlip(ans, 3, 0, 0, 3)
+	q = qual.qualifyOneFlip(ans, 3, 0, 0, 3, 3)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(3, 2, 00)
-	q = qual.qualifyOneFlip(ans, 3, 0, 2, 5)
+	q = qual.qualifyOneFlip(ans, 3, 5, 2, 5, 5)
 	require.NotEqual(types.GradeReported, q.grade)
+	require.Zero(decimal.NewFromInt32(2).Cmp(q.gradeScore))
 
 	ans = fillArray(3, 2, 00)
-	q = qual.qualifyOneFlip(ans, 4, 0, 0, 4)
+	q = qual.qualifyOneFlip(ans, 4, 0, 0, 4, 4)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(3, 2, 00)
-	q = qual.qualifyOneFlip(ans, 4, 0, 1, 5)
+	q = qual.qualifyOneFlip(ans, 4, 0, 1, 5, 5)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(3, 3, 00)
-	q = qual.qualifyOneFlip(ans, 4, 0, 0, 4)
+	q = qual.qualifyOneFlip(ans, 4, 0, 0, 4, 4)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(3, 3, 00)
-	q = qual.qualifyOneFlip(ans, 4, 0, 2, 6)
+	q = qual.qualifyOneFlip(ans, 4, 0, 2, 6, 6)
 	require.Equal(types.GradeReported, q.grade)
+	require.Zero(q.gradeScore.Sign())
 
 	ans = fillArray(2, 3, 0)
-	q = qual.qualifyOneFlip(ans, 3, 10, 2, 5)
-	require.Equal(types.GradeD, q.grade)
+	q = qual.qualifyOneFlip(ans, 3, 10, 2, 5, 2)
+	require.Equal(types.GradeNone, q.grade)
+	require.Zero(decimal.NewFromInt32(10).Div(decimal.NewFromInt32(2)).Cmp(q.gradeScore))
 }
 
 func Test_getFlipStatusForCandidate(t *testing.T) {
@@ -438,7 +445,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long1.Left(1)
 	long1.Grade(1, types.GradeD)
 	long1.Right(2)
-	long1.Grade(2, types.GradeC)
+	long1.Grade(2, types.GradeD)
 	longAttachment1 := attachments.CreateLongAnswerAttachment(long1.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	long2 := types.NewAnswers(uint(len(flipsPerCandidate[2])))
@@ -449,7 +456,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long2.Right(2)
 	long2.Grade(2, types.GradeReported)
 	long2.Right(3)
-	long2.Grade(3, types.GradeA)
+	long2.Grade(3, types.GradeD)
 	long2.Right(4)
 	long2.Grade(4, types.GradeNone)
 	long2.Right(5)
@@ -464,7 +471,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long3.Right(2)
 	long3.Grade(2, types.GradeReported)
 	long3.Right(3)
-	long3.Grade(3, types.GradeA)
+	long3.Grade(3, types.GradeD)
 	long3.Right(4)
 	long3.Grade(4, types.GradeNone)
 	long3.Right(5)
@@ -477,7 +484,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long4.Left(1)
 	long4.Grade(1, types.GradeA)
 	long4.Right(2)
-	long4.Grade(2, types.GradeB)
+	long4.Grade(2, types.GradeD)
 	longAttachment4 := attachments.CreateLongAnswerAttachment(long4.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	long5 := types.NewAnswers(uint(len(flipsPerCandidate[5])))
@@ -486,7 +493,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	long5.Left(1)
 	long5.Grade(1, types.GradeA)
 	long5.Right(2)
-	long5.Grade(2, types.GradeB)
+	long5.Grade(2, types.GradeD)
 	longAttachment5 := attachments.CreateLongAnswerAttachment(long5.Bytes(), nil, nil, ecies.ImportECDSA(key))
 
 	q := qualification{
@@ -509,22 +516,27 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	require.NotNil(t, reportersToReward)
 
 	require.Equal(t, types.GradeReported, flipQualifications[reportedFlipIdx].grade)
+	require.Zero(t, flipQualifications[reportedFlipIdx].gradeScore.Sign())
 	require.Equal(t, types.Left, flipQualifications[reportedFlipIdx].answer)
 	require.Equal(t, Qualified, flipQualifications[reportedFlipIdx].status)
 
-	require.Equal(t, types.GradeB, flipQualifications[6].grade)
+	require.Equal(t, types.GradeNone, flipQualifications[6].grade)
+	require.Zero(t, decimal.NewFromInt32(34).Div(decimal.NewFromFloat32(5)).Cmp(flipQualifications[6].gradeScore))
 	require.Equal(t, types.Left, flipQualifications[6].answer)
 	require.Equal(t, Qualified, flipQualifications[6].status)
 
-	require.Equal(t, types.GradeB, flipQualifications[7].grade)
+	require.Equal(t, types.GradeNone, flipQualifications[7].grade)
+	require.Zero(t, decimal.NewFromInt32(6).Div(decimal.NewFromFloat32(5)).Cmp(flipQualifications[7].gradeScore))
 	require.Equal(t, types.Right, flipQualifications[7].answer)
 	require.Equal(t, Qualified, flipQualifications[7].status)
 
-	require.Equal(t, types.GradeA, flipQualifications[8].grade)
+	require.Equal(t, types.GradeNone, flipQualifications[8].grade)
+	require.Zero(t, decimal.NewFromInt32(2).Cmp(flipQualifications[8].gradeScore))
 	require.Equal(t, types.Right, flipQualifications[8].answer)
 	require.Equal(t, Qualified, flipQualifications[8].status)
 
-	require.Equal(t, types.GradeD, flipQualifications[9].grade)
+	require.Equal(t, types.GradeNone, flipQualifications[9].grade)
+	require.Zero(t, decimal.NewFromInt32(2).Cmp(flipQualifications[9].gradeScore))
 	require.Equal(t, types.Right, flipQualifications[9].answer)
 	require.Equal(t, Qualified, flipQualifications[9].status)
 

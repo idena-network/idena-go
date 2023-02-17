@@ -3,6 +3,7 @@ package ceremony
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/shopspring/decimal"
 )
 
 type candidate struct {
@@ -36,7 +37,8 @@ const (
 )
 
 type FlipQualification struct {
-	status FlipStatus
-	answer types.Answer
-	grade  types.Grade
+	status     FlipStatus
+	answer     types.Answer
+	grade      types.Grade
+	gradeScore decimal.Decimal
 }
