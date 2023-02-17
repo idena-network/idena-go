@@ -188,6 +188,13 @@ func splitFlipsToReward(flipsToReward []*types.FlipToReward, enableUpgrade11 boo
 		}
 		return sorted[i].Grade > sorted[j].Grade
 	})
+	if enableUpgrade11 {
+		basic = sorted
+		if len(sorted) > 3 {
+			extra = sorted[3:]
+		}
+		return
+	}
 	for _, flipToReward := range sorted {
 		if len(basic) < 3 {
 			basic = append(basic, flipToReward)
