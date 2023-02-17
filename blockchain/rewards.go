@@ -394,7 +394,7 @@ func getInvitationRewardCoef(stakeWeight float32, age uint16, inviteePenalized b
 		if config.EnableUpgrade10 {
 			inviter = value * getCoefByAge(age, config)
 			if !inviteePenalized {
-				invitee = value - inviter
+				invitee = float32(value) - float32(inviter)
 			}
 		} else {
 			inviter = value
