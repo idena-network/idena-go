@@ -50,7 +50,7 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )
 
-require github.com/idena-network/idena-wasm-binding v0.0.0-20230217092706-ae745699b2ec
+require github.com/idena-network/idena-wasm-binding v0.0.0-20230217101707-566cec67e058
 
 require (
 	bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512 // indirect
