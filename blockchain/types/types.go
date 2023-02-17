@@ -7,6 +7,7 @@ import (
 	common "github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/crypto"
 	models "github.com/idena-network/idena-go/protobuf"
+	"github.com/shopspring/decimal"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -1306,6 +1307,25 @@ const (
 	GradeA        Grade = 5
 )
 
+func (grade Grade) Score() int {
+	switch grade {
+	case GradeReported:
+		return 0
+	case GradeNone:
+		return 1
+	case GradeD:
+		return 2
+	case GradeC:
+		return 4
+	case GradeB:
+		return 6
+	case GradeA:
+		return 8
+	default:
+		return 1
+	}
+}
+
 type Answers struct {
 	Bits       *big.Int
 	FlipsCount uint
@@ -1390,8 +1410,9 @@ type ValidationResult struct {
 }
 
 type FlipToReward struct {
-	Cid   []byte
-	Grade Grade
+	Cid        []byte
+	Grade      Grade
+	GradeScore decimal.Decimal
 }
 
 type InviterValidationResult struct {

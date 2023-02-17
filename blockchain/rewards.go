@@ -142,7 +142,25 @@ func addSuccessfulValidationReward(appState *appstate.AppState, config *config.C
 	return stakeWeights
 }
 
-func getFlipRewardBasicCoef(grade types.Grade) float32 {
+var (
+	scoreX2 = decimal.NewFromFloat32(2.5)
+	scoreX4 = decimal.NewFromFloat32(3.5)
+	scoreX8 = decimal.NewFromFloat32(4.5)
+)
+
+func getFlipRewardBasicCoef(grade types.Grade, gradeScore decimal.Decimal) float32 {
+	if gradeScore.IsPositive() {
+		if gradeScore.Cmp(scoreX2) < 0 {
+			return 1
+		}
+		if gradeScore.Cmp(scoreX4) < 0 {
+			return 2
+		}
+		if gradeScore.Cmp(scoreX8) < 0 {
+			return 4
+		}
+		return 8
+	}
 	switch grade {
 	case types.GradeD:
 		return 1
@@ -157,14 +175,17 @@ func getFlipRewardBasicCoef(grade types.Grade) float32 {
 	}
 }
 
-func getFlipRewardExtraCoef(grade types.Grade, stakeWeight float32) float32 {
-	return getFlipRewardBasicCoef(grade) * stakeWeight
+func getFlipRewardExtraCoef(grade types.Grade, gradeScore decimal.Decimal, stakeWeight float32) float32 {
+	return getFlipRewardBasicCoef(grade, gradeScore) * stakeWeight
 }
 
-func splitFlipsToReward(flipsToReward []*types.FlipToReward) (basic, extra []*types.FlipToReward) {
+func splitFlipsToReward(flipsToReward []*types.FlipToReward, enableUpgrade11 bool) (basic, extra []*types.FlipToReward) {
 	sorted := make([]*types.FlipToReward, len(flipsToReward))
 	copy(sorted, flipsToReward)
 	sort.SliceStable(sorted, func(i, j int) bool {
+		if enableUpgrade11 {
+			return sorted[i].GradeScore.Cmp(sorted[j].GradeScore) > 0
+		}
 		return sorted[i].Grade > sorted[j].Grade
 	})
 	for _, flipToReward := range sorted {
@@ -232,13 +253,13 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 
 		var basicFlipsToReward, extraFlipsToReward []*types.FlipToReward
 		if config.EnableUpgrade10 {
-			basicFlipsToReward, extraFlipsToReward = splitFlipsToReward(author.FlipsToReward)
+			basicFlipsToReward, extraFlipsToReward = splitFlipsToReward(author.FlipsToReward, config.EnableUpgrade11)
 		} else {
 			basicFlipsToReward = author.FlipsToReward
 		}
 
 		for _, f := range basicFlipsToReward {
-			weight := getFlipRewardBasicCoef(f.Grade)
+			weight := getFlipRewardBasicCoef(f.Grade, f.GradeScore)
 			totalBasicWeight += weight
 			authorFlips.basic = append(authorFlips.basic, f)
 			authorFlips.basicWeights = append(authorFlips.basicWeights, weight)
@@ -253,7 +274,7 @@ func addFlipReward(appState *appstate.AppState, config *config.ConsensusConf, va
 			}
 
 			for _, f := range extraFlipsToReward {
-				weight := getFlipRewardExtraCoef(f.Grade, w)
+				weight := getFlipRewardExtraCoef(f.Grade, f.GradeScore, w)
 				totalExtraWeight += weight
 				authorFlips.extra = append(authorFlips.extra, f)
 				authorFlips.extraWeights = append(authorFlips.extraWeights, weight)

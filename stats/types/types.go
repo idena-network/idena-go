@@ -3,6 +3,7 @@ package types
 import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
+	"github.com/shopspring/decimal"
 )
 
 type ValidationStats struct {
@@ -33,6 +34,7 @@ type FlipStats struct {
 	Status       byte
 	Answer       types.Answer
 	Grade        types.Grade
+	GradeScore   decimal.Decimal
 }
 
 type FlipAnswerStats struct {
