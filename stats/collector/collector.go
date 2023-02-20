@@ -83,7 +83,7 @@ type StatsCollector interface {
 	AddContractStake(amount *big.Int)
 	AddContractBalanceUpdate(contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int)
 	ApplyContractBalanceUpdates(balancesCache, parentBalancesCache *map[common.Address]*big.Int)
-	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
+	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int)
 	AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int)
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
@@ -802,15 +802,15 @@ func ApplyContractBalanceUpdates(c StatsCollector, balancesCache, parentBalances
 	c.ApplyContractBalanceUpdates(balancesCache, parentBalancesCache)
 }
 
-func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc) {
+func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int) {
 	// do nothing
 }
 
-func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount GetBalanceFunc) {
+func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddContractBurntCoins(address, getAmount)
+	c.AddContractBurntCoins(address, getAmount, balancesCache)
 }
 
 func (c *collectorStub) AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int) {

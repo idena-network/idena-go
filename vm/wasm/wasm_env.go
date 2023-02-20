@@ -55,6 +55,9 @@ type WasmEnv struct {
 }
 
 func (w *WasmEnv) Burn(meter *lib.GasMeter, amount *big.Int) error {
+	collector.AddContractBurntCoins(w.statsCollector, w.ctx.ContractAddr(), func(address common.Address) *big.Int {
+		return new(big.Int).Set(amount)
+	}, &w.balancesCache)
 	return w.SubBalance(meter, amount)
 }
 
