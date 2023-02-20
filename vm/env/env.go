@@ -247,7 +247,7 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 func (e *EnvImp) BurnAll(ctx CallContext) {
 	e.gasCounter.AddGas(costs.BurnAllGas)
 	address := ctx.ContractAddr()
-	collector.AddContractBurntCoins(e.statsCollector, address, e.getBalance)
+	collector.AddContractBurntCoins(e.statsCollector, address, e.getBalance, &e.balancesCache)
 	e.setBalance(address, common.Big0)
 }
 
