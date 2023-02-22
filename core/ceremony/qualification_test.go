@@ -11,6 +11,7 @@ import (
 	"github.com/idena-network/idena-go/crypto/ecies"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/database"
+	types2 "github.com/idena-network/idena-go/stats/types"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -510,7 +511,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 		},
 	}
 
-	flipQualifications, reportersToReward := q.qualifyFlips(11, candidates, flipsPerCandidate)
+	flipQualifications, reportersToReward, wrongGradeReasons := q.qualifyFlips(11, candidates, flipsPerCandidate)
 
 	require.Equal(t, 11, len(flipQualifications))
 	require.NotNil(t, reportersToReward)
@@ -558,4 +559,7 @@ func TestQualification_qualifyFlips(t *testing.T) {
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr1])
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr2])
 	require.NotNil(t, reportersToReward.reportersByFlip[reportedFlipIdx][addr3])
+
+	require.Len(t, wrongGradeReasons, 1)
+	require.Equal(t, wrongGradeReasons[addrWithIgnoredReports], types2.TooManyReports)
 }

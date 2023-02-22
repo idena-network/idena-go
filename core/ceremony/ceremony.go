@@ -1086,7 +1086,8 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 
 		totalFlipsCount := len(shard.flips)
 
-		flipQualification, reportersToReward := vc.qualification.qualifyFlips(uint(totalFlipsCount), shard.candidates, shard.longFlipsPerCandidate)
+		flipQualification, reportersToReward, wrongGradeReasons := vc.qualification.qualifyFlips(uint(totalFlipsCount), shard.candidates, shard.longFlipsPerCandidate)
+		stats.WrongGradeReasons = wrongGradeReasons
 
 		flipQualificationMap := make(map[int]FlipQualification)
 		for i, item := range flipQualification {
