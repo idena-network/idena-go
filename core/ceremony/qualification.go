@@ -114,7 +114,7 @@ func (q *qualification) restore() {
 	}
 }
 
-func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) ([]FlipQualification, *reportersToReward) {
+func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candidate, flipsPerCandidate [][]int) ([]FlipQualification, *reportersToReward, map[common.Address]statsTypes.WrongGradeReason) {
 
 	q.lock.RLock()
 	defer q.lock.RUnlock()
@@ -125,6 +125,8 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		gradesCount         int
 		reportCommitteeSize int
 	}, totalFlipsCount)
+
+	wrongGradeReasons := make(map[common.Address]statsTypes.WrongGradeReason)
 
 	reportersToReward := newReportersToReward()
 	grades := newGrades()
@@ -173,6 +175,17 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 				if ignoreGrades {
 					reportersToReward.deleteReporter(candidate.Address)
 					grades.deleteGrades(candidateIdx)
+					var reason statsTypes.WrongGradeReason
+					if ignoreReports {
+						reason |= statsTypes.TooManyReports
+					}
+					if !hasApprove {
+						reason |= statsTypes.NoApproves
+					}
+					if increasedGradeCnt > 1 {
+						reason |= statsTypes.TooManyIncreasedApproves
+					}
+					wrongGradeReasons[candidate.Address] = reason
 				}
 			} else if ignoreReports {
 				reportersToReward.deleteReporter(candidate.Address)
@@ -202,7 +215,7 @@ func (q *qualification) qualifyFlips(totalFlipsCount uint, candidates []*candida
 		}
 	}
 
-	return result, reportersToReward
+	return result, reportersToReward, wrongGradeReasons
 }
 
 func (q *qualification) qualifyCandidate(candidate common.Address, flipQualificationMap map[int]FlipQualification,
