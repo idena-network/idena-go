@@ -89,7 +89,7 @@ func (u *Upgrader) IsValidTargetVersion() bool {
 
 func (u *Upgrader) ValidateBlock(block *types.Block) error {
 	if block.Header.ProposedHeader.Upgrade > 0 {
-		if block.Header.ProposedHeader.Upgrade == uint32(u.Target()) && u.CanUpgrade() {
+		if block.Header.ProposedHeader.Upgrade == uint32(u.Target()) && u.CanUpgrade() || block.Header.ProposedHeader.Upgrade == uint32(config.ConsensusV11) {
 			return nil
 		}
 		return errors.New("blockchain cannot be upgraded")
