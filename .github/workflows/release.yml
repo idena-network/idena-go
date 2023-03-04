@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
 
 defaults:
   run:
@@ -80,6 +79,8 @@ jobs:
         - uses: wangyoucao577/go-release-action@v1
           with:
             github_token: ${{ secrets.GITHUB_TOKEN }}
+            release_tag: v1.0.2-rc2
             goos: ${{ matrix.goos }}
             goarch: ${{ matrix.goarch }}
-            binary_name: "idena-node-linux-aarch64-1"
+            goversion: 1.19
+            binary_name: "idena-node-linux-aarch64"
