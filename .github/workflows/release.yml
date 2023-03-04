@@ -79,6 +79,7 @@ jobs:
         #  uses: dawidd6/action-get-tag@v1
         - uses: wangyoucao577/go-release-action@v1
           with:
+            pre_command: "export CGO_ENABLED=1"
             github_token: ${{ secrets.GITHUB_TOKEN }}
             release_tag: v1.0.2-rc2
             goos: ${{ matrix.goos }}
