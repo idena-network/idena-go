@@ -4,7 +4,8 @@ on:
   push:
     tags:
       - "v*"
-
+    branches:
+      - build-linux-aarch64
 defaults:
   run:
     shell: bash
