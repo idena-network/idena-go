@@ -85,5 +85,4 @@ jobs:
             goos: ${{ matrix.goos }}
             goarch: ${{ matrix.goarch }}
             goversion: 1.19
-            binary_name: "idena-node-linux-aarch64"
-            asset_name: idena-node-${{ matrix.goos }}-${{ matrix.goarch }}-${RELEASE_TAG}
+            binary_name: "idena-node"
