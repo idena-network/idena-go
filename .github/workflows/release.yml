@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
 
 defaults:
   run:
@@ -31,7 +32,7 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Get Sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Get tag
         id: tag
@@ -65,3 +66,20 @@ jobs:
         with:
           draft: true
           files: builds/${{ env.ASSET_NAME }}
+  build-linux-aarch64:
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          goos: [ linux ]
+          goarch: [ arm64 ]
+      steps:
+        - uses: actions/checkout@v3
+        - name: Get tag
+          id: tag
+          uses: dawidd6/action-get-tag@v1
+        - uses: wangyoucao577/go-release-action@v1
+          with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            goos: ${{ matrix.goos }}
+            goarch: ${{ matrix.goarch }}
+            binary_name: "idena-node-linux-aarch64-${tag}"
