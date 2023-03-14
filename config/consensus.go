@@ -152,7 +152,7 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV11:
 		cfg.Version = ConsensusV11
 		cfg.EnableUpgrade11 = true
-		cfg.KeyWordsV3Epoch = 104
+		cfg.KeyWordsV3Epoch = 1
 		cfg.StartActivationDate = time.Date(2023, time.March, 1, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2023, time.March, 7, 0, 0, 0, 0, time.UTC).Unix()
 	case ConsensusV12:
