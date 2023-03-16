@@ -93,4 +93,4 @@ jobs:
             goversion: 1.19
             ldflags: "-X main.version=${{ env.GIT_TAG }}"
             binary_name: "idena-node"
-            asset_name: ${{asset_name}}
+            asset_name: ${{env.ASSET_NAME}}
