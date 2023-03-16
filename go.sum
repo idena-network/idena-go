@@ -696,6 +696,8 @@ github.com/idena-network/idena-wasm-binding v0.0.0-20230303155228-71654cfadfd9 h
 github.com/idena-network/idena-wasm-binding v0.0.0-20230303155228-71654cfadfd9/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
 github.com/idena-network/idena-wasm-binding v0.0.0-20230304132014-3de89da5e128 h1:jOwofqIdzMxgJnjlpbEOZtO2yq8BmvYMxwKUI/vBBZQ=
 github.com/idena-network/idena-wasm-binding v0.0.0-20230304132014-3de89da5e128/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
+github.com/idena-network/idena-wasm-binding v0.0.0-20230316114341-246f44fda22f h1:QldThxoM4nnkAYG/HNYCiYoDi8TPZbNtUZvHcIdxOaI=
+github.com/idena-network/idena-wasm-binding v0.0.0-20230316114341-246f44fda22f/go.mod h1:V62toX5ngK296WOWZHWg5pQ65kB9Y0OL0trKhsOe+FE=
 github.com/imdario/mergo v0.3.4/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.8/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
