@@ -87,7 +87,6 @@ jobs:
           with:
             pre_command: "apt-get update && apt-get -y install gcc-aarch64-linux-gnu && export CGO_ENABLED=1 && export CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-unknown-linux-gnu"
             github_token: ${{ secrets.GITHUB_TOKEN }}
-            release_tag: v1.0.2-rc2
             goos: ${{ matrix.goos }}
             goarch: ${{ matrix.goarch }}
             goversion: 1.19
