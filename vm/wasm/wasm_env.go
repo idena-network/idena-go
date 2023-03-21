@@ -434,6 +434,7 @@ func (w *WasmEnv) Commit() {
 	}
 	for contract, data := range w.deployedContractCache {
 		w.appState.State.DeployWasmContract(contract, data.Code)
+		collector.AddWasmContract(w.statsCollector, contract, data.Code)
 	}
 	collector.ApplyContractBalanceUpdates(w.statsCollector, &w.balancesCache, nil)
 }
