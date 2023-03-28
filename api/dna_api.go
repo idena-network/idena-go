@@ -300,6 +300,7 @@ type Identity struct {
 	QualifiedFlips      uint32          `json:"totalQualifiedFlips"`
 	ShortFlipPoints     float32         `json:"totalShortFlipPoints"`
 	Flips               []string        `json:"flips"`
+	FlipsWithPair       []Flip          `json:"flipsWithPair"`
 	Online              bool            `json:"online"`
 	Generation          uint32          `json:"generation"`
 	Code                hexutil.Bytes   `json:"code"`
@@ -315,6 +316,11 @@ type Identity struct {
 	Inviter             *Inviter        `json:"inviter"`
 	ShardId             uint32          `json:"shardId"`
 	PenaltySeconds      uint16          `json:"penaltySeconds"`
+}
+
+type Flip struct {
+	Hash string `json:"hash"`
+	Pair uint8  `json:"pair"`
 }
 
 func (api *DnaApi) Identities() []Identity {
@@ -398,12 +404,18 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		profileHash = c.String()
 	}
 
-	var result []string
+	var flipHashes []string
+	var flips []Flip
 	usedPairs := mapset.NewSet()
 	for _, v := range data.Flips {
 		c, _ := cid.Parse(v.Cid)
-		result = append(result, c.String())
+		cidStr := c.String()
+		flipHashes = append(flipHashes, cidStr)
 		usedPairs.Add(v.Pair)
+		flips = append(flips, Flip{
+			Hash: cidStr,
+			Pair: v.Pair,
+		})
 	}
 
 	var convertedFlipKeyWordPairs []FlipWords
@@ -481,7 +493,8 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		MadeFlips:           uint8(len(data.Flips)),
 		QualifiedFlips:      totalFlips,
 		ShortFlipPoints:     totalPoints,
-		Flips:               result,
+		Flips:               flipHashes,
+		FlipsWithPair:       flips,
 		Generation:          data.Generation,
 		Code:                data.Code,
 		Invitees:            invitees,
