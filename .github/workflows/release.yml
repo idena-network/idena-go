@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         go-version: [1.17.x]
-        os: ['ubuntu-18.04', 'windows-latest', 'macos-latest']
+        os: ['ubuntu-20.04', 'windows-latest', 'macos-latest']
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -64,32 +64,3 @@ jobs:
         with:
           draft: true
           files: builds/${{ env.ASSET_NAME }}
-  build-linux-aarch64:
-      runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          goos: [ linux ]
-          goarch: [ arm64 ]
-      steps:
-        - uses: actions/checkout@v3
-        - name: Get tag
-          id: tag
-          uses: dawidd6/action-get-tag@v1
-        - name: Get asset name
-          id: asset
-          run: |
-            gitTag=${{ steps.tag.outputs.tag }}
-            tag=${gitTag:1}                    
-            asset_name="idena-node-linux-aarch64-${tag}"                    
-            echo "GIT_TAG=${tag}" >> $GITHUB_ENV
-            echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
-        - uses: wangyoucao577/go-release-action@v1
-          with:
-            pre_command: "apt-get update && apt-get -y install gcc-aarch64-linux-gnu && export CGO_ENABLED=1 && export CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-unknown-linux-gnu"
-            github_token: ${{ secrets.GITHUB_TOKEN }}
-            goos: ${{ matrix.goos }}
-            goarch: ${{ matrix.goarch }}
-            goversion: 1.19
-            ldflags: "-X main.version=${{ env.GIT_TAG }}"
-            binary_name: "idena-node"
-            asset_name: ${{env.ASSET_NAME}}
