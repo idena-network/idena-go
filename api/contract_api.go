@@ -13,6 +13,7 @@ import (
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
+	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	models "github.com/idena-network/idena-wasm-binding/lib/protobuf"
@@ -174,16 +175,18 @@ func (d DynamicArgs) ToSlice() ([][]byte, error) {
 }
 
 type TxReceipt struct {
-	Contract     common.Address  `json:"contract"`
-	Method       string          `json:"method"`
-	Success      bool            `json:"success"`
-	GasUsed      uint64          `json:"gasUsed"`
-	TxHash       *common.Hash    `json:"txHash"`
-	Error        string          `json:"error"`
-	GasCost      decimal.Decimal `json:"gasCost"`
-	TxFee        decimal.Decimal `json:"txFee"`
-	ActionResult *ActionResult   `json:"actionResult"`
-	Events       []Event         `json:"events"`
+	Contract        common.Address   `json:"contract"`
+	Method          string           `json:"method"`
+	Success         bool             `json:"success"`
+	GasUsed         uint64           `json:"gasUsed"`
+	TxHash          *common.Hash     `json:"txHash"`
+	Error           string           `json:"error"`
+	GasCost         decimal.Decimal  `json:"gasCost"`
+	TxFee           decimal.Decimal  `json:"txFee"`
+	ActionResult    *ActionResult    `json:"actionResult"`
+	Events          []Event          `json:"events"`
+	MinGasLimit     *uint64          `json:"minGasLimit,omitempty"`
+	MinGasLimitCost *decimal.Decimal `json:"minGasLimitCost,omitempty"`
 }
 
 type ActionResult struct {
@@ -424,6 +427,16 @@ func convertEstimatedReceipt(tx *types.Transaction, receipt *types.TxReceipt, fe
 	if !tx.Signed() {
 		res.TxHash = nil
 	}
+	var remainingWasmGas uint64
+	if res.ActionResult != nil {
+		for _, actionResult := range res.ActionResult.SubActionResults {
+			remainingWasmGas += actionResult.RemainingGas
+		}
+	}
+	minGasLimit := res.GasUsed + costs.WasmGasToGas(remainingWasmGas)
+	minGasLimitCost := blockchain.ConvertToFloat(blockchain.GetGasCost(feePerGas, minGasLimit))
+	res.MinGasLimit = &minGasLimit
+	res.MinGasLimitCost = &minGasLimitCost
 	return res
 }
 
