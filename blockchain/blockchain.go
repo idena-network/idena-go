@@ -1608,7 +1608,10 @@ func (chain *Blockchain) getTxFee(feePerGas *big.Int, tx *types.Transaction) *bi
 }
 
 func (chain *Blockchain) GetGasCost(appState *appstate.AppState, gasUsed uint64) *big.Int {
-	feePerGas := appState.State.FeePerGas()
+	return GetGasCost(appState.State.FeePerGas(), gasUsed)
+}
+
+func GetGasCost(feePerGas *big.Int, gasUsed uint64) *big.Int {
 	if common.ZeroOrNil(feePerGas) {
 		return common.Big0
 	}
