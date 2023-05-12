@@ -34,7 +34,7 @@ func (f fakeVm) Read(contractAddr common.Address, method string, args ...[]byte)
 	panic("implement me")
 }
 
-func (f fakeVm) Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt {
+func (f fakeVm) Run(tx *types.Transaction, from *common.Address, gasLimit int64, commitToEnv bool) *types.TxReceipt {
 	return &types.TxReceipt{
 		Error:   fakeVmError,
 		Success: fakeVmError == nil,

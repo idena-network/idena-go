@@ -42,7 +42,7 @@ func TestVm_Erc20(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	receipt := vm.Run(tx, 4000000)
+	receipt := vm.Run(tx, 4000000, true)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -66,7 +66,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key)
-	receipt = vm.Run(tx, 10000000)
+	receipt = vm.Run(tx, 10000000, true)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -91,7 +91,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key2)
-	receipt = vm.Run(tx, 10000000)
+	receipt = vm.Run(tx, 10000000, true)
 	t.Logf("%+v\n", receipt)
 	require.False(t, receipt.Success)
 }
@@ -112,7 +112,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 5000000)
+	return vm.Run(tx, 5000000, true)
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
@@ -130,7 +130,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 612000000)
+	return vm.Run(tx, 612000000, true)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {

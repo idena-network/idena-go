@@ -197,7 +197,7 @@ func (j *Job) sendTx(dtx *DeferredTx) error {
 	}
 
 	vm := j.vmCreator(readonlyAppState, j.bc, j.head, nil, j.bc.Config())
-	r := vm.Run(tx, nil, -1)
+	r := vm.Run(tx, nil, -1, true)
 	if r.Error != nil {
 		return r.Error
 	}

@@ -21,7 +21,7 @@ var (
 )
 
 type VM interface {
-	Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt
+	Run(tx *types.Transaction, from *common.Address, gasLimit int64, commitToEnv bool) *types.TxReceipt
 	Read(contractAddr common.Address, method string, args ...[]byte) ([]byte, error)
 	IsWasm(tx *types.Transaction) bool
 	ContractAddr(tx *types.Transaction, from *common.Address) common.Address
@@ -173,14 +173,14 @@ func (vm *VmImpl) ContractAddr(tx *types.Transaction, from *common.Address) comm
 	panic("unknown tx type")
 }
 
-func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int64) *types.TxReceipt {
+func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int64, commitToState bool) *types.TxReceipt {
 	if tx.Type != types.CallContractTx && tx.Type != types.DeployContractTx && tx.Type != types.TerminateContractTx {
 		return &types.TxReceipt{Success: false, Error: UnexpectedTx}
 	}
 
 	if vm.IsWasm(tx) {
 		wasmVm := wasm.NewWasmVM(vm.appState, vm.blockHeaderProvider, vm.head, vm.cfg.IsDebug)
-		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
+		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)), commitToState)
 	}
 
 	vm.gasCounter.Reset(int(gasLimit))
@@ -201,7 +201,7 @@ func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int6
 	}
 
 	var events []*types.TxEvent
-	if err == nil {
+	if err == nil && commitToState {
 		events = vm.env.Commit()
 	}
 
