@@ -69,7 +69,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 	return env, gasUsed, actionResult, attachment.Method, err
 }
 
-func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxReceipt {
+func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64, commitToState bool) *types.TxReceipt {
 	var usedGas uint64
 	var err error
 	var env *WasmEnv
@@ -86,7 +86,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxRecei
 		env, usedGas, actionResult, method, err = vm.call(tx, wasmGasLimit)
 	}
 	var events []*types.TxEvent
-	if err == nil {
+	if err == nil && commitToState {
 		events = env.InternalCommit()
 	}
 

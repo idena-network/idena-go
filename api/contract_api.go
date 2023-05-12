@@ -296,7 +296,7 @@ func (api *ContractApi) EstimateDeploy(args DeployArgs) (*TxReceipt, error) {
 	} else {
 		from = &args.From
 	}
-	r := vm.Run(tx, from, -1)
+	r := vm.Run(tx, from, -1, true)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
@@ -327,7 +327,7 @@ func (api *ContractApi) EstimateCall(args CallArgs) (*TxReceipt, error) {
 		appState.State.AddBalance(*tx.To, tx.Amount)
 	}
 
-	r := vm.Run(tx, from, -1)
+	r := vm.Run(tx, from, -1, true)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }
@@ -347,7 +347,7 @@ func (api *ContractApi) EstimateTerminate(args TerminateArgs) (*TxReceipt, error
 	} else {
 		from = &args.From
 	}
-	r := vm.Run(tx, from, -1)
+	r := vm.Run(tx, from, -1, true)
 	r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 	return convertEstimatedReceipt(tx, r, appState.State.FeePerGas()), nil
 }

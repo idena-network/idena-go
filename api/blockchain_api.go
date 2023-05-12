@@ -367,7 +367,7 @@ func (api *BlockchainApi) EstimateRawTx(bytesTx hexutil.Bytes, from *common.Addr
 			appState.State.SubBalance(sender, tx.Amount)
 			appState.State.AddBalance(*tx.To, tx.Amount)
 		}
-		r := vm.Run(tx, from, -1)
+		r := vm.Run(tx, from, -1, true)
 		r.GasCost = api.bc.GetGasCost(appState, r.GasUsed)
 		receipt := convertEstimatedReceipt(tx, r, appState.State.FeePerGas())
 		response.Receipt = receipt

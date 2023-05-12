@@ -42,6 +42,7 @@ import (
 	"math/big"
 	"math/rand"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -55,6 +56,8 @@ const (
 	MaxFutureBlockOffset          = time.Minute * 2
 	MinBlockDelay                 = time.Second * 10
 	StoreToIpfsThreshold          = 1 - fee.StoreToIpfsFeeCoef
+
+	SkipError = "transaction should be skipped"
 )
 
 var (
@@ -1304,6 +1307,9 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			if receipt != nil {
 				receipts = append(receipts, receipt)
 				gas += receipt.GasUsed
+				if receipt.Error != nil && strings.Contains(receipt.Error.Error(), SkipError) {
+					return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
+				}
 			}
 			if !chain.config.Consensus.EnableUpgrade10 {
 				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
@@ -1328,6 +1334,34 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 		}
 	}
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
+}
+
+func (chain *Blockchain) tryExecuteTx(tx *types.Transaction, context *txExecutionContext) error {
+	sender, _ := types.Sender(tx)
+	switch tx.Type {
+	case types.DeployContractTx, types.CallContractTx, types.TerminateContractTx:
+		amount := tx.AmountOrZero()
+		stateDB := context.appState.State
+		if !context.vm.IsWasm(tx) {
+			return nil
+		}
+		shouldAddPayAmount := amount.Sign() > 0 && (tx.Type == types.CallContractTx || context.vm.IsWasm(tx))
+		contractAddr := context.vm.ContractAddr(tx, &sender)
+
+		if shouldAddPayAmount {
+			stateDB.SubBalance(sender, amount)
+			stateDB.AddBalance(contractAddr, amount)
+		}
+		receipt := context.vm.Run(tx, nil, chain.getGasLimit(context.appState, tx), false)
+		if shouldAddPayAmount {
+			stateDB.AddBalance(sender, amount)
+			stateDB.SubBalance(contractAddr, amount)
+		}
+		return receipt.Error
+	default:
+		return nil
+	}
+
 }
 
 type task = func()
@@ -1545,7 +1579,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			stateDB.AddBalance(contractAddr, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
 		}
-		receipt = context.vm.Run(tx, nil, chain.getGasLimit(appState, tx))
+		receipt = context.vm.Run(tx, nil, chain.getGasLimit(appState, tx), true)
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
@@ -2021,6 +2055,13 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 			continue
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
+
+		if err := chain.tryExecuteTx(tx, context); err != nil && strings.Contains(err.Error(), SkipError) {
+			chain.repo.AddToBlackList(tx.Hash())
+			chain.repo.FinishApplyingTx(tx.Hash())
+			continue
+		}
+
 		if f, r, _, err := chain.applyTxOnState(tx, context); err == nil {
 			gas := uint64(fee.CalculateGas(tx))
 			if r != nil {
