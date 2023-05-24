@@ -57,6 +57,7 @@ type ConsensusConf struct {
 	BurnTxRange                       uint64
 	KeyWordsV3Epoch                   uint16
 	EnableUpgrade11                   bool
+	EnableUpgrade12                   bool
 }
 
 type ConsensusVerson uint16
@@ -65,10 +66,11 @@ const (
 	ConsensusV9  ConsensusVerson = 9
 	ConsensusV10 ConsensusVerson = 10
 	ConsensusV11 ConsensusVerson = 11
+	ConsensusV12 ConsensusVerson = 12
 )
 
 var (
-	v9, v10, v11      ConsensusConf
+	v9, v10, v11, v12 ConsensusConf
 	ConsensusVersions map[ConsensusVerson]*ConsensusConf
 )
 
@@ -127,6 +129,10 @@ func init() {
 	v11 = v10
 	ApplyConsensusVersion(ConsensusV11, &v11)
 	ConsensusVersions[ConsensusV11] = &v11
+
+	v12 = v11
+	ApplyConsensusVersion(ConsensusV12, &v12)
+	ConsensusVersions[ConsensusV12] = &v12
 }
 
 func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
@@ -145,6 +151,12 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.KeyWordsV3Epoch = 104
 		cfg.StartActivationDate = time.Date(2023, time.March, 1, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2023, time.March, 7, 0, 0, 0, 0, time.UTC).Unix()
+
+	case ConsensusV12:
+		cfg.Version = ConsensusV12
+		cfg.EnableUpgrade12 = true
+		cfg.StartActivationDate = time.Date(2023, time.July, 1, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2023, time.July, 7, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

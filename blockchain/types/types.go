@@ -1498,6 +1498,7 @@ func (i *TransactionIndex) FromBytes(data []byte) error {
 }
 
 type TxEvent struct {
+	EventId   int
 	Contract  common.Address
 	EventName string
 	Data      [][]byte

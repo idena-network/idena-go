@@ -49,10 +49,21 @@ type WasmEnv struct {
 	events                []*types.TxEvent
 	method                string
 	isDebug               bool
+	nextEventId           int
+	enableUpgrade12       bool
+	commitToState         bool
 }
 
 func (w *WasmEnv) Burn(meter *lib.GasMeter, amount *big.Int) error {
 	return w.SubBalance(meter, amount)
+}
+
+func (w *WasmEnv) eventId() int {
+	if w.parent != nil {
+		return w.parent.eventId()
+	}
+	w.nextEventId++
+	return w.nextEventId - 1
 }
 
 func (w *WasmEnv) Ecrecover(meter *lib.GasMeter, data []byte, signature []byte) []byte {
@@ -124,6 +135,7 @@ func (w *WasmEnv) Event(meter *lib.GasMeter, name string, args ...[]byte) {
 	}
 	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.EmitEventBase + costs.EmitEventPerByteGas*size)))
 	w.events = append(w.events, &types.TxEvent{
+		EventId:   w.eventId(),
 		Contract:  w.ctx.ContractAddr(),
 		EventName: name, Data: args,
 	})
@@ -186,7 +198,7 @@ func (w *WasmEnv) ContractAddress(meter *lib.GasMeter) lib.Address {
 	return w.ctx.ContractAddr()
 }
 
-func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool) *WasmEnv {
+func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, ctx *ContractContext, head *types.Header, method string, isDebug bool, commitToState bool, enableUpgrade12 bool) *WasmEnv {
 	return &WasmEnv{
 		id:                    1,
 		headerProvider:        blockHeaderProvider,
@@ -198,6 +210,8 @@ func NewWasmEnv(appState *appstate.AppState, blockHeaderProvider BlockHeaderProv
 		deployedContractCache: map[common.Address]ContractData{},
 		method:                method,
 		isDebug:               isDebug,
+		enableUpgrade12:       enableUpgrade12,
+		commitToState:         commitToState,
 	}
 }
 
@@ -306,6 +320,8 @@ func (w *WasmEnv) CreateSubEnv(contract lib.Address, method string, payAmount *b
 		deployedContractCache: map[common.Address]ContractData{},
 		head:                  w.head,
 		isDebug:               w.isDebug,
+		enableUpgrade12:       w.enableUpgrade12,
+		commitToState:         w.commitToState,
 	}
 	if w.isDebug {
 		log.Info("created sub env", "id", subEnv.id, "method", method, "parent method", subEnv.parent.method)
@@ -392,11 +408,15 @@ func (w *WasmEnv) Commit() {
 			w.parent.deployedContractCache[contract] = data
 		}
 		for _, e := range w.events {
-			w.parent.events = append(w.parent.events, e)
+			if !w.enableUpgrade12 || e.EventId >= len(w.parent.events) {
+				w.parent.events = append(w.parent.events, e)
+			}
 		}
 		return
 	}
-
+	if !w.commitToState {
+		return
+	}
 	for contract, cache := range w.contractStoreCache {
 		for k, v := range cache {
 			if v.removed {

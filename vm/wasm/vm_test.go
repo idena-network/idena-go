@@ -6,9 +6,11 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/idena-network/idena-go/vm/wasm/testdata"
 	"github.com/shopspring/decimal"
@@ -19,12 +21,32 @@ import (
 	"testing"
 )
 
+func getLatestConfig() *config.Config {
+	key, _ := crypto.GenerateKey()
+	secStore := secstore.NewSecStore()
+
+	secStore.AddKey(crypto.FromECDSA(key))
+	alloc := make(map[common.Address]config.GenesisAllocation)
+	cfg := &config.Config{
+		Network:   0x99,
+		Consensus: config.ConsensusVersions[config.ConsensusV12],
+		GenesisConf: &config.GenesisConf{
+			Alloc:      alloc,
+			GodAddress: secStore.GetAddress(),
+		},
+		Blockchain:       &config.BlockchainConfig{},
+		OfflineDetection: config.GetDefaultOfflineDetectionConfig(),
+		IsDebug:          true,
+	}
+	return cfg
+}
+
 func TestVm_Erc20(t *testing.T) {
 	db := dbm.NewMemDB()
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 	appState.Initialize(0)
 
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -42,7 +64,7 @@ func TestVm_Erc20(t *testing.T) {
 	}
 	tx, _ = types.SignTx(tx, key)
 
-	receipt := vm.Run(tx, 4000000, true)
+	receipt := vm.Run(tx, 4000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -66,7 +88,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key)
-	receipt = vm.Run(tx, 10000000, true)
+	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
 
@@ -91,7 +113,7 @@ func TestVm_Erc20(t *testing.T) {
 		Amount:       big.NewInt(10),
 	}
 	tx, _ = types.SignTx(tx, key2)
-	receipt = vm.Run(tx, 10000000, true)
+	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.False(t, receipt.Success)
 }
@@ -99,7 +121,7 @@ func TestVm_Erc20(t *testing.T) {
 var nonce = uint32(1)
 
 func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []byte, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
 	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil, args...)
 	payload, _ := deployAttach.ToBytes()
 
@@ -112,11 +134,11 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 5000000, true)
+	return vm.Run(tx, 5000000)
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
 	callAttach := attachments.CreateCallContractAttachment(method, args...)
 	payload, _ := callAttach.ToBytes()
 
@@ -130,7 +152,7 @@ func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract c
 	}
 	tx, _ = types.SignTx(tx, key)
 	nonce++
-	return vm.Run(tx, 612000000, true)
+	return vm.Run(tx, 612000000)
 }
 
 func TestVm_IncAndSum_cross_contract_call(t *testing.T) {
