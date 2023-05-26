@@ -1307,7 +1307,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			if receipt != nil {
 				receipts = append(receipts, receipt)
 				gas += receipt.GasUsed
-				if receipt.Error != nil && strings.Contains(receipt.Error.Error(), SkipError) {
+				if receipt.Error != nil && strings.Contains(receipt.Error.Error(), SkipError) && !chain.config.Consensus.EnableUpgrade12 {
 					return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
 				}
 			}
@@ -1337,6 +1337,11 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 }
 
 func (chain *Blockchain) tryExecuteTx(tx *types.Transaction, context *txExecutionContext) error {
+
+	if chain.config.Consensus.EnableUpgrade12 {
+		return nil
+	}
+
 	sender, _ := types.Sender(tx)
 	switch tx.Type {
 	case types.DeployContractTx, types.CallContractTx, types.TerminateContractTx:
