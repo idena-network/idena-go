@@ -259,5 +259,6 @@ func GetDefaultConsensusConfig() *config.ConsensusConf {
 	res := *base
 	config.ApplyConsensusVersion(config.ConsensusV10, &res)
 	config.ApplyConsensusVersion(config.ConsensusV11, &res)
+	config.ApplyConsensusVersion(config.ConsensusV12, &res)
 	return &res
 }

@@ -49,21 +49,12 @@ type WasmEnv struct {
 	events                []*types.TxEvent
 	method                string
 	isDebug               bool
-	nextEventId           int
 	enableUpgrade12       bool
 	commitToState         bool
 }
 
 func (w *WasmEnv) Burn(meter *lib.GasMeter, amount *big.Int) error {
 	return w.SubBalance(meter, amount)
-}
-
-func (w *WasmEnv) eventId() int {
-	if w.parent != nil {
-		return w.parent.eventId()
-	}
-	w.nextEventId++
-	return w.nextEventId - 1
 }
 
 func (w *WasmEnv) Ecrecover(meter *lib.GasMeter, data []byte, signature []byte) []byte {
@@ -135,7 +126,6 @@ func (w *WasmEnv) Event(meter *lib.GasMeter, name string, args ...[]byte) {
 	}
 	meter.ConsumeGas(costs.GasToWasmGas(uint64(costs.EmitEventBase + costs.EmitEventPerByteGas*size)))
 	w.events = append(w.events, &types.TxEvent{
-		EventId:   w.eventId(),
 		Contract:  w.ctx.ContractAddr(),
 		EventName: name, Data: args,
 	})
@@ -408,9 +398,10 @@ func (w *WasmEnv) Commit() {
 			w.parent.deployedContractCache[contract] = data
 		}
 		for _, e := range w.events {
-			if !w.enableUpgrade12 || e.EventId >= len(w.parent.events) {
-				w.parent.events = append(w.parent.events, e)
-			}
+			w.parent.events = append(w.parent.events, e)
+		}
+		if w.enableUpgrade12 {
+			w.events = nil
 		}
 		return
 	}
