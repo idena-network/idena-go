@@ -311,7 +311,7 @@ func (chain *Blockchain) generateGenesis(network types.Network) (*types.Block, e
 		chain.appState.State.SetState(addr, state.IdentityState(alloc.State))
 		if state.IdentityState(alloc.State).NewbieOrBetter() {
 			chain.appState.IdentityState.SetValidated(addr, true)
-			if chain.appState.State.IsDiscriminated(addr, chain.appState.State.Epoch()) {
+			if chain.appState.State.IsDiscriminated(addr, chain.appState.State.DiscriminationStakeThreshold(), chain.appState.State.Epoch()) {
 				chain.appState.IdentityState.SetDiscriminated(addr, true)
 			}
 		}
@@ -488,6 +488,7 @@ func (chain *Blockchain) applyBlockOnState(appState *appstate.AppState, block *t
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block, statsCollector)
+	chain.applyDiscriminationStatusSwitch(appState, block, statsCollector)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.applyBlockRewards(totalFee, totalTips, appState, block, blockRewardCtx, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
@@ -510,6 +511,7 @@ func (chain *Blockchain) applyEmptyBlockOnState(
 	chain.applyStatusSwitch(appState, block, statsCollector)
 	chain.applyDelayedOfflinePenalties(appState, block, statsCollector)
 	undelegations := chain.applyDelegationSwitch(appState, block, statsCollector)
+	chain.applyDiscriminationStatusSwitch(appState, block, statsCollector)
 	chain.applyNewEpoch(appState, block, statsCollector)
 	chain.switchPoolsToOffline(appState, undelegations, block)
 
@@ -715,7 +717,12 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 			epochDurations = append(epochDurations, uint32(epochBlocks[i+1]-epochBlocks[i]))
 		}
 		rewardValidIdentities(appState, chain.config.Consensus, validationResults, epochDurations, validationResult.NonValidatedStakes, statsCollector)
-		balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+
+		discriminationStakeThreshold := balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+		if !chain.config.Consensus.EnableUpgrade12 {
+			discriminationStakeThreshold = nil
+		}
+		applyDiscriminationStakeThreshold(appState, discriminationStakeThreshold)
 	}
 
 	clearDustAccounts(appState, networkSize, statsCollector)
@@ -855,8 +862,6 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 				})
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
-				discriminated := appState.State.IsDiscriminated(addr, epoch+1)
-				appState.IdentityState.SetDiscriminated(addr, discriminated)
 				if delegatee := identity.Delegatee(); identity.Delegatee() != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
@@ -865,8 +870,6 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 			case state.Newbie:
 				appState.State.SetRequiredFlips(addr, uint8(flips))
 				appState.IdentityState.SetValidated(addr, true)
-				discriminated := appState.State.IsDiscriminated(addr, epoch+1)
-				appState.IdentityState.SetDiscriminated(addr, discriminated)
 				if delegatee := identity.Delegatee(); delegatee != nil {
 					appState.IdentityState.SetDelegatee(addr, *delegatee)
 				}
@@ -925,7 +928,7 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 	return totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard
 }
 
-func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, totalSuspended int, newbiesByShard, verifiedByShard, suspendedByShard map[common.ShardId]int) {
+func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, totalSuspended int, newbiesByShard, verifiedByShard, suspendedByShard map[common.ShardId]int) (discriminationStakeThreshold *big.Int) {
 	prevShardsNum := appState.State.ShardsNum()
 	newShardsNum := common.CalculateShardsNumber(common.MinShardSize, common.MaxShardSize, totalNewbies+totalVerified+totalSuspended, int(prevShardsNum))
 
@@ -941,17 +944,36 @@ func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, tot
 	var newbiesForRelocation []common.Address
 	var suspendedForRelocation []common.Address
 
+	const maxTopStakes = 100
+	var topStakesCnt int
+	if networkSize := totalNewbies + totalVerified; networkSize > maxTopStakes {
+		topStakesCnt = maxTopStakes
+	} else {
+		topStakesCnt = networkSize
+	}
+	topValidatedStakes := make([]*big.Int, 0, topStakesCnt)
+
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		switch identity.State {
 		case state.Verified, state.Human:
 			if verifiedByShard[identity.ShiftedShardId()] > desiredVerifiedInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
 				verifiedForRelocation = append(verifiedForRelocation, addr)
 				verifiedByShard[identity.ShiftedShardId()]--
+				stake := identity.Stake
+				if stake == nil {
+					stake = common.Big0
+				}
+				topValidatedStakes = appendToTop(topValidatedStakes, stake, topStakesCnt)
 			}
 		case state.Newbie:
 			if newbiesByShard[identity.ShiftedShardId()] > desiredNewbiesInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
 				newbiesForRelocation = append(newbiesForRelocation, addr)
 				newbiesByShard[identity.ShiftedShardId()]--
+				stake := identity.Stake
+				if stake == nil {
+					stake = common.Big0
+				}
+				topValidatedStakes = appendToTop(topValidatedStakes, stake, topStakesCnt)
 			}
 		case state.Suspended, state.Zombie:
 			if suspendedByShard[identity.ShiftedShardId()] > desiredSuspendedInShard || identity.ShiftedShardId() >= common.ShardId(newShardsNum) {
@@ -960,6 +982,9 @@ func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, tot
 			}
 		}
 	})
+	if len(topValidatedStakes) > 0 {
+		discriminationStakeThreshold = calculateDiscriminationStakeThreshold(topValidatedStakes)
+	}
 
 	rnd := rand.New(rand.NewSource(int64(totalNewbies + totalVerified + totalSuspended)))
 	shuffledVerifiedIndexes := rnd.Perm(len(verifiedForRelocation))
@@ -1031,6 +1056,55 @@ func balanceShards(appState *appstate.AppState, totalNewbies, totalVerified, tot
 	appState.State.SetShardsNum(uint32(newShardsNum))
 
 	log.Info("Sharding info", "prev shards count", prevShardsNum, "new shards count", newShardsNum)
+	return
+}
+
+func appendToTop(data []*big.Int, elem *big.Int, limit int) []*big.Int {
+	index := sort.Search(len(data), func(i int) bool {
+		return data[i].Cmp(elem) < 0
+	})
+	if len(data) == limit {
+		if index >= len(data) {
+			return data
+		}
+		copy(data[index+1:], data[index:])
+		data[index] = elem
+		return data
+	}
+	data = append(data, common.Big0)
+	copy(data[index+1:], data[index:])
+	data[index] = elem
+	return data
+}
+
+func calculateDiscriminationStakeThreshold(sortedStakes []*big.Int) *big.Int {
+	if len(sortedStakes) == 0 {
+		return nil
+	}
+	var median *big.Int
+	if len(sortedStakes)%2 == 0 {
+		v1 := sortedStakes[len(sortedStakes)/2-1]
+		v2 := sortedStakes[len(sortedStakes)/2]
+		median = new(big.Int).Div(new(big.Int).Add(v1, v2), common.Big2)
+	} else {
+		median = new(big.Int).Set(sortedStakes[len(sortedStakes)/2])
+	}
+	res := median
+	res.Mul(res, big.NewInt(5))
+	res.Div(res, big.NewInt(1000))
+	return res
+}
+
+func applyDiscriminationStakeThreshold(appState *appstate.AppState, threshold *big.Int) {
+	epoch := appState.State.Epoch()
+	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
+		if !identity.State.NewbieOrBetter() {
+			return
+		}
+		appState.IdentityState.SetDiscriminated(addr, appState.State.IsDiscriminated(addr, threshold, epoch+1))
+	})
+	log.Info("Discrimination stake threshold", "amount", ConvertToFloat(threshold))
+	appState.State.SetDiscriminationStakeThreshold(threshold)
 }
 
 func clearDustAccounts(appState *appstate.AppState, networkSize int, statsCollector collector.StatsCollector) {
@@ -1624,9 +1698,14 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 	case types.ReplenishStakeTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
+		threshold := stateDB.DiscriminationStakeThreshold()
+		prevIsDiscriminated := !common.ZeroOrNil(threshold) && appState.State.IsDiscriminatedStake(*tx.To, threshold) && appState.ValidatorsCache.IsDiscriminated(*tx.To)
 		stateDB.SubBalance(sender, tx.AmountOrZero())
 		stateDB.AddStake(*tx.To, tx.AmountOrZero())
 		stateDB.AddReplenishedStake(*tx.To, tx.AmountOrZero())
+		if prevIsDiscriminated && !stateDB.IsDiscriminated(*tx.To, threshold, globalState.Epoch()) {
+			stateDB.AddDiscriminationStatusSwitch(*tx.To)
+		}
 	}
 
 	stateDB.SubBalance(sender, fee)
@@ -1788,7 +1867,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 					appState.State.SetPendingUndelegation(delegation.Delegator)
 				}
 			}
-			discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
+			discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.DiscriminationStakeThreshold(), appState.State.Epoch())
 			appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 		} else {
 			_, becamePool := newPools[delegation.Delegator]
@@ -1804,7 +1883,7 @@ func (chain *Blockchain) applyDelegationSwitch(appState *appstate.AppState, bloc
 					}
 				}
 				appState.State.RemovePendingUndelegation(delegation.Delegator)
-				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.Epoch())
+				discriminated := appState.State.IsDiscriminated(delegation.Delegator, appState.State.DiscriminationStakeThreshold(), appState.State.Epoch())
 				appState.IdentityState.SetDiscriminated(delegation.Delegator, discriminated)
 				appState.State.SetDelegatee(delegation.Delegator, delegation.Delegatee)
 				appState.State.SetDelegationEpoch(delegation.Delegator, appState.State.Epoch())
@@ -1839,6 +1918,17 @@ func (chain *Blockchain) switchPoolsToOffline(appState *appstate.AppState, undel
 	for pool, nodes := range lostPoolNodes {
 		switchOnePoolToOffline(appState, pool, nodes)
 	}
+}
+
+func (chain *Blockchain) applyDiscriminationStatusSwitch(appState *appstate.AppState, block *types.Block, statsCollector collector.StatsCollector) {
+	if !block.Header.Flags().HasFlag(types.IdentityUpdate) {
+		return
+	}
+	addrs := appState.State.DiscriminationStatusSwitchAddresses()
+	for _, addr := range addrs {
+		appState.IdentityState.SetDiscriminated(addr, appState.State.IsDiscriminated(addr, appState.State.DiscriminationStakeThreshold(), appState.State.Epoch()))
+	}
+	appState.State.ClearDiscriminationStatusSwitchAddresses()
 }
 
 func (chain *Blockchain) getTxCost(feePerGas *big.Int, tx *types.Transaction) *big.Int {
@@ -2021,11 +2111,9 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	}
 
 	if (flags.HasFlag(types.Snapshot) || block.Height()%chain.config.Consensus.StatusSwitchRange == 0) && (len(appState.State.StatusSwitchAddresses()) > 0 ||
-		len(appState.State.DelayedOfflinePenalties()) > 0) {
-		flags |= types.IdentityUpdate
-	}
-
-	if block.Height()%chain.config.Consensus.DelegationSwitchRange == 0 && len(appState.State.Delegations()) > 0 {
+		len(appState.State.DelayedOfflinePenalties()) > 0) ||
+		block.Height()%chain.config.Consensus.DelegationSwitchRange == 0 && len(appState.State.Delegations()) > 0 ||
+		block.Height()%chain.config.Consensus.DiscriminationSwitchRange == 0 && len(appState.State.DiscriminationStatusSwitchAddresses()) > 0 {
 		flags |= types.IdentityUpdate
 	}
 

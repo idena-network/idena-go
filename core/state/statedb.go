@@ -82,6 +82,9 @@ type StateDB struct {
 	stateBurntCoins      map[uint64]*stateBurntCoins
 	stateBurntCoinsDirty map[uint64]struct{}
 
+	discriminationStatusSwitch      *discriminationStatusSwitch
+	discriminationStatusSwitchDirty bool
+
 	identityUpdateHook IdentityUpdateHook
 
 	log  log.Logger
@@ -205,6 +208,8 @@ func (s *StateDB) Clear() {
 	s.stateDelayedOfflinePenaltiesDirty = false
 	s.stateBurntCoins = make(map[uint64]*stateBurntCoins)
 	s.stateBurntCoinsDirty = make(map[uint64]struct{})
+	s.discriminationStatusSwitch = nil
+	s.discriminationStatusSwitchDirty = false
 }
 
 func (s *StateDB) Version() int64 {
@@ -282,6 +287,16 @@ func (s *StateDB) SetLastSnapshot(height uint64) {
 func (s *StateDB) NextValidationTime() time.Time {
 	stateObject := s.GetOrNewGlobalObject()
 	return time.Unix(stateObject.data.NextValidationTime, 0)
+}
+
+func (s *StateDB) DiscriminationStakeThreshold() *big.Int {
+	stateObject := s.GetOrNewGlobalObject()
+	return stateObject.data.DiscriminationStakeThreshold
+}
+
+func (s *StateDB) SetDiscriminationStakeThreshold(value *big.Int) {
+	stateObject := s.GetOrNewGlobalObject()
+	stateObject.SetDiscriminationStakeThreshold(value)
 }
 
 /*
@@ -741,6 +756,16 @@ func (s *StateDB) updateStateBurntCoinsObject(stateObject *stateBurntCoins) *Sta
 	return &StateTreeDiff{Key: key, Value: data}
 }
 
+func (s *StateDB) updateDiscriminationStatusSwitchObject(stateObject *discriminationStatusSwitch) *StateTreeDiff {
+	data, err := stateObject.data.ToBytes()
+	if err != nil {
+		panic(fmt.Errorf("can't encode discrimination status switch object, %v", err))
+	}
+	key := StateDbKeys.DiscriminationStatusSwitchKey()
+	s.tree.Set(key, data)
+	return &StateTreeDiff{Key: key, Value: data}
+}
+
 // deleteStateAccountObject removes the given object from the state trie.
 func (s *StateDB) deleteStateAccountObject(stateObject *stateAccount) *StateTreeDiff {
 	stateObject.deleted = true
@@ -783,6 +808,13 @@ func (s *StateDB) deleteStateDelayedOfflinePenaltyObject(stateObject *stateDelay
 func (s *StateDB) deleteStateBurntCoinsObject(stateObject *stateBurntCoins) *StateTreeDiff {
 	stateObject.deleted = true
 	key := StateDbKeys.BurntCoinsKey(stateObject.height)
+	s.tree.Remove(key)
+	return &StateTreeDiff{Key: key, Deleted: true}
+}
+
+func (s *StateDB) deleteDiscriminationStatusSwitchObject(stateObject *discriminationStatusSwitch) *StateTreeDiff {
+	stateObject.deleted = true
+	key := StateDbKeys.DiscriminationStatusSwitchKey()
 	s.tree.Remove(key)
 	return &StateTreeDiff{Key: key, Deleted: true}
 }
@@ -969,6 +1001,31 @@ func (s *StateDB) getStateBurntCoins(height uint64) (stateObject *stateBurntCoin
 	return obj
 }
 
+func (s *StateDB) getDiscriminationStatusSwitch() *discriminationStatusSwitch {
+	// Prefer 'live' objects.
+	if obj := s.discriminationStatusSwitch; obj != nil {
+		if obj.deleted {
+			return nil
+		}
+		return obj
+	}
+
+	// Load the object from the database.
+	_, enc := s.tree.Get(StateDbKeys.DiscriminationStatusSwitchKey())
+	if len(enc) == 0 {
+		return nil
+	}
+	var data IdentityStatusSwitch
+	if err := data.FromBytes(enc); err != nil {
+		s.log.Error("Failed to decode discrimination status switch object", "err", err)
+		return nil
+	}
+	// Insert into the live set.
+	obj := newDiscriminationStatusSwitchObject(data, s.MarkDiscriminationStatusSwitchObjectDirty)
+	s.setDiscriminationStatusSwitchObject(obj)
+	return obj
+}
+
 func (s *StateDB) setStateAccountObject(object *stateAccount) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -1016,6 +1073,13 @@ func (s *StateDB) setStateBurntCoinsObject(object *stateBurntCoins) {
 	defer s.lock.Unlock()
 
 	s.stateBurntCoins[object.height] = object
+}
+
+func (s *StateDB) setDiscriminationStatusSwitchObject(object *discriminationStatusSwitch) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.discriminationStatusSwitch = object
 }
 
 // Retrieve a state object or create a new state object if nil
@@ -1077,6 +1141,14 @@ func (s *StateDB) getOrNewBurntCoinsObject(height uint64) *stateBurntCoins {
 	return stateObject
 }
 
+func (s *StateDB) getOrNewDiscriminationStatusSwitchObject() *discriminationStatusSwitch {
+	stateObject := s.getDiscriminationStatusSwitch()
+	if stateObject == nil || stateObject.deleted {
+		stateObject = s.createDiscriminationStatusSwitch()
+	}
+	return stateObject
+}
+
 // MarkStateAccountObjectDirty adds the specified object to the dirty map to avoid costly
 // state object cache iteration to find a handful of modified ones.
 func (s *StateDB) MarkStateAccountObjectDirty(addr common.Address) {
@@ -1132,6 +1204,13 @@ func (s *StateDB) MarkStateBurntCoinsObjectDirty(height uint64) {
 	s.stateBurntCoinsDirty[height] = struct{}{}
 }
 
+func (s *StateDB) MarkDiscriminationStatusSwitchObjectDirty() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.discriminationStatusSwitchDirty = true
+}
+
 func (s *StateDB) createAccount(addr common.Address) (newobj, prev *stateAccount) {
 	prev = s.getStateAccount(addr)
 	newobj = newAccountObject(addr, Account{}, s.MarkStateAccountObjectDirty)
@@ -1183,6 +1262,13 @@ func (s *StateDB) createBurntCoins(height uint64) *stateBurntCoins {
 	stateObject := newBurntCoinsObject(height, BurntCoins{}, s.MarkStateBurntCoinsObjectDirty)
 	stateObject.touch()
 	s.setStateBurntCoinsObject(stateObject)
+	return stateObject
+}
+
+func (s *StateDB) createDiscriminationStatusSwitch() *discriminationStatusSwitch {
+	stateObject := newDiscriminationStatusSwitchObject(IdentityStatusSwitch{}, s.MarkDiscriminationStatusSwitchObjectDirty)
+	stateObject.touch()
+	s.setDiscriminationStatusSwitchObject(stateObject)
 	return stateObject
 }
 
@@ -1335,6 +1421,14 @@ func (s *StateDB) Precommit(deleteEmptyObjects bool) []*StateTreeDiff {
 			diffs = append(diffs, s.updateStateDelayedOfflinePenaltyObject(s.stateDelayedOfflinePenalties))
 		}
 		s.stateDelayedOfflinePenaltiesDirty = false
+	}
+	if s.discriminationStatusSwitchDirty {
+		if s.discriminationStatusSwitch.empty() {
+			diffs = append(diffs, s.deleteDiscriminationStatusSwitchObject(s.discriminationStatusSwitch))
+		} else {
+			diffs = append(diffs, s.updateDiscriminationStatusSwitchObject(s.discriminationStatusSwitch))
+		}
+		s.discriminationStatusSwitchDirty = false
 	}
 	return diffs
 }
@@ -1677,6 +1771,24 @@ func (s *StateDB) ClearDelegations() {
 	statusSwitch.Clear()
 }
 
+func (s *StateDB) AddDiscriminationStatusSwitch(address common.Address) {
+	stateObject := s.getOrNewDiscriminationStatusSwitchObject()
+	stateObject.add(address)
+}
+
+func (s *StateDB) DiscriminationStatusSwitchAddresses() []common.Address {
+	stateObject := s.getDiscriminationStatusSwitch()
+	if stateObject != nil {
+		return stateObject.Addresses()
+	}
+	return nil
+}
+
+func (s *StateDB) ClearDiscriminationStatusSwitchAddresses() {
+	stateObject := s.getOrNewDiscriminationStatusSwitchObject()
+	stateObject.Clear()
+}
+
 func (s *StateDB) SetContractValue(addr common.Address, key []byte, value []byte) {
 	s.contractStoreCache[string(StateDbKeys.ContractStoreKey(addr, key))] = &contractStoreValue{
 		value:   value,
@@ -1849,10 +1961,18 @@ func (s *StateDB) RemovePendingUndelegation(addr common.Address) {
 	s.GetOrNewIdentityObject(addr).RemovePendingUndelegation()
 }
 
-func (s *StateDB) IsDiscriminated(addr common.Address, epoch uint16) bool {
+func (s *StateDB) IsDiscriminated(addr common.Address, discriminationStakeThreshold *big.Int, epoch uint16) bool {
 	stateObject := s.getStateIdentity(addr)
 	if stateObject != nil {
-		return stateObject.IsDiscriminated(epoch)
+		return stateObject.IsDiscriminated(discriminationStakeThreshold, epoch)
+	}
+	return false
+}
+
+func (s *StateDB) IsDiscriminatedStake(addr common.Address, threshold *big.Int) bool {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.IsDiscriminatedStake(threshold)
 	}
 	return false
 }
