@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/vm/costs"
 	"github.com/idena-network/idena-wasm-binding/lib"
@@ -15,12 +16,13 @@ type WasmVM struct {
 	appState            *appstate.AppState
 	blockHeaderProvider BlockHeaderProvider
 	head                *types.Header
-	isDebug             bool
+	cfg                 *config.Config
+	commitToState       bool
 }
 
 func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUsed uint64, actionResult []byte, err error) {
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, "deploy", vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, "deploy", vm.cfg.IsDebug, vm.commitToState, vm.cfg.Consensus.EnableUpgrade12)
 	attach := attachments.ParseDeployContractAttachment(tx)
 	actionResult = []byte{}
 	if attach == nil {
@@ -37,7 +39,7 @@ func (vm *WasmVM) deploy(tx *types.Transaction, limit uint64) (env *WasmEnv, gas
 		}
 	}()
 	env.Deploy(attach.Code)
-	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, ctx.ContractAddr(), limit, vm.isDebug)
+	gasUsed, actionResult, err = lib.Deploy(lib.NewGoAPI(env, &lib.GasMeter{}), attach.Code, attach.Args, ctx.ContractAddr(), limit, vm.cfg.IsDebug)
 	return env, gasUsed, actionResult, err
 }
 
@@ -48,7 +50,7 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 		method = attachment.Method
 	}
 	ctx := NewContractContext(tx)
-	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, method, vm.isDebug)
+	env = NewWasmEnv(vm.appState, vm.blockHeaderProvider, ctx, vm.head, method, vm.cfg.IsDebug, vm.commitToState, vm.cfg.Consensus.EnableUpgrade12)
 	contract := *tx.To
 	code := vm.appState.State.GetContractCode(contract)
 	actionResult = []byte{}
@@ -65,11 +67,11 @@ func (vm *WasmVM) call(tx *types.Transaction, limit uint64) (env *WasmEnv, gasUs
 			gasUsed = limit
 		}
 	}()
-	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, contract, limit, vm.isDebug)
+	gasUsed, actionResult, err = lib.Execute(lib.NewGoAPI(env, &lib.GasMeter{}), code, attachment.Method, attachment.Args, contract, limit, vm.cfg.IsDebug)
 	return env, gasUsed, actionResult, attachment.Method, err
 }
 
-func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64, commitToState bool) *types.TxReceipt {
+func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxReceipt {
 	var usedGas uint64
 	var err error
 	var env *WasmEnv
@@ -86,7 +88,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64, commitToState 
 		env, usedGas, actionResult, method, err = vm.call(tx, wasmGasLimit)
 	}
 	var events []*types.TxEvent
-	if err == nil && commitToState {
+	if err == nil && vm.commitToState {
 		events = env.InternalCommit()
 	}
 
@@ -109,6 +111,6 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64, commitToState 
 	}
 }
 
-func NewWasmVM(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, head *types.Header, isDebug bool) *WasmVM {
-	return &WasmVM{appState: appState, blockHeaderProvider: blockHeaderProvider, head: head, isDebug: isDebug}
+func NewWasmVM(appState *appstate.AppState, blockHeaderProvider BlockHeaderProvider, head *types.Header, cfg *config.Config, commitToState bool) *WasmVM {
+	return &WasmVM{appState: appState, blockHeaderProvider: blockHeaderProvider, head: head, cfg: cfg, commitToState: commitToState}
 }

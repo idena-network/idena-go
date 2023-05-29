@@ -179,8 +179,8 @@ func (vm *VmImpl) Run(tx *types.Transaction, from *common.Address, gasLimit int6
 	}
 
 	if vm.IsWasm(tx) {
-		wasmVm := wasm.NewWasmVM(vm.appState, vm.blockHeaderProvider, vm.head, vm.cfg.IsDebug)
-		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)), commitToState)
+		wasmVm := wasm.NewWasmVM(vm.appState, vm.blockHeaderProvider, vm.head, vm.cfg, commitToState)
+		return wasmVm.Run(tx, costs.GasToWasmGas(uint64(gasLimit)))
 	}
 
 	vm.gasCounter.Reset(int(gasLimit))
