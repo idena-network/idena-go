@@ -57,6 +57,7 @@ type ConsensusConf struct {
 	EnableUpgrade10                   bool
 	BurnTxRange                       uint64
 	KeyWordsV3Epoch                   uint16
+	UnlockStakeAge                    uint8
 	EnableUpgrade11                   bool
 	EnableUpgrade12                   bool
 }
@@ -121,6 +122,7 @@ func init() {
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
 		OfflinePenaltyDuration:            time.Hour * 8,
 		BurnTxRange:                       4320,
+		UnlockStakeAge:                    10,
 	}
 	ConsensusVersions[ConsensusV9] = &v9
 
@@ -156,8 +158,8 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 	case ConsensusV12:
 		cfg.Version = ConsensusV12
 		cfg.EnableUpgrade12 = true
-		cfg.StartActivationDate = time.Date(2023, time.July, 1, 8, 0, 0, 0, time.UTC).Unix()
-		cfg.EndActivationDate = time.Date(2023, time.July, 7, 0, 0, 0, 0, time.UTC).Unix()
+		cfg.StartActivationDate = time.Date(2023, time.July, 10, 8, 0, 0, 0, time.UTC).Unix()
+		cfg.EndActivationDate = time.Date(2023, time.July, 20, 0, 0, 0, 0, time.UTC).Unix()
 	}
 }
 

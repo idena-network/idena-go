@@ -705,7 +705,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	validationResult := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	networkSize, validationResults, pools, failed := validationResult.IdentitiesCount, validationResult.ShardResults, validationResult.Pools, validationResult.Failed
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent
-	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(appState, chain.config.Consensus.UnlockStakeAge, totalInvitesCount, networkSize, pools, failed, validationResults, statsCollector)
 	epochBlock := appState.State.EpochBlock()
 	if !failed {
 		var epochDurations []uint32
@@ -821,7 +821,7 @@ func setInvites(appState *appstate.AppState, identitiesWithInvites []identityWit
 	collector.SetMinScoreForInvite(statsCollector, lastScore)
 }
 
-func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
+func setNewIdentitiesAttributes(appState *appstate.AppState, unlockStakeAge uint8, totalInvitesCount float32, networkSize int, pools map[common.Address]struct{}, validationFailed bool, validationResults map[common.ShardId]*types.ValidationResults, statsCollector collector.StatsCollector) (int, int, int, map[common.ShardId]int, map[common.ShardId]int, map[common.ShardId]int) {
 	_, flips := common.NetworkParams(networkSize)
 	identityFlags := calculateNewIdentityStatusFlags(validationResults)
 
@@ -849,6 +849,9 @@ func setNewIdentitiesAttributes(appState *appstate.AppState, totalInvitesCount f
 		}
 		if undelegationEpoch := identity.UndelegationEpoch(); undelegationEpoch > 0 && epoch-undelegationEpoch >= 2 {
 			appState.State.SetUndelegationEpoch(addr, 0)
+		}
+		if !common.ZeroOrNil(identity.LockedStake()) && epoch+1-identity.Birthday >= uint16(unlockStakeAge) {
+			appState.State.SubLockedStake(addr, identity.LockedStake())
 		}
 		if !validationFailed {
 			switch identity.State {
@@ -1569,9 +1572,16 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 
 		appState.IdentityState.Remove(sender)
 		stake := stateDB.GetStakeBalance(sender)
+		stakeToBurn := stateDB.GetLockedStake(sender)
+		stakeToBalance := new(big.Int).Set(stake)
+		if stakeToBurn.Sign() > 0 {
+			stakeToBalance.Sub(stakeToBalance, stakeToBurn)
+			collector.AddKilledBurntCoins(statsCollector, sender, stakeToBurn)
+		}
 		stateDB.SubStake(sender, stake)
+		stateDB.SubLockedStake(sender, stakeToBurn)
 		stateDB.SubReplenishedStake(sender, stateDB.GetReplenishedStakeBalance(sender))
-		stateDB.AddBalance(sender, stake)
+		stateDB.AddBalance(sender, stakeToBalance)
 		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
 	case types.KillInviteeTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
@@ -1587,7 +1597,13 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 			keepDelegationNonce: true,
 		})
 		appState.IdentityState.Remove(*tx.To)
-		collector.AddKilledBurntCoins(statsCollector, *tx.To, stateDB.GetStakeBalance(*tx.To))
+		stake := stateDB.GetStakeBalance(*tx.To)
+		if chain.config.Consensus.EnableUpgrade12 {
+			stateDB.SubStake(*tx.To, stake)
+			stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
+			stateDB.SubLockedStake(*tx.To, stateDB.GetLockedStake(*tx.To))
+		}
+		collector.AddKilledBurntCoins(statsCollector, *tx.To, stake)
 		if sender != stateDB.GodAddress() && stateDB.GetIdentityState(sender).VerifiedOrBetter() {
 			stateDB.AddInvite(sender, 1)
 		}
@@ -1608,10 +1624,17 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SetMetadata(*tx.To, identityUpdateHookCtx)
 		appState.IdentityState.Remove(*tx.To)
 		stake := stateDB.GetStakeBalance(*tx.To)
+		lockedStake := stateDB.GetLockedStake(*tx.To)
 		stateDB.SubStake(*tx.To, stake)
 		stateDB.SubReplenishedStake(*tx.To, stateDB.GetReplenishedStakeBalance(*tx.To))
+		stateDB.SubLockedStake(*tx.To, lockedStake)
 		if delegatorPrevState.VerifiedOrBetter() || chain.config.Consensus.EnableUpgrade11 && (delegatorPrevState == state.Suspended || delegatorPrevState == state.Zombie) {
-			stateDB.AddBalance(sender, stake)
+			stakeToBalance := new(big.Int).Set(stake)
+			if lockedStake.Sign() > 0 {
+				stakeToBalance.Sub(stakeToBalance, lockedStake)
+				collector.AddKilledBurntCoins(statsCollector, *tx.To, lockedStake)
+			}
+			stateDB.AddBalance(sender, stakeToBalance)
 		} else {
 			collector.AddKilledBurntCoins(statsCollector, *tx.To, stake)
 		}

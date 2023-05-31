@@ -979,6 +979,7 @@ func Test_applyOnState_saveStake(t *testing.T) {
 
 	addr := common.Address{0x1}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Newbie,
@@ -988,9 +989,11 @@ func Test_applyOnState_saveStake(t *testing.T) {
 		})
 	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
 	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x1, 0x1}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1000,9 +1003,11 @@ func Test_applyOnState_saveStake(t *testing.T) {
 		})
 	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
 	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x2}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Verified,
@@ -1012,9 +1017,11 @@ func Test_applyOnState_saveStake(t *testing.T) {
 		})
 	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
 	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x2, 0x2}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1024,9 +1031,11 @@ func Test_applyOnState_saveStake(t *testing.T) {
 		})
 	require.Equal(t, big.NewInt(0), appState.State.GetBalance(addr))
 	require.Equal(t, big.NewInt(100), appState.State.GetStakeBalance(addr))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x3}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Human,
@@ -1034,11 +1043,13 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			state:        state.Killed,
 			participated: true,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(60)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(40)))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x3, 0x3}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1046,11 +1057,13 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			birthday:     2,
 			state:        state.Killed,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(60)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(40)))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1058,11 +1071,13 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			state:        state.Killed,
 			participated: true,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(60)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(40)))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x4, 0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Zombie,
@@ -1070,11 +1085,13 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			state:        state.Killed,
 			participated: true,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(60)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(40)))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x4, 0x4, 0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1082,11 +1099,13 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			birthday:     2,
 			state:        state.Killed,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(60)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(40)))
+	require.Equal(t, big.NewInt(40), appState.State.GetLockedStake(addr))
 
 	addr = common.Address{0x5}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(334))
+	appState.State.AddLockedStake(addr, big.NewInt(100))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1095,10 +1114,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(102)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(100)))
 
 	addr = common.Address{0x5, 0x5}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Zombie,
@@ -1107,10 +1128,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(42)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x5, 0x5, 0x5}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1119,10 +1142,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			state:        state.Killed,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(42)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x6}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1131,10 +1156,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(230)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(4)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(44)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x7}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1143,10 +1170,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(227)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(7)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(47)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x8}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1155,10 +1184,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(225)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(9)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(49)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x9}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1167,10 +1198,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(223)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(11)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(51)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x9, 0x9}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Zombie,
@@ -1179,10 +1212,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: false,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(223)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(11)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(51)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0x9, 0x9, 0x9}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			participated: false,
@@ -1191,10 +1226,12 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			state:        state.Killed,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(274)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 
 	addr = common.Address{0xa}
-	appState.State.AddStake(addr, big.NewInt(234))
+	appState.State.AddStake(addr, big.NewInt(274))
+	appState.State.AddLockedStake(addr, big.NewInt(40))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
 			prevState:    state.Suspended,
@@ -1203,7 +1240,8 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			participated: true,
 		})
 	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(274)))
+	require.Zero(t, appState.State.GetLockedStake(addr).Cmp(big.NewInt(40)))
 }
 
 func Test_calculateNewTotalScore(t *testing.T) {
