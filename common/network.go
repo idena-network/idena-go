@@ -92,8 +92,13 @@ func NormalizedEpochDuration(validationTime time.Time, networkSize int, enableUp
 		default:
 			normalizedDays = 28
 		}
+
 		if validationTime.Weekday() != time.Saturday {
-			normalizedDays -= 1
+			if validationTime.Weekday() >= time.Wednesday {
+				normalizedDays += 1
+			} else {
+				normalizedDays -= 1
+			}
 		}
 		return day * time.Duration(normalizedDays)
 	}

@@ -11,7 +11,7 @@ func TestGetNextValidationTime(t *testing.T) {
 	validationTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	nextValidationTime := conf.GetNextValidationTime(validationTime, 449, true)
-	require.Equal(t, time.Date(2020, 1, 14, 0, 0, 0, 0, time.UTC),
+	require.Equal(t, time.Date(2020, 1, 16, 0, 0, 0, 0, time.UTC),
 		nextValidationTime)
 
 	conf.ValidationInterval = 2*time.Hour + time.Minute*3
