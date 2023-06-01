@@ -76,9 +76,27 @@ func NetworkParams(networkSize int) (epochDuration int, flips int) {
 	return
 }
 
-func NormalizedEpochDuration(validationTime time.Time, networkSize int) time.Duration {
+func NormalizedEpochDuration(validationTime time.Time, networkSize int, enableUpgrade12 bool) time.Duration {
 	const day = 24 * time.Hour
 	baseEpochDays, _ := NetworkParams(networkSize)
+	if enableUpgrade12 {
+		if baseEpochDays < 7 {
+			return day * time.Duration(baseEpochDays)
+		}
+		var normalizedDays int
+		switch {
+		case baseEpochDays < 18:
+			normalizedDays = 14
+		case baseEpochDays < 25:
+			normalizedDays = 21
+		default:
+			normalizedDays = 28
+		}
+		if validationTime.Weekday() != time.Saturday {
+			normalizedDays -= 1
+		}
+		return day * time.Duration(normalizedDays)
+	}
 	if baseEpochDays < 21 {
 		return day * time.Duration(baseEpochDays)
 	}
