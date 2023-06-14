@@ -1046,8 +1046,8 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			birthday:     2,
 			state:        state.Killed,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
 
 	addr = common.Address{0x4}
 	appState.State.AddStake(addr, big.NewInt(100))
@@ -1082,8 +1082,8 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			birthday:     2,
 			state:        state.Killed,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(100)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(0)))
 
 	addr = common.Address{0x5}
 	appState.State.AddStake(addr, big.NewInt(234))
@@ -1118,8 +1118,8 @@ func Test_applyOnState_saveStake(t *testing.T) {
 			birthday:     6,
 			state:        state.Killed,
 		})
-	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(0)))
-	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(234)))
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(232)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(2)))
 
 	addr = common.Address{0x6}
 	appState.State.AddStake(addr, big.NewInt(234))
@@ -1170,6 +1170,18 @@ func Test_applyOnState_saveStake(t *testing.T) {
 	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(11)))
 
 	addr = common.Address{0x9, 0x9}
+	appState.State.AddStake(addr, big.NewInt(234))
+	applyOnState(blockchain.GetDefaultConsensusConfig(),
+		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
+			prevState:    state.Zombie,
+			birthday:     10,
+			state:        state.Killed,
+			participated: false,
+		})
+	require.Zero(t, appState.State.GetBalance(addr).Cmp(big.NewInt(223)))
+	require.Zero(t, appState.State.GetStakeBalance(addr).Cmp(big.NewInt(11)))
+
+	addr = common.Address{0x9, 0x9, 0x9}
 	appState.State.AddStake(addr, big.NewInt(234))
 	applyOnState(blockchain.GetDefaultConsensusConfig(),
 		appState, 15, collector.NewStatsCollector(), addr, cacheValue{
