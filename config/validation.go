@@ -22,11 +22,11 @@ type ValidationConfig struct {
 	LongSessionDuration time.Duration
 }
 
-func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, networkSize int) time.Time {
+func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, networkSize int, enableUpgrade12 bool) time.Time {
 	if cfg.ValidationInterval > 0 {
 		return validationTime.Add(cfg.ValidationInterval)
 	}
-	return validationTime.Add(common.NormalizedEpochDuration(validationTime, networkSize))
+	return validationTime.Add(common.NormalizedEpochDuration(validationTime, networkSize, enableUpgrade12))
 }
 
 func (cfg *ValidationConfig) GetFlipLotteryDuration() time.Duration {
