@@ -723,7 +723,7 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	appState.State.IncEpoch()
 
 	validationTime := appState.State.NextValidationTime()
-	nextValidationTime := chain.config.Validation.GetNextValidationTime(validationTime, networkSize)
+	nextValidationTime := chain.config.Validation.GetNextValidationTime(validationTime, networkSize, chain.config.Consensus.EnableUpgrade12)
 	appState.State.SetNextValidationTime(nextValidationTime)
 
 	appState.State.SetFlipWordsSeed(block.Seed())
