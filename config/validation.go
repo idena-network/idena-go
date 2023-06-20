@@ -26,7 +26,14 @@ func (cfg *ValidationConfig) GetNextValidationTime(validationTime time.Time, net
 	if cfg.ValidationInterval > 0 {
 		return validationTime.Add(cfg.ValidationInterval)
 	}
-	return validationTime.Add(common.NormalizedEpochDuration(validationTime, networkSize, enableUpgrade12))
+	result := validationTime.Add(common.NormalizedEpochDuration(validationTime, networkSize, enableUpgrade12))
+
+	// Temporary code to change the time of validation ceremony from 13:30 UTC to 15:00 UTC after ConsensusV12 applied. It will be removed later.
+	if enableUpgrade12 && result.UTC().Hour() == 13 && result.UTC().Minute() == 30 {
+		result = result.Add(time.Minute * 90)
+	}
+
+	return result
 }
 
 func (cfg *ValidationConfig) GetFlipLotteryDuration() time.Duration {
