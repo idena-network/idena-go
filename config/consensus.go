@@ -49,6 +49,7 @@ type ConsensusConf struct {
 	MaxCommitteeSize                  int
 	StatusSwitchRange                 uint64
 	DelegationSwitchRange             uint64
+	DiscriminationSwitchRange         uint64
 	InvitesPercent                    float32
 	MinProposerThreshold              float64
 	UpgradeIntervalBeforeValidation   time.Duration
@@ -114,6 +115,7 @@ func init() {
 		MaxCommitteeSize:                  100,
 		StatusSwitchRange:                 50,
 		DelegationSwitchRange:             50,
+		DiscriminationSwitchRange:         50,
 		InvitesPercent:                    0.5,
 		MinProposerThreshold:              0.5,
 		UpgradeIntervalBeforeValidation:   time.Hour * 48,
@@ -151,7 +153,6 @@ func ApplyConsensusVersion(ver ConsensusVerson, cfg *ConsensusConf) {
 		cfg.KeyWordsV3Epoch = 104
 		cfg.StartActivationDate = time.Date(2023, time.March, 1, 8, 0, 0, 0, time.UTC).Unix()
 		cfg.EndActivationDate = time.Date(2023, time.March, 7, 0, 0, 0, 0, time.UTC).Unix()
-
 	case ConsensusV12:
 		cfg.Version = ConsensusV12
 		cfg.EnableUpgrade12 = true

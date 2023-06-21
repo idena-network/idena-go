@@ -316,6 +316,7 @@ type Identity struct {
 	Inviter             *Inviter        `json:"inviter"`
 	ShardId             uint32          `json:"shardId"`
 	PenaltySeconds      uint16          `json:"penaltySeconds"`
+	DiscriminationFlags []string        `json:"discriminationFlags"`
 }
 
 type Flip struct {
@@ -478,6 +479,18 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		}
 	}
 
+	discriminationFlags := data.DiscriminationFlags(appState.State.DiscriminationStakeThreshold(), appState.State.Epoch())
+	var convertedDiscriminationFlags []string
+	if discriminationFlags.HasFlag(state.DiscriminatedNewbie) {
+		convertedDiscriminationFlags = append(convertedDiscriminationFlags, "Newbie")
+	}
+	if discriminationFlags.HasFlag(state.DiscriminatedDelegation) {
+		convertedDiscriminationFlags = append(convertedDiscriminationFlags, "Delegation")
+	}
+	if discriminationFlags.HasFlag(state.DiscriminatedStake) {
+		convertedDiscriminationFlags = append(convertedDiscriminationFlags, "Stake")
+	}
+
 	return Identity{
 		Address:             address,
 		State:               s,
@@ -509,6 +522,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		Inviter:             inviter,
 		ShardId:             uint32(data.ShiftedShardId()),
 		PenaltySeconds:      penaltySeconds,
+		DiscriminationFlags: convertedDiscriminationFlags,
 	}
 }
 
@@ -826,12 +840,15 @@ func (api *DnaApi) WordsSeed() hexutil.Bytes {
 }
 
 type GlobalState struct {
-	NetworkSize int `json:"networkSize"`
+	NetworkSize                  int             `json:"networkSize"`
+	DiscriminationStakeThreshold decimal.Decimal `json:"discriminationStakeThreshold"`
 }
 
 func (api *DnaApi) GlobalState() GlobalState {
+	appState := api.baseApi.getReadonlyAppState()
 	return GlobalState{
-		NetworkSize: api.baseApi.getReadonlyAppState().ValidatorsCache.NetworkSize(),
+		NetworkSize:                  appState.ValidatorsCache.NetworkSize(),
+		DiscriminationStakeThreshold: blockchain.ConvertToFloat(appState.State.DiscriminationStakeThreshold()),
 	}
 }
 

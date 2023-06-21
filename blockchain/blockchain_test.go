@@ -800,30 +800,79 @@ func Test_ApplyReplenishStakeTx(t *testing.T) {
 	}
 	chain, _, _, _ := NewTestBlockchain(true, alloc)
 	defer chain.SecStore().Destroy()
-	tx := &types.Transaction{
-		Type:         types.ReplenishStakeTx,
-		To:           &recipient,
-		AccountNonce: 1,
-		Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
-		Tips:         new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
-	}
-	signedTx, _ := types.SignTx(tx, senderKey)
+
 	appState := chain.appState
 	appState.State.SetFeePerGas(new(big.Int).Div(common.DnaBase, big.NewInt(1000)))
-	fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
-	expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
-	expectedBalance.Sub(expectedBalance, fee)
-	context := &txExecutionContext{
-		appState: chain.appState,
+	appState.State.SetDiscriminationStakeThreshold(new(big.Int).Mul(common.DnaBase, big.NewInt(11)))
+	appState.State.SetState(recipient, state.Human)
+	appState.IdentityState.SetValidated(recipient, true)
+	appState.IdentityState.SetDiscriminated(recipient, true)
+	appState.IdentityState.Commit(true)
+	appState.ValidatorsCache.Load()
+
+	{
+		tx := &types.Transaction{
+			Type:         types.ReplenishStakeTx,
+			To:           &recipient,
+			AccountNonce: 1,
+			Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
+			Tips:         new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
+		}
+		signedTx, _ := types.SignTx(tx, senderKey)
+		fee := fee2.CalculateFee(appState.ValidatorsCache.NetworkSize(), appState.State.FeePerGas(), tx)
+		expectedBalance := new(big.Int).Mul(big.NewInt(89), common.DnaBase)
+		expectedBalance.Sub(expectedBalance, fee)
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
+
+		_, _, _, err := chain.applyTxOnState(signedTx, context)
+
+		require.NoError(t, err)
+		require.Equal(t, 1, fee.Sign())
+		require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
+		require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetStakeBalance(recipient))
+		require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetReplenishedStakeBalance(recipient))
+		require.Empty(t, appState.State.DiscriminationStatusSwitchAddresses())
 	}
 
-	_, _, _, err := chain.applyTxOnState(signedTx, context)
+	{
+		tx := &types.Transaction{
+			Type:         types.ReplenishStakeTx,
+			To:           &recipient,
+			AccountNonce: 2,
+			Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(1)),
+		}
+		signedTx, _ := types.SignTx(tx, senderKey)
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
 
-	require.NoError(t, err)
-	require.Equal(t, 1, fee.Sign())
-	require.Equal(t, expectedBalance, appState.State.GetBalance(sender))
-	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetStakeBalance(recipient))
-	require.Equal(t, new(big.Int).Mul(common.DnaBase, big.NewInt(10)), appState.State.GetReplenishedStakeBalance(recipient))
+		_, _, _, err := chain.applyTxOnState(signedTx, context)
+
+		require.NoError(t, err)
+		require.Len(t, appState.State.DiscriminationStatusSwitchAddresses(), 1)
+		require.Equal(t, recipient, appState.State.DiscriminationStatusSwitchAddresses()[0])
+	}
+
+	{
+		tx := &types.Transaction{
+			Type:         types.ReplenishStakeTx,
+			To:           &recipient,
+			AccountNonce: 3,
+			Amount:       new(big.Int).Mul(common.DnaBase, big.NewInt(10)),
+		}
+		signedTx, _ := types.SignTx(tx, senderKey)
+		context := &txExecutionContext{
+			appState: chain.appState,
+		}
+
+		_, _, _, err := chain.applyTxOnState(signedTx, context)
+
+		require.NoError(t, err)
+		require.Len(t, appState.State.DiscriminationStatusSwitchAddresses(), 1)
+		require.Equal(t, recipient, appState.State.DiscriminationStatusSwitchAddresses()[0])
+	}
 }
 
 func Test_Blockchain_OnlineStatusSwitch(t *testing.T) {
@@ -1056,32 +1105,34 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 
 	identities := []state.Identity{
 		// 98%
-		{Code: []byte{0x1}, State: state.Human, Scores: []byte{common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(5.5, 6)}},
+		{Code: []byte{0x1}, State: state.Human, Stake: big.NewInt(1500), Scores: []byte{common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6), common.EncodeScore(5.5, 6)}},
 		// 83%
-		{Code: []byte{0x2}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6)}},
+		{Code: []byte{0x2}, State: state.Verified, Stake: big.NewInt(1900), Scores: []byte{common.EncodeScore(5, 6)}},
 		// 85%
-		{Code: []byte{0x3}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4, 5)}},
+		{Code: []byte{0x3}, State: state.Verified, Stake: big.NewInt(1400), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4, 5)}},
 		// 89%
-		{Code: []byte{0x4}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5, 6), common.EncodeScore(6, 6)}},
+		{Code: []byte{0x4}, State: state.Verified, Stake: big.NewInt(2200), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(5, 6), common.EncodeScore(6, 6)}},
 		// 92%
-		{Code: []byte{0x5}, State: state.Human, Scores: []byte{common.EncodeScore(5, 5), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4.5, 5)}},
+		{Code: []byte{0x5}, State: state.Human, Stake: big.NewInt(1800), Scores: []byte{common.EncodeScore(5, 5), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(5.5, 6), common.EncodeScore(4.5, 5)}},
 		// 81%
-		{Code: []byte{0x6}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		{Code: []byte{0x6}, State: state.Verified, Stake: big.NewInt(2400), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
 		// 94%
-		{Code: []byte{0x7}, State: state.Human, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
+		{Code: []byte{0x7}, State: state.Human, Stake: big.NewInt(1600), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
 		// 94%
-		{Code: []byte{0x8}, State: state.Human, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
+		{Code: []byte{0x8}, State: state.Human, Stake: big.NewInt(2000), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
 		// 83%
-		{Code: []byte{0x9}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6)}},
+		{Code: []byte{0x9}, State: state.Verified, Stake: big.NewInt(2300), Scores: []byte{common.EncodeScore(5, 6)}},
 		// 82%
-		{Code: []byte{0xa}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5)}},
+		{Code: []byte{0xa}, State: state.Verified, Stake: big.NewInt(1200), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5)}},
 		// 81%
-		{Code: []byte{0xb}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		{Code: []byte{0xb}, State: state.Verified, Stake: big.NewInt(1700), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
 		// 81%
-		{Code: []byte{0xc}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
+		{Code: []byte{0xc}, State: state.Verified, Stake: big.NewInt(2100), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
 		// 94%
-		{Code: []byte{0xd}, State: state.Verified, Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
-		{Code: []byte{0xe}, State: state.Newbie, Scores: []byte{common.EncodeScore(5, 6)}},
+		{Code: []byte{0xd}, State: state.Verified, Stake: big.NewInt(1300), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(6, 6), common.EncodeScore(6, 6)}},
+		{Code: []byte{0xe}, State: state.Newbie, Stake: big.NewInt(1100), Scores: []byte{common.EncodeScore(5, 6)}},
+		// Discriminated stake
+		{Code: []byte{0xf}, State: state.Verified, Stake: big.NewInt(7), Scores: []byte{common.EncodeScore(5, 6), common.EncodeScore(4.5, 6), common.EncodeScore(4.5, 5), common.EncodeScore(4.5, 6), common.EncodeScore(5, 6)}},
 	}
 
 	for _, item := range identities {
@@ -1090,6 +1141,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		s.State.SetState(addr, item.State)
 		s.State.SetPenaltySeconds(addr, 99)
 		s.State.SetPenaltyTimestamp(addr, 999)
+		s.State.AddStake(addr, item.Stake)
 		for _, score := range item.Scores {
 			s.State.AddNewScore(addr, score)
 		}
@@ -1191,7 +1243,11 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		s.State.IncEpoch()
 	}
 
-	setNewIdentitiesAttributes(s, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(s, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	discriminationStakeThreshold := balanceShards(s, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+	require.Zero(discriminationStakeThreshold.Cmp(big.NewInt(8)))
+	applyDiscriminationStakeThreshold(s, discriminationStakeThreshold)
+	require.Zero(s.State.DiscriminationStakeThreshold().Cmp(big.NewInt(8)))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x8}))
@@ -1204,14 +1260,14 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	identity := s.State.GetIdentity(common.Address{0x1})
 	require.Zero(identity.DelegationEpoch)
 	require.Zero(identity.UndelegationEpoch())
-	require.False(identity.IsDiscriminated(s.State.Epoch()))
+	require.False(identity.IsDiscriminated(s.State.DiscriminationStakeThreshold(), s.State.Epoch()))
 
 	require.Nil(s.State.Delegatee(common.Address{0x2}))
 	require.Nil(s.State.PendingUndelegation(common.Address{0x2}))
 	identity = s.State.GetIdentity(common.Address{0x2})
 	require.Zero(identity.DelegationEpoch)
 	require.Equal(uint16(2), identity.UndelegationEpoch())
-	require.True(identity.IsDiscriminated(s.State.Epoch()))
+	require.True(identity.IsDiscriminated(s.State.DiscriminationStakeThreshold(), s.State.Epoch()))
 
 	require.Nil(s.State.PendingUndelegation(common.Address{0x3}))
 	require.Nil(s.State.PendingUndelegation(common.Address{0xe}))
@@ -1234,6 +1290,10 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Zero(s.State.GetStakeBalance(inactiveUndefined).Sign())
 	require.Equal(uint16(2), s.State.GetEpoch(inactiveUndefined))
 	require.Equal([]byte{0x1}, s.State.GetProfileHash(killedWithProfile))
+
+	identity = s.State.GetIdentity(common.Address{0xf})
+	require.True(identity.IsDiscriminated(s.State.DiscriminationStakeThreshold(), s.State.Epoch()))
+	require.True(identity.IsDiscriminatedStake(s.State.DiscriminationStakeThreshold()))
 }
 
 func Test_ClearDustAccounts(t *testing.T) {
@@ -1529,6 +1589,7 @@ func TestBalance_shards_reducing(t *testing.T) {
 	newbiesByShard := map[common.ShardId]int{}
 	verifiedByShard := map[common.ShardId]int{}
 	suspendedByShard := map[common.ShardId]int{}
+	validatedStakeCounter := 0
 
 	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
 		statusIdx := 0
@@ -1542,12 +1603,17 @@ func TestBalance_shards_reducing(t *testing.T) {
 			case state.Suspended, state.Zombie:
 				totalSuspended++
 				suspendedByShard[shardId]++
+				appState.State.AddStake(addr, big.NewInt(99999))
 			case state.Newbie:
 				totalNewbies++
 				newbiesByShard[shardId]++
+				validatedStakeCounter++
+				appState.State.AddStake(addr, big.NewInt(1000+int64(validatedStakeCounter*2)))
 			case state.Verified, state.Human:
 				totalVerified++
 				verifiedByShard[shardId]++
+				validatedStakeCounter++
+				appState.State.AddStake(addr, big.NewInt(1000+int64(validatedStakeCounter*2)))
 			}
 			statusIdx++
 			if statusIdx >= len(statuses) {
@@ -1555,11 +1621,14 @@ func TestBalance_shards_reducing(t *testing.T) {
 			}
 		}
 	}
+	expectedDiscriminationStakeThreshold := new(big.Int).Div(big.NewInt(5*int64(1000+validatedStakeCounter*2-99)), big.NewInt(1000))
+
 	appState.State.SetShardsNum(uint32(shardsNum))
 	appState.Commit(nil)
-	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+	discriminationStakeThreshold := balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 
 	require.Equal(t, uint32(1), appState.State.ShardsNum())
+	require.Zero(t, discriminationStakeThreshold.Cmp(expectedDiscriminationStakeThreshold))
 
 	appState.State.IterateOverIdentities(func(addr common.Address, identity state.Identity) {
 		require.Equal(t, common.ShardId(1), identity.ShardId)
@@ -1580,6 +1649,7 @@ func TestBalance_shards_increasing(t *testing.T) {
 	newbiesByShard := map[common.ShardId]int{}
 	verifiedByShard := map[common.ShardId]int{}
 	suspendedByShard := map[common.ShardId]int{}
+	validatedStakeCounter := 0
 
 	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
 		statusIdx := 0
@@ -1593,12 +1663,17 @@ func TestBalance_shards_increasing(t *testing.T) {
 			case state.Suspended, state.Zombie:
 				totalSuspended++
 				suspendedByShard[shardId]++
+				appState.State.AddStake(addr, big.NewInt(99999))
 			case state.Newbie:
 				totalNewbies++
 				newbiesByShard[shardId]++
+				validatedStakeCounter++
+				appState.State.AddStake(addr, big.NewInt(1000+int64(validatedStakeCounter*2)))
 			case state.Verified, state.Human:
 				totalVerified++
 				verifiedByShard[shardId]++
+				validatedStakeCounter++
+				appState.State.AddStake(addr, big.NewInt(1000+int64(validatedStakeCounter*2)))
 			}
 			statusIdx++
 			if statusIdx >= len(statuses) {
@@ -1606,11 +1681,14 @@ func TestBalance_shards_increasing(t *testing.T) {
 			}
 		}
 	}
+	expectedDiscriminationStakeThreshold := new(big.Int).Div(big.NewInt(5*int64(1000+validatedStakeCounter*2-99)), big.NewInt(1000))
+
 	appState.State.SetShardsNum(uint32(shardsNum))
 	appState.Commit(nil)
-	balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
+	discriminationStakeThreshold := balanceShards(appState, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 
 	require.Equal(t, uint32(4), appState.State.ShardsNum())
+	require.Zero(t, discriminationStakeThreshold.Cmp(expectedDiscriminationStakeThreshold))
 
 	shardSizes := map[common.ShardId]int{}
 
@@ -2157,4 +2235,175 @@ func Test_burntCoins(t *testing.T) {
 
 	values = read()
 	require.Empty(t, values)
+}
+
+func Test_calculateDiscriminationStakeThreshold(t *testing.T) {
+	var stakes []*big.Int
+	var res *big.Int
+
+	res = calculateDiscriminationStakeThreshold(stakes)
+	require.Nil(t, res)
+
+	stakes = []*big.Int{
+		big.NewInt(1000),
+	}
+	res = calculateDiscriminationStakeThreshold(stakes)
+	require.Zero(t, res.Cmp(big.NewInt(5)))
+
+	stakes = []*big.Int{
+		ConvertToInt(decimal.NewFromFloat(999)),
+		ConvertToInt(decimal.NewFromFloat(1.23)),
+		ConvertToInt(decimal.NewFromFloat(1.2)),
+		ConvertToInt(decimal.NewFromFloat(0.1)),
+		ConvertToInt(decimal.NewFromFloat(0.00000000001)),
+	}
+	res = calculateDiscriminationStakeThreshold(stakes)
+	require.Zero(t, res.Cmp(ConvertToInt(decimal.NewFromFloat(0.006))))
+
+	stakes = []*big.Int{
+		ConvertToInt(decimal.NewFromFloat(999)),
+		ConvertToInt(decimal.NewFromFloat(1.23)),
+		ConvertToInt(decimal.NewFromFloat(1.22)),
+		ConvertToInt(decimal.NewFromFloat(1.2)),
+		ConvertToInt(decimal.NewFromFloat(0.1)),
+		ConvertToInt(decimal.NewFromFloat(0.00000000001)),
+	}
+	res = calculateDiscriminationStakeThreshold(stakes)
+	require.Zero(t, res.Cmp(ConvertToInt(decimal.NewFromFloat(0.00605))))
+}
+
+func TestBlockchain_appendToTop(t *testing.T) {
+	var list []*big.Int
+
+	list = appendToTop(list, big.NewInt(1), 4)
+	require.Len(t, list, 1)
+
+	list = appendToTop(list, big.NewInt(4), 4)
+	require.Len(t, list, 2)
+
+	list = appendToTop(list, big.NewInt(2), 4)
+	require.Len(t, list, 3)
+
+	list = appendToTop(list, big.NewInt(3), 4)
+	require.Len(t, list, 4)
+
+	list = appendToTop(list, big.NewInt(0), 4)
+	require.Len(t, list, 4)
+
+	list = appendToTop(list, big.NewInt(5), 4)
+	require.Len(t, list, 4)
+
+	require.Zero(t, big.NewInt(5).Cmp(list[0]))
+	require.Zero(t, big.NewInt(4).Cmp(list[1]))
+	require.Zero(t, big.NewInt(3).Cmp(list[2]))
+	require.Zero(t, big.NewInt(2).Cmp(list[3]))
+
+	list = appendToTop(list, big.NewInt(5), 4)
+	require.Len(t, list, 4)
+
+	require.Len(t, list, 4)
+
+	require.Zero(t, big.NewInt(5).Cmp(list[0]))
+	require.Zero(t, big.NewInt(5).Cmp(list[1]))
+	require.Zero(t, big.NewInt(4).Cmp(list[2]))
+	require.Zero(t, big.NewInt(3).Cmp(list[3]))
+}
+
+func TestBlockchain_applyDiscriminationStatusSwitch(t *testing.T) {
+	chain := &Blockchain{
+		config: &config.Config{
+			Consensus: GetDefaultConsensusConfig(),
+		},
+	}
+
+	db := dbm.NewMemDB()
+	bus := eventbus.New()
+	appState, _ := appstate.NewAppState(db, bus)
+	appState.State.SetDiscriminationStakeThreshold(big.NewInt(101))
+
+	pool1 := common.Address{0x1}
+	delegator1 := common.Address{0x2}
+	pool2 := common.Address{0x3}
+	delegator2 := common.Address{0x4}
+	delegator3 := common.Address{0x5}
+	identity1 := common.Address{0x6}
+	identity2 := common.Address{0x7}
+	identity3 := common.Address{0x8}
+
+	appState.State.SetGlobalEpoch(10)
+
+	appState.IdentityState.SetValidated(identity1, true)
+	appState.IdentityState.SetDiscriminated(identity1, true)
+	appState.State.AddStake(identity1, big.NewInt(101))
+	appState.State.SetState(identity1, state.Human)
+
+	appState.IdentityState.SetValidated(identity2, true)
+	appState.IdentityState.SetOnline(identity2, true)
+	appState.IdentityState.SetDiscriminated(identity2, true)
+	appState.State.AddStake(identity2, big.NewInt(101))
+	appState.State.SetState(identity2, state.Newbie)
+
+	appState.IdentityState.SetValidated(identity3, true)
+	appState.IdentityState.SetOnline(identity3, true)
+	appState.IdentityState.SetDiscriminated(identity3, true)
+	appState.State.AddStake(identity3, big.NewInt(100))
+	appState.State.SetState(identity3, state.Human)
+
+	appState.IdentityState.SetValidated(delegator1, true)
+	appState.IdentityState.SetDiscriminated(delegator1, true)
+	appState.State.AddStake(delegator1, big.NewInt(101))
+	appState.State.SetState(delegator1, state.Human)
+	appState.IdentityState.SetDelegatee(delegator1, pool1)
+	appState.IdentityState.SetOnline(pool1, true)
+
+	appState.IdentityState.SetValidated(delegator2, true)
+	appState.IdentityState.SetDiscriminated(delegator2, true)
+	appState.State.AddStake(delegator2, big.NewInt(101))
+	appState.State.SetState(delegator2, state.Newbie)
+	appState.IdentityState.SetDelegatee(delegator2, pool2)
+	appState.IdentityState.SetValidated(delegator3, true)
+	appState.IdentityState.SetDiscriminated(delegator3, true)
+	appState.State.AddStake(delegator3, big.NewInt(101))
+	appState.State.SetState(delegator3, state.Human)
+	appState.IdentityState.SetDelegatee(delegator3, pool2)
+
+	appState.State.SetState(pool2, state.Newbie)
+	appState.IdentityState.SetOnline(pool2, true)
+	appState.IdentityState.SetValidated(pool2, true)
+	appState.IdentityState.SetDiscriminated(pool2, true)
+
+	appState.State.AddDiscriminationStatusSwitch(identity1)
+	appState.State.AddDiscriminationStatusSwitch(identity2)
+	appState.State.AddDiscriminationStatusSwitch(identity3)
+	appState.State.AddDiscriminationStatusSwitch(delegator1)
+	appState.State.AddDiscriminationStatusSwitch(pool1)
+	appState.State.AddDiscriminationStatusSwitch(delegator2)
+	appState.State.AddDiscriminationStatusSwitch(delegator3)
+	appState.State.AddDiscriminationStatusSwitch(pool2)
+
+	appState.Commit(nil)
+	appState.Initialize(1)
+	require.True(t, appState.ValidatorsCache.IsDiscriminated(pool1))
+	require.True(t, appState.ValidatorsCache.IsDiscriminated(delegator1))
+	require.True(t, appState.ValidatorsCache.IsPool(pool1))
+	require.True(t, appState.ValidatorsCache.IsPool(pool2))
+
+	chain.applyDiscriminationStatusSwitch(appState, &types.Block{Header: &types.Header{
+		EmptyBlockHeader: &types.EmptyBlockHeader{
+			Flags: types.IdentityUpdate,
+			Time:  1500,
+		},
+	}}, nil)
+
+	appState.Commit(nil)
+	appState.ValidatorsCache.Load()
+
+	require.False(t, appState.ValidatorsCache.IsDiscriminated(identity1))
+	require.True(t, appState.ValidatorsCache.IsDiscriminated(identity2))
+	require.True(t, appState.ValidatorsCache.IsDiscriminated(identity3))
+	require.False(t, appState.ValidatorsCache.IsDiscriminated(pool1))
+	require.False(t, appState.ValidatorsCache.IsDiscriminated(delegator1))
+	require.False(t, appState.ValidatorsCache.IsDiscriminated(pool2))
+	require.True(t, appState.ValidatorsCache.IsDiscriminated(delegator2))
+	require.False(t, appState.ValidatorsCache.IsDiscriminated(delegator3))
 }

@@ -526,7 +526,7 @@ func validateEvidenceTx(appState *appstate.AppState, tx *types.Transaction, txTy
 	if identity.State == state.Candidate && appState.ValidatorsCache.NetworkSize() != 0 || identity.Delegatee() != nil {
 		return InvalidSender
 	}
-	discriminated := identity.IsDiscriminated(appState.State.Epoch())
+	discriminated := identity.IsDiscriminated(appState.State.DiscriminationStakeThreshold(), appState.State.Epoch())
 	if discriminated && sender != appState.State.GodAddress() {
 		return InvalidSender
 	}
