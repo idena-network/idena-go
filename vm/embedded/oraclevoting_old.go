@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/math"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
@@ -241,17 +242,19 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 	}
 	f.voteHashes.Set(f.ctx.Caller().Bytes(), voteHash)
 
+	var discriminationFlags state.DiscriminationFlag
 	var discriminated bool
 	if enabledDiscrimination := f.GetByte("dis") == 1; enabledDiscrimination {
 		if notDiscriminatedProof := f.GetByte("notDisP"); notDiscriminatedProof == 0 {
-			discriminated = f.env.IsDiscriminated(f.ctx.Caller())
+			discriminationFlags = f.env.DiscriminationFlags(f.ctx.Caller())
+			discriminated = discriminationFlags > 0
 			if !discriminated {
 				f.SetByte("notDisP", 1)
 			}
 		}
 	}
 
-	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount, discriminated)
+	collector.AddOracleVotingCallVoteProof(f.statsCollector, voteHash, newSecretVotesCount, discriminationFlags)
 
 	return nil
 }
@@ -316,9 +319,11 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 		f.setSecretVotesCount(v)
 	}
 
+	var discriminationFlags state.DiscriminationFlag
 	var discriminated bool
 	if enabledDiscrimination {
-		discriminated = f.env.IsDiscriminated(f.ctx.Caller())
+		discriminationFlags = f.env.DiscriminationFlags(f.ctx.Caller())
+		discriminated = discriminationFlags > 0
 		if !discriminated {
 			if notDiscriminatedVote := f.GetByte("notDisV"); notDiscriminatedVote == 0 {
 				f.SetByte("notDisV", 1)
@@ -349,7 +354,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 
 	if delegatee == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil, discriminated)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, nil, nil, nil, discriminationFlags)
 		return nil
 	}
 
@@ -360,7 +365,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 
 	if prevPoolVote == nil {
 		newOptionVotes := changeVoteOptions(vote, 1)
-		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil, discriminated)
+		collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, nil, nil, discriminationFlags)
 		return nil
 	}
 	var newOptionVotes, newPrevOptionVotes *uint64
@@ -369,7 +374,7 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 		newPrevOptionVotes = changeVoteOptions(prevVote, -1)
 		newOptionVotes = changeVoteOptions(vote, 1)
 	}
-	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, discriminated)
+	collector.AddOracleVotingCallVote(f.statsCollector, vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, discriminationFlags)
 	return nil
 }
 

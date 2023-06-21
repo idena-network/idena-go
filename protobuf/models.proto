@@ -427,6 +427,7 @@ message ProtoStateGlobal {
     uint32 shardsNum = 14;
     repeated EmptyBlocksByShards emptyBlocksByShards = 15;
     repeated ShardSize shardSizes = 16;
+    bytes discriminationStakeThreshold = 17;
 }
 
 message ProtoStateApprovedIdentity {
