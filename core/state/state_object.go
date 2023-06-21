@@ -47,6 +47,18 @@ func (f ApprovedIdentityFlag) HasFlag(flag ApprovedIdentityFlag) bool {
 	return f&flag != 0
 }
 
+type DiscriminationFlag uint32
+
+const (
+	DiscriminatedNewbie DiscriminationFlag = 1 << iota
+	DiscriminatedDelegation
+	DiscriminatedStake
+)
+
+func (f DiscriminationFlag) HasFlag(flag DiscriminationFlag) bool {
+	return f&flag != 0
+}
+
 func (s IdentityState) IsInShard() bool {
 	return s.NewbieOrBetter() || s == Candidate || s == Suspended || s == Zombie
 }
@@ -120,6 +132,13 @@ type stateBurntCoins struct {
 	height  uint64
 	deleted bool
 	onDirty func(height uint64)
+}
+
+type discriminationStatusSwitch struct {
+	data IdentityStatusSwitch
+
+	deleted bool
+	onDirty func()
 }
 
 type ValidationPeriod uint32
@@ -272,6 +291,7 @@ type Global struct {
 	ShardsNum                     uint32
 	EmptyBlocksByShards           map[common.ShardId][]common.Address
 	ShardSizes                    map[common.ShardId]uint32
+	DiscriminationStakeThreshold  *big.Int
 }
 
 func (s *Global) ToBytes() ([]byte, error) {
@@ -290,6 +310,7 @@ func (s *Global) ToBytes() ([]byte, error) {
 		GodAddressInvites:             uint32(s.GodAddressInvites),
 		BlocksCntWithoutCeremonialTxs: uint32(s.BlocksCntWithoutCeremonialTxs),
 		ShardsNum:                     s.ShardsNum,
+		DiscriminationStakeThreshold:  common.BigIntBytesOrNil(s.DiscriminationStakeThreshold),
 	}
 	var shardIds []common.ShardId
 	for k := range s.EmptyBlocksByShards {
@@ -352,6 +373,7 @@ func (s *Global) FromBytes(data []byte) error {
 	for _, shardSize := range protoGlobal.ShardSizes {
 		s.ShardSizes[common.ShardId(shardSize.ShardId)] = shardSize.Size
 	}
+	s.DiscriminationStakeThreshold = common.BigIntOrNil(protoGlobal.DiscriminationStakeThreshold)
 
 	return nil
 }
@@ -621,8 +643,40 @@ func (i *Identity) UndelegationEpoch() uint16 {
 	return i.undelegationEpoch
 }
 
-func (i *Identity) IsDiscriminated(epoch uint16) bool {
-	return (i.State == Newbie && epoch > 2) || i.PendingUndelegation() != nil || i.undelegationEpoch > 0
+func (i *Identity) IsDiscriminated(discriminationStakeThreshold *big.Int, epoch uint16) bool {
+	return i.IsDiscriminatedNewbie(epoch) || i.IsDiscriminatedDelegation() || i.IsDiscriminatedStake(discriminationStakeThreshold)
+}
+
+func (i *Identity) IsDiscriminatedNewbie(epoch uint16) bool {
+	return i.State == Newbie && epoch > 2
+}
+
+func (i *Identity) IsDiscriminatedDelegation() bool {
+	return i.PendingUndelegation() != nil || i.undelegationEpoch > 0
+}
+
+func (i *Identity) IsDiscriminatedStake(threshold *big.Int) bool {
+	if !i.State.NewbieOrBetter() {
+		return false
+	}
+	if common.ZeroOrNil(threshold) {
+		return false
+	}
+	return common.ZeroOrNil(i.Stake) || i.Stake.Cmp(threshold) < 0
+}
+
+func (i *Identity) DiscriminationFlags(discriminationStakeThreshold *big.Int, epoch uint16) DiscriminationFlag {
+	var res DiscriminationFlag
+	if i.IsDiscriminatedNewbie(epoch) {
+		res |= DiscriminatedNewbie
+	}
+	if i.IsDiscriminatedDelegation() {
+		res |= DiscriminatedDelegation
+	}
+	if i.IsDiscriminatedStake(discriminationStakeThreshold) {
+		res |= DiscriminatedStake
+	}
+	return res
 }
 
 func (i *Identity) ReplenishedStake() *big.Int {
@@ -751,6 +805,13 @@ func newBurntCoinsObject(height uint64, data BurntCoins, onDirty func(height uin
 	return &stateBurntCoins{
 		data:    data,
 		height:  height,
+		onDirty: onDirty,
+	}
+}
+
+func newDiscriminationStatusSwitchObject(data IdentityStatusSwitch, onDirty func()) *discriminationStatusSwitch {
+	return &discriminationStatusSwitch{
+		data:    data,
 		onDirty: onDirty,
 	}
 }
@@ -1244,8 +1305,12 @@ func (s *stateIdentity) DelegationEpoch() uint16 {
 	return s.data.DelegationEpoch
 }
 
-func (s *stateIdentity) IsDiscriminated(epoch uint16) bool {
-	return s.data.IsDiscriminated(epoch)
+func (s *stateIdentity) IsDiscriminated(discriminationStakeThreshold *big.Int, epoch uint16) bool {
+	return s.data.IsDiscriminated(discriminationStakeThreshold, epoch)
+}
+
+func (s *stateIdentity) IsDiscriminatedStake(threshold *big.Int) bool {
+	return s.data.IsDiscriminatedStake(threshold)
 }
 
 func (s *stateIdentity) ShardId() common.ShardId {
@@ -1315,6 +1380,11 @@ func (s *stateGlobal) LastSnapshot() uint64 {
 
 func (s *stateGlobal) SetLastSnapshot(height uint64) {
 	s.data.LastSnapshot = height
+	s.touch()
+}
+
+func (s *stateGlobal) SetDiscriminationStakeThreshold(value *big.Int) {
+	s.data.DiscriminationStakeThreshold = value
 	s.touch()
 }
 
@@ -1698,4 +1768,28 @@ func (s *stateBurntCoins) AddBurntCoins(address common.Address, key string, amou
 func (s *stateBurntCoins) ClearBurntCoins() {
 	s.data.Items = nil
 	s.touch()
+}
+
+func (s *discriminationStatusSwitch) empty() bool {
+	return len(s.data.Addresses) == 0
+}
+
+func (s *discriminationStatusSwitch) Addresses() []common.Address {
+	return s.data.Addresses
+}
+
+func (s *discriminationStatusSwitch) Clear() {
+	s.data.Addresses = []common.Address{}
+	s.touch()
+}
+
+func (s *discriminationStatusSwitch) add(address common.Address) {
+	s.data.Addresses = append(s.data.Addresses, address)
+	s.touch()
+}
+
+func (s *discriminationStatusSwitch) touch() {
+	if s.onDirty != nil {
+		s.onDirty()
+	}
 }

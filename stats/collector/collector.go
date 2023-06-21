@@ -4,6 +4,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
 	statsTypes "github.com/idena-network/idena-go/stats/types"
 	"github.com/shopspring/decimal"
@@ -87,9 +88,9 @@ type StatsCollector interface {
 		fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
 		committeeSize, networkSize uint64, ownerFee byte, ownerDeposit, oracleRewardFund *big.Int, refundRecipient *common.Address, hash []byte)
 	AddOracleVotingCallStart(state byte, startBlock uint64, epoch uint16, votingMinPayment *big.Int, vrfSeed []byte, committeeSize uint64, networkSize int)
-	AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminated bool)
+	AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminationFlags state.DiscriminationFlag)
 	AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
-		newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminated bool)
+		newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminationFlags state.DiscriminationFlag)
 	AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int)
 	AddOracleVotingCallProlongation(startBlock *uint64, epoch uint16, vrfSeed []byte, committeeSize, networkSize, newCommitteeSize uint64,
 		newEpochWithoutGrowth *byte, newProlongVoteCount *uint64)
@@ -817,28 +818,28 @@ func AddOracleVotingCallStart(c StatsCollector, state byte, startBlock uint64, e
 	c.AddOracleVotingCallStart(state, startBlock, epoch, votingMinPayment, vrfSeed, committeeSize, networkSize)
 }
 
-func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminated bool) {
+func (c *collectorStub) AddOracleVotingCallVoteProof(voteHash []byte, newSecretVotesCount *uint64, discriminationFlags state.DiscriminationFlag) {
 	// do nothing
 }
 
-func AddOracleVotingCallVoteProof(c StatsCollector, voteHash []byte, newSecretVotesCount *uint64, discriminated bool) {
+func AddOracleVotingCallVoteProof(c StatsCollector, voteHash []byte, newSecretVotesCount *uint64, discriminationFlags state.DiscriminationFlag) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallVoteProof(voteHash, newSecretVotesCount, discriminated)
+	c.AddOracleVotingCallVoteProof(voteHash, newSecretVotesCount, discriminationFlags)
 }
 
 func (c *collectorStub) AddOracleVotingCallVote(vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
-	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminated bool) {
+	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminationFlags state.DiscriminationFlag) {
 	// do nothing
 }
 
 func AddOracleVotingCallVote(c StatsCollector, vote byte, salt []byte, newOptionVotes *uint64, newOptionAllVotes uint64,
-	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminated bool) {
+	newSecretVotesCount *uint64, delegatee *common.Address, prevPoolVote []byte, newPrevOptionVotes *uint64, discriminationFlags state.DiscriminationFlag) {
 	if c == nil {
 		return
 	}
-	c.AddOracleVotingCallVote(vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, discriminated)
+	c.AddOracleVotingCallVote(vote, salt, newOptionVotes, newOptionAllVotes, newSecretVotesCount, delegatee, prevPoolVote, newPrevOptionVotes, discriminationFlags)
 }
 
 func (c *collectorStub) AddOracleVotingCallFinish(state byte, result *byte, fund, oracleReward, ownerReward *big.Int) {

@@ -19,15 +19,16 @@ var (
 	preliminaryStateDbPrefixBytes = []byte{0x3}
 
 	//state db prefixes and keys
-	addressPrefix            = []byte{0x1}
-	identityPrefix           = []byte{0x2}
-	globalKey                = []byte{0x3}
-	statusSwitchKey          = []byte{0x4}
-	contractStorePrefix      = []byte{0x5}
-	delegationSwitchKey      = []byte{0x6}
-	delayedOfflinePenaltyKey = []byte{0x7}
-	burntCoinsPrefix         = []byte{0x8}
-	contractCodePrefix       = []byte{0x9}
+	addressPrefix                 = []byte{0x1}
+	identityPrefix                = []byte{0x2}
+	globalKey                     = []byte{0x3}
+	statusSwitchKey               = []byte{0x4}
+	contractStorePrefix           = []byte{0x5}
+	delegationSwitchKey           = []byte{0x6}
+	delayedOfflinePenaltyKey      = []byte{0x7}
+	burntCoinsPrefix              = []byte{0x8}
+	contractCodePrefix            = []byte{0x9}
+	discriminationStatusSwitchKey = []byte{0xA}
 )
 
 var (
@@ -114,10 +115,13 @@ func (s *stateDbKeys) BurntCoinsKeyToHeight(key []byte) uint64 {
 	return binary.BigEndian.Uint64(key[len(burntCoinsPrefix):])
 }
 
+func (s *stateDbKeys) DiscriminationStatusSwitchKey() []byte {
+	return discriminationStatusSwitchKey
+}
+
 func (s *stateDbKeys) ContractCodeKey(codeHash common.Hash) []byte {
 	return append(contractCodePrefix, codeHash[:]...)
 }
-
 
 type identityStateDbPrefix struct {
 }
