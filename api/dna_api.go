@@ -720,18 +720,43 @@ func (api *DnaApi) SendChangeProfileTx(ctx context.Context, args SendChangeProfi
 	return txHash, nil
 }
 
-func (api *DnaApi) Sign(value string) hexutil.Bytes {
-	hash := signatureHash(value)
-	return api.baseApi.secStore.Sign(hash[:])
+type SignedDataFormat = string
+
+const (
+	DoubleHash SignedDataFormat = "doubleHash"
+	Prefix     SignedDataFormat = "prefix"
+)
+
+func (api *DnaApi) Sign(value string, format *SignedDataFormat) (hexutil.Bytes, error) {
+	hash, err := signatureHash(value, signedDataFormatOrDefault(format))
+	if err != nil {
+		return hexutil.Bytes{}, err
+	}
+	return api.baseApi.secStore.Sign(hash[:]), nil
 }
 
 type SignatureAddressArgs struct {
 	Value     string
 	Signature hexutil.Bytes
+	Format    *SignedDataFormat
+}
+
+func signedDataFormatOrDefault(format *SignedDataFormat) SignedDataFormat {
+	var result string
+	if format != nil {
+		result = *format
+	}
+	if len(result) == 0 {
+		result = DoubleHash
+	}
+	return result
 }
 
 func (api *DnaApi) SignatureAddress(args SignatureAddressArgs) (common.Address, error) {
-	hash := signatureHash(args.Value)
+	hash, err := signatureHash(args.Value, signedDataFormatOrDefault(args.Format))
+	if err != nil {
+		return common.Address{}, err
+	}
 	pubKey, err := crypto.Ecrecover(hash[:], args.Signature)
 	if err != nil {
 		return common.Address{}, err
@@ -743,9 +768,17 @@ func (api *DnaApi) SignatureAddress(args SignatureAddressArgs) (common.Address, 
 	return addr, nil
 }
 
-func signatureHash(value string) common.Hash {
-	h := crypto.Hash([]byte(value))
-	return crypto.Hash(h[:])
+func signatureHash(value string, format SignedDataFormat) (common.Hash, error) {
+	switch format {
+	case DoubleHash:
+		h := crypto.Hash([]byte(value))
+		return crypto.Hash(h[:]), nil
+	case Prefix:
+		value = fmt.Sprintf("\x00Idena Signed Message:\n%d%s", len(value), value)
+		return crypto.Hash([]byte(value)), nil
+	default:
+		return common.Hash{}, errors.New("unknown format")
+	}
 }
 
 type ActivateInviteToRandAddrArgs struct {
