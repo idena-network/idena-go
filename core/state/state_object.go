@@ -467,6 +467,7 @@ type Identity struct {
 	replenishedStake     *big.Int
 	penaltySeconds       uint16
 	penaltyTimestamp     int64
+	lockedStake          *big.Int
 	// do not use directly
 	ShardId common.ShardId
 
@@ -488,6 +489,7 @@ func (i *Identity) ToBytes() ([]byte, error) {
 	protoIdentity := &models.ProtoStateIdentity{
 		Stake:               common.BigIntBytesOrNil(i.Stake),
 		ReplenishedStake:    common.BigIntBytesOrNil(i.replenishedStake),
+		LockedStake:         common.BigIntBytesOrNil(i.lockedStake),
 		Invites:             uint32(i.Invites),
 		Birthday:            uint32(i.Birthday),
 		State:               uint32(i.State),
@@ -542,6 +544,7 @@ func (i *Identity) FromBytes(data []byte) error {
 	}
 	i.Stake = common.BigIntOrNil(protoIdentity.Stake)
 	i.replenishedStake = common.BigIntOrNil(protoIdentity.ReplenishedStake)
+	i.lockedStake = common.BigIntOrNil(protoIdentity.LockedStake)
 	i.Invites = uint8(protoIdentity.Invites)
 	i.Birthday = uint16(protoIdentity.Birthday)
 	i.State = IdentityState(protoIdentity.State)
@@ -681,6 +684,10 @@ func (i *Identity) DiscriminationFlags(discriminationStakeThreshold *big.Int, ep
 
 func (i *Identity) ReplenishedStake() *big.Int {
 	return i.replenishedStake
+}
+
+func (i *Identity) LockedStake() *big.Int {
+	return i.lockedStake
 }
 
 func (i *Identity) SetPenaltySeconds(penaltySeconds uint16) {
@@ -1031,6 +1038,26 @@ func (s *stateIdentity) SubReplenishedStake(amount *big.Int) {
 func (s *stateIdentity) SetReplenishedStake(amount *big.Int) {
 	s.data.replenishedStake = amount
 	s.touch()
+}
+
+func (s *stateIdentity) LockedStake() *big.Int {
+	if s.data.lockedStake == nil {
+		return common.Big0
+	}
+	return s.data.lockedStake
+}
+
+func (s *stateIdentity) AddLockedStake(amount *big.Int) {
+	s.setLockedStake(new(big.Int).Add(s.LockedStake(), amount))
+}
+
+func (s *stateIdentity) setLockedStake(amount *big.Int) {
+	s.data.lockedStake = amount
+	s.touch()
+}
+
+func (s *stateIdentity) SubLockedStake(amount *big.Int) {
+	s.setLockedStake(new(big.Int).Sub(s.LockedStake(), amount))
 }
 
 func (s *stateIdentity) AddInvite(i uint8) {

@@ -952,9 +952,12 @@ func applyOnState(cfg *config.ConsensusConf, appState *appstate.AppState, curren
 	collector.BeginFailedValidationBalanceUpdate(statsCollector, addr, appState)
 	if value.state == state.Killed && (cfg.EnableUpgrade12 || value.participated) {
 		stakeShareToBurn := determineStakeShareToBurn(value.prevState, value.birthday, currentEpoch)
+		lockedStake := appState.State.GetLockedStake(addr)
 		stake := appState.State.GetStakeBalance(addr)
-		stakeToBurn := new(big.Int).Mul(stake, big.NewInt(int64(stakeShareToBurn)))
+		availableStake := new(big.Int).Sub(stake, lockedStake)
+		stakeToBurn := new(big.Int).Mul(availableStake, big.NewInt(int64(stakeShareToBurn)))
 		stakeToBurn.Div(stakeToBurn, big.NewInt(100))
+		stakeToBurn.Add(stakeToBurn, lockedStake)
 		stakeToSave := new(big.Int).Sub(stake, stakeToBurn)
 		appState.State.AddBalance(addr, stakeToSave)
 		appState.State.SubStake(addr, stakeToSave)
