@@ -529,6 +529,9 @@ func addInvitationReward(appState *appstate.AppState, config *config.ConsensusCo
 		collector.BeginEpochRewardBalanceUpdate(statsCollector, addr, addr, appState)
 		appState.State.AddStake(addr, stake)
 		appState.State.AddReplenishedStake(addr, stake)
+		if config.EnableUpgrade12 {
+			appState.State.AddLockedStake(addr, stake)
+		}
 		collector.CompleteBalanceUpdate(statsCollector, appState)
 		collector.AddMintedCoins(statsCollector, stake)
 		collector.AddInviteeReward(statsCollector, addr, stake, age, txHash, epochHeight)

@@ -54,6 +54,7 @@ func (api *DnaApi) GetCoinbaseAddr() common.Address {
 type Balance struct {
 	Stake            decimal.Decimal `json:"stake"`
 	ReplenishedStake decimal.Decimal `json:"replenishedStake"`
+	LockedStake      decimal.Decimal `json:"lockedStake"`
 	Balance          decimal.Decimal `json:"balance"`
 	Nonce            uint32          `json:"nonce"`
 	MempoolNonce     uint32          `json:"mempoolNonce"`
@@ -70,6 +71,7 @@ func (api *DnaApi) GetBalance(address common.Address) Balance {
 	return Balance{
 		Stake:            blockchain.ConvertToFloat(state.State.GetStakeBalance(address)),
 		ReplenishedStake: blockchain.ConvertToFloat(state.State.GetReplenishedStakeBalance(address)),
+		LockedStake:      blockchain.ConvertToFloat(state.State.GetLockedStake(address)),
 		Balance:          blockchain.ConvertToFloat(state.State.GetBalance(address)),
 		Nonce:            nonce,
 		MempoolNonce:     state.NonceCache.GetNonce(address, currentEpoch),
@@ -289,6 +291,7 @@ type Identity struct {
 	ProfileHash         string          `json:"profileHash"`
 	Stake               decimal.Decimal `json:"stake"`
 	ReplenishedStake    decimal.Decimal `json:"replenishedStake"`
+	LockedStake         decimal.Decimal `json:"lockedStake"`
 	Invites             uint8           `json:"invites"`
 	Age                 uint16          `json:"age"`
 	State               string          `json:"state"`
@@ -496,6 +499,7 @@ func convertIdentity(currentEpoch uint16, address common.Address, data state.Ide
 		State:               s,
 		Stake:               blockchain.ConvertToFloat(data.Stake),
 		ReplenishedStake:    blockchain.ConvertToFloat(data.ReplenishedStake()),
+		LockedStake:         blockchain.ConvertToFloat(data.LockedStake()),
 		Age:                 age,
 		Invites:             data.Invites,
 		ProfileHash:         profileHash,

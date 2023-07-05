@@ -250,6 +250,14 @@ func (s *StateDB) GetReplenishedStakeBalance(addr common.Address) *big.Int {
 	return common.Big0
 }
 
+func (s *StateDB) GetLockedStake(addr common.Address) *big.Int {
+	stateObject := s.getStateIdentity(addr)
+	if stateObject != nil {
+		return stateObject.LockedStake()
+	}
+	return common.Big0
+}
+
 func (s *StateDB) GetEpoch(addr common.Address) uint16 {
 	stateObject := s.getStateAccount(addr)
 	if stateObject != nil {
@@ -370,12 +378,20 @@ func (s *StateDB) AddReplenishedStake(address common.Address, intStake *big.Int)
 	s.GetOrNewIdentityObject(address).AddReplenishedStake(intStake)
 }
 
+func (s *StateDB) AddLockedStake(address common.Address, amount *big.Int) {
+	s.GetOrNewIdentityObject(address).AddLockedStake(amount)
+}
+
 func (s *StateDB) SubStake(addr common.Address, amount *big.Int) {
 	s.GetOrNewIdentityObject(addr).SubStake(amount)
 }
 
 func (s *StateDB) SubReplenishedStake(addr common.Address, amount *big.Int) {
 	s.GetOrNewIdentityObject(addr).SubReplenishedStake(amount)
+}
+
+func (s *StateDB) SubLockedStake(addr common.Address, amount *big.Int) {
+	s.GetOrNewIdentityObject(addr).SubLockedStake(amount)
 }
 
 func (s *StateDB) SetState(address common.Address, state IdentityState) {

@@ -397,6 +397,7 @@ message ProtoStateIdentity {
     uint32 penaltySeconds = 25;
     int64 penaltyTimestamp = 26;
     uint32 undelegationEpoch = 27;
+    bytes lockedStake = 28;
 }
 
 message ProtoStateGlobal {

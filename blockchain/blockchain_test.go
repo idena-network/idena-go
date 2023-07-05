@@ -312,13 +312,18 @@ func Test_ApplyKillTx(t *testing.T) {
 	sender := crypto.PubkeyToAddress(key.PublicKey)
 
 	balance := new(big.Int).Mul(big.NewInt(50), common.DnaBase)
+
 	stake := new(big.Int).Mul(big.NewInt(10000), common.DnaBase)
+	replenishedStake := new(big.Int).Mul(big.NewInt(1000), common.DnaBase)
+	lockedStake := new(big.Int).Mul(big.NewInt(200), common.DnaBase)
 
 	account := appState.State.GetOrNewAccountObject(sender)
 	account.SetBalance(balance)
 
 	id := appState.State.GetOrNewIdentityObject(sender)
 	id.SetStake(stake)
+	id.SetReplenishedStake(replenishedStake)
+	id.AddLockedStake(lockedStake)
 	id.SetState(state.Verified)
 
 	id.SetProfileHash([]byte{0x1})
@@ -370,8 +375,10 @@ func Test_ApplyKillTx(t *testing.T) {
 
 	require.Equal(big.NewInt(0), fee)
 	require.Equal(state.Killed, appState.State.GetIdentityState(sender))
-	require.Equal(new(big.Int).Add(balance, stake), appState.State.GetBalance(sender))
+	require.Equal(new(big.Int).Mul(big.NewInt(9850), common.DnaBase), appState.State.GetBalance(sender))
 	require.True(common.ZeroOrNil(appState.State.GetStakeBalance(sender)))
+	require.Zero(appState.State.GetReplenishedStakeBalance(sender).Sign())
+	require.Zero(appState.State.GetLockedStake(sender).Sign())
 
 	identity := appState.State.GetIdentity(sender)
 	require.NotNil(identity.Metadata())
@@ -1148,7 +1155,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	}
 	require.NoError(s.Commit(nil))
 
-	setNewIdentitiesAttributes(s, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 12, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 
 	for _, item := range identities {
 		var addr common.Address
@@ -1167,13 +1174,13 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x9}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 1, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x8}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 5, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
@@ -1182,7 +1189,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(0), s.State.GetInvites(common.Address{0x4}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 15, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1193,7 +1200,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 20, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(2), s.State.GetInvites(common.Address{0x5}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x4}))
@@ -1204,7 +1211,7 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0xd}))
 
 	s.Reset()
-	setNewIdentitiesAttributes(s, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 2, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x1}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x7}))
 	require.Equal(uint8(1), s.State.GetInvites(common.Address{0x8}))
@@ -1243,7 +1250,15 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 		s.State.IncEpoch()
 	}
 
-	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(s, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
+	chain.config.Consensus.UnlockStakeAge = 3
+
+	s.State.SetBirthday(common.Address{0x1}, 1)
+	s.State.AddLockedStake(common.Address{0x1}, big.NewInt(1))
+
+	s.State.SetBirthday(common.Address{0x2}, 2)
+	s.State.AddLockedStake(common.Address{0x2}, big.NewInt(1))
+
+	totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard := setNewIdentitiesAttributes(s, chain.config.Consensus.UnlockStakeAge, 6, 100, make(map[common.Address]struct{}), false, map[common.ShardId]*types.ValidationResults{}, nil)
 	discriminationStakeThreshold := balanceShards(s, totalNewbies, totalVerified, totalSuspended, newbiesByShard, verifiedByShard, suspendedByShard)
 	require.Zero(discriminationStakeThreshold.Cmp(big.NewInt(8)))
 	applyDiscriminationStakeThreshold(s, discriminationStakeThreshold)
@@ -1294,6 +1309,9 @@ func Test_setNewIdentitiesAttributes(t *testing.T) {
 	identity = s.State.GetIdentity(common.Address{0xf})
 	require.True(identity.IsDiscriminated(s.State.DiscriminationStakeThreshold(), s.State.Epoch()))
 	require.True(identity.IsDiscriminatedStake(s.State.DiscriminationStakeThreshold()))
+
+	require.Zero(s.State.GetLockedStake(common.Address{0x1}).Sign())
+	require.Positive(s.State.GetLockedStake(common.Address{0x2}).Sign())
 }
 
 func Test_ClearDustAccounts(t *testing.T) {
@@ -1573,6 +1591,57 @@ func Test_Delegation(t *testing.T) {
 	require.Equal(t, 0, appState.ValidatorsCache.PoolSize(pool2))
 	require.False(t, appState.ValidatorsCache.IsPool(pool2))
 	require.False(t, appState.ValidatorsCache.IsOnlineIdentity(pool2))
+}
+
+func Test_ApplyKillDelegatorTx(t *testing.T) {
+	require := require.New(t)
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	validation.SetAppConfig(chain.config)
+	defer chain.SecStore().Destroy()
+
+	key, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(key.PublicKey)
+	delegator := tests.GetRandAddr()
+
+	appState.State.GetOrNewAccountObject(sender).SetBalance(new(big.Int).Mul(big.NewInt(50), common.DnaBase))
+	delegatorIdentity := appState.State.GetOrNewIdentityObject(delegator)
+	delegatorIdentity.SetState(state.Verified)
+	delegatorIdentity.SetStake(new(big.Int).Mul(big.NewInt(10000), common.DnaBase))
+	delegatorIdentity.SetReplenishedStake(new(big.Int).Mul(big.NewInt(1000), common.DnaBase))
+	delegatorIdentity.AddLockedStake(new(big.Int).Mul(big.NewInt(200), common.DnaBase))
+	delegatorIdentity.SetDelegatee(sender)
+
+	chain.appState.State.SetFeePerGas(big.NewInt(1e+9))
+
+	tx := &types.Transaction{
+		Type:         types.KillDelegatorTx,
+		To:           &delegator,
+		AccountNonce: 1,
+		MaxFee:       big.NewInt(1e+15),
+	}
+
+	signedTx, _ := types.SignTx(tx, key)
+
+	fee := fee2.CalculateFee(chain.appState.ValidatorsCache.NetworkSize(), chain.appState.State.FeePerGas(), tx)
+	require.NoError(validation.ValidateTx(chain.appState, signedTx, appState.State.FeePerGas(), validation.InBlockTx))
+	context := &txExecutionContext{
+		appState: chain.appState,
+	}
+	chain.applyTxOnState(signedTx, context)
+
+	require.Equal(state.Killed, appState.State.GetIdentityState(delegator))
+	require.Zero(appState.State.GetStakeBalance(delegator).Sign())
+	require.Zero(appState.State.GetReplenishedStakeBalance(delegator).Sign())
+	require.Zero(appState.State.GetLockedStake(delegator).Sign())
+	require.Zero(new(big.Int).Sub(new(big.Int).Mul(big.NewInt(9850), common.DnaBase), fee).Cmp(appState.State.GetBalance(sender)))
+
+	require.NoError(appState.Commit(nil))
+
+	require.Equal(state.Undefined, appState.State.GetIdentityState(delegator))
+	require.Zero(appState.State.GetStakeBalance(delegator).Sign())
+	require.Zero(appState.State.GetReplenishedStakeBalance(delegator).Sign())
+	require.Zero(appState.State.GetLockedStake(delegator).Sign())
+	require.Zero(new(big.Int).Sub(new(big.Int).Mul(big.NewInt(9850), common.DnaBase), fee).Cmp(appState.State.GetBalance(sender)))
 }
 
 func TestBalance_shards_reducing(t *testing.T) {
