@@ -1584,7 +1584,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SubLockedStake(sender, stakeToBurn)
 		stateDB.SubReplenishedStake(sender, stateDB.GetReplenishedStakeBalance(sender))
 		stateDB.AddBalance(sender, stakeToBalance)
-		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
+		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToBalance)
 	case types.KillInviteeTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
