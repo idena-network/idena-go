@@ -2831,7 +2831,7 @@ func (chain *Blockchain) ValidateHeader(header, prevBlock *types.Header) error {
 			return errors.New("flag NewGenesis is required")
 		}
 	}
-	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0 && header.ProposedHeader.Upgrade != uint32(chain.upgrader.Target()) {
+	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade > 0 && header.ProposedHeader.Upgrade != uint32(chain.upgrader.Target()) && (header.ProposedHeader.Upgrade != uint32(config.ConsensusV11) || chain.config.Consensus.Version > config.ConsensusV11) {
 		return errors.New("unknown consensus upgrade")
 	}
 	//TODO: add proposer's check??
