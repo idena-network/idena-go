@@ -15,6 +15,7 @@ type ValidationShardStats struct {
 	IdentitiesPerAddr map[common.Address]*IdentityStats
 	FlipsPerIdx       map[int]*FlipStats
 	FlipCids          [][]byte
+	WrongGradeReasons map[common.Address]WrongGradeReason
 }
 
 type IdentityStats struct {
@@ -52,3 +53,11 @@ func NewValidationStats() *ValidationShardStats {
 		FlipsPerIdx:       make(map[int]*FlipStats),
 	}
 }
+
+type WrongGradeReason uint32
+
+const (
+	TooManyReports WrongGradeReason = 1 << iota
+	NoApproves
+	TooManyIncreasedApproves
+)

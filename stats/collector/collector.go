@@ -63,7 +63,7 @@ type StatsCollector interface {
 	AddKillTxStakeTransfer(tx *types.Transaction, amount *big.Int)
 
 	BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo common.Address, appState *appstate.AppState)
-	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState)
+	BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address)
 	BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
 	BeginCommitteeRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState)
 	BeginEpochRewardBalanceUpdate(balanceDest, stakeDest common.Address, appState *appstate.AppState)
@@ -78,11 +78,15 @@ type StatsCollector interface {
 	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
 	CompleteApplyingTx(appState *appstate.AppState)
 	AddTxFee(feeAmount *big.Int)
+	AddTxGas(tx *types.Transaction, gas uint64)
+	AddBlockGas(gas uint64)
 
 	AddContractStake(amount *big.Int)
-	AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState)
-	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc)
+	AddContractBalanceUpdate(contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int)
+	ApplyContractBalanceUpdates(balancesCache, parentBalancesCache *map[common.Address]*big.Int)
+	AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int)
 	AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int)
+	AddWasmContract(address common.Address, code []byte)
 
 	AddOracleVotingDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
 		fact []byte, state byte, votingDuration, publicVotingDuration uint64, winnerThreshold, quorum byte,
@@ -591,15 +595,15 @@ func BeginVerifiedStakeTransferBalanceUpdate(c StatsCollector, addrFrom, addrTo 
 	c.BeginVerifiedStakeTransferBalanceUpdate(addrFrom, addrTo, appState)
 }
 
-func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState) {
+func (c *collectorStub) BeginTxBalanceUpdate(tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address) {
 	// do nothing
 }
 
-func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+func BeginTxBalanceUpdate(c StatsCollector, tx *types.Transaction, appState *appstate.AppState, additionalAddresses ...common.Address) {
 	if c == nil {
 		return
 	}
-	c.BeginTxBalanceUpdate(tx, appState)
+	c.BeginTxBalanceUpdate(tx, appState, additionalAddresses...)
 }
 
 func (c *collectorStub) BeginProposerRewardBalanceUpdate(balanceDest, stakeDest common.Address, potentialPenaltyPayment *big.Int, appState *appstate.AppState) {
@@ -745,6 +749,28 @@ func AddTxFee(c StatsCollector, feeAmount *big.Int) {
 	c.AddTxFee(feeAmount)
 }
 
+func (c *collectorStub) AddTxGas(tx *types.Transaction, gas uint64) {
+	// do nothing
+}
+
+func AddTxGas(c StatsCollector, tx *types.Transaction, gas uint64) {
+	if c == nil {
+		return
+	}
+	c.AddTxGas(tx, gas)
+}
+
+func (c *collectorStub) AddBlockGas(gas uint64) {
+	// do nothing
+}
+
+func AddBlockGas(c StatsCollector, gas uint64) {
+	if c == nil {
+		return
+	}
+	c.AddBlockGas(gas)
+}
+
 func (c *collectorStub) AddContractStake(amount *big.Int) {
 	// do nothing
 }
@@ -756,26 +782,37 @@ func AddContractStake(c StatsCollector, amount *big.Int) {
 	c.AddContractStake(amount)
 }
 
-func (c *collectorStub) AddContractBalanceUpdate(address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+func (c *collectorStub) AddContractBalanceUpdate(contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int) {
 	// do nothing
 }
 
-func AddContractBalanceUpdate(c StatsCollector, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState) {
+func AddContractBalanceUpdate(c StatsCollector, contractAddress *common.Address, address common.Address, getCurrentBalance GetBalanceFunc, newBalance *big.Int, appState *appstate.AppState, balancesCache *map[common.Address]*big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddContractBalanceUpdate(address, getCurrentBalance, newBalance, appState)
+	c.AddContractBalanceUpdate(contractAddress, address, getCurrentBalance, newBalance, appState, balancesCache)
 }
 
-func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc) {
+func (c *collectorStub) ApplyContractBalanceUpdates(balancesCache, parentBalancesCache *map[common.Address]*big.Int) {
 	// do nothing
 }
 
-func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount GetBalanceFunc) {
+func ApplyContractBalanceUpdates(c StatsCollector, balancesCache, parentBalancesCache *map[common.Address]*big.Int) {
 	if c == nil {
 		return
 	}
-	c.AddContractBurntCoins(address, getAmount)
+	c.ApplyContractBalanceUpdates(balancesCache, parentBalancesCache)
+}
+
+func (c *collectorStub) AddContractBurntCoins(address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int) {
+	// do nothing
+}
+
+func AddContractBurntCoins(c StatsCollector, address common.Address, getAmount GetBalanceFunc, balancesCache *map[common.Address]*big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddContractBurntCoins(address, getAmount, balancesCache)
 }
 
 func (c *collectorStub) AddContractTerminationBurntCoins(address common.Address, stake, refund *big.Int) {
@@ -787,6 +824,17 @@ func AddContractTerminationBurntCoins(c StatsCollector, address common.Address, 
 		return
 	}
 	c.AddContractTerminationBurntCoins(address, stake, refund)
+}
+
+func (c *collectorStub) AddWasmContract(address common.Address, code []byte) {
+	// do nothing
+}
+
+func AddWasmContract(c StatsCollector, address common.Address, code []byte) {
+	if c == nil {
+		return
+	}
+	c.AddWasmContract(address, code)
 }
 
 func (c *collectorStub) AddOracleVotingDeploy(contractAddress common.Address, startTime uint64,

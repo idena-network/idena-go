@@ -1388,6 +1388,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 					return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
 				}
 			}
+			collector.AddTxGas(context.statsCollector, tx, gas)
 			if !chain.config.Consensus.EnableUpgrade10 {
 				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
 					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
@@ -1410,6 +1411,7 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			}
 		}
 	}
+	collector.AddBlockGas(context.statsCollector, usedGas)
 	return totalFee, totalTips, receipts, tasks, usedGas, nil
 }
 
@@ -1582,7 +1584,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		stateDB.SubLockedStake(sender, stakeToBurn)
 		stateDB.SubReplenishedStake(sender, stateDB.GetReplenishedStakeBalance(sender))
 		stateDB.AddBalance(sender, stakeToBalance)
-		collector.AddKillTxStakeTransfer(statsCollector, tx, stake)
+		collector.AddKillTxStakeTransfer(statsCollector, tx, stakeToBalance)
 	case types.KillInviteeTx:
 		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -1676,7 +1678,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		contractAddr := context.vm.ContractAddr(tx, &sender)
 
 		if shouldAddPayAmount {
-			collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+			collector.BeginTxBalanceUpdate(statsCollector, tx, appState, contractAddr)
 			stateDB.SubBalance(sender, amount)
 			stateDB.AddBalance(contractAddr, amount)
 			collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -1685,7 +1687,7 @@ func (chain *Blockchain) applyTxOnState(tx *types.Transaction, context *txExecut
 		if receipt.Error != nil {
 			chain.log.Error("contract err", "err", receipt.Error)
 		}
-		collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
+		collector.BeginTxBalanceUpdate(statsCollector, tx, appState, contractAddr)
 		defer collector.CompleteBalanceUpdate(statsCollector, appState)
 
 		if !receipt.Success && shouldAddPayAmount {

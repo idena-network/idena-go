@@ -46,7 +46,7 @@ func TestVm_Erc20(t *testing.T) {
 	appState, _ := appstate.NewAppState(db, eventbus.New())
 	appState.Initialize(0)
 
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true, nil)
 	rnd := rand.New(rand.NewSource(1))
 	key, _ := crypto.GenerateKeyFromSeed(rnd)
 
@@ -121,7 +121,7 @@ func TestVm_Erc20(t *testing.T) {
 var nonce = uint32(1)
 
 func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []byte, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true, nil)
 	deployAttach := attachments.CreateDeployContractAttachment(common.Hash{}, code, nil, args...)
 	payload, _ := deployAttach.ToBytes()
 
@@ -138,7 +138,7 @@ func deployContract(key *ecdsa.PrivateKey, appState *appstate.AppState, code []b
 }
 
 func callContract(key *ecdsa.PrivateKey, appState *appstate.AppState, contract common.Address, method string, args ...[]byte) *types.TxReceipt {
-	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true)
+	vm := NewWasmVM(appState, nil, createHeader(1, 1), getLatestConfig(), true, nil)
 	callAttach := attachments.CreateCallContractAttachment(method, args...)
 	payload, _ := callAttach.ToBytes()
 
