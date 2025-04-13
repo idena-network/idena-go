@@ -1593,11 +1593,11 @@ func determineNewIdentityState(identity state.Identity, shortScore, longScore, t
 			(longScore >= common.MinLongScore || enableUpgrade10 && nonQualLong) {
 			return state.Human
 		}
-		if totalScore >= common.MinTotalScore && shortSessionScoreCheck() {
+		if totalScore >= common.MinTotalScore && shortSessionScoreCheck() && longScore >= common.MinLongScore {
 			return state.Verified
 		}
 		if enableUpgrade10 {
-			if noQualShort {
+			if noQualShort || nonQualLong && totalScore >= common.MinTotalScore && shortSessionScoreCheck() {
 				return state.Verified
 			}
 		}
