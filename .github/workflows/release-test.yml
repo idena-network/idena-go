@@ -1,0 +1,96 @@
+name: Release Test Idena
+
+on: [push, pull_request]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        go-version: [1.17.x]
+        os: ["ubuntu-24.04", "windows-2022", "macos-latest"]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Get Sources
+        uses: actions/checkout@v4
+
+      - name: Get tag
+        id: tag
+        uses: dawidd6/action-get-tag@v1
+
+      - name: Get asset name
+        id: asset
+        run: |
+          gitTag=${{ steps.tag.outputs.tag }}
+          tag=${gitTag:1}
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            asset_name="idena-node-linux-${tag}"
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            asset_name="idena-node-mac-${tag}"
+          else
+            asset_name="idena-node-win-${tag}.exe"
+          fi
+          echo "GIT_TAG=${tag}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
+
+      - name: Test
+        run: go test -v ./...
+
+      - name: Build
+        run: go build -ldflags "-X main.version=${{ env.GIT_TAG }}" -o=builds/${{ env.ASSET_NAME }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          files: builds/${{ env.ASSET_NAME }}
+
+  build-linux-aarch64:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get tag
+        id: tag
+        uses: dawidd6/action-get-tag@v1
+
+      - name: Get asset name
+        id: asset
+        run: |
+          gitTag=${{ steps.tag.outputs.tag }}
+          tag=${gitTag:1}
+          asset_name="idena-node-linux-aarch64-${tag}"
+          echo "GIT_TAG=${tag}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
+
+      - uses: wangyoucao577/go-release-action@v1.55
+        with:
+          pre_command: "apt-get update && apt-get -y install gcc-aarch64-linux-gnu && export CGO_ENABLED=1 && export CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-unknown-linux-gnu"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: 1.19
+          ldflags: "-X main.version=${{ env.GIT_TAG }}"
+          binary_name: "idena-node"
+          asset_name: ${{ env.ASSET_NAME }}
