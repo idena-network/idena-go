@@ -2,6 +2,10 @@ package database
 
 import (
 	"encoding/binary"
+	math2 "math"
+	"math/big"
+	"sort"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -9,9 +13,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	dbm "github.com/tendermint/tm-db"
-	math2 "math"
-	"math/big"
-	"sort"
 )
 
 const (
@@ -649,4 +650,14 @@ func (r *Repo) AddToBlackList(txHash common.Hash) {
 func (r *Repo) IsInBlackList(txHash common.Hash) bool {
 	has, _ := r.db.Has(blackListTxKey(txHash))
 	return has
+}
+
+// ClearBlackList removes all entries from the black list. Temporary helper; call manually when needed.
+func (r *Repo) ClearBlackList() {
+	it, err := r.db.Iterator(append(blackListedTxPrefix, common.MinHash[:]...), append(blackListedTxPrefix, common.MaxHash...))
+	assertNoError(err)
+	defer it.Close()
+	for ; it.Valid(); it.Next() {
+		r.db.Delete(it.Key())
+	}
 }

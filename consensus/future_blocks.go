@@ -1,12 +1,13 @@
 package consensus
 
 import (
+	"time"
+
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/protocol"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"time"
 )
 
 const (
@@ -75,7 +76,7 @@ func (d *nextBlockDetector) nextBlockExist(round uint64, emptyBlockHash common.H
 				return true
 			}
 		} else {
-			if _, err := d.chain.ValidateBlock(bundle.Block, nil, nil); err == nil {
+			if _, err := d.chain.ValidateBlock(bundle.Block, nil, nil, true); err == nil {
 				d.activeSeeking = nil
 				return true
 			}

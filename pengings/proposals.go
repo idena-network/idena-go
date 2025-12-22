@@ -2,7 +2,11 @@ package pengings
 
 import (
 	"bytes"
-	"github.com/deckarep/golang-set"
+	"math/big"
+	"sync"
+	"time"
+
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -16,9 +20,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
-	"math/big"
-	"sync"
-	"time"
 )
 
 const (
@@ -303,7 +304,7 @@ func (proposals *Proposals) GetProposedBlock(round uint64, proposerPubKey []byte
 				return true
 			})
 			if result != nil {
-				if _, err := proposals.chain.ValidateBlock(result, nil, nil); err != nil {
+				if _, err := proposals.chain.ValidateBlock(result, nil, nil, true); err != nil {
 					return nil, err
 				}
 				return result, nil

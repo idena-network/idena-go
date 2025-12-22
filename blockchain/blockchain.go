@@ -5,6 +5,13 @@ import (
 	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
+	math2 "math"
+	"math/big"
+	"math/rand"
+	"sort"
+	"strings"
+	"time"
+
 	mapset "github.com/deckarep/golang-set"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/attachments"
@@ -38,12 +45,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	dbm "github.com/tendermint/tm-db"
-	math2 "math"
-	"math/big"
-	"math/rand"
-	"sort"
-	"strings"
-	"time"
 )
 
 const (
@@ -158,6 +159,10 @@ func (chain *Blockchain) ProvideApplyNewEpochFunc(fn func(height uint64, appStat
 func (chain *Blockchain) GetHead() *types.Header {
 	head := chain.repo.ReadHead()
 	return head
+}
+
+func (chain *Blockchain) ClearBlackList() {
+	chain.repo.ClearBlackList()
 }
 
 func (chain *Blockchain) Network() types.Network {
@@ -433,7 +438,7 @@ func (chain *Blockchain) AddBlock(block *types.Block, checkState *appstate.AppSt
 	}
 	statsCollector.EnableCollecting()
 	defer statsCollector.CompleteCollecting()
-	if blockInsertionResult, err := chain.ValidateBlock(block, checkState, statsCollector); err != nil {
+	if blockInsertionResult, err := chain.ValidateBlock(block, checkState, statsCollector, false); err != nil {
 		return err
 	} else {
 		chain.appState.State.AddDiff(blockInsertionResult.stateDiff)
@@ -1355,7 +1360,7 @@ func sortAddresses(addresses mapset.Set) []common.Address {
 	return res
 }
 
-func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, tasks []task, usedGas uint64, err error) {
+func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecutionContext, isProposal bool) (totalFee *big.Int, totalTips *big.Int, receipts types.TxReceipts, tasks []task, usedGas uint64, err error) {
 	totalFee = new(big.Int)
 	totalTips = new(big.Int)
 	appState := context.appState
@@ -1367,9 +1372,27 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 	var gasLimitReached bool
 	for i := 0; i < len(txs); i++ {
 		tx := txs[i]
+
+		if isProposal {
+			if chain.repo.IsInBlackList(tx.Hash()) {
+				return nil, nil, nil, nil, 0, errors.New("block can't contain black listed tx")
+			}
+
+			if chain.repo.HasApplyingTxLog(tx.Hash()) {
+				chain.repo.AddToBlackList(tx.Hash())
+				chain.repo.FinishApplyingTx(tx.Hash())
+				return nil, nil, nil, nil, 0, errors.New("block can't contain black listed tx")
+			}
+		}
+
 		if err := validation.ValidateTx(appState, tx, minFeePerGas, validation.InBlockTx); err != nil {
 			return nil, nil, nil, nil, 0, err
 		}
+
+		if isProposal {
+			chain.repo.StartApplyingTx(tx.Hash())
+		}
+
 		txContext := &txExecutionContext{
 			appState:       appState,
 			vm:             vm,
@@ -1377,36 +1400,43 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 			height:         header.Height(),
 			statsCollector: context.statsCollector,
 		}
-		if usedFee, receipt, task, err := chain.applyTxOnState(tx, txContext); err != nil {
-			return nil, nil, nil, nil, 0, err
-		} else {
-			gas := uint64(fee.CalculateGas(tx))
-			if receipt != nil {
-				receipts = append(receipts, receipt)
-				gas += receipt.GasUsed
-				if receipt.Error != nil && strings.Contains(receipt.Error.Error(), SkipError) && !chain.config.Consensus.EnableUpgrade12 {
-					return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
-				}
+
+		usedFee, receipt, task, applyErr := chain.applyTxOnState(tx, txContext)
+		if isProposal {
+			chain.repo.FinishApplyingTx(tx.Hash())
+		}
+
+		if applyErr != nil {
+			return nil, nil, nil, nil, 0, applyErr
+		}
+
+		gas := uint64(fee.CalculateGas(tx))
+		if receipt != nil {
+			receipts = append(receipts, receipt)
+			gas += receipt.GasUsed
+			if receipt.Error != nil && strings.Contains(receipt.Error.Error(), SkipError) && !chain.config.Consensus.EnableUpgrade12 {
+				return nil, nil, nil, nil, 0, errors.New("block can't contain skipped tx")
 			}
-			collector.AddTxGas(context.statsCollector, tx, gas)
-			if !chain.config.Consensus.EnableUpgrade10 {
-				if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+		}
+
+		collector.AddTxGas(context.statsCollector, tx, gas)
+		if !chain.config.Consensus.EnableUpgrade10 {
+			if usedGas+gas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+				return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
+			}
+		}
+		usedGas += gas
+		totalFee.Add(totalFee, usedFee)
+		totalTips.Add(totalTips, tx.TipsOrZero())
+		if task != nil {
+			tasks = append(tasks, task)
+		}
+		if chain.config.Consensus.EnableUpgrade10 {
+			if usedGas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
+				if gasLimitReached {
 					return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
-				}
-			}
-			usedGas += gas
-			totalFee.Add(totalFee, usedFee)
-			totalTips.Add(totalTips, tx.TipsOrZero())
-			if task != nil {
-				tasks = append(tasks, task)
-			}
-			if chain.config.Consensus.EnableUpgrade10 {
-				if usedGas > types.MaxBlockSize(chain.config.Consensus.EnableUpgrade11) {
-					if gasLimitReached {
-						return nil, nil, nil, nil, 0, errors.New("block exceeds gas limit")
-					} else {
-						gasLimitReached = true
-					}
+				} else {
+					gasLimitReached = true
 				}
 			}
 		}
@@ -1982,10 +2012,11 @@ func (chain *Blockchain) GetProposerSortition() (bool, []byte) {
 
 func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 	head := chain.Head
+	prevBlockTime := time.Unix(head.Time(), 0)
+	// if previous block is older than 1 minute, skip contract transactions when building a block
+	skipContractTxs := time.Now().UTC().Sub(prevBlockTime) > time.Minute
+	txs := chain.txpool.BuildBlockTransactions(skipContractTxs)
 
-	txs := chain.txpool.BuildBlockTransactions()
-
-	prevBlockTime := time.Unix(chain.Head.Time(), 0)
 	newBlockTime := prevBlockTime.Add(MinBlockDelay).Unix()
 	if localTime := time.Now().UTC().Unix(); localTime > newBlockTime {
 		newBlockTime = localTime
@@ -2174,7 +2205,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 		}
 		context := &txExecutionContext{appState: appState, vm: vm, height: header.Height}
 
-		if err := chain.tryExecuteTx(tx, context); err != nil && strings.Contains(err.Error(), SkipError) {
+		if err := chain.tryExecuteTx(tx, context); err != nil && (strings.Contains(err.Error(), SkipError) || strings.Contains(err.Error(), "Out of gas")) {
 			chain.repo.AddToBlackList(tx.Hash())
 			chain.repo.FinishApplyingTx(tx.Hash())
 			continue
@@ -2300,8 +2331,7 @@ func (chain *Blockchain) getSortition(data []byte, threshold float64, modifier i
 	}
 	return false, nil
 }
-
-func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header, statsCollector collector.StatsCollector) (*blockInsertionResult, error) {
+func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *types.Block, prevBlock *types.Header, statsCollector collector.StatsCollector, isProposal bool) (*blockInsertionResult, error) {
 
 	if block.IsEmpty() {
 		emptyBlock, blockInsertionRes := chain.generateEmptyBlock(checkState, prevBlock, statsCollector)
@@ -2344,7 +2374,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	}
 	var tasks []task
 
-	if totalFee, totalTips, receipts, tasks, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext); err != nil {
+	if totalFee, totalTips, receipts, tasks, usedGas, err = chain.processTxs(block.Body.Transactions, txsContext, isProposal); err != nil {
 		return nil, err
 	}
 
@@ -2453,7 +2483,7 @@ func (chain *Blockchain) ValidateBlockCert(prevBlock *types.Header, block *types
 	return nil
 }
 
-func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState, statsCollector collector.StatsCollector) (*blockInsertionResult, error) {
+func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.AppState, statsCollector collector.StatsCollector, isProposal bool) (*blockInsertionResult, error) {
 	if checkState == nil {
 		var err error
 		checkState, err = chain.appState.ForCheck(chain.Head.Height())
@@ -2461,7 +2491,7 @@ func (chain *Blockchain) ValidateBlock(block *types.Block, checkState *appstate.
 			return nil, err
 		}
 	}
-	return chain.validateBlock(checkState, block, chain.Head, statsCollector)
+	return chain.validateBlock(checkState, block, chain.Head, statsCollector, isProposal)
 }
 
 func validateBlockParentHash(block *types.Header, prevBlock *types.Header) error {
@@ -2686,7 +2716,7 @@ func (chain *Blockchain) ValidateSubChain(startHeight uint64, blocks []types.Blo
 	prevBlock := chain.GetBlockHeaderByHeight(startHeight)
 
 	for _, b := range blocks {
-		if _, err := chain.validateBlock(checkState, b.Block, prevBlock, nil); err != nil {
+		if _, err := chain.validateBlock(checkState, b.Block, prevBlock, nil, false); err != nil {
 			return err
 		}
 		if b.Block.Header.Flags().HasFlag(types.IdentityUpdate) {

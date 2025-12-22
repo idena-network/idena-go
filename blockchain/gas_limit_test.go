@@ -1,6 +1,10 @@
 package blockchain
 
 import (
+	"math/big"
+	"testing"
+	"time"
+
 	"github.com/google/tink/go/subtle/random"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -12,8 +16,6 @@ import (
 	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 func Test_blockGasLimit(t *testing.T) {
@@ -105,7 +107,12 @@ func Test_blockGasLimit(t *testing.T) {
 			require.NoError(t, chain.txpool.AddInternalTx(tx))
 		}
 
-		require.Len(t, chain.txpool.BuildBlockTransactions(), 18)
+		// ensure head time is fresh so skipContractTxs is evaluated correctly
+		if chain.Head != nil && chain.Head.ProposedHeader != nil {
+			chain.Head.ProposedHeader.Time = time.Now().UTC().Unix()
+		}
+
+		require.Len(t, chain.txpool.BuildBlockTransactions(false), 18)
 
 		chain.GenerateBlocks(1, 0)
 

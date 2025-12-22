@@ -2,6 +2,10 @@ package mempool
 
 import (
 	"crypto/ecdsa"
+	"math/big"
+	"testing"
+	"time"
+
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -14,10 +18,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tm-db"
-	"math/big"
-	"testing"
-	"time"
+	db "github.com/tendermint/tm-db"
 )
 
 func TestTxPool_addDeferredTx(t *testing.T) {
@@ -151,7 +152,7 @@ func TestTxPool_ResetTo(t *testing.T) {
 	assertTxs()
 	for height := 2; height <= 13; height++ {
 
-		builtTxs := pool.BuildBlockTransactions()
+		builtTxs := pool.BuildBlockTransactions(false)
 		require.True(t, len(builtTxs) > 0)
 		for _, tx := range builtTxs {
 			sender, _ := types.Sender(tx)

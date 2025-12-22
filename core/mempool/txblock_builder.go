@@ -1,12 +1,13 @@
 package mempool
 
 import (
+	"math/big"
+
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/core/appstate"
-	"math/big"
 )
 
 type buildingContext struct {
@@ -19,6 +20,8 @@ type buildingContext struct {
 	blockTxs           []*types.Transaction
 	blockGas           int
 	maxBlockGas        uint64
+	// when true, contract-related txs (deploy/call/terminate) are skipped
+	skipContractTxs bool
 }
 
 func newBuildingContext(
@@ -28,6 +31,7 @@ func newBuildingContext(
 	sortedTxsPerSender map[common.Address][]*types.Transaction,
 	curNoncesPerSender map[common.Address]uint32,
 	maxBlockGas uint64,
+	skipContractTxs bool,
 ) *buildingContext {
 
 	ctx := &buildingContext{
@@ -38,6 +42,7 @@ func newBuildingContext(
 		curNoncesPerSender: curNoncesPerSender,
 		minFeePerGas:       appState.State.FeePerGas(),
 		maxBlockGas:        maxBlockGas,
+		skipContractTxs:    skipContractTxs,
 	}
 	return ctx
 }
@@ -45,6 +50,15 @@ func newBuildingContext(
 func (ctx *buildingContext) addPriorityTxsToBlock() {
 	for len(ctx.sortedPriorityTxs) > 0 {
 		ctx.addNextPriorityTxToBlock()
+	}
+}
+
+func isContractTx(tx *types.Transaction) bool {
+	switch tx.Type {
+	case types.DeployContractTx, types.CallContractTx, types.TerminateContractTx:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -60,9 +74,15 @@ func (ctx *buildingContext) addNextPriorityTxToBlock() {
 	var txsToAdd []*types.Transaction
 	gasToAdd := 0
 	for !isPriorityTxReached {
+		if i >= len(senderSortedTxs) {
+			break
+		}
 		tx := senderSortedTxs[i]
 		if currentNonce+1 != tx.AccountNonce {
 			break
+		}
+		if ctx.skipContractTxs && isContractTx(tx) {
+			return
 		}
 		if !ctx.checkFee(tx) {
 			break
@@ -95,6 +115,9 @@ func (ctx *buildingContext) addTxsToBlock() {
 		}
 		sender, _ := types.Sender(tx)
 		if ctx.curNoncesPerSender[sender]+1 != tx.AccountNonce {
+			continue
+		}
+		if ctx.skipContractTxs && isContractTx(tx) {
 			continue
 		}
 		if uint64(ctx.blockGas+fee.CalculateGas(tx)) > ctx.maxBlockGas {

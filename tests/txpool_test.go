@@ -2,6 +2,10 @@ package tests
 
 import (
 	"crypto/ecdsa"
+	"math/big"
+	"testing"
+	"time"
+
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -12,9 +16,6 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
-	"time"
 )
 
 func TestTxPool_BuildBlockTransactions(t *testing.T) {
@@ -40,7 +41,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	require.NoError(t, pool.AddInternalTx(GetTx(6, 0, key2)))
 	require.NoError(t, pool.AddInternalTx(GetTx(5, 0, key2)))
 
-	result := pool.BuildBlockTransactions()
+	result := pool.BuildBlockTransactions(false)
 
 	require.Equal(t, 2, len(result))
 
@@ -57,8 +58,7 @@ func TestTxPool_BuildBlockTransactions(t *testing.T) {
 	pool.AddInternalTx(GetTx(6, 1, key2))
 	pool.AddInternalTx(GetTx(5, 1, key2))
 	pool.AddInternalTx(GetTx(1, 1, key2))
-
-	result = pool.BuildBlockTransactions()
+	result = pool.BuildBlockTransactions(false)
 
 	require.Equal(t, 1, len(result))
 	require.Equal(t, uint16(1), result[0].Epoch)
@@ -92,7 +92,7 @@ func TestTxPool_BuildBlockTransactions2(t *testing.T) {
 		require.NoError(t, pool.AddInternalTx(GetFullTx(1, 0, key, types.SubmitShortAnswersTx, big.NewInt(0), nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 	}
 
-	result := pool.BuildBlockTransactions()
+	result := pool.BuildBlockTransactions(false)
 	require.Equal(t, 2000, len(result))
 }
 
@@ -368,7 +368,7 @@ func TestTxPool_BuildBlockTransactionsWithPriorityTypes(t *testing.T) {
 	require.NoError(pool.AddInternalTx(GetFullTx(6, 1, keys[addressIndex], types.SubmitShortAnswersTx, nil, nil, attachments.CreateShortAnswerAttachment(nil, 100, 1))))
 
 	// when
-	result := pool.BuildBlockTransactions()
+	result := pool.BuildBlockTransactions(false)
 
 	// then
 	require.Equal(2872, len(result))

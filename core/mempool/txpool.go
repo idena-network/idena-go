@@ -2,7 +2,11 @@ package mempool
 
 import (
 	"fmt"
-	"github.com/deckarep/golang-set"
+	"sort"
+	"sync"
+	"time"
+
+	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -16,9 +20,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
-	"sort"
-	"sync"
-	"time"
 )
 
 const (
@@ -509,8 +510,8 @@ func (pool *TxPool) GetTx(hash common.Hash) *types.Transaction {
 	return nil
 }
 
-func (pool *TxPool) BuildBlockTransactions() []*types.Transaction {
-	ctx := pool.createBuildingContext()
+func (pool *TxPool) BuildBlockTransactions(skipContractTxs bool) []*types.Transaction {
+	ctx := pool.createBuildingContext(skipContractTxs)
 	ctx.addPriorityTxsToBlock()
 	ctx.addTxsToBlock()
 	return ctx.blockTxs
@@ -683,7 +684,7 @@ func (pool *TxPool) ResetTo(block *types.Block) {
 	}
 }
 
-func (pool *TxPool) createBuildingContext() *buildingContext {
+func (pool *TxPool) createBuildingContext(skipContractTxs bool) *buildingContext {
 	curNoncesPerSender := make(map[common.Address]uint32)
 	var txs []*types.Transaction
 	pool.mutex.Lock()
@@ -722,7 +723,7 @@ func (pool *TxPool) createBuildingContext() *buildingContext {
 		}
 	}
 
-	return newBuildingContext(pool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender, types.MaxBlockSize(pool.cfg.Consensus.EnableUpgrade11))
+	return newBuildingContext(pool.appState, txs, priorityTxs, sortedTxsPerSender, curNoncesPerSender, types.MaxBlockSize(pool.cfg.Consensus.EnableUpgrade11), skipContractTxs)
 }
 
 func (pool *TxPool) StartSync() {
