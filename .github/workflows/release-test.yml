@@ -30,15 +30,10 @@ jobs:
       - name: Get Sources
         uses: actions/checkout@v4
 
-      - name: Get tag
-        id: tag
-        uses: dawidd6/action-get-tag@v1
-
       - name: Get asset name
         id: asset
         run: |
-          gitTag=${{ steps.tag.outputs.tag }}
-          tag=${gitTag:1}
+          tag=rc
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             asset_name="idena-node-linux-${tag}"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
@@ -71,15 +66,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get tag
-        id: tag
-        uses: dawidd6/action-get-tag@v1
-
       - name: Get asset name
         id: asset
         run: |
-          gitTag=${{ steps.tag.outputs.tag }}
-          tag=${gitTag:1}
+          tag=rc
           asset_name="idena-node-linux-aarch64-${tag}"
           echo "GIT_TAG=${tag}" >> $GITHUB_ENV
           echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
