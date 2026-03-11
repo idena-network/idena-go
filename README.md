@@ -2,7 +2,8 @@
 
 Golang implementation of the Idena network node
 
-[![Build Status](https://travis-ci.com/idena-network/idena-go.svg?branch=master)](https://travis-ci.com/idena-network/idena-go)
+[![Github Release](https://img.shields.io/github/v/release/idena-network/idena-go.svg)](https://github.com/idena-network/idena-go/releases)
+[![Build Idena](https://github.com/idena-network/idena-go/actions/workflows/main.yml/badge.svg)](https://github.com/idena-network/idena-go/actions/workflows/main.yml)
 
 ## Building the source
 
