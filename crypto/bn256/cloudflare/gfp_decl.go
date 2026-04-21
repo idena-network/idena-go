@@ -1,4 +1,5 @@
-// +build amd64,!generic arm64,!generic
+//go:build (amd64 && !generic) || (arm64 && !darwin && !generic)
+// +build amd64,!generic arm64,!darwin,!generic
 
 package bn256
 

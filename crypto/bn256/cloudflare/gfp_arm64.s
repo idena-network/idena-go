@@ -1,4 +1,5 @@
-// +build arm64,!generic
+//go:build arm64 && !darwin && !generic
+// +build arm64,!darwin,!generic
 
 #define storeBlock(a0,a1,a2,a3, r) \
 	MOVD a0,  0+r \

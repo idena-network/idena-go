@@ -1,5 +1,7 @@
 module github.com/idena-network/idena-go
 
+replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260421142258-aebb58414c98
+
 require (
 	github.com/RoaringBitmap/roaring v0.9.4
 	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7

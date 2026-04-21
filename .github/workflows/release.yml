@@ -13,8 +13,13 @@ jobs:
   build:
     strategy:
       matrix:
-        go-version: [1.17.x]
-        os: ["ubuntu-24.04", "windows-latest", "macos-latest"]
+        include:
+          - go-version: 1.17.x
+            os: ubuntu-24.04
+          - go-version: 1.17.x
+            os: windows-latest
+          - go-version: 1.19.x
+            os: macos-15
     runs-on: ${{ matrix.os }}
 
     steps:
