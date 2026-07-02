@@ -19,11 +19,13 @@ import (
 )
 
 const (
-	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
-	apiKeyFileName    = "api.key"
-	LowPowerProfile   = "lowpower"
-	SharedNodeProfile = "shared"
-	DefaultProfile    = "default"
+	datadirPrivateKey         = "nodekey" // Path within the datadir to the node's private key
+	apiKeyFileName            = "api.key"
+	LowPowerProfile           = "lowpower"
+	SharedNodeProfile         = "shared"
+	DefaultProfile            = "default"
+	AllowUnsafeIpfsRoutingEnv = "IDENA_ALLOW_UNSAFE_IPFS_ROUTING"
+	ipfsUnsafeRoutingEnabled  = "1"
 )
 
 type Config struct {
@@ -175,6 +177,9 @@ func MakeMobileConfig(path string, cfg string) (*Config, error) {
 		log.Info("using default config")
 	}
 
+	if err := validateConfig(conf); err != nil {
+		return nil, err
+	}
 	return conf, nil
 }
 
@@ -188,6 +193,9 @@ func MakeConfig(ctx *cli.Context, cfgTransform func(cfg *Config)) (*Config, erro
 	}
 	cfgTransform(cfg)
 	applyFlags(ctx, cfg)
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -213,7 +221,7 @@ func applyProfile(ctx *cli.Context, cfg *Config) {
 		cfg.IpfsConf.ReproviderInterval = "12h"
 	}
 	if cfg.IpfsConf.Routing == "" {
-		cfg.IpfsConf.Routing = "dht"
+		cfg.IpfsConf.Routing = DefaultIpfsRouting
 	}
 }
 
@@ -337,9 +345,37 @@ func applyIpfsFlags(ctx *cli.Context, cfg *Config) {
 	if ctx.IsSet(IpfsPortStaticFlag.Name) {
 		cfg.IpfsConf.StaticPort = ctx.Bool(IpfsPortStaticFlag.Name)
 	}
+	if ctx.IsSet(IpfsRoutingFlag.Name) {
+		cfg.IpfsConf.Routing = ctx.String(IpfsRoutingFlag.Name)
+	}
 	if ctx.IsSet(IpfsBootNodeFlag.Name) {
 		cfg.IpfsConf.BootNodes = []string{ctx.String(IpfsBootNodeFlag.Name)}
 	}
+}
+
+func validateConfig(cfg *Config) error {
+	if cfg.IpfsConf == nil {
+		return nil
+	}
+	return validateIpfsRouting(cfg.IpfsConf.Routing)
+}
+
+func validateIpfsRouting(routing string) error {
+	switch routing {
+	case "", IpfsRoutingAutoClient, IpfsRoutingDelegated, IpfsRoutingDhtClient, IpfsRoutingNone:
+		return nil
+	case IpfsRoutingAuto, IpfsRoutingCustom, IpfsRoutingDht, IpfsRoutingDhtServer:
+		if allowUnsafeIpfsRouting() {
+			return nil
+		}
+		return errors.Errorf("IPFS routing mode %q is unsafe or ambiguous and disabled by default; set %s=%s to enable it intentionally", routing, AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
+	default:
+		return errors.Errorf("invalid IPFS routing mode %q; allowed values: autoclient, delegated, dhtclient, none; auto, custom, dht, and dhtserver require %s=%s", routing, AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
+	}
+}
+
+func allowUnsafeIpfsRouting() bool {
+	return strings.TrimSpace(os.Getenv(AllowUnsafeIpfsRoutingEnv)) == ipfsUnsafeRoutingEnabled
 }
 
 func applyValidationFlags(ctx *cli.Context, cfg *Config) {

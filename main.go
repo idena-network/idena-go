@@ -37,6 +37,7 @@ func main() {
 		config.AutomineFlag,
 		config.IpfsBootNodeFlag,
 		config.IpfsPortFlag,
+		config.IpfsRoutingFlag,
 		config.NoDiscoveryFlag,
 		config.VerbosityFlag,
 		config.GodAddressFlag,

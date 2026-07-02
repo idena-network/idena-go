@@ -33,6 +33,7 @@ func GetDefaultIpfsConfig() *IpfsConfig {
 		BlockPinThreshold: 0.3,
 		FlipPinThreshold:  0.5,
 		Profile:           "server",
+		Routing:           DefaultIpfsRouting,
 		Gc: IpfsGcConfig{
 			Enabled:                  true,
 			Interval:                 time.Hour * 24,
