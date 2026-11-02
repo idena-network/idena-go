@@ -67,7 +67,7 @@ introduce a new chain or consensus version.
 
 ## Building the source
 
-Building `idena-go` requires Go 1.26.8 and a C compiler. `idena-go` uses Go modules as a dependency manager.
+Building `idena-go` requires Go 1.27.3 and a C compiler. `idena-go` uses Go modules as a dependency manager.
 Once the dependencies are installed, run
 
 ```shell

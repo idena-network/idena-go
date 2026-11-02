@@ -2,7 +2,7 @@
 set -euo pipefail
 
 IDENA_GO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GO_TOOLCHAIN="${IDENA_GO_GOTOOLCHAIN:-go1.26.10}"
+GO_TOOLCHAIN="${IDENA_GO_GOTOOLCHAIN:-go1.27.3}"
 
 if ! command -v go >/dev/null 2>&1; then
   echo "Go toolchain is missing." >&2

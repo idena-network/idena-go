@@ -1,6 +1,7 @@
 module github.com/idena-network/idena-go
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/aristanetworks/goarista v0.0.0-20251201112602-a373d7c9f0d9
 	github.com/awnumar/memguard v0.23.0
@@ -12,9 +13,12 @@ require (
 	github.com/go-stack/stack v1.8.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/tink/go v1.7.0
+	github.com/idena-network/idena-wasm-binding v0.0.0-20260703133323-47b198d9b194
+	github.com/ipfs/boxo v0.41.0
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipfs/kubo v0.42.0
 	github.com/klauspost/compress v1.19.0
+	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-libp2p-pubsub v0.17.0
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/libp2p/go-yamux v1.4.1
@@ -33,18 +37,11 @@ require (
 	github.com/urfave/cli v1.22.17
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.60.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.62.0
+	golang.org/x/sys v0.49.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
-)
-
-require (
-	github.com/Microsoft/go-winio v0.6.2
-	github.com/idena-network/idena-wasm-binding v0.0.0-20260703133323-47b198d9b194
-	github.com/ipfs/boxo v0.41.0
-	github.com/libp2p/go-libp2p v0.48.0
 )
 
 require (
@@ -74,7 +71,7 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/pebble/v2 v2.1.5 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
-	github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b // indirect
+	github.com/cockroachdb/swiss v0.0.0-20260820225851-333444432258 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/confio/ics23/go v0.6.6 // indirect
 	github.com/cosmos/gorocksdb v1.2.0 // indirect
@@ -254,11 +251,11 @@ require (
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	golang.org/x/vuln v1.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
@@ -272,7 +269,7 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202112
 
 replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260923235352-01ccca5cc3c9
 
-go 1.26.10
+go 1.27.3
 
 tool golang.org/x/vuln/cmd/govulncheck
 
